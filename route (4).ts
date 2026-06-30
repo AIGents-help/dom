@@ -1,0 +1,1 @@
+export default async function Leads(){return <main className="px-5 pb-24 pt-32"><div className="mx-auto max-w-7xl"><h1 className="text-5xl font-black">Leads</h1><p className="mt-4 text-white/60">After Supabase env setup, mission requests will appear from the leads table.</p><div className="glass mt-8 rounded-3xl p-6">API: /api/admin/leads</div></div></main>}

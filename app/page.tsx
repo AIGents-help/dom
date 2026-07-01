@@ -40,6 +40,12 @@ export default function HomePage() {
         {/* ═══ HERO ═══ */}
         <header className="relative overflow-hidden" style={{ borderBottom: "1px solid var(--line-soft)" }}>
           {/* Background layers */}
+          <img
+            src="/images/hero-aerial.jpg"
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover opacity-20"
+          />
           <div className="absolute inset-0" style={{
             background: "radial-gradient(120% 80% at 78% -10%, rgba(255,138,61,.10), transparent 55%), radial-gradient(90% 70% at 12% 8%, rgba(79,209,197,.07), transparent 50%), linear-gradient(180deg,#0c1119 0%, #0A0E14 70%)"
           }} />

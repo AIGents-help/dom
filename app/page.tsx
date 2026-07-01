@@ -142,13 +142,13 @@ export default function HomePage() {
             <div className="grid md:grid-cols-3 gap-4 mt-12">
               {[
                 ["▦", "Mapping & Surveying", "Orthomosaics, 3D models, and topographic survey data with measurable accuracy."],
-                ["⊡", "Infrastructure Inspection", "High-resolution capture of towers, rooftops, bridges, and pipelines — with findings reports."],
+                ["⊡", "Infrastructure Inspection", "High-resolution capture of towers, rooftops, bridges, and pipelines — with findings reports.", "/images/construction-aerial.jpg"],
                 ["◍", "Data & Analytics", "Processed deliverables: GIS layers, point clouds, volumetrics, and annotated reports."],
                 ["▲", "Aerial Capture", "Cinema-grade aerial media for commercial, marketing, and stakeholder communication."],
-                ["◈", "Thermal & Multispectral", "Radiometric thermal and multispectral imaging for energy, ag, and building envelope work."],
+                ["◈", "Thermal & Multispectral", "Radiometric thermal and multispectral imaging for energy, ag, and building envelope work.", "/images/solar-aerial.jpg"],
                 ["▣", "Mission Documentation", "Complete flight logs, compliance records, and reporting on every job — by default."],
-              ].map(([ic, t, d]) => (
-                <Card key={t} icon={ic} title={t} desc={d} />
+              ].map(([ic, t, d, img]) => (
+                <Card key={t} icon={ic} title={t} desc={d} image={img} />
               ))}
             </div>
           </div>
@@ -160,14 +160,14 @@ export default function HomePage() {
             <SectionHead anno="Industries Served" title="Built for teams operating critical assets." />
             <div className="grid md:grid-cols-3 gap-4 mt-12">
               {[
-                ["⚡", "Energy & Utilities", "Transmission lines, solar arrays, and wind asset inspection."],
-                ["▢", "Construction", "Site progress mapping, volumetrics, and stakeholder reporting."],
+                ["⚡", "Energy & Utilities", "Transmission lines, solar arrays, and wind asset inspection.", "/images/solar-aerial.jpg"],
+                ["▢", "Construction", "Site progress mapping, volumetrics, and stakeholder reporting.", "/images/construction-aerial.jpg"],
                 ["⌂", "Roofing & Restoration", "Fast, safe roof condition inspections for contractors and insurance work."],
                 ["◇", "Infrastructure", "Bridge, tower, and structural assessment without scaffolding or shutdowns."],
                 ["✦", "Agriculture", "Multispectral crop health and irrigation analysis at field scale."],
                 ["⬡", "Public Sector", "Compliant operations structured for municipal and government requirements."],
-              ].map(([ic, t, d]) => (
-                <Card key={t} icon={ic} title={t} desc={d} />
+              ].map(([ic, t, d, img]) => (
+                <Card key={t} icon={ic} title={t} desc={d} image={img} />
               ))}
             </div>
           </div>
@@ -339,14 +339,22 @@ function SectionHead({ anno, title, lead }: { anno: string; title: string; lead?
   );
 }
 
-function Card({ icon, title, desc }: { icon: string; title: string; desc: string }) {
+function Card({ icon, title, desc, image }: { icon: string; title: string; desc: string; image?: string }) {
   return (
-    <div className="p-6 rounded-[14px] transition-all hover:-translate-y-0.5" style={{ border: "1px solid var(--line)", background: "var(--surface)" }}>
-      <div className="w-10 h-10 rounded-[10px] grid place-items-center text-[19px]" style={{ background: "rgba(255,138,61,.1)", color: "var(--signal)", border: "1px solid rgba(255,138,61,.22)" }}>
-        {icon}
+    <div className="rounded-[14px] overflow-hidden transition-all hover:-translate-y-0.5" style={{ border: "1px solid var(--line)", background: "var(--surface)" }}>
+      {image && (
+        <div className="relative h-36 w-full">
+          <img src={image} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,14,20,.15) 0%, var(--surface) 96%)" }} />
+        </div>
+      )}
+      <div className="p-6">
+        <div className="w-10 h-10 rounded-[10px] grid place-items-center text-[19px]" style={{ background: "rgba(255,138,61,.1)", color: "var(--signal)", border: "1px solid rgba(255,138,61,.22)" }}>
+          {icon}
+        </div>
+        <h3 className="font-saira font-semibold text-[18px] mt-4">{title}</h3>
+        <p className="text-sm mt-2" style={{ color: "var(--ink-dim)" }}>{desc}</p>
       </div>
-      <h3 className="font-saira font-semibold text-[18px] mt-4">{title}</h3>
-      <p className="text-sm mt-2" style={{ color: "var(--ink-dim)" }}>{desc}</p>
     </div>
   );
 }

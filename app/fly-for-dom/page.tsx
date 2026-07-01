@@ -1,0 +1,101 @@
+"use client";
+
+import { useState } from "react";
+
+// Public pilot-recruiting page: /fly-for-dom
+// A Part 107 pilot applies, then is sent straight into Stripe Express onboarding
+// so their payout account is set up from the start. DOM still vets + verifies
+// (Part 107 / insurance) before they can be assigned paid work.
+export default function FlyForDomPage() {
+  const [form, setForm] = useState({
+    full_name: "",
+    email: "",
+    phone: "",
+    part107_number: "",
+    service_area: "",
+    equipment: "",
+  });
+  const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
+  const [error, setError] = useState<string | null>(null);
+
+  function set(k: string, v: string) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function submit() {
+    setStatus("submitting");
+    setError(null);
+    try {
+      // 1) create the contractor record
+      const applyRes = await fetch("/api/contractors/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const apply = await applyRes.json();
+      if (!applyRes.ok) throw new Error(apply.error ?? "Application failed.");
+
+      // 2) launch Stripe Express onboarding for payouts
+      const onbRes = await fetch("/api/connect/onboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contractorId: apply.contractorId }),
+      });
+      const onb = await onbRes.json();
+      if (!onbRes.ok) throw new Error(onb.error ?? "Could not start payout setup.");
+
+      window.location.href = onb.url; // Stripe-hosted onboarding
+    } catch (e: any) {
+      setStatus("error");
+      setError(e.message);
+    }
+  }
+
+  return (
+    <div style={wrap}>
+      <div style={card}>
+        <p style={eyebrow}>◆ Fly for DOM</p>
+        <h1 style={h1}>Get paid to fly missions to a standard.</h1>
+        <p style={sub}>
+          DOM brings the clients, the airspace prep, and the documentation system. You bring a
+          Part 107 certificate, your aircraft, and the discipline to fly to spec. Apply below,
+          set up payouts, and we'll be in touch to verify your credentials.
+        </p>
+
+        <Field label="Full name" v={form.full_name} on={(v) => set("full_name", v)} />
+        <Field label="Email" v={form.email} on={(v) => set("email", v)} type="email" />
+        <Field label="Phone" v={form.phone} on={(v) => set("phone", v)} />
+        <Field label="Part 107 certificate #" v={form.part107_number} on={(v) => set("part107_number", v)} />
+        <Field label="Service area (city / radius)" v={form.service_area} on={(v) => set("service_area", v)} />
+        <Field label="Aircraft & sensors you own" v={form.equipment} on={(v) => set("equipment", v)} />
+
+        {error && <p style={{ color: "#FF8A3D", fontSize: 13, marginTop: 12 }}>{error}</p>}
+
+        <button onClick={submit} disabled={status === "submitting"} style={btn}>
+          {status === "submitting" ? "Setting up…" : "Apply & set up payouts →"}
+        </button>
+        <p style={{ color: "#5A6678", fontSize: 12, marginTop: 14 }}>
+          Payout setup is handled securely by Stripe. DOM verifies Part 107 and insurance
+          before any paid assignment.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Field({ label, v, on, type = "text" }: { label: string; v: string; on: (v: string) => void; type?: string }) {
+  return (
+    <div style={{ marginTop: 14 }}>
+      <label style={{ fontSize: 12, color: "#8A95A7" }}>{label}</label>
+      <input type={type} value={v} onChange={(e) => on(e.target.value)} style={input} />
+    </div>
+  );
+}
+
+const wrap: React.CSSProperties = { minHeight: "100vh", display: "grid", placeItems: "center", background: "#0A0E14", padding: 24 };
+const card: React.CSSProperties = { width: "100%", maxWidth: 460, padding: 34, border: "1px solid #232C3B", borderRadius: 16, background: "#11161F", color: "#E8ECF2", fontFamily: "Inter, system-ui, sans-serif" };
+const eyebrow: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 12, letterSpacing: ".18em", textTransform: "uppercase", color: "#FF8A3D" };
+const h1: React.CSSProperties = { fontFamily: "Saira, sans-serif", fontSize: 26, marginTop: 10, lineHeight: 1.1 };
+const sub: React.CSSProperties = { color: "#8A95A7", fontSize: 14, marginTop: 12, marginBottom: 8 };
+const input: React.CSSProperties = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 9, border: "1px solid #232C3B", background: "#0A0E14", color: "#E8ECF2", fontSize: 14, outline: "none" };
+const btn: React.CSSProperties = { width: "100%", marginTop: 22, padding: 13, borderRadius: 10, border: "none", background: "#FF8A3D", color: "#0A0E14", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };

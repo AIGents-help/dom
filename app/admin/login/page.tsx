@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabaseBrowser } from "@/lib/supabaseBrowser";
+import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 // Real admin login — replaces the placeholder /api/admin/login the README flagged.
 // Auth is handled by Supabase Auth (email + password). Access is gated by the
@@ -18,6 +18,7 @@ export default function AdminLoginPage() {
     setError(null);
     setLoading(true);
     try {
+      const supabaseBrowser = getSupabaseBrowser();
       const { data, error: signInError } = await supabaseBrowser.auth.signInWithPassword({
         email,
         password,

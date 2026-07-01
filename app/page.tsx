@@ -41,7 +41,7 @@ export default function HomePage() {
         <header className="relative overflow-hidden" style={{ borderBottom: "1px solid var(--line-soft)" }}>
           {/* Background layers */}
           <img
-            src="/images/hero-aerial.jpg"
+            src="/images/city-night-aerial.jpg"
             alt=""
             aria-hidden="true"
             className="absolute inset-0 w-full h-full object-cover opacity-20"

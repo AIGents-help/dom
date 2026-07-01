@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { stripe, commissionCents } from "@/lib/stripe";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getStripe, commissionCents } from "@/lib/stripe";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 // POST /api/checkout  { assignmentId: string }
 // Charges the client the full mission price; routes the contractor's share to their
@@ -8,6 +8,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 // DOM is merchant of record.
 export async function POST(req: NextRequest) {
   try {
+    const stripe = getStripe();
+    const supabaseAdmin = getSupabaseAdmin();
     const { assignmentId } = await req.json();
 
     // Pull the assignment + the contractor's payout account in one go.

@@ -1,79 +1,124 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Loader2 } from "lucide-react";
+import { supabaseBrowser } from "@/lib/supabaseBrowser";
 
+// Real admin login — replaces the placeholder /api/admin/login the README flagged.
+// Auth is handled by Supabase Auth (email + password). Access is gated by the
+// admin_users allowlist, so only authorized emails get past the login screen.
 export default function AdminLoginPage() {
   const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  async function handleLogin() {
+    setError(null);
     setLoading(true);
-    setError("");
-
-    const formData = new FormData(e.currentTarget);
-    const email = formData.get("email");
-    const password = formData.get("password");
-
     try {
-      const res = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+      const { data, error: signInError } = await supabaseBrowser.auth.signInWithPassword({
+        email,
+        password,
       });
+      if (signInError || !data.user) {
+        throw new Error("Invalid email or password.");
+      }
 
-      const data = await res.json();
+      // Allowlist check: is this user actually an admin?
+      const { data: allow } = await supabaseBrowser
+        .from("admin_users")
+        .select("email")
+        .eq("email", data.user.email)
+        .maybeSingle();
 
-      if (!res.ok) {
-        setError(data.error || "Invalid credentials.");
-        setLoading(false);
-        return;
+      if (!allow) {
+        await supabaseBrowser.auth.signOut();
+        throw new Error("This account is not authorized for the admin console.");
       }
 
       router.push("/admin/dashboard");
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (e: any) {
+      setError(e.message ?? "Login failed.");
+    } finally {
       setLoading(false);
     }
   }
 
   return (
-    <section className="flex min-h-[80vh] items-center justify-center bg-grid-fade">
-      <div className="card w-full max-w-md p-10">
-        <div className="mb-8 flex flex-col items-center text-center">
-          <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-accent/10">
-            <Lock className="h-6 w-6 text-accent" />
-          </div>
-          <h1 className="text-xl font-bold text-white">Admin Login</h1>
-          <p className="mt-1 text-sm text-slate-400">
-            Drone Operation Management Operations Console
-          </p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="label" htmlFor="email">Email</label>
-            <input className="input" id="email" name="email" type="email" required placeholder="admin@droneopsman.com" />
-          </div>
-          <div>
-            <label className="label" htmlFor="password">Password</label>
-            <input className="input" id="password" name="password" type="password" required placeholder="••••••••" />
-          </div>
-
-          {error && <p className="text-sm text-red-400">{error}</p>}
-
-          <button type="submit" disabled={loading} className="btn-primary w-full">
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-xs text-slate-500">
-          Production note: connect Supabase Auth for secure, role-based admin access.
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#0A0E14" }}>
+      <div
+        style={{
+          width: 360,
+          padding: 32,
+          border: "1px solid #232C3B",
+          borderRadius: 14,
+          background: "#11161F",
+          color: "#E8ECF2",
+          fontFamily: "Inter, system-ui, sans-serif",
+        }}
+      >
+        <h1 style={{ fontFamily: "Saira, sans-serif", fontSize: 22, marginBottom: 4 }}>
+          DOM Admin
+        </h1>
+        <p style={{ color: "#8A95A7", fontSize: 13, marginBottom: 22 }}>
+          Operations console — authorized access only.
         </p>
+
+        <label style={{ fontSize: 12, color: "#8A95A7" }}>Email</label>
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          style={inputStyle}
+        />
+
+        <label style={{ fontSize: 12, color: "#8A95A7", marginTop: 12, display: "block" }}>
+          Password
+        </label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+          style={inputStyle}
+        />
+
+        {error && (
+          <p style={{ color: "#FF8A3D", fontSize: 13, marginTop: 12 }}>{error}</p>
+        )}
+
+        <button onClick={handleLogin} disabled={loading} style={btnStyle}>
+          {loading ? "Signing in…" : "Sign in"}
+        </button>
       </div>
-    </section>
+    </div>
   );
 }
+
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  marginTop: 6,
+  padding: "11px 12px",
+  borderRadius: 9,
+  border: "1px solid #232C3B",
+  background: "#0A0E14",
+  color: "#E8ECF2",
+  fontSize: 14,
+  outline: "none",
+};
+
+const btnStyle: React.CSSProperties = {
+  width: "100%",
+  marginTop: 20,
+  padding: "12px",
+  borderRadius: 9,
+  border: "none",
+  background: "#FF8A3D",
+  color: "#0A0E14",
+  fontFamily: "Saira, sans-serif",
+  fontWeight: 600,
+  fontSize: 15,
+  cursor: "pointer",
+};

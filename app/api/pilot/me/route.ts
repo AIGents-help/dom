@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
 
 // GET /api/pilot/me
 // Returns the authenticated pilot's profile, active assignments, and payout history.
@@ -14,11 +14,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Verify the session
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    const supabase = getSupabaseAnonServer(authHeader);
 
     const { data: { user }, error: authErr } = await supabase.auth.getUser();
     if (authErr || !user) {

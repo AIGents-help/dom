@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
     // entirely, making the server the sole source of truth for money.
     type QuoteShape = {
       serviceType?: string;
+      serviceLabel?: string;
       basePriceCents?: number;
       modifiers?: Record<string, { factor: number; label: string }>;
       combinedMultiplier?: number;
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
       commissionCents?: number;
       contractorPayoutCents?: number;
       warnings?: string[];
+      canOperate?: boolean;
     };
 
     let quote: QuoteShape | undefined = body.quote;
@@ -156,6 +158,8 @@ export async function POST(req: NextRequest) {
           industry,
           serviceType,
           details: scope,
+          location,
+          quote,
         });
       }
     } catch (e) {

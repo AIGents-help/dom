@@ -34,6 +34,11 @@ export default function FlyForDomPage() {
       const { data: signUpData, error: signUpError } = await sb.auth.signUp({
         email: form.email,
         password: form.password,
+        // Explicit redirect target for the confirmation email link — without
+        // this, Supabase falls back to the project's "Site URL" dashboard
+        // setting, which defaults to http://localhost:3000 and breaks the
+        // confirmation link for anyone but a local dev server.
+        options: { emailRedirectTo: `${window.location.origin}/pilot/login` },
       });
       if (signUpError) throw new Error(signUpError.message);
 

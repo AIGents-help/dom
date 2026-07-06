@@ -37,8 +37,11 @@ export default function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-3 lg:flex">
-          <Link href="/admin/login" className="text-sm font-medium text-slate-400 hover:text-white">
-            Admin
+          <Link
+            href="/pilot/login"
+            className="rounded-lg border border-[#232C3B] px-6 py-3 text-sm font-semibold text-[#E8ECF2] transition hover:border-[#FF8A3D]"
+          >
+            Pilot Login
           </Link>
           <Link href="/request-mission" className="btn-primary">
             Request a Mission
@@ -67,8 +70,12 @@ export default function Navbar() {
                 {l.label}
               </Link>
             ))}
-            <Link href="/admin/login" onClick={() => setOpen(false)} className="text-sm font-medium text-slate-400">
-              Admin
+            <Link
+              href="/pilot/login"
+              onClick={() => setOpen(false)}
+              className="rounded-lg border border-[#232C3B] px-6 py-3 text-center text-sm font-semibold text-[#E8ECF2] transition hover:border-[#FF8A3D]"
+            >
+              Pilot Login
             </Link>
             <Link href="/request-mission" onClick={() => setOpen(false)} className="btn-primary w-full">
               Request a Mission

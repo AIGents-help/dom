@@ -1,75 +1,69 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStripe, commissionCents } from "@/lib/stripe";
+import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import type Stripe from "stripe";
 
-// POST /api/checkout  { assignmentId: string }
-// Charges the client the full mission price; routes the contractor's share to their
-// Express account; DOM keeps the application fee (commission). Destination charge =>
-// DOM is merchant of record.
+// POST /api/webhooks/stripe
+// Verifies the Stripe signature, then keeps Supabase in sync with events
+// Stripe controls: Connect account capability changes, and payment outcomes.
+// This previously duplicated checkout/route.ts by mistake — it never
+// verified a signature or handled any event at all.
 export async function POST(req: NextRequest) {
+  const signature = req.headers.get("stripe-signature");
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  if (!signature || !webhookSecret) {
+    return NextResponse.json({ error: "webhook not configured" }, { status: 400 });
+  }
+
+  const stripe = getStripe();
+  const supabaseAdmin = getSupabaseAdmin();
+  const body = await req.text();
+
+  let event: Stripe.Event;
   try {
-    const stripe = getStripe();
-    const supabaseAdmin = getSupabaseAdmin();
-    const { assignmentId } = await req.json();
-
-    // Pull the assignment + the contractor's payout account in one go.
-    const { data: a, error } = await supabaseAdmin
-      .from("mission_assignments")
-      .select(
-        `id, status, mission_price_cents, contractor_payout_cents, dom_commission_cents,
-         job_id, contractor:contractors ( id, stripe_connect_account_id, part107_verified, insurance_verified )`
-      )
-      .eq("id", assignmentId)
-      .single();
-
-    if (error || !a) {
-      return NextResponse.json({ error: "assignment not found" }, { status: 404 });
-    }
-
-    const contractor: any = Array.isArray(a.contractor) ? a.contractor[0] : a.contractor;
-
-    // ---- Risk gates: do not pay an unverified pilot. ----
-    if (!contractor?.stripe_connect_account_id) {
-      return NextResponse.json({ error: "contractor has no Stripe account" }, { status: 400 });
-    }
-    if (!contractor.part107_verified || !contractor.insurance_verified) {
-      return NextResponse.json(
-        { error: "contractor not cleared (Part 107 / insurance unverified)" },
-        { status: 400 }
-      );
-    }
-
-    const total = a.mission_price_cents;
-    if (!total || total <= 0) {
-      return NextResponse.json({ error: "mission_price_cents not set" }, { status: 400 });
-    }
-
-    // Commission: use the stored value if present, else compute from default rate.
-    const fee = a.dom_commission_cents ?? commissionCents(total);
-
-    const intent = await stripe.paymentIntents.create({
-      amount: total,
-      currency: "usd",
-      application_fee_amount: fee,
-      transfer_data: { destination: contractor.stripe_connect_account_id },
-      automatic_payment_methods: { enabled: true },
-      metadata: { assignment_id: a.id, job_id: a.job_id, contractor_id: contractor.id },
-    });
-
-    // Record the intended payment; the webhook will flip status on success.
-    await supabaseAdmin.from("payments").insert({
-      assignment_id: a.id,
-      contractor_id: contractor.id,
-      stripe_payment_intent_id: intent.id,
-      amount_total_cents: total,
-      application_fee_cents: fee,
-      contractor_amount_cents: total - fee,
-      status: "pending",
-    });
-
-    return NextResponse.json({ clientSecret: intent.client_secret, paymentIntentId: intent.id });
+    event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (e: any) {
-    console.error("checkout error", e);
+    console.error("Stripe webhook signature verification failed:", e.message);
+    return NextResponse.json({ error: "invalid signature" }, { status: 400 });
+  }
+
+  try {
+    switch (event.type) {
+      case "account.updated": {
+        const account = event.data.object as Stripe.Account;
+        await supabaseAdmin
+          .from("contractors")
+          .update({
+            stripe_payouts_enabled: account.payouts_enabled ?? false,
+            stripe_charges_enabled: account.charges_enabled ?? false,
+          })
+          .eq("stripe_connect_account_id", account.id);
+        break;
+      }
+
+      case "payment_intent.succeeded": {
+        const intent = event.data.object as Stripe.PaymentIntent;
+        await supabaseAdmin
+          .from("payments")
+          .update({ status: "captured" })
+          .eq("stripe_payment_intent_id", intent.id);
+        break;
+      }
+
+      case "payment_intent.payment_failed": {
+        const intent = event.data.object as Stripe.PaymentIntent;
+        await supabaseAdmin
+          .from("payments")
+          .update({ status: "failed" })
+          .eq("stripe_payment_intent_id", intent.id);
+        break;
+      }
+    }
+
+    return NextResponse.json({ received: true });
+  } catch (e: any) {
+    console.error("Stripe webhook handling error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

@@ -14,14 +14,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "name and email required" }, { status: 400 });
     }
 
-    // Reuse an existing record if this email already applied.
+    // Reuse an existing record if this email already applied. If it isn't
+    // linked to an auth account yet and this call brings one, claim it —
+    // covers a contractor who applied before self-serve signup existed.
     const { data: existing } = await supabaseAdmin
       .from("contractors")
-      .select("id")
+      .select("id, user_id")
       .eq("email", b.email)
       .maybeSingle();
 
     if (existing) {
+      if (!existing.user_id && b.authUserId) {
+        await supabaseAdmin
+          .from("contractors")
+          .update({ user_id: b.authUserId })
+          .eq("id", existing.id)
+          .is("user_id", null);
+      }
       return NextResponse.json({ contractorId: existing.id, existing: true });
     }
 
@@ -35,6 +44,7 @@ export async function POST(req: NextRequest) {
         service_area: b.service_area ?? null,
         equipment: b.equipment ?? null,
         status: "applied",
+        user_id: b.authUserId ?? null,
       })
       .select("id")
       .single();

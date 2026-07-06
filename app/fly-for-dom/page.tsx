@@ -1,15 +1,18 @@
 "use client";
 
 import { useState } from "react";
+import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 // Public pilot-recruiting page: /fly-for-dom
-// A Part 107 pilot applies, then is sent straight into Stripe Express onboarding
-// so their payout account is set up from the start. DOM still vets + verifies
-// (Part 107 / insurance) before they can be assigned paid work.
+// A Part 107 pilot applies, gets a portal account immediately (gated by
+// contractors.status, not account existence — they'll see "under review"
+// until DOM verifies them), then is sent straight into Stripe Express
+// onboarding so their payout account is set up from the start.
 export default function FlyForDomPage() {
   const [form, setForm] = useState({
     full_name: "",
     email: "",
+    password: "",
     phone: "",
     part107_number: "",
     service_area: "",
@@ -26,16 +29,24 @@ export default function FlyForDomPage() {
     setStatus("submitting");
     setError(null);
     try {
-      // 1) create the contractor record
+      // 1) create the portal account
+      const sb = getSupabaseBrowser();
+      const { data: signUpData, error: signUpError } = await sb.auth.signUp({
+        email: form.email,
+        password: form.password,
+      });
+      if (signUpError) throw new Error(signUpError.message);
+
+      // 2) create the contractor record, linked to that account
       const applyRes = await fetch("/api/contractors/apply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, authUserId: signUpData.user?.id }),
       });
       const apply = await applyRes.json();
       if (!applyRes.ok) throw new Error(apply.error ?? "Application failed.");
 
-      // 2) launch Stripe Express onboarding for payouts
+      // 3) launch Stripe Express onboarding for payouts
       const onbRes = await fetch("/api/connect/onboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -64,6 +75,7 @@ export default function FlyForDomPage() {
 
         <Field label="Full name" v={form.full_name} on={(v) => set("full_name", v)} />
         <Field label="Email" v={form.email} on={(v) => set("email", v)} type="email" />
+        <Field label="Password" v={form.password} on={(v) => set("password", v)} type="password" />
         <Field label="Phone" v={form.phone} on={(v) => set("phone", v)} />
         <Field label="Part 107 certificate #" v={form.part107_number} on={(v) => set("part107_number", v)} />
         <Field label="Service area (city / radius)" v={form.service_area} on={(v) => set("service_area", v)} />

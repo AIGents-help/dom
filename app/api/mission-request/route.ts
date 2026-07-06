@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabase";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendMissionRequestEmails } from "@/lib/resend";
 import { createNotionMissionRequest } from "@/lib/notion";
 import { classifyAirspace } from "@/lib/airspace";
 import { calculateQuote, type QuoteInput } from "@/lib/quoting";
+import { rateLimitResponse } from "@/lib/rateLimit";
 
 export async function POST(req: NextRequest) {
+  const limited = rateLimitResponse(req);
+  if (limited) return limited;
+
   try {
     const body = await req.json();
 
@@ -81,50 +85,48 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 1. Persist to Supabase (if configured)
+    // 1. Persist to Supabase
     try {
       const supabaseAdmin = getSupabaseAdmin();
-      if (supabaseAdmin) {
-        const { data: inserted, error: insertError } = await supabaseAdmin
-          .from("mission_requests")
-          .insert({
-            requester_name: contactName,
-            requester_email: contactEmail,
-            company,
-            industry,
-            service_type: serviceType,
-            location,
-            latitude,
-            longitude,
-            airspace_class: airspaceClass,
-            timeline,
-            scope,
-            budget_range: budgetRange,
-            quoted_amount_cents: quote?.totalCents ?? null,
-          })
-          .select("id")
-          .single();
+      const { data: inserted, error: insertError } = await supabaseAdmin
+        .from("mission_requests")
+        .insert({
+          requester_name: contactName,
+          requester_email: contactEmail,
+          company,
+          industry,
+          service_type: serviceType,
+          location,
+          latitude,
+          longitude,
+          airspace_class: airspaceClass,
+          timeline,
+          scope,
+          budget_range: budgetRange,
+          quoted_amount_cents: quote?.totalCents ?? null,
+        })
+        .select("id")
+        .single();
 
-        if (insertError) {
-          console.error("Supabase insert failed:", insertError);
-        } else if (inserted && quote) {
-          const { error: quoteError } = await supabaseAdmin.from("quotes").insert({
-            mission_request_id: inserted.id,
-            service_type: quote.serviceType ?? serviceType,
-            base_price_cents: quote.basePriceCents ?? 0,
-            location_mod: quote.modifiers?.location?.factor ?? 1,
-            airspace_mod: quote.modifiers?.airspace?.factor ?? 1,
-            complexity_mod: quote.modifiers?.complexity?.factor ?? 1,
-            urgency_mod: quote.modifiers?.urgency?.factor ?? 1,
-            deliverable_mod: quote.modifiers?.deliverable?.factor ?? 1,
-            combined_multiplier: quote.combinedMultiplier ?? 1,
-            total_cents: quote.totalCents ?? 0,
-            commission_cents: quote.commissionCents ?? 0,
-            contractor_cents: quote.contractorPayoutCents ?? 0,
-            warnings: quote.warnings ?? [],
-          });
-          if (quoteError) console.error("Quote insert failed:", quoteError);
-        }
+      if (insertError) {
+        console.error("Supabase insert failed:", insertError);
+      } else if (inserted && quote) {
+        const { error: quoteError } = await supabaseAdmin.from("quotes").insert({
+          mission_request_id: inserted.id,
+          service_type: quote.serviceType ?? serviceType,
+          base_price_cents: quote.basePriceCents ?? 0,
+          location_mod: quote.modifiers?.location?.factor ?? 1,
+          airspace_mod: quote.modifiers?.airspace?.factor ?? 1,
+          complexity_mod: quote.modifiers?.complexity?.factor ?? 1,
+          urgency_mod: quote.modifiers?.urgency?.factor ?? 1,
+          deliverable_mod: quote.modifiers?.deliverable?.factor ?? 1,
+          combined_multiplier: quote.combinedMultiplier ?? 1,
+          total_cents: quote.totalCents ?? 0,
+          commission_cents: quote.commissionCents ?? 0,
+          contractor_cents: quote.contractorPayoutCents ?? 0,
+          warnings: quote.warnings ?? [],
+        });
+        if (quoteError) console.error("Quote insert failed:", quoteError);
       }
     } catch (e) {
       console.error("Supabase insert failed:", e);

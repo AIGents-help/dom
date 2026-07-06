@@ -11,6 +11,7 @@ import {
   type DeliverableTier,
 } from "@/lib/quoting";
 import { isAdminRequest } from "@/lib/authz";
+import { rateLimitResponse } from "@/lib/rateLimit";
 
 // GET /api/airspace?lat=33.95&lng=-117.39
 // Returns airspace classification for the given coordinates.
@@ -20,6 +21,9 @@ import { isAdminRequest } from "@/lib/authz";
 //   &distance=25&complexity=moderate&urgency=standard&deliverable=standard
 
 export async function GET(req: NextRequest) {
+  const limited = rateLimitResponse(req);
+  if (limited) return limited;
+
   const p = req.nextUrl.searchParams;
   const lat = parseFloat(p.get("lat") ?? "");
   const lng = parseFloat(p.get("lng") ?? "");

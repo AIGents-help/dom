@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { calculateQuote, quoteToSummary, toPublicQuote, SERVICE_BASE_PRICES, type QuoteInput } from "@/lib/quoting";
 import { classifyAirspace } from "@/lib/airspace";
 import { isAdminRequest } from "@/lib/authz";
+import { rateLimitResponse } from "@/lib/rateLimit";
 
 // POST /api/quote
 // Body: { serviceType, lat, lng, distanceMiles, siteComplexity, urgency, deliverableTier, customBaseCents? }
@@ -11,6 +12,9 @@ import { isAdminRequest } from "@/lib/authz";
 // Returns available service types and base prices.
 
 export async function POST(req: NextRequest) {
+  const limited = rateLimitResponse(req);
+  if (limited) return limited;
+
   try {
     const body = await req.json();
     const { serviceType, lat, lng, distanceMiles, siteComplexity, urgency, deliverableTier, customBaseCents } = body;
@@ -53,7 +57,10 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const limited = rateLimitResponse(req);
+  if (limited) return limited;
+
   // Return available service types for the frontend
   const services = Object.entries(SERVICE_BASE_PRICES).map(([key, val]) => ({
     id: key,

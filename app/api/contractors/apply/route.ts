@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { rateLimitResponse } from "@/lib/rateLimit";
 
 // POST /api/contractors/apply
 // Creates a contractor in 'applied' status. Runs server-side (service role) because
 // the contractors table is RLS-locked. Returns the new contractor id so the client
 // can immediately launch Stripe onboarding.
 export async function POST(req: NextRequest) {
+  const limited = rateLimitResponse(req);
+  if (limited) return limited;
+
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const b = await req.json();

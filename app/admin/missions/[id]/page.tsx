@@ -5,7 +5,19 @@ import { useRouter } from "next/navigation";
 import { use } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
-// Admin > Mission detail — view a mission's quote/airspace, and offer it to a contractor.
+// Admin > Mission detail — view a mission's quote/airspace, advance its status
+// through the mission lifecycle, and offer it to a contractor.
+
+const PIPELINE = [
+  "requested", "reviewing", "scoped", "quoted", "approved",
+  "assigned", "in_progress", "delivered", "closed",
+] as const;
+
+function nextPipelineStatus(current: string): string | null {
+  const idx = PIPELINE.indexOf(current as (typeof PIPELINE)[number]);
+  if (idx === -1 || idx === PIPELINE.length - 1) return null;
+  return PIPELINE[idx + 1];
+}
 
 interface MissionRequest {
   id: string;
@@ -78,6 +90,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [selectedContractor, setSelectedContractor] = useState("");
   const [scheduledFor, setScheduledFor] = useState("");
   const [offering, setOffering] = useState(false);
+  const [advancing, setAdvancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -133,6 +146,27 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       load();
     })();
   }, [router, load]);
+
+  const advanceStatus = useCallback(async () => {
+    if (!mission) return;
+    const next = nextPipelineStatus(mission.status);
+    if (!next) return;
+    setAdvancing(true);
+    setError(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { error: updateError } = await sb
+        .from("mission_requests")
+        .update({ status: next })
+        .eq("id", id);
+      if (updateError) throw updateError;
+      await load();
+    } catch (e: any) {
+      setError(e.message ?? "Failed to update status");
+    } finally {
+      setAdvancing(false);
+    }
+  }, [mission, id, load]);
 
   const offerToContractor = useCallback(async () => {
     if (!selectedContractor) return;
@@ -196,6 +230,45 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
             </div>
             {mission.scope && (
               <p style={{ color: V.inkDim, fontSize: 13, marginTop: 14, lineHeight: 1.5 }}>{mission.scope}</p>
+            )}
+          </div>
+
+          <div style={panel}>
+            <Label>Mission Pipeline</Label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 }}>
+              {PIPELINE.map((stage, i) => {
+                const currentIdx = PIPELINE.indexOf(mission.status as (typeof PIPELINE)[number]);
+                const isCurrent = stage === mission.status;
+                const isDone = currentIdx !== -1 && i < currentIdx;
+                return (
+                  <span
+                    key={stage}
+                    className="font-mono-ibm"
+                    style={{
+                      fontSize: 10, letterSpacing: ".04em", padding: "5px 10px", borderRadius: 6,
+                      textTransform: "uppercase",
+                      background: isCurrent ? "rgba(255,138,61,.14)" : isDone ? "rgba(79,209,197,.10)" : "transparent",
+                      color: isCurrent ? V.signal : isDone ? V.telemetry : V.inkFaint,
+                      border: `1px solid ${isCurrent ? V.signal : V.line}`,
+                    }}
+                  >
+                    {stage.replace("_", " ")}
+                  </span>
+                );
+              })}
+            </div>
+
+            {PIPELINE.indexOf(mission.status as (typeof PIPELINE)[number]) === -1 && (
+              <p style={{ color: V.inkDim, fontSize: 13, marginTop: 12 }}>
+                Current status "{mission.status}" is outside the standard pipeline (e.g. cancelled) —
+                advance isn't available here.
+              </p>
+            )}
+
+            {nextPipelineStatus(mission.status) && (
+              <button onClick={advanceStatus} disabled={advancing} style={{ ...btnPrimary, marginTop: 14 }}>
+                {advancing ? "Updating…" : `Advance to ${nextPipelineStatus(mission.status)!.replace("_", " ")} →`}
+              </button>
             )}
           </div>
 

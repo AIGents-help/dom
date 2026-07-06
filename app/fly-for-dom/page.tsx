@@ -37,6 +37,14 @@ export default function FlyForDomPage() {
       });
       if (signUpError) throw new Error(signUpError.message);
 
+      // Supabase returns a look-alike "success" response when the email is
+      // already registered (to prevent email enumeration) — no real user
+      // gets created, so its .id is a dummy value that doesn't exist in
+      // auth.users. The documented signal is an empty identities array.
+      if (signUpData.user?.identities && signUpData.user.identities.length === 0) {
+        throw new Error("This email is already registered. Try signing in at /pilot/login instead, or use a different email.");
+      }
+
       // 2) create the contractor record, linked to that account
       const applyRes = await fetch("/api/contractors/apply", {
         method: "POST",

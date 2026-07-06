@@ -206,46 +206,71 @@ async function classifyViaEstimation(lat: number, lng: number): Promise<Airspace
         }));
 
       if (airports.length > 0) {
-        // Find nearest
-        let minDist = Infinity;
-        let closest: AirportInfo | null = null;
+        // Classify against every airport in range and keep the most
+        // restrictive result — the geometrically nearest field isn't
+        // necessarily the one that matters (e.g. a small strip 9nm away
+        // can be closer than a major Class B hub 12nm away, but the hub
+        // is what actually governs the airspace).
+        const severity: Record<string, number> = { B: 4, C: 3, D: 2, E: 1, G: 0 };
+
+        let nearestDist = Infinity;
+        let nearestAirportInfo: AirportInfo | null = null;
+
+        let bestClass: AirspaceResult["airspace_class"] = "G";
+        let bestRisk: AirspaceResult["risk_level"] = "low";
+        let bestAirportInfo: AirportInfo | null = null;
+        let bestDist = Infinity;
+
         for (const ap of airports) {
           const d = haversineNm(lat, lng, ap.lat, ap.lng);
-          if (d < minDist) {
-            minDist = d;
-            closest = ap;
+          if (d < nearestDist) {
+            nearestDist = d;
+            nearestAirportInfo = ap;
+          }
+
+          let cls: AirspaceResult["airspace_class"] = "G";
+          let risk: AirspaceResult["risk_level"] = "low";
+          // Estimate airspace class from airport type + distance.
+          // This is a simplification — real boundaries are irregular, but
+          // it catches the critical cases (operating near towered airports).
+          if (ap.type === "large_airport") {
+            if (d < 5) { cls = "B"; risk = "high"; }
+            else if (d < 10) { cls = "C"; risk = "elevated"; }
+          } else if (d < 5) {
+            cls = "D"; risk = "moderate";
+          }
+
+          if (severity[cls] > severity[bestClass]) {
+            bestClass = cls;
+            bestRisk = risk;
+            bestAirportInfo = ap;
+            bestDist = d;
           }
         }
 
-        if (closest) {
-          const bearing = calcBearing(lat, lng, closest.lat, closest.lng);
-          const isTowered = closest.type === "large_airport" || closest.type === "medium_airport";
+        const reportAirport = bestAirportInfo ?? nearestAirportInfo;
+        const reportDist = bestAirportInfo ? bestDist : nearestDist;
 
+        if (reportAirport) {
+          const bearing = calcBearing(lat, lng, reportAirport.lat, reportAirport.lng);
           nearestAirport = {
-            icao: closest.icao,
-            name: closest.name,
-            distance_nm: Math.round(minDist * 10) / 10,
+            icao: reportAirport.icao,
+            name: reportAirport.name,
+            distance_nm: Math.round(reportDist * 10) / 10,
             bearing,
-            tower_controlled: isTowered,
+            tower_controlled: reportAirport.type === "large_airport" || reportAirport.type === "medium_airport",
           };
+        }
 
-          // Estimate airspace class from airport type + distance
-          // This is a simplification — real boundaries are irregular, but
-          // it catches the critical cases (operating near towered airports).
-          if (closest.type === "large_airport") {
-            if (minDist < 5) { airspaceClass = "B"; riskLevel = "high"; }
-            else if (minDist < 10) { airspaceClass = "C"; riskLevel = "elevated"; }
-          } else if (closest.type === "medium_airport" || isTowered) {
-            if (minDist < 5) { airspaceClass = "D"; riskLevel = "moderate"; }
-          }
+        airspaceClass = bestClass;
+        riskLevel = bestRisk;
 
-          if (["B", "C", "D"].includes(airspaceClass)) {
-            laancRequired = true;
-            // UASFM grid ceilings vary; use conservative defaults
-            if (airspaceClass === "B") maxAlt = 0; // generally no auto-approval
-            else if (airspaceClass === "C") maxAlt = 200;
-            else if (airspaceClass === "D") maxAlt = 200;
-          }
+        if (["B", "C", "D"].includes(airspaceClass)) {
+          laancRequired = true;
+          // UASFM grid ceilings vary; use conservative defaults
+          if (airspaceClass === "B") maxAlt = 0; // generally no auto-approval
+          else if (airspaceClass === "C") maxAlt = 200;
+          else if (airspaceClass === "D") maxAlt = 200;
         }
       }
     } else {

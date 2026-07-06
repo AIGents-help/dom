@@ -12,7 +12,11 @@ export default function RequestMissionPage() {
           </h1>
           <p className="body-muted mt-6 max-w-2xl text-lg">
             Tell us about your project. Our operations team will review airspace, compliance,
-            and scope, then respond within one business day.
+            and scope, then respond within one business day. Want pricing right now instead?{" "}
+            <a href="/get-a-quote" className="text-accent hover:underline">
+              Get an instant quote
+            </a>
+            .
           </p>
         </div>
       </section>

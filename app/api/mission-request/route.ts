@@ -6,18 +6,27 @@ import { createNotionMissionRequest } from "@/lib/notion";
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const {
-      contactName,
-      contactEmail,
-      contactPhone,
-      company,
-      industry,
-      serviceType,
-      location,
-      preferredDate,
-      budgetRange,
-      details,
-    } = body;
+
+    // Two callers share this endpoint with different naming conventions:
+    // the public mission-request form (contactName/details/preferredDate)
+    // and the admin Create Mission wizard (requester_name/scope, plus
+    // lat/lng + airspace_class from the auto-classification step). Accept
+    // either shape and normalize to the mission_requests schema.
+    const contactName = body.contactName ?? body.requester_name;
+    const contactEmail = body.contactEmail ?? body.requester_email;
+    const contactPhone = body.contactPhone;
+    const company = body.company;
+    const industry = body.industry;
+    const serviceType = body.serviceType ?? body.service_type;
+    const location = body.location;
+    const budgetRange = body.budgetRange ?? body.budget_range;
+    const latitude = body.latitude;
+    const longitude = body.longitude;
+    const airspaceClass = body.airspace_class;
+    const timeline = body.timeline;
+    const scope = [body.details ?? body.scope, contactPhone ? `Phone: ${contactPhone}` : null]
+      .filter(Boolean)
+      .join("\n\n") || undefined;
 
     if (!contactName || !contactEmail) {
       return NextResponse.json(
@@ -31,17 +40,18 @@ export async function POST(req: NextRequest) {
       const supabaseAdmin = getSupabaseAdmin();
       if (supabaseAdmin) {
         await supabaseAdmin.from("mission_requests").insert({
-          contact_name: contactName,
-          contact_email: contactEmail,
-          contact_phone: contactPhone,
+          requester_name: contactName,
+          requester_email: contactEmail,
           company,
           industry,
           service_type: serviceType,
           location,
-          preferred_date: preferredDate || null,
+          latitude,
+          longitude,
+          airspace_class: airspaceClass,
+          timeline,
+          scope,
           budget_range: budgetRange,
-          details,
-          status: "pending",
         });
       }
     } catch (e) {
@@ -56,7 +66,7 @@ export async function POST(req: NextRequest) {
         company,
         industry,
         serviceType,
-        details,
+        details: scope,
       });
     } catch (e) {
       console.error("Notion sync failed:", e);
@@ -71,7 +81,7 @@ export async function POST(req: NextRequest) {
           company,
           industry,
           serviceType,
-          details,
+          details: scope,
         });
       }
     } catch (e) {

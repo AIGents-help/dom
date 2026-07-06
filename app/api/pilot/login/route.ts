@@ -18,6 +18,17 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error || !data.user) {
+      // Supabase distinguishes "wrong password" from "correct password, but
+      // this account hasn't confirmed its email yet" (code
+      // email_not_confirmed) — collapsing both into "Invalid credentials"
+      // left a freshly-signed-up pilot with no way to know why login was
+      // failing right after a real signup.
+      if (error?.code === "email_not_confirmed") {
+        return NextResponse.json(
+          { error: "Please confirm your email first — check your inbox for a confirmation link from Supabase." },
+          { status: 401 }
+        );
+      }
       return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
     }
 

@@ -1,6 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { classifyAirspace } from "@/lib/airspace";
-import { calculateQuote, type QuoteInput, type SiteComplexity, type UrgencyLevel, type DeliverableTier } from "@/lib/quoting";
+import {
+  calculateQuote,
+  toPublicQuote,
+  type QuoteInput,
+  type QuoteBreakdown,
+  type PublicQuoteBreakdown,
+  type SiteComplexity,
+  type UrgencyLevel,
+  type DeliverableTier,
+} from "@/lib/quoting";
+import { isAdminRequest } from "@/lib/authz";
 
 // GET /api/airspace?lat=33.95&lng=-117.39
 // Returns airspace classification for the given coordinates.
@@ -23,7 +33,7 @@ export async function GET(req: NextRequest) {
 
     // If service type is provided, calculate a quote too
     const serviceType = p.get("service");
-    let quote = null;
+    let quote: QuoteBreakdown | PublicQuoteBreakdown | null = null;
 
     if (serviceType) {
       const input: QuoteInput = {
@@ -35,7 +45,8 @@ export async function GET(req: NextRequest) {
         deliverableTier: (p.get("deliverable") as DeliverableTier) ?? "standard",
         customBaseCents: p.get("custom_base") ? parseInt(p.get("custom_base")!) : undefined,
       };
-      quote = calculateQuote(input);
+      const fullQuote = calculateQuote(input);
+      quote = (await isAdminRequest(req)) ? fullQuote : toPublicQuote(fullQuote);
     }
 
     return NextResponse.json({ airspace, quote });

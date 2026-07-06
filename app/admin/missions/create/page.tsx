@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 // Admin > Create Mission — the interactive intake wizard.
 // Step 1: Location → auto airspace classification
 // Step 2: Service scope → complexity, urgency, deliverables
 // Step 3: Auto-quote → review and confirm
 // Creates the mission_request in Supabase on confirm.
+// Gated by Supabase Auth, matching every other /admin page.
 
 type Step = "location" | "scope" | "quote" | "confirm";
 
@@ -37,6 +39,21 @@ interface QuoteData {
 export default function CreateMissionPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("location");
+  const [authed, setAuthed] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const sb = getSupabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      if (!data.session) {
+        router.push("/admin/login");
+        return;
+      }
+      setAccessToken(data.session.access_token);
+      setAuthed(true);
+    })();
+  }, [router]);
 
   // Location
   const [address, setAddress] = useState("");
@@ -87,7 +104,9 @@ export default function CreateMissionPage() {
       setAddress(geoData[0].display_name);
 
       // Auto-classify airspace
-      const airRes = await fetch(`/api/airspace?lat=${lt}&lng=${ln}`);
+      const airRes = await fetch(`/api/airspace?lat=${lt}&lng=${ln}`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      });
       const airData = await airRes.json();
       if (airData.airspace) setAirspace(airData.airspace);
     } catch (e: any) {
@@ -95,7 +114,7 @@ export default function CreateMissionPage() {
     } finally {
       setLookingUp(false);
     }
-  }, [address]);
+  }, [address, accessToken]);
 
   // ── Generate quote ──
   const generateQuote = useCallback(async () => {
@@ -105,7 +124,10 @@ export default function CreateMissionPage() {
     try {
       const res = await fetch("/api/quote", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
         body: JSON.stringify({
           serviceType,
           lat,
@@ -126,7 +148,7 @@ export default function CreateMissionPage() {
     } finally {
       setQuoting(false);
     }
-  }, [lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier]);
+  }, [lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier, accessToken]);
 
   // ── Submit mission ──
   const submitMission = useCallback(async () => {
@@ -149,6 +171,7 @@ export default function CreateMissionPage() {
           industry: "commercial",
           timeline: urgency,
           airspace_class: airspace?.airspace_class,
+          quote,
         }),
       });
       if (!res.ok) {
@@ -162,6 +185,8 @@ export default function CreateMissionPage() {
       setSubmitting(false);
     }
   }, [clientName, clientEmail, clientCompany, address, lat, lng, serviceType, scopeNotes, urgency, airspace, quote, router]);
+
+  if (!authed) return null;
 
   return (
     <Shell>

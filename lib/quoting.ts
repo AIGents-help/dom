@@ -105,6 +105,19 @@ export interface QuoteBreakdown {
   warnings: string[];
 }
 
+export type PublicQuoteBreakdown = Omit<
+  QuoteBreakdown,
+  "commissionCents" | "contractorPayoutCents" | "commissionRate"
+>;
+
+// Strips DOM's commission structure before a quote leaves the server for an
+// unauthenticated caller — commissionCents/contractorPayoutCents/commissionRate
+// reveal the exact margin and contractor payout split.
+export function toPublicQuote(q: QuoteBreakdown): PublicQuoteBreakdown {
+  const { commissionCents, contractorPayoutCents, commissionRate, ...rest } = q;
+  return rest;
+}
+
 export function calculateQuote(input: QuoteInput): QuoteBreakdown {
   const service = SERVICE_BASE_PRICES[input.serviceType];
   const baseCents = input.customBaseCents ?? service?.cents ?? 0;

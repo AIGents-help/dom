@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { calculateQuote, quoteToSummary, SERVICE_BASE_PRICES, type QuoteInput } from "@/lib/quoting";
+import { calculateQuote, quoteToSummary, toPublicQuote, SERVICE_BASE_PRICES, type QuoteInput } from "@/lib/quoting";
 import { classifyAirspace } from "@/lib/airspace";
+import { isAdminRequest } from "@/lib/authz";
 
 // POST /api/quote
 // Body: { serviceType, lat, lng, distanceMiles, siteComplexity, urgency, deliverableTier, customBaseCents? }
@@ -38,8 +39,13 @@ export async function POST(req: NextRequest) {
     };
 
     const quote = calculateQuote(input);
-    const summary = quoteToSummary(quote);
+    const isAdmin = await isAdminRequest(req);
 
+    if (!isAdmin) {
+      return NextResponse.json({ quote: toPublicQuote(quote), airspace: airspaceData, summary: null });
+    }
+
+    const summary = quoteToSummary(quote);
     return NextResponse.json({ quote, airspace: airspaceData, summary });
   } catch (err: any) {
     console.error("quote error:", err);

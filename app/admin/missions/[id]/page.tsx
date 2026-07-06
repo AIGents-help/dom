@@ -123,10 +123,16 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
         .order("offered_at", { ascending: false });
       setAssignments((assigns as any) ?? []);
     } else {
+      // Only offer missions to contractors who are active AND fully
+      // verified — otherwise a pilot could accept work that then fails at
+      // actual payment time, since /api/checkout separately blocks
+      // unverified contractors from being paid.
       const { data: activeContractors } = await sb
         .from("contractors")
         .select("id, full_name, status, service_area, rating, missions_completed")
         .eq("status", "active")
+        .eq("part107_verified", true)
+        .eq("insurance_verified", true)
         .order("rating", { ascending: false });
       setContractors((activeContractors as Contractor[]) ?? []);
     }

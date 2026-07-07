@@ -177,3 +177,131 @@ export async function sendMissionRequestEmails(payload: {
     );
   }
 }
+
+// ---------------------------------------------------------------------
+// Mission-lifecycle notifications (booking confirmed, deliverable ready).
+// Uses the live console brand tokens — signal (amber) / telemetry (cyan) —
+// matching PilotCreateMissionWizard.tsx / PilotProfileEditor.tsx, not the
+// older cyan-primary palette above. Every send is logged to
+// notification_log so delivery can be tracked via the Resend webhook.
+// ---------------------------------------------------------------------
+
+import { getSupabaseAdmin } from "./supabaseAdmin";
+
+const V = { ground: "#0A0E14", surface: "#11161F", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", signal: "#FF8A3D", telemetry: "#4FD1C5" };
+
+type NotificationType =
+  | "booking_confirmation" | "deliverable_ready" | "invoice_sent"
+  | "payout_initiated" | "mission_available" | "mission_briefing_ready";
+
+async function logNotification(params: {
+  to: string;
+  emailType: NotificationType;
+  recipientType: "customer" | "pilot" | "admin";
+  missionRequestId?: string;
+  jobId?: string;
+  assignmentId?: string;
+  subject: string;
+  resendMessageId: string | null;
+  failed: boolean;
+  errorMessage?: string;
+}) {
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    await supabaseAdmin.from("notification_log").insert({
+      mission_request_id: params.missionRequestId ?? null,
+      job_id: params.jobId ?? null,
+      assignment_id: params.assignmentId ?? null,
+      recipient_type: params.recipientType,
+      recipient_email: params.to,
+      email_type: params.emailType,
+      resend_message_id: params.resendMessageId,
+      status: params.failed ? "failed" : "sent",
+      subject: params.subject,
+      error_message: params.errorMessage ?? null,
+      sent_at: params.failed ? null : new Date().toISOString(),
+    });
+  } catch (e) {
+    // Logging failure shouldn't block the actual send — just surface it.
+    console.error("notification_log insert failed:", e);
+  }
+}
+
+function consoleShell(bodyHtml: string): string {
+  return `
+    <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px; margin:0 auto; color:${V.ink}; background:#ffffff;">
+      <div style="background:${V.ground}; padding:24px 32px;">
+        <span style="color:${V.signal}; font-size:12px; letter-spacing:.14em; text-transform:uppercase; font-weight:600;">Drone Operation Management</span>
+      </div>
+      <div style="padding:32px; color:#1a1a1a;">
+        ${bodyHtml}
+      </div>
+      <div style="padding:16px 32px; border-top:1px solid #eee; color:#8A95A7; font-size:12px;">
+        droneopsman.com
+      </div>
+    </div>`;
+}
+
+function consoleButton(label: string, url: string): string {
+  return `<a href="${url}" style="display:inline-block; background:${V.signal}; color:${V.ground}; font-weight:700; padding:12px 24px; border-radius:6px; text-decoration:none; margin-top:16px;">${label}</a>`;
+}
+
+export async function sendBookingConfirmation(p: {
+  missionRequestId: string;
+  clientEmail: string;
+  clientName: string;
+  serviceType: string;
+  scheduledDate?: string;
+  portalUrl: string;
+}) {
+  const subject = `Mission Confirmed — ${p.serviceType}`;
+  const { data, error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: p.clientEmail,
+    subject,
+    html: consoleShell(`
+      <h2 style="margin:0 0 12px;">Your mission is confirmed, ${escapeHtml(p.clientName)}.</h2>
+      <p style="color:#444; line-height:1.5;"><strong>Service:</strong> ${escapeHtml(p.serviceType)}${p.scheduledDate ? `<br/><strong>Scheduled:</strong> ${escapeHtml(p.scheduledDate)}` : ""}</p>
+      <p style="color:#444; line-height:1.5;">We'll notify you as soon as your mission is complete and deliverables are ready.</p>
+      ${consoleButton("View Mission Status", p.portalUrl)}
+    `),
+  });
+  if (error) console.error("Resend send failed (booking_confirmation):", error.message);
+  await logNotification({
+    to: p.clientEmail, emailType: "booking_confirmation", recipientType: "customer",
+    missionRequestId: p.missionRequestId, subject,
+    resendMessageId: data?.id ?? null, failed: !!error, errorMessage: error?.message,
+  });
+}
+
+export async function sendDeliverableReady(p: {
+  jobId: string;
+  missionRequestId?: string;
+  clientEmail: string;
+  clientName: string;
+  propertyAddress: string;
+  deliverableUrl: string;
+  reviewUrl: string;
+}) {
+  const subject = `Your Deliverables Are Ready — ${p.propertyAddress}`;
+  const { data, error } = await resend.emails.send({
+    from: FROM_ADDRESS,
+    to: p.clientEmail,
+    subject,
+    html: consoleShell(`
+      <h2 style="margin:0 0 12px;">Deliverables are ready, ${escapeHtml(p.clientName)}.</h2>
+      <p style="color:#444; line-height:1.5;">Your inspection report and imagery for <strong>${escapeHtml(p.propertyAddress)}</strong> are ready to download.</p>
+      ${consoleButton("Download Deliverables", p.deliverableUrl)}
+      <p style="color:#444; line-height:1.5; margin-top:28px; padding-top:20px; border-top:1px solid #eee;">
+        Was this useful? A quick review helps other property owners find us —
+        <a href="${p.reviewUrl}" style="color:${V.signal}; font-weight:600;">leave a review</a>.
+      </p>
+    `),
+  });
+  if (error) console.error("Resend send failed (deliverable_ready):", error.message);
+  await logNotification({
+    to: p.clientEmail, emailType: "deliverable_ready", recipientType: "customer",
+    jobId: p.jobId, missionRequestId: p.missionRequestId, subject,
+    resendMessageId: data?.id ?? null, failed: !!error, errorMessage: error?.message,
+  });
+}

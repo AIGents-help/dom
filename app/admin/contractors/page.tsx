@@ -127,7 +127,10 @@ export default function AdminContractorsPage() {
                 <Toggle label="Part 107" on={c.part107_verified} onClick={() => toggle(c.id, "part107_verified", !c.part107_verified)} />
                 <Toggle label="Insurance" on={c.insurance_verified} onClick={() => toggle(c.id, "insurance_verified", !c.insurance_verified)} />
                 {c.status !== "active" && <Btn onClick={() => setActive(c.id)}>Mark active</Btn>}
-                <Btn onClick={() => onboard(c.id)}>{c.stripe_connect_account_id ? "Re-open Stripe" : "Start Stripe onboarding"}</Btn>
+                {!c.stripe_connect_account_id && <Btn onClick={() => onboard(c.id)}>Start Stripe onboarding</Btn>}
+                {c.stripe_connect_account_id && !c.stripe_payouts_enabled && (
+                  <Btn onClick={() => onboard(c.id)}>Resume Stripe Onboarding</Btn>
+                )}
                 {!c.can_create_missions && (
                   <Btn onClick={() => approveSelfService(c.id)}>Approve to Create Missions</Btn>
                 )}

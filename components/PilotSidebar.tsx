@@ -9,11 +9,13 @@ import { useEffect, useState } from "react";
 
 const V = { surface: "#11161F", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D" };
 
-export type PilotTab = "missions" | "create" | "sops" | "payouts" | "profile";
+export type PilotTab = "missions" | "create" | "publicprofile" | "resources" | "sops" | "payouts" | "profile";
 
 const ITEMS: { id: PilotTab; label: string; icon: string }[] = [
   { id: "missions", label: "Missions", icon: "▤" },
   { id: "create", label: "Create Mission", icon: "✎" },
+  { id: "publicprofile", label: "Public Profile", icon: "◈" },
+  { id: "resources", label: "Resources", icon: "⬡" },
   { id: "sops", label: "SOPs", icon: "☰" },
   { id: "payouts", label: "Payouts", icon: "$" },
   { id: "profile", label: "Profile", icon: "◎" },

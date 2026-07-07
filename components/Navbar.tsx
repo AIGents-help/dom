@@ -18,7 +18,7 @@ export default function Navbar() {
 
   // Admin and pilot dashboards have their own in-app sidebar nav — the
   // marketing header/CTAs are redundant chrome there, not a real nav choice.
-  if (pathname?.startsWith("/admin") || pathname?.startsWith("/pilot")) return null;
+  if (pathname?.startsWith("/admin") || pathname === "/pilot" || pathname?.startsWith("/pilot/")) return null;
 
   return (
     <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">

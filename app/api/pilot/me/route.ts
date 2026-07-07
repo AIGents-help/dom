@@ -61,11 +61,28 @@ export async function GET(req: NextRequest) {
       .eq("is_current", true)
       .order("mission_type, category");
 
+    // Clients can name this pilot specifically from their public profile
+    // page (see /api/mission-request's requestedContractorId). These stay
+    // in the normal admin review/quote pipeline — this is just an
+    // informational read so the pilot can see interest coming their way.
+    const { data: requestsForMe } = await admin
+      .from("mission_requests")
+      .select("id, requester_name, company, service_type, location, status, created_at")
+      .eq("requested_contractor_id", contractor.id)
+      .order("created_at", { ascending: false });
+
+    const { data: portfolio } = await admin
+      .from("contractor_portfolio_images")
+      .select("id, image_url, caption, sort_order")
+      .eq("contractor_id", contractor.id)
+      .order("sort_order");
+
     return NextResponse.json({
       profile: {
         id: contractor.id,
         full_name: contractor.full_name,
         email: contractor.email,
+        phone: contractor.phone,
         status: contractor.status,
         part107_number: contractor.part107_number,
         part107_verified: contractor.part107_verified,
@@ -77,10 +94,18 @@ export async function GET(req: NextRequest) {
         rating: contractor.rating,
         can_create_missions: contractor.can_create_missions,
         subscription_active: contractor.subscription_active,
+        slug: contractor.slug,
+        bio: contractor.bio,
+        tagline: contractor.tagline,
+        photo_url: contractor.photo_url,
+        website_url: contractor.website_url,
+        profile_published: contractor.profile_published,
       },
       assignments: assignments ?? [],
       payouts: payouts ?? [],
       sops: sops ?? [],
+      requestsForMe: requestsForMe ?? [],
+      portfolio: portfolio ?? [],
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

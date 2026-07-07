@@ -90,6 +90,27 @@ export async function POST(req: NextRequest) {
     // 1. Persist to Supabase
     try {
       const supabaseAdmin = getSupabaseAdmin();
+
+      // A client can name a specific pilot from that pilot's public profile
+      // page — but this is a public, unauthenticated endpoint, so re-verify
+      // the id server-side against the same eligibility gate that governs
+      // whether the pilot's page is even live, rather than trusting it
+      // blindly. Silently drops an invalid/ineligible id instead of erroring
+      // the whole submission over it.
+      let requestedContractorId: string | null = null;
+      if (body.requestedContractorId) {
+        const { data: eligible } = await supabaseAdmin
+          .from("contractors")
+          .select("id")
+          .eq("id", body.requestedContractorId)
+          .eq("profile_published", true)
+          .eq("subscription_active", true)
+          .eq("part107_verified", true)
+          .eq("insurance_verified", true)
+          .maybeSingle();
+        requestedContractorId = eligible?.id ?? null;
+      }
+
       const { data: inserted, error: insertError } = await supabaseAdmin
         .from("mission_requests")
         .insert({
@@ -106,6 +127,7 @@ export async function POST(req: NextRequest) {
           scope,
           budget_range: budgetRange,
           quoted_amount_cents: quote?.totalCents ?? null,
+          requested_contractor_id: requestedContractorId,
         })
         .select("id")
         .single();

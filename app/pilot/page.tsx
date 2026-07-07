@@ -5,15 +5,22 @@ import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import PilotCreateMissionWizard from "@/components/PilotCreateMissionWizard";
 import PilotSidebar, { type PilotTab } from "@/components/PilotSidebar";
+import PilotProfileEditor from "@/components/PilotProfileEditor";
+import PilotPublicProfileEditor from "@/components/PilotPublicProfileEditor";
+import PilotResources from "@/components/PilotResources";
 
 interface Profile {
-  id: string; full_name: string; email: string; status: string;
+  id: string; full_name: string; email: string; phone: string | null; status: string;
   part107_number: string | null; part107_verified: boolean;
   insurance_verified: boolean; stripe_payouts_enabled: boolean;
   service_area: string | null; equipment: string | null;
   missions_completed: number; rating: number | null;
   can_create_missions: boolean; subscription_active: boolean;
+  slug: string | null; bio: string | null; tagline: string | null;
+  photo_url: string | null; website_url: string | null; profile_published: boolean;
 }
+interface PortfolioImage { id: string; image_url: string; caption: string | null; sort_order: number; }
+interface RequestedForMe { id: string; requester_name: string | null; company: string | null; service_type: string | null; location: string | null; status: string; created_at: string; }
 interface Assignment {
   id: string; status: string; mission_price_cents: number | null;
   contractor_payout_cents: number | null; offered_at: string;
@@ -51,6 +58,9 @@ export default function PilotDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [subActionLoading, setSubActionLoading] = useState(false);
+  const [portfolio, setPortfolio] = useState<PortfolioImage[]>([]);
+  const [requestsForMe, setRequestsForMe] = useState<RequestedForMe[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -60,6 +70,7 @@ export default function PilotDashboard() {
       return;
     }
     setAccessToken(data.session.access_token);
+    setUserId(data.session.user.id);
 
     const res = await fetch("/api/pilot/me", {
       headers: { Authorization: `Bearer ${data.session.access_token}` },
@@ -70,6 +81,8 @@ export default function PilotDashboard() {
     }
     const body = await res.json();
     setProfile(body.profile);
+    setPortfolio(body.portfolio ?? []);
+    setRequestsForMe(body.requestsForMe ?? []);
     setAssignments(body.assignments ?? []);
     setPayouts(body.payouts ?? []);
     setSops(body.sops ?? []);
@@ -204,6 +217,25 @@ export default function PilotDashboard() {
 
       {tab === "missions" && (
         <div style={{ display: "grid", gap: 10 }}>
+          {requestsForMe.length > 0 && (
+            <div style={{ ...panelStyle, borderColor: "rgba(79,209,197,.4)", background: "rgba(79,209,197,.05)" }}>
+              <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.telemetry, textTransform: "uppercase" }}>
+                Requests for you ({requestsForMe.length})
+              </div>
+              <p style={{ color: V.inkDim, fontSize: 13, marginTop: 8 }}>
+                Clients found your public profile and asked for you by name. DOM admin reviews and quotes these before
+                they're assigned — nothing to do here yet.
+              </p>
+              <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                {requestsForMe.map((r) => (
+                  <div key={r.id} style={{ fontSize: 13, color: V.ink, display: "flex", justifyContent: "space-between" }}>
+                    <span>{r.company ?? r.requester_name ?? "Unnamed"} — {(r.service_type ?? "").replace(/_/g, " ")}</span>
+                    <span className="font-mono-ibm" style={{ color: V.inkFaint, fontSize: 11 }}>{r.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {assignments.length === 0 && <div style={{ ...panelStyle, textAlign: "center", padding: 40 }}><p style={{ color: V.inkDim }}>No mission assignments yet.</p><p style={{ color: V.inkFaint, fontSize: 13, marginTop: 6 }}>{cleared ? "You're cleared — DOM will offer missions in your area." : "Complete credential verification to receive offers."}</p></div>}
           {assignments.map((a) => {
             const job = Array.isArray(a.job) ? a.job[0] : a.job;
@@ -269,16 +301,15 @@ export default function PilotDashboard() {
         </div>
       )}
 
+      {tab === "publicprofile" && userId && (
+        <PilotPublicProfileEditor profile={profile} portfolio={portfolio} userId={userId} onSaved={load} />
+      )}
+
+      {tab === "resources" && <PilotResources />}
+
       {tab === "profile" && (
         <div style={panelStyle}>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <Field label="Full Name" value={profile.full_name} />
-            <Field label="Email" value={profile.email} />
-            <Field label="Part 107 #" value={profile.part107_number ?? "Not provided"} />
-            <Field label="Service Area" value={profile.service_area ?? "Not set"} />
-            <Field label="Equipment" value={profile.equipment ?? "Not listed"} />
-            <Field label="Rating" value={profile.rating ? `${profile.rating}/5.0` : "No rating yet"} />
-          </div>
+          <PilotProfileEditor profile={profile} onSaved={load} />
         </div>
       )}
 
@@ -320,7 +351,4 @@ function CredBadge({ label, ok }: { label: string; ok: boolean }) {
 }
 function Stat({ k, v, color }: { k: string; v: string; color?: string }) {
   return (<div style={{ background: V.raised, padding: "14px 16px" }}><div className="font-mono-ibm" style={{ fontSize: 10, letterSpacing: ".12em", color: V.inkFaint, textTransform: "uppercase" }}>{k}</div><div className="font-mono-ibm" style={{ fontSize: 18, color: color ?? V.ink, marginTop: 2, fontWeight: 600 }}>{v}</div></div>);
-}
-function Field({ label, value }: { label: string; value: string }) {
-  return (<div><div className="font-mono-ibm" style={{ fontSize: 11, color: V.inkFaint, letterSpacing: ".1em", textTransform: "uppercase" }}>{label}</div><div style={{ fontSize: 15, marginTop: 4 }}>{value}</div></div>);
 }

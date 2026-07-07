@@ -6,7 +6,7 @@ import { Radar } from "lucide-react";
 
 export default function Footer() {
   const pathname = usePathname();
-  if (pathname?.startsWith("/admin") || pathname?.startsWith("/pilot")) return null;
+  if (pathname?.startsWith("/admin") || pathname === "/pilot" || pathname?.startsWith("/pilot/")) return null;
 
   return (
     <footer className="border-t border-border bg-surface/40">

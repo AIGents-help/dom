@@ -53,7 +53,13 @@ interface PublicQuoteData {
   warnings: string[];
 }
 
-export default function PublicQuoteWizard() {
+export default function PublicQuoteWizard({
+  requestedContractorId,
+  requestedPilotName,
+}: {
+  requestedContractorId?: string;
+  requestedPilotName?: string;
+} = {}) {
   const [step, setStep] = useState<Step>("location");
 
   // Location
@@ -185,6 +191,7 @@ export default function PublicQuoteWizard() {
           scope: notes,
           budget_range: quote ? `$${(quote.totalCents / 100).toFixed(2)}` : undefined,
           industry: "commercial",
+          requestedContractorId,
         }),
       });
       if (!res.ok) {
@@ -197,7 +204,7 @@ export default function PublicQuoteWizard() {
     } finally {
       setSubmitting(false);
     }
-  }, [clientName, clientEmail, clientPhone, clientCompany, address, lat, lng, serviceType, distanceBand, complexity, urgency, deliverableTier, airspace, notes, quote]);
+  }, [clientName, clientEmail, clientPhone, clientCompany, address, lat, lng, serviceType, distanceBand, complexity, urgency, deliverableTier, airspace, notes, quote, requestedContractorId]);
 
   if (success) {
     return (
@@ -206,7 +213,8 @@ export default function PublicQuoteWizard() {
         <h3 className="text-xl font-semibold text-white">Request received</h3>
         <p className="body-muted max-w-md">
           Thanks, {clientName.split(" ")[0] || "there"}. Our operations team will confirm scope
-          and compliance, then follow up within one business day to schedule your mission.
+          and compliance, then follow up within one business day to schedule your mission
+          {requestedPilotName ? ` — we'll do our best to get ${requestedPilotName} on this one` : ""}.
         </p>
       </div>
     );

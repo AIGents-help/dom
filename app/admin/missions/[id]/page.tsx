@@ -31,6 +31,7 @@ interface MissionRequest {
   airspace_class: string | null;
   scope: string | null;
   budget_range: string | null;
+  requested_contractor_id: string | null;
   created_at: string;
 }
 
@@ -83,6 +84,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [authed, setAuthed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [mission, setMission] = useState<MissionRequest | null>(null);
+  const [requestedPilotName, setRequestedPilotName] = useState<string | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -99,6 +101,13 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
 
     const { data: mr } = await sb.from("mission_requests").select("*").eq("id", id).single();
     setMission(mr as MissionRequest);
+
+    if (mr?.requested_contractor_id) {
+      const { data: rc } = await sb.from("contractors").select("full_name").eq("id", mr.requested_contractor_id).maybeSingle();
+      setRequestedPilotName(rc?.full_name ?? null);
+    } else {
+      setRequestedPilotName(null);
+    }
 
     const { data: q } = await sb
       .from("quotes")
@@ -259,6 +268,11 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
             </div>
             {mission.scope && (
               <p style={{ color: V.inkDim, fontSize: 13, marginTop: 14, lineHeight: 1.5 }}>{mission.scope}</p>
+            )}
+            {requestedPilotName && (
+              <p style={{ color: V.telemetry, fontSize: 13, marginTop: 10 }}>
+                ★ Client requested {requestedPilotName} by name from their public profile — consider honoring this when offering the mission.
+              </p>
             )}
           </div>
 

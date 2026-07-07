@@ -9,6 +9,7 @@ const links = [
   { href: "/industries", label: "Industries" },
   { href: "/faa-compliance", label: "FAA Compliance" },
   { href: "/about", label: "About" },
+  { href: "/admin/missions", label: "Missions" },
 ];
 
 export default function Navbar() {

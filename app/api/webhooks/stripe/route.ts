@@ -59,6 +59,41 @@ export async function POST(req: NextRequest) {
           .eq("stripe_payment_intent_id", intent.id);
         break;
       }
+
+      // Pilot subscription lifecycle — keeps contractors.subscription_active
+      // in sync so the commission math in /api/pilot/missions/create stays
+      // correct without polling Stripe on every mission creation.
+      case "checkout.session.completed": {
+        const session = event.data.object as Stripe.Checkout.Session;
+        if (session.mode === "subscription" && session.metadata?.contractor_id) {
+          await supabaseAdmin
+            .from("contractors")
+            .update({
+              stripe_subscription_id: session.subscription as string,
+              subscription_active: true,
+            })
+            .eq("id", session.metadata.contractor_id);
+        }
+        break;
+      }
+
+      case "customer.subscription.updated": {
+        const subscription = event.data.object as Stripe.Subscription;
+        await supabaseAdmin
+          .from("contractors")
+          .update({ subscription_active: subscription.status === "active" })
+          .eq("stripe_subscription_id", subscription.id);
+        break;
+      }
+
+      case "customer.subscription.deleted": {
+        const subscription = event.data.object as Stripe.Subscription;
+        await supabaseAdmin
+          .from("contractors")
+          .update({ subscription_active: false })
+          .eq("stripe_subscription_id", subscription.id);
+        break;
+      }
     }
 
     return NextResponse.json({ received: true });

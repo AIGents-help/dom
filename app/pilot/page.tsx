@@ -50,6 +50,7 @@ export default function PilotDashboard() {
   const [actingOn, setActingOn] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [subActionLoading, setSubActionLoading] = useState(false);
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -100,6 +101,42 @@ export default function PilotDashboard() {
   async function signOut() {
     await getSupabaseBrowser().auth.signOut();
     router.push("/");
+  }
+
+  async function startSubscription() {
+    if (!accessToken) return;
+    setSubActionLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/pilot/subscription/checkout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
+      window.location.href = data.url;
+    } catch (e: any) {
+      setError(e.message);
+      setSubActionLoading(false);
+    }
+  }
+
+  async function manageSubscription() {
+    if (!accessToken) return;
+    setSubActionLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/pilot/subscription/portal", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not open billing portal");
+      window.location.href = data.url;
+    } catch (e: any) {
+      setError(e.message);
+      setSubActionLoading(false);
+    }
   }
 
   if (loading) return <Shell><p style={{ color: V.inkDim }}>Loading your dashboard…</p></Shell>;
@@ -241,6 +278,31 @@ export default function PilotDashboard() {
             <Field label="Service Area" value={profile.service_area ?? "Not set"} />
             <Field label="Equipment" value={profile.equipment ?? "Not listed"} />
             <Field label="Rating" value={profile.rating ? `${profile.rating}/5.0` : "No rating yet"} />
+          </div>
+        </div>
+      )}
+
+      {tab === "profile" && (
+        <div style={{ ...panelStyle, marginTop: 12 }}>
+          <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>
+            Commission & Subscription
+          </div>
+          <p style={{ color: V.inkDim, fontSize: 13, marginTop: 10 }}>
+            {profile.subscription_active
+              ? "You're subscribed — DOM takes 0% commission on missions you create yourself."
+              : `DOM takes a commission on missions you create yourself. Subscribe for $99/mo to keep 100% instead.`}
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
+            <span className="font-mono-ibm" style={{ fontSize: 20, fontWeight: 600, color: profile.subscription_active ? V.telemetry : V.signal }}>
+              {profile.subscription_active ? "0% commission" : "20% commission"}
+            </span>
+            <button
+              onClick={profile.subscription_active ? manageSubscription : startSubscription}
+              disabled={subActionLoading}
+              style={btnPrimary}
+            >
+              {subActionLoading ? "…" : profile.subscription_active ? "Manage subscription" : "Subscribe — $99/mo"}
+            </button>
           </div>
         </div>
       )}

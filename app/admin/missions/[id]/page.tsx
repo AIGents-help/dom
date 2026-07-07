@@ -91,6 +91,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [scheduledFor, setScheduledFor] = useState("");
   const [offering, setOffering] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+  const [completing, setCompleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -173,6 +174,23 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       setAdvancing(false);
     }
   }, [mission, id, load]);
+
+  const markComplete = useCallback(async (assignmentId: string) => {
+    setCompleting(assignmentId);
+    setError(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { error: rpcError } = await sb.rpc("admin_mark_mission_complete", {
+        p_assignment_id: assignmentId,
+      });
+      if (rpcError) throw rpcError;
+      await load();
+    } catch (e: any) {
+      setError(e.message ?? "Failed to mark mission complete");
+    } finally {
+      setCompleting(null);
+    }
+  }, [load]);
 
   const offerToContractor = useCallback(async () => {
     if (!selectedContractor) return;
@@ -362,16 +380,25 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                       <span style={{ fontWeight: 600 }}>{a.contractor?.full_name ?? a.contractor_id}</span>
                       <span className="font-mono-ibm" style={{
                         fontSize: 10, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase",
-                        background: a.status === "declined" ? "rgba(90,102,120,.15)" : "rgba(79,209,197,.14)",
+                        background: a.status === "declined" ? "rgba(90,102,120,.15)" : a.status === "qc_passed" ? "rgba(79,209,197,.2)" : "rgba(79,209,197,.14)",
                         color: a.status === "declined" ? V.inkFaint : V.telemetry,
                       }}>
-                        {a.status}
+                        {a.status === "qc_passed" ? "completed" : a.status}
                       </span>
                     </div>
                     {a.mission_price_cents != null && (
                       <p className="font-mono-ibm" style={{ fontSize: 12, color: V.inkDim, marginTop: 6 }}>
                         ${(a.mission_price_cents / 100).toFixed(2)} total · ${((a.contractor_payout_cents ?? 0) / 100).toFixed(2)} payout
                       </p>
+                    )}
+                    {a.status === "accepted" && (
+                      <button
+                        onClick={() => markComplete(a.id)}
+                        disabled={completing === a.id}
+                        style={{ ...btnPrimary, marginTop: 12, padding: "7px 14px", fontSize: 13 }}
+                      >
+                        {completing === a.id ? "Marking…" : "Mark Mission Complete"}
+                      </button>
                     )}
                   </div>
                 ))}

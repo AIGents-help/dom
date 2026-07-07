@@ -18,6 +18,8 @@ type Contractor = {
   stripe_connect_account_id: string | null;
   stripe_payouts_enabled: boolean;
   service_area: string | null;
+  missions_completed: number;
+  can_create_missions: boolean;
 };
 
 export default function AdminContractorsPage() {
@@ -63,6 +65,16 @@ export default function AdminContractorsPage() {
     await supabaseBrowser.from("contractors").update({ status: "active" }).eq("id", id);
   }
 
+  async function approveSelfService(id: string) {
+    const supabaseBrowser = getSupabaseBrowser();
+    const { error } = await supabaseBrowser.rpc("admin_approve_self_service", { p_contractor_id: id });
+    if (error) {
+      alert(error.message);
+      return;
+    }
+    load();
+  }
+
   async function onboard(id: string) {
     const res = await fetch("/api/connect/onboard", {
       method: "POST",
@@ -95,13 +107,16 @@ export default function AdminContractorsPage() {
                   <div style={{ fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 16 }}>{c.full_name}</div>
                   <div style={{ color: "#8A95A7", fontSize: 13 }}>{c.email} · {c.service_area ?? "—"}</div>
                   <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: "#5A6678", marginTop: 4 }}>
-                    107#: {c.part107_number ?? "—"}
+                    107#: {c.part107_number ?? "—"} · {c.missions_completed} mission{c.missions_completed === 1 ? "" : "s"} completed
                   </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <span style={{ ...badge, ...(cleared ? badgeOk : badgeWarn) }}>
                     {cleared ? "CLEARED FOR WORK" : "NOT CLEARED"}
                   </span>
+                  {c.can_create_missions && (
+                    <span style={{ ...badge, ...badgeOk, marginLeft: 6 }}>SELF-SERVICE ✓</span>
+                  )}
                   <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: c.stripe_payouts_enabled ? "#4FD1C5" : "#5A6678", marginTop: 6 }}>
                     {c.stripe_connect_account_id ? (c.stripe_payouts_enabled ? "PAYOUTS READY" : "STRIPE PENDING") : "NO STRIPE ACCT"}
                   </div>
@@ -113,6 +128,11 @@ export default function AdminContractorsPage() {
                 <Toggle label="Insurance" on={c.insurance_verified} onClick={() => toggle(c.id, "insurance_verified", !c.insurance_verified)} />
                 {c.status !== "active" && <Btn onClick={() => setActive(c.id)}>Mark active</Btn>}
                 <Btn onClick={() => onboard(c.id)}>{c.stripe_connect_account_id ? "Re-open Stripe" : "Start Stripe onboarding"}</Btn>
+                {!c.can_create_missions && (
+                  <Btn onClick={() => approveSelfService(c.id)}>
+                    {c.missions_completed >= 1 ? "Approve to Create Missions" : "Approve to Create Missions (needs 1+ completed)"}
+                  </Btn>
+                )}
               </div>
             </div>
           );

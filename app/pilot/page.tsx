@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import PilotCreateMissionWizard from "@/components/PilotCreateMissionWizard";
 
 interface Profile {
   id: string; full_name: string; email: string; status: string;
@@ -10,6 +11,7 @@ interface Profile {
   insurance_verified: boolean; stripe_payouts_enabled: boolean;
   service_area: string | null; equipment: string | null;
   missions_completed: number; rating: number | null;
+  can_create_missions: boolean; subscription_active: boolean;
 }
 interface Assignment {
   id: string; status: string; mission_price_cents: number | null;
@@ -19,7 +21,7 @@ interface Assignment {
 }
 interface Payout { id: string; contractor_amount_cents: number; status: string; created_at: string; }
 interface SOP { id: string; slug: string; title: string; mission_type: string; category: string; version: number; }
-type Tab = "missions" | "sops" | "payouts" | "profile";
+type Tab = "missions" | "create" | "sops" | "payouts" | "profile";
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   offered: { bg: "rgba(255,138,61,.12)", text: "#FF8A3D" },
@@ -46,6 +48,7 @@ export default function PilotDashboard() {
   const [loading, setLoading] = useState(true);
   const [actingOn, setActingOn] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -54,6 +57,7 @@ export default function PilotDashboard() {
       router.push("/pilot/login");
       return;
     }
+    setAccessToken(data.session.access_token);
 
     const res = await fetch("/api/pilot/me", {
       headers: { Authorization: `Bearer ${data.session.access_token}` },
@@ -138,12 +142,20 @@ export default function PilotDashboard() {
       </div>
 
       <div style={{ display: "flex", gap: 4, marginBottom: 18 }}>
-        {(["missions", "sops", "payouts", "profile"] as Tab[]).map((t) => (
+        {(["missions", ...(profile.can_create_missions ? ["create"] as const : []), "sops", "payouts", "profile"] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)} className="font-mono-ibm" style={{ fontSize: 12, padding: "7px 14px", borderRadius: 8, cursor: "pointer", border: `1px solid ${t === tab ? V.signal : V.line}`, background: t === tab ? "rgba(255,138,61,.12)" : "transparent", color: t === tab ? V.signal : V.inkFaint }}>
-            {t === "missions" ? "Missions" : t === "sops" ? "SOPs" : t === "payouts" ? "Payouts" : "Profile"}
+            {t === "missions" ? "Missions" : t === "create" ? "Create Mission" : t === "sops" ? "SOPs" : t === "payouts" ? "Payouts" : "Profile"}
           </button>
         ))}
       </div>
+
+      {tab === "create" && profile.can_create_missions && accessToken && (
+        <PilotCreateMissionWizard
+          accessToken={accessToken}
+          subscriptionActive={profile.subscription_active}
+          onCreated={load}
+        />
+      )}
 
       {tab === "missions" && (
         <div style={{ display: "grid", gap: 10 }}>

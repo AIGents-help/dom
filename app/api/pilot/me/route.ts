@@ -75,6 +75,8 @@ export async function GET(req: NextRequest) {
         equipment: contractor.equipment,
         missions_completed: contractor.missions_completed,
         rating: contractor.rating,
+        can_create_missions: contractor.can_create_missions,
+        subscription_active: contractor.subscription_active,
       },
       assignments: assignments ?? [],
       payouts: payouts ?? [],

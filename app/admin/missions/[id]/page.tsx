@@ -216,9 +216,14 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
 
   return (
     <Shell>
-      <button onClick={() => router.push("/admin/missions")} style={{ ...btnGhost, marginBottom: 16 }}>
-        ← Back to Missions
-      </button>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+        <button onClick={() => router.push("/admin/missions")} style={btnGhost}>
+          ← Back to Missions
+        </button>
+        <button onClick={() => router.push(`/admin/missions/${id}/briefing`)} style={btnGhost}>
+          Mission Briefing →
+        </button>
+      </div>
 
       {loading && <p style={{ color: V.inkDim }}>Loading…</p>}
 

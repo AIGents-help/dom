@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import PilotCreateMissionWizard from "@/components/PilotCreateMissionWizard";
+import PilotSidebar, { type PilotTab } from "@/components/PilotSidebar";
 
 interface Profile {
   id: string; full_name: string; email: string; status: string;
@@ -21,7 +22,7 @@ interface Assignment {
 }
 interface Payout { id: string; contractor_amount_cents: number; status: string; created_at: string; }
 interface SOP { id: string; slug: string; title: string; mission_type: string; category: string; version: number; }
-type Tab = "missions" | "create" | "sops" | "payouts" | "profile";
+type Tab = PilotTab;
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   offered: { bg: "rgba(255,138,61,.12)", text: "#FF8A3D" },
@@ -110,6 +111,9 @@ export default function PilotDashboard() {
 
   return (
     <Shell>
+      <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+      <PilotSidebar tab={tab} setTab={setTab} onSignOut={signOut} />
+      <div style={{ flex: 1, minWidth: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
         <div>
           <h1 className="font-saira" style={{ fontSize: 26, fontWeight: 700 }}>{profile.full_name}</h1>
@@ -141,20 +145,24 @@ export default function PilotDashboard() {
         <Stat k="Earned" v={`$${(totalEarned / 100).toFixed(2)}`} color={V.telemetry} />
       </div>
 
-      <div style={{ display: "flex", gap: 4, marginBottom: 18 }}>
-        {(["missions", ...(profile.can_create_missions ? ["create"] as const : []), "sops", "payouts", "profile"] as Tab[]).map((t) => (
-          <button key={t} onClick={() => setTab(t)} className="font-mono-ibm" style={{ fontSize: 12, padding: "7px 14px", borderRadius: 8, cursor: "pointer", border: `1px solid ${t === tab ? V.signal : V.line}`, background: t === tab ? "rgba(255,138,61,.12)" : "transparent", color: t === tab ? V.signal : V.inkFaint }}>
-            {t === "missions" ? "Missions" : t === "create" ? "Create Mission" : t === "sops" ? "SOPs" : t === "payouts" ? "Payouts" : "Profile"}
-          </button>
-        ))}
-      </div>
-
-      {tab === "create" && profile.can_create_missions && accessToken && (
-        <PilotCreateMissionWizard
-          accessToken={accessToken}
-          subscriptionActive={profile.subscription_active}
-          onCreated={load}
-        />
+      {tab === "create" && accessToken && (
+        <>
+          {!profile.can_create_missions && (
+            <div style={{ ...panelStyle, borderColor: "rgba(255,138,61,.4)", marginBottom: 18, background: "rgba(255,138,61,.05)" }}>
+              <p style={{ color: V.signal, fontSize: 14 }}>
+                You can build out a mission below to see how quoting and self-service works, but you can't finalize
+                it yet — DOM admin needs to approve your account for self-service first, either after you complete
+                a DOM-assigned mission or once your credentials are verified.
+              </p>
+            </div>
+          )}
+          <PilotCreateMissionWizard
+            accessToken={accessToken}
+            subscriptionActive={profile.subscription_active}
+            canFinalize={profile.can_create_missions}
+            onCreated={load}
+          />
+        </>
       )}
 
       {tab === "missions" && (
@@ -236,16 +244,14 @@ export default function PilotDashboard() {
           </div>
         </div>
       )}
-
-      <div style={{ marginTop: 32, textAlign: "center" }}>
-        <button onClick={signOut} style={{ background: "none", border: "none", color: V.inkFaint, fontSize: 13, cursor: "pointer" }}>Sign out</button>
+      </div>
       </div>
     </Shell>
   );
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return (<div style={{ minHeight: "100vh", background: V.ground, color: V.ink, fontFamily: "Inter, system-ui, sans-serif" }}><div style={{ maxWidth: 900, margin: "0 auto", padding: "40px 24px" }}>{children}</div></div>);
+  return (<div style={{ minHeight: "100vh", background: V.ground, color: V.ink, fontFamily: "Inter, system-ui, sans-serif" }}><div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px" }}>{children}</div></div>);
 }
 function CredBadge({ label, ok }: { label: string; ok: boolean }) {
   return (<span className="font-mono-ibm" style={{ fontSize: 10, padding: "5px 10px", borderRadius: 8, border: `1px solid ${ok ? V.telemetry : V.line}`, background: ok ? "rgba(79,209,197,.1)" : "transparent", color: ok ? V.telemetry : V.inkFaint, letterSpacing: ".06em" }}>{ok ? "✓ " : "○ "}{label}</span>);

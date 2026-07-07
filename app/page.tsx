@@ -33,18 +33,41 @@ export default function HomePage() {
           -webkit-mask-image: radial-gradient(120% 90% at 70% 0%, #000 30%, transparent 80%);
           mask-image: radial-gradient(120% 90% at 70% 0%, #000 30%, transparent 80%);
         }
+        @keyframes heroFade {
+          0% { opacity: 0; }
+          5% { opacity: .32; }
+          28% { opacity: .32; }
+          33% { opacity: 0; }
+          100% { opacity: 0; }
+        }
+        .hero-bg { animation: heroFade 21s ease-in-out infinite; }
       `}</style>
 
       <div className="min-h-screen" style={{ background: "var(--ground)", color: "var(--ink)", fontFamily: "Inter, system-ui, sans-serif" }}>
 
         {/* ═══ HERO ═══ */}
         <header className="relative overflow-hidden" style={{ borderBottom: "1px solid var(--line-soft)" }}>
-          {/* Background layers */}
+          {/* Background layers — crossfading slideshow of aerial capture stills */}
           <img
             src="/images/city-night-aerial.jpg"
             alt=""
             aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover opacity-20"
+            className="hero-bg absolute inset-0 w-full h-full object-cover"
+            style={{ opacity: 0, animationDelay: "0s" }}
+          />
+          <img
+            src="/images/construction-aerial.jpg"
+            alt=""
+            aria-hidden="true"
+            className="hero-bg absolute inset-0 w-full h-full object-cover"
+            style={{ opacity: 0, animationDelay: "-7s" }}
+          />
+          <img
+            src="/images/solar-aerial.jpg"
+            alt=""
+            aria-hidden="true"
+            className="hero-bg absolute inset-0 w-full h-full object-cover"
+            style={{ opacity: 0, animationDelay: "-14s" }}
           />
           <div className="absolute inset-0" style={{
             background: "radial-gradient(120% 80% at 78% -10%, rgba(255,138,61,.10), transparent 55%), radial-gradient(90% 70% at 12% 8%, rgba(79,209,197,.07), transparent 50%), linear-gradient(180deg,#0c1119 0%, #0A0E14 70%)"
@@ -141,12 +164,12 @@ export default function HomePage() {
             <SectionHead anno="Core Services" title="From flight to final deliverable." lead="Not flight hours — finished data products your teams can use." />
             <div className="grid md:grid-cols-3 gap-4 mt-12">
               {[
-                ["▦", "Mapping & Surveying", "Orthomosaics, 3D models, and topographic survey data with measurable accuracy."],
+                ["▦", "Mapping & Surveying", "Orthomosaics, 3D models, and topographic survey data with measurable accuracy.", "/images/city-night-aerial.jpg"],
                 ["⊡", "Infrastructure Inspection", "High-resolution capture of towers, rooftops, bridges, and pipelines — with findings reports.", "/images/construction-aerial.jpg"],
-                ["◍", "Data & Analytics", "Processed deliverables: GIS layers, point clouds, volumetrics, and annotated reports."],
-                ["▲", "Aerial Capture", "Cinema-grade aerial media for commercial, marketing, and stakeholder communication."],
+                ["◍", "Data & Analytics", "Processed deliverables: GIS layers, point clouds, volumetrics, and annotated reports.", "/images/solar-aerial.jpg"],
+                ["▲", "Aerial Capture", "Cinema-grade aerial media for commercial, marketing, and stakeholder communication.", "/images/city-night-aerial.jpg"],
                 ["◈", "Thermal & Multispectral", "Radiometric thermal and multispectral imaging for energy, ag, and building envelope work.", "/images/solar-aerial.jpg"],
-                ["▣", "Mission Documentation", "Complete flight logs, compliance records, and reporting on every job — by default."],
+                ["▣", "Mission Documentation", "Complete flight logs, compliance records, and reporting on every job — by default.", "/images/construction-aerial.jpg"],
               ].map(([ic, t, d, img]) => (
                 <Card key={t} icon={ic} title={t} desc={d} image={img} />
               ))}
@@ -162,10 +185,10 @@ export default function HomePage() {
               {[
                 ["⚡", "Energy & Utilities", "Transmission lines, solar arrays, and wind asset inspection.", "/images/solar-aerial.jpg"],
                 ["▢", "Construction", "Site progress mapping, volumetrics, and stakeholder reporting.", "/images/construction-aerial.jpg"],
-                ["⌂", "Roofing & Restoration", "Fast, safe roof condition inspections for contractors and insurance work."],
-                ["◇", "Infrastructure", "Bridge, tower, and structural assessment without scaffolding or shutdowns."],
-                ["✦", "Agriculture", "Multispectral crop health and irrigation analysis at field scale."],
-                ["⬡", "Public Sector", "Compliant operations structured for municipal and government requirements."],
+                ["⌂", "Roofing & Restoration", "Fast, safe roof condition inspections for contractors and insurance work.", "/images/construction-aerial.jpg"],
+                ["◇", "Infrastructure", "Bridge, tower, and structural assessment without scaffolding or shutdowns.", "/images/city-night-aerial.jpg"],
+                ["✦", "Agriculture", "Multispectral crop health and irrigation analysis at field scale.", "/images/solar-aerial.jpg"],
+                ["⬡", "Public Sector", "Compliant operations structured for municipal and government requirements.", "/images/city-night-aerial.jpg"],
               ].map(([ic, t, d, img]) => (
                 <Card key={t} icon={ic} title={t} desc={d} image={img} />
               ))}

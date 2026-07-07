@@ -42,10 +42,12 @@ interface CreatedQuote {
 export default function PilotCreateMissionWizard({
   accessToken,
   subscriptionActive,
+  canFinalize,
   onCreated,
 }: {
   accessToken: string;
   subscriptionActive: boolean;
+  canFinalize: boolean;
   onCreated: () => void;
 }) {
   const [step, setStep] = useState<Step>("client");
@@ -350,10 +352,21 @@ export default function PilotCreateMissionWizard({
               {quote.warnings.map((w, i) => <p key={i} style={{ color: V.signal, fontSize: 12 }}>⚠ {w}</p>)}
             </div>
           )}
+          {!canFinalize && (
+            <p style={{ fontSize: 12, color: V.signal, marginTop: 12 }}>
+              This is a preview — your account isn't yet approved for self-service, so this mission can't be
+              finalized. Ask DOM admin to approve you once you're ready.
+            </p>
+          )}
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
             <button onClick={() => setStep("scope")} style={btnGhost}>← Adjust</button>
-            <button onClick={submit} disabled={submitting} style={{ ...btnPrimary, flex: 1 }}>
-              {submitting ? "Creating…" : "Create mission →"}
+            <button
+              onClick={submit}
+              disabled={submitting || !canFinalize}
+              title={canFinalize ? undefined : "Not yet approved for self-service mission creation"}
+              style={{ ...btnPrimary, flex: 1, ...(canFinalize ? {} : { opacity: 0.5, cursor: "not-allowed" }) }}
+            >
+              {submitting ? "Creating…" : canFinalize ? "Create mission →" : "Pending admin approval"}
             </button>
           </div>
         </div>

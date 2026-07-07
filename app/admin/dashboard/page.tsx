@@ -15,9 +15,6 @@ export default function AdminDashboardPage() {
             Manage leads, mission requests, clients, jobs, schedule, and deliverables.
           </p>
         </div>
-       <a href="/admin/missions" className="eyebrow" style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 18px", borderRadius: 10, background: "#FF8A3D", color: "#0A0E14", textDecoration: "none", marginBottom: 20 }}>
-                Mission Control →
-              </a>
         <AdminDashboardClient />
       </div>
     </section>

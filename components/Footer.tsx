@@ -1,7 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Radar } from "lucide-react";
 
 export default function Footer() {
+  const pathname = usePathname();
+  if (pathname?.startsWith("/admin") || pathname?.startsWith("/pilot")) return null;
+
   return (
     <footer className="border-t border-border bg-surface/40">
       <div className="container-app grid gap-10 py-16 lg:grid-cols-4">

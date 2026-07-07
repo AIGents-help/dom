@@ -129,9 +129,7 @@ export default function AdminContractorsPage() {
                 {c.status !== "active" && <Btn onClick={() => setActive(c.id)}>Mark active</Btn>}
                 <Btn onClick={() => onboard(c.id)}>{c.stripe_connect_account_id ? "Re-open Stripe" : "Start Stripe onboarding"}</Btn>
                 {!c.can_create_missions && (
-                  <Btn onClick={() => approveSelfService(c.id)}>
-                    {c.missions_completed >= 1 ? "Approve to Create Missions" : "Approve to Create Missions (needs 1+ completed)"}
-                  </Btn>
+                  <Btn onClick={() => approveSelfService(c.id)}>Approve to Create Missions</Btn>
                 )}
               </div>
             </div>

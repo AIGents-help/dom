@@ -57,8 +57,15 @@ const services = [
 export default function ServicesPage() {
   return (
     <>
-      <section className="border-b border-border bg-grid-fade">
-        <div className="container-app py-24">
+      <section className="relative overflow-hidden border-b border-border bg-grid-fade">
+        <img
+          src="/images/construction-aerial.jpg"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 h-full w-full object-cover opacity-20"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/80 to-background" />
+        <div className="container-app relative py-24">
           <p className="eyebrow mb-4">Services</p>
           <h1 className="heading-xl max-w-3xl">
             Full-spectrum aerial operations for commercial and government programs.

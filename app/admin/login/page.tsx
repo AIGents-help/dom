@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 // Real admin login — replaces the placeholder /api/admin/login the README flagged.
@@ -49,17 +50,23 @@ export default function AdminLoginPage() {
 
   return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#0A0E14" }}>
-      <div
-        style={{
-          width: 360,
-          padding: 32,
-          border: "1px solid #232C3B",
-          borderRadius: 14,
-          background: "#11161F",
-          color: "#E8ECF2",
-          fontFamily: "Inter, system-ui, sans-serif",
-        }}
-      >
+      <div style={{ width: 360 }}>
+        <Link
+          href="/"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#8A95A7", fontSize: 13, textDecoration: "none", marginBottom: 14 }}
+        >
+          ← Back to droneopsman.com
+        </Link>
+        <div
+          style={{
+            padding: 32,
+            border: "1px solid #232C3B",
+            borderRadius: 14,
+            background: "#11161F",
+            color: "#E8ECF2",
+            fontFamily: "Inter, system-ui, sans-serif",
+          }}
+        >
         <h1 style={{ fontFamily: "Saira, sans-serif", fontSize: 22, marginBottom: 4 }}>
           DOM Admin
         </h1>
@@ -93,6 +100,7 @@ export default function AdminLoginPage() {
         <button onClick={handleLogin} disabled={loading} style={btnStyle}>
           {loading ? "Signing in…" : "Sign in"}
         </button>
+        </div>
       </div>
     </div>
   );

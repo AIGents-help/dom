@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 export default function PilotLoginPage() {
@@ -44,7 +45,14 @@ export default function PilotLoginPage() {
 
   return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: V.ground, padding: 24 }}>
-      <div style={{ width: 380, padding: 32, border: `1px solid ${V.line}`, borderRadius: 16, background: V.surface }}>
+      <div style={{ width: 380 }}>
+        <Link
+          href="/"
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, color: V.inkDim, fontSize: 13, textDecoration: "none", marginBottom: 14 }}
+        >
+          ← Back to droneopsman.com
+        </Link>
+        <div style={{ padding: 32, border: `1px solid ${V.line}`, borderRadius: 16, background: V.surface }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
           <span style={{ width: 28, height: 28, border: `1.5px solid ${V.signal}`, borderRadius: 7, display: "grid", placeItems: "center", color: V.signal, fontSize: 12, background: "rgba(255,138,61,.08)" }}>◤</span>
           <span className="font-saira" style={{ fontWeight: 800, letterSpacing: ".04em", color: V.ink }}>DOM</span>
@@ -71,6 +79,7 @@ export default function PilotLoginPage() {
           Not a DOM pilot yet?{" "}
           <a href="/fly-for-dom" style={{ color: V.signal }}>Apply here</a>
         </p>
+        </div>
       </div>
     </div>
   );

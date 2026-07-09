@@ -52,9 +52,13 @@ export default function Footer() {
       </div>
 
       <div className="border-t border-border py-6">
-        <p className="container-app text-xs text-slate-500">
-          © {new Date().getFullYear()} Drone Operation Management. All rights reserved. Operated under FAA Part 107 regulations.
-        </p>
+        <div className="container-app flex flex-col gap-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} Drone Operation Management. All rights reserved. Operated under FAA Part 107 regulations.</p>
+          <div className="flex gap-5">
+            <Link href="/privacy" className="hover:text-accent">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-accent">Terms of Service</Link>
+          </div>
+        </div>
       </div>
     </footer>
   );

@@ -126,8 +126,8 @@ export default function TermsPage() {
 
           <Block title="12. Governing law">
             <p>
-              These Terms are governed by the laws of [Your State], without regard to conflict-of-law
-              principles.
+              These Terms are governed by the laws of the Commonwealth of Pennsylvania, without
+              regard to conflict-of-law principles.
             </p>
           </Block>
 

@@ -7,10 +7,10 @@ import { deliverableReady } from "@/lib/resend/templates";
 // POST /api/notify/deliverable-ready  { missionRequestId }
 // Fired from app/admin/missions/[id]/page.tsx's advanceStatus() when the
 // generic pipeline-advance button reaches 'delivered' — same pattern as
-// booking-confirmed on 'approved'. There's no real deliverable-upload
-// feature in this app yet (no code anywhere writes to the `deliverables`
-// table), so this fires without a deliverableUrl for now — the email just
-// won't render a "View Deliverables" button until that feature exists.
+// booking-confirmed on 'approved'. Links to /deliverables/[jobId] when at
+// least one QC-passed deliverable exists for the mission's job; otherwise
+// omits deliverableUrl and the email just won't render a button — e.g. if
+// admin advances the pipeline before uploading anything.
 export async function POST(req: NextRequest) {
   if (!(await isAdminRequest(req))) {
     return NextResponse.json({ error: "Not authorized" }, { status: 401 });
@@ -50,9 +50,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ skipped: true, reason: "no client email on file" });
     }
 
+    let deliverableUrl: string | undefined;
+    const { data: job } = await admin
+      .from("jobs")
+      .select("id")
+      .eq("mission_request_id", missionRequestId)
+      .maybeSingle();
+    if (job) {
+      const { count } = await admin
+        .from("deliverables")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", job.id)
+        .eq("qc_passed", true);
+      if (count && count > 0) {
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+        deliverableUrl = `${siteUrl}/deliverables/${job.id}`;
+      }
+    }
+
     const { subject, html } = deliverableReady({
       clientName,
       missionTitle: mr.company ?? mr.requester_name ?? undefined,
+      deliverableUrl,
     });
 
     const result = await sendNotification({

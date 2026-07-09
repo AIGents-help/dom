@@ -78,6 +78,17 @@ interface Assignment {
   contractor?: { full_name: string } | null;
 }
 
+interface Deliverable {
+  id: string;
+  name: string;
+  type: string | null;
+  storage_url: string | null;
+  qc_passed: boolean | null;
+  delivered_at: string | null;
+}
+
+const DELIVERABLE_TYPES = ["orthomosaic", "3d_model", "point_cloud", "report", "raw_images", "video", "other"];
+
 export default function MissionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -95,6 +106,11 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [advancing, setAdvancing] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
+  const [newDeliverableName, setNewDeliverableName] = useState("");
+  const [newDeliverableType, setNewDeliverableType] = useState(DELIVERABLE_TYPES[0]);
+  const [uploadingDeliverable, setUploadingDeliverable] = useState(false);
+  const [togglingQc, setTogglingQc] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -132,6 +148,13 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
         .eq("job_id", jobRow.id)
         .order("offered_at", { ascending: false });
       setAssignments((assigns as any) ?? []);
+
+      const { data: deliverableRows } = await sb
+        .from("deliverables")
+        .select("id, name, type, storage_url, qc_passed, delivered_at")
+        .eq("job_id", jobRow.id)
+        .order("created_at", { ascending: false });
+      setDeliverables((deliverableRows as Deliverable[]) ?? []);
     } else {
       // Only offer missions to contractors who are active AND fully
       // verified — otherwise a pilot could accept work that then fails at
@@ -249,6 +272,61 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       setOffering(false);
     }
   }, [id, selectedContractor, scheduledFor, load]);
+
+  const uploadDeliverable = useCallback(async (file: File) => {
+    if (!job || !newDeliverableName.trim()) return;
+    setUploadingDeliverable(true);
+    setError(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const path = `${job.id}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await sb.storage.from("mission-deliverables").upload(path, file);
+      if (uploadError) throw uploadError;
+
+      const { error: insertError } = await sb.from("deliverables").insert({
+        job_id: job.id,
+        name: newDeliverableName.trim(),
+        type: newDeliverableType,
+        storage_url: path,
+      });
+      if (insertError) throw insertError;
+
+      setNewDeliverableName("");
+      await load();
+    } catch (e: any) {
+      setError(e.message ?? "Failed to upload deliverable");
+    } finally {
+      setUploadingDeliverable(false);
+    }
+  }, [job, newDeliverableName, newDeliverableType, load]);
+
+  const toggleQcPassed = useCallback(async (deliverableId: string, next: boolean) => {
+    setTogglingQc(deliverableId);
+    setError(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const patch: Record<string, unknown> = { qc_passed: next };
+      if (next) patch.delivered_at = new Date().toISOString();
+      const { error: updateError } = await sb.from("deliverables").update(patch).eq("id", deliverableId);
+      if (updateError) throw updateError;
+      await load();
+    } catch (e: any) {
+      setError(e.message ?? "Failed to update deliverable");
+    } finally {
+      setTogglingQc(null);
+    }
+  }, [load]);
+
+  const downloadDeliverable = useCallback(async (storageUrl: string) => {
+    try {
+      const sb = getSupabaseBrowser();
+      const { data, error: signError } = await sb.storage.from("mission-deliverables").createSignedUrl(storageUrl, 300);
+      if (signError || !data) throw signError ?? new Error("Could not create download link");
+      window.open(data.signedUrl, "_blank");
+    } catch (e: any) {
+      setError(e.message ?? "Failed to generate download link");
+    }
+  }, []);
 
   if (!authed) return null;
 
@@ -458,6 +536,81 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                   use the Supabase dashboard to insert a new mission_assignments row for now.
                 </p>
               )}
+            </div>
+          )}
+
+          {job && (
+            <div style={panel}>
+              <Label>Deliverables</Label>
+              <p style={{ color: V.inkFaint, fontSize: 12, marginTop: 6 }}>
+                Only QC-passed deliverables are visible to the client at their deliverables link.
+              </p>
+
+              <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+                {deliverables.length === 0 && (
+                  <p style={{ color: V.inkDim, fontSize: 13 }}>No deliverables uploaded yet.</p>
+                )}
+                {deliverables.map((d) => (
+                  <div key={d.id} style={{ ...panel, padding: 14, background: V.raised }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                      <div>
+                        <span style={{ fontWeight: 600 }}>{d.name}</span>
+                        <span style={{ color: V.inkFaint, fontSize: 12, marginLeft: 8 }}>{(d.type ?? "").replace(/_/g, " ")}</span>
+                      </div>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <span className="font-mono-ibm" style={{
+                          fontSize: 10, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase",
+                          background: d.qc_passed ? "rgba(79,209,197,.2)" : "rgba(255,138,61,.14)",
+                          color: d.qc_passed ? V.telemetry : V.signal,
+                        }}>
+                          {d.qc_passed ? "QC passed" : "pending QC"}
+                        </span>
+                        {d.storage_url && (
+                          <button onClick={() => downloadDeliverable(d.storage_url!)} style={{ ...btnGhost, padding: "6px 12px", fontSize: 12 }}>
+                            Download
+                          </button>
+                        )}
+                        {!d.qc_passed && (
+                          <button
+                            onClick={() => toggleQcPassed(d.id, true)}
+                            disabled={togglingQc === d.id}
+                            style={{ ...btnPrimary, padding: "6px 12px", fontSize: 12 }}
+                          >
+                            {togglingQc === d.id ? "…" : "Mark QC Passed"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  placeholder="Deliverable name"
+                  value={newDeliverableName}
+                  onChange={(e) => setNewDeliverableName(e.target.value)}
+                  style={{ ...inputStyle, marginTop: 0, width: 200 }}
+                />
+                <select
+                  value={newDeliverableType}
+                  onChange={(e) => setNewDeliverableType(e.target.value)}
+                  style={{ ...inputStyle, marginTop: 0, width: 160 }}
+                >
+                  {DELIVERABLE_TYPES.map((t) => (
+                    <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
+                  ))}
+                </select>
+                <label style={{ ...btnGhost, display: "inline-block", opacity: newDeliverableName.trim() ? 1 : 0.5 }}>
+                  {uploadingDeliverable ? "Uploading…" : "Choose file & upload"}
+                  <input
+                    type="file"
+                    style={{ display: "none" }}
+                    disabled={!newDeliverableName.trim() || uploadingDeliverable}
+                    onChange={(e) => e.target.files?.[0] && uploadDeliverable(e.target.files[0])}
+                  />
+                </label>
+              </div>
             </div>
           )}
         </div>

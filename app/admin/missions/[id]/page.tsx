@@ -176,6 +176,22 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
         .update({ status: next })
         .eq("id", id);
       if (updateError) throw updateError;
+
+      // Booking-confirmation email — there's no dedicated "confirm booking"
+      // action in this app, so 'approved' on the generic pipeline is the
+      // closest real signal. Best-effort: a notification failure shouldn't
+      // block the status change that already succeeded.
+      if (next === "approved") {
+        const { data: session } = await sb.auth.getSession();
+        if (session.session) {
+          fetch("/api/notify/booking-confirmed", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.session.access_token}` },
+            body: JSON.stringify({ missionRequestId: id }),
+          }).catch((e) => console.error("booking-confirmed notify failed:", e));
+        }
+      }
+
       await load();
     } catch (e: any) {
       setError(e.message ?? "Failed to update status");

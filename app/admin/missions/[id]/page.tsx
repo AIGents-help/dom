@@ -181,14 +181,15 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       // action in this app, so 'approved' on the generic pipeline is the
       // closest real signal. Best-effort: a notification failure shouldn't
       // block the status change that already succeeded.
-      if (next === "approved") {
+      if (next === "approved" || next === "delivered") {
         const { data: session } = await sb.auth.getSession();
         if (session.session) {
-          fetch("/api/notify/booking-confirmed", {
+          const endpoint = next === "approved" ? "/api/notify/booking-confirmed" : "/api/notify/deliverable-ready";
+          fetch(endpoint, {
             method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.session.access_token}` },
             body: JSON.stringify({ missionRequestId: id }),
-          }).catch((e) => console.error("booking-confirmed notify failed:", e));
+          }).catch((e) => console.error(`${endpoint} notify failed:`, e));
         }
       }
 
@@ -229,6 +230,18 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
         p_scheduled_for: scheduledFor ? new Date(scheduledFor).toISOString() : null,
       });
       if (rpcError) throw rpcError;
+
+      // Best-effort: a notification failure shouldn't undo the offer that
+      // already succeeded.
+      const { data: session } = await sb.auth.getSession();
+      if (session.session) {
+        fetch("/api/notify/mission-available", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.session.access_token}` },
+          body: JSON.stringify({ missionRequestId: id, contractorId: selectedContractor }),
+        }).catch((e) => console.error("mission-available notify failed:", e));
+      }
+
       await load();
     } catch (e: any) {
       setError(e.message ?? "Failed to offer mission");

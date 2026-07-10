@@ -41,7 +41,8 @@ export type EmailType =
   | "certification_expiring"
   | "admin_new_booking"
   | "admin_deliverable_submitted"
-  | "admin_payment_failed";
+  | "admin_payment_failed"
+  | "admin_mission_claimed";
 
 // Matches the live notification_recipient_type enum.
 export type RecipientType = "customer" | "pilot" | "admin";

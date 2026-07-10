@@ -9,10 +9,18 @@ import { useEffect, useState } from "react";
 
 const V = { surface: "#11161F", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D" };
 
-export type PilotTab = "missions" | "create" | "publicprofile" | "resources" | "sops" | "payouts" | "profile";
+export type PilotTab = "missions" | "queue" | "create" | "publicprofile" | "resources" | "sops" | "payouts" | "profile";
+
+// The open Mission Queue is built but stays dark (hidden from nav) until
+// escrow ships in a later PR — an open claim queue without payment
+// commitment would expose client location/price data to every verified
+// pilot pre-claim. Flip NEXT_PUBLIC_MISSION_QUEUE_ENABLED=true in Vercel to
+// turn it on; no redeploy of logic needed.
+const QUEUE_ENABLED = process.env.NEXT_PUBLIC_MISSION_QUEUE_ENABLED === "true";
 
 const ITEMS: { id: PilotTab; label: string; icon: string }[] = [
   { id: "missions", label: "Missions", icon: "▤" },
+  ...(QUEUE_ENABLED ? [{ id: "queue" as PilotTab, label: "Queue", icon: "◫" }] : []),
   { id: "create", label: "Create Mission", icon: "✎" },
   { id: "publicprofile", label: "Public Profile", icon: "◈" },
   { id: "resources", label: "Resources", icon: "⬡" },

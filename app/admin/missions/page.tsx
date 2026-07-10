@@ -23,6 +23,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   scoped: { bg: "rgba(79,209,197,.12)", text: "#4FD1C5" },
   quoted: { bg: "rgba(79,209,197,.12)", text: "#4FD1C5" },
   approved: { bg: "rgba(79,209,197,.18)", text: "#4FD1C5" },
+  claimed: { bg: "rgba(255,138,61,.14)", text: "#FF8A3D" },
   assigned: { bg: "rgba(196,107,224,.14)", text: "#C46BE0" },
   in_progress: { bg: "rgba(196,107,224,.14)", text: "#C46BE0" },
   delivered: { bg: "rgba(79,209,197,.18)", text: "#4FD1C5" },
@@ -78,7 +79,7 @@ export default function MissionsPage() {
 
       {/* Filters */}
       <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
-        {["all", "requested", "scoped", "quoted", "approved", "assigned", "in_progress", "delivered", "closed"].map((f) => (
+        {["all", "requested", "scoped", "quoted", "approved", "claimed", "assigned", "in_progress", "delivered", "closed"].map((f) => (
           <button key={f} onClick={() => setFilter(f)} className="font-mono-ibm" style={{
             fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer",
             border: `1px solid ${f === filter ? V.signal : V.line}`,

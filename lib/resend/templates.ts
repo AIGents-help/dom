@@ -151,6 +151,30 @@ export function missionAvailable(params: {
   };
 }
 
+export function missionClaimed(params: {
+  pilotName: string;
+  serviceType: string;
+  payoutCents: number | null;
+  reviewUrl: string;
+}): TemplateResult {
+  const rows = [
+    infoRow("Service", params.serviceType.replace(/_/g, " ")),
+    params.payoutCents != null ? infoRow("Payout", formatCents(params.payoutCents)) : "",
+  ].join("");
+
+  return {
+    subject: `Pilot Claimed a Queue Mission — ${params.serviceType.replace(/_/g, " ")}`,
+    html: shell(
+      "A pilot requested a mission from the queue",
+      `
+        <p style="color:#444; line-height:1.5;">${escapeHtml(params.pilotName)} requested this mission from the open queue. It won't be assigned until you review and approve it.</p>
+        ${infoTable(rows)}
+        ${button("Review Claim", params.reviewUrl)}
+      `
+    ),
+  };
+}
+
 export function missionBriefingReady(params: {
   pilotName: string;
   missionTitle: string;

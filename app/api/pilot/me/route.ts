@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
+import { fuzzyGrid } from "@/lib/fuzzyLocation";
 
 // GET /api/pilot/me
 // Returns the authenticated pilot's profile, active assignments, and payout history.
@@ -77,6 +78,40 @@ export async function GET(req: NextRequest) {
       .eq("contractor_id", contractor.id)
       .order("sort_order");
 
+    // Missions this pilot claimed from the open queue, awaiting admin
+    // review — same redacted field set as /api/pilot/queue (no contact
+    // info), so a claim disappearing into review isn't a silent vanish.
+    const { data: myClaimsRaw } = await admin
+      .from("mission_requests")
+      .select("id, service_type, status, created_at, scheduled_date, airspace_class, latitude, longitude")
+      .eq("claimed_by_contractor_id", contractor.id)
+      .eq("status", "claimed")
+      .order("created_at", { ascending: false });
+
+    const claimIds = (myClaimsRaw ?? []).map((m) => m.id);
+    const { data: claimQuotes } = claimIds.length
+      ? await admin
+          .from("quotes")
+          .select("mission_request_id, contractor_cents, created_at")
+          .in("mission_request_id", claimIds)
+          .order("created_at", { ascending: false })
+      : { data: [] };
+    const claimPayoutByMission = new Map<string, number>();
+    for (const q of claimQuotes ?? []) {
+      if (!claimPayoutByMission.has(q.mission_request_id)) claimPayoutByMission.set(q.mission_request_id, q.contractor_cents);
+    }
+
+    const myClaims = (myClaimsRaw ?? []).map((m) => ({
+      id: m.id,
+      service_type: m.service_type,
+      status: m.status,
+      created_at: m.created_at,
+      scheduled_date: m.scheduled_date,
+      airspace_class: m.airspace_class,
+      area: fuzzyGrid(m.latitude, m.longitude),
+      payout_cents: claimPayoutByMission.get(m.id) ?? null,
+    }));
+
     return NextResponse.json({
       profile: {
         id: contractor.id,
@@ -107,6 +142,7 @@ export async function GET(req: NextRequest) {
       sops: sops ?? [],
       requestsForMe: requestsForMe ?? [],
       portfolio: portfolio ?? [],
+      myClaims: myClaims ?? [],
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

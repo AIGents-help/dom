@@ -32,6 +32,7 @@ interface MissionRequest {
   scope: string | null;
   budget_range: string | null;
   requested_contractor_id: string | null;
+  claimed_by_contractor_id: string | null;
   created_at: string;
 }
 
@@ -104,6 +105,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [selectedContractor, setSelectedContractor] = useState("");
   const [scheduledFor, setScheduledFor] = useState("");
   const [offering, setOffering] = useState(false);
+  const [releasingClaim, setReleasingClaim] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -186,6 +188,30 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       load();
     })();
   }, [router, load]);
+
+  // A pilot-claimed mission (from the open queue) pre-fills the existing
+  // Offer flow with the claimant rather than getting a separate approve UI —
+  // admin just reviews and clicks the same "Offer Mission" button.
+  useEffect(() => {
+    if (mission?.status === "claimed" && mission.claimed_by_contractor_id) {
+      setSelectedContractor(mission.claimed_by_contractor_id);
+    }
+  }, [mission?.status, mission?.claimed_by_contractor_id]);
+
+  const releaseClaim = useCallback(async () => {
+    setReleasingClaim(true);
+    setError(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { error: rpcError } = await sb.rpc("admin_release_mission_claim", { p_mission_request_id: id });
+      if (rpcError) throw rpcError;
+      await load();
+    } catch (e: any) {
+      setError(e.message ?? "Failed to release claim");
+    } finally {
+      setReleasingClaim(false);
+    }
+  }, [id, load]);
 
   const advanceStatus = useCallback(async () => {
     if (!mission) return;
@@ -459,6 +485,16 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
           {!job && (
             <div style={panel}>
               <Label>Offer to Contractor</Label>
+              {mission.status === "claimed" && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 10, padding: 12, borderRadius: 8, background: "rgba(255,138,61,.08)", border: `1px solid ${V.signal}` }}>
+                  <p style={{ color: V.signal, fontSize: 13, margin: 0 }}>
+                    {contractors.find((c) => c.id === mission.claimed_by_contractor_id)?.full_name ?? "A pilot"} requested this from the open queue — pre-selected below.
+                  </p>
+                  <button onClick={releaseClaim} disabled={releasingClaim} style={btnGhost}>
+                    {releasingClaim ? "…" : "Release back to queue"}
+                  </button>
+                </div>
+              )}
               {contractors.length === 0 ? (
                 <p style={{ color: V.inkDim, fontSize: 13, marginTop: 10 }}>
                   No active contractors available. Verify and activate contractors in{" "}

@@ -9,6 +9,7 @@ import PilotSidebar, { type PilotTab } from "@/components/PilotSidebar";
 import PilotProfileEditor from "@/components/PilotProfileEditor";
 import PilotPublicProfileEditor from "@/components/PilotPublicProfileEditor";
 import PilotResources from "@/components/PilotResources";
+import PilotQueue from "@/components/PilotQueue";
 import SopViewer from "@/components/SopViewer";
 import { sopMarkdownToHtml } from "@/lib/sopMarkdown";
 
@@ -33,6 +34,11 @@ interface Assignment {
 }
 interface Payout { id: string; contractor_amount_cents: number; status: string; created_at: string; }
 interface SOP { id: string; slug: string; title: string; mission_type: string; category: string; version: number; body_md: string; }
+interface QueueClaim {
+  id: string; service_type: string | null; status: string; created_at: string;
+  scheduled_date: string | null; airspace_class: string | null;
+  area?: { lat_grid: number; lng_grid: number } | null; payout_cents?: number | null;
+}
 type Tab = PilotTab;
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -64,6 +70,7 @@ export default function PilotDashboard() {
   const [subActionLoading, setSubActionLoading] = useState(false);
   const [portfolio, setPortfolio] = useState<PortfolioImage[]>([]);
   const [requestsForMe, setRequestsForMe] = useState<RequestedForMe[]>([]);
+  const [myClaims, setMyClaims] = useState<QueueClaim[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [missionLogAssignment, setMissionLogAssignment] = useState<Assignment | null>(null);
   const [expandedSop, setExpandedSop] = useState<string | null>(null);
@@ -92,6 +99,7 @@ export default function PilotDashboard() {
     setAssignments(body.assignments ?? []);
     setPayouts(body.payouts ?? []);
     setSops(body.sops ?? []);
+    setMyClaims(body.myClaims ?? []);
     setLoading(false);
   }, [router]);
 
@@ -359,6 +367,10 @@ export default function PilotDashboard() {
             );
           })}
         </div>
+      )}
+
+      {tab === "queue" && accessToken && (
+        <PilotQueue accessToken={accessToken} myClaims={myClaims} onClaimed={load} />
       )}
 
       {tab === "sops" && (

@@ -1,12 +1,27 @@
 "use client";
 
-// Pilot > Resources — curated external links. Static content, no DB
-// needed; free for every pilot regardless of subscription tier. Insurance
-// entries are plain links for now — swap in real affiliate URLs/codes
-// here once partnership deals exist, without touching anything else.
+import { useState } from "react";
+import SopViewer from "@/components/SopViewer";
 
-const V = { surface: "#11161F", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D" };
+// Pilot > Resources — curated external links (static, free for everyone)
+// plus DB-backed training tutorials (components/PilotResources tab). Free
+// tutorials always render; premium ones are gated server-side in
+// /api/pilot/me (locked: true, body_md omitted) behind the existing $99/mo
+// self-service subscription — not a new per-tutorial purchase flow.
+
+const V = { surface: "#11161F", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D", telemetry: "#4FD1C5" };
 const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
+
+export interface Tutorial {
+  id: string;
+  slug: string;
+  title: string;
+  category: string | null;
+  is_premium: boolean;
+  version: number;
+  locked: boolean;
+  body_md: string | null;
+}
 
 interface ResourceLink {
   name: string;
@@ -49,9 +64,59 @@ const SECTIONS: { title: string; links: ResourceLink[] }[] = [
   },
 ];
 
-export default function PilotResources() {
+export default function PilotResources({ tutorials }: { tutorials: Tutorial[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
+      {tutorials.length > 0 && (
+        <div style={panelStyle}>
+          <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>
+            Training &amp; Tutorials
+          </div>
+          <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+            {tutorials.map((t) => {
+              const open = expanded === t.id;
+              return (
+                <div key={t.id} style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: t.locked ? "rgba(90,102,120,.06)" : "transparent" }}>
+                  <button
+                    onClick={() => !t.locked && setExpanded(open ? null : t.id)}
+                    disabled={t.locked}
+                    style={{
+                      display: "flex", width: "100%", justifyContent: "space-between", alignItems: "center",
+                      padding: 12, background: "transparent", border: "none", textAlign: "left",
+                      cursor: t.locked ? "default" : "pointer", color: V.ink,
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{t.title}</div>
+                      <div style={{ color: V.inkDim, fontSize: 13, marginTop: 2 }}>{t.category ?? "General"}</div>
+                    </div>
+                    {t.locked ? (
+                      <span className="font-mono-ibm" style={{ fontSize: 10, padding: "4px 9px", borderRadius: 20, background: "rgba(90,102,120,.15)", color: V.inkFaint, letterSpacing: ".06em", textTransform: "uppercase" }}>
+                        🔒 Subscriber only
+                      </span>
+                    ) : (
+                      <span style={{ color: V.inkFaint, fontSize: 13 }}>{open ? "▲" : "▼"}</span>
+                    )}
+                  </button>
+                  {t.locked && (
+                    <p style={{ color: V.inkFaint, fontSize: 12, margin: "0 12px 12px" }}>
+                      Unlocks with the $99/mo self-service subscription — see the Profile tab.
+                    </p>
+                  )}
+                  {open && t.body_md && (
+                    <div style={{ padding: "0 12px 16px", borderTop: `1px solid ${V.line}`, marginTop: -1, paddingTop: 14 }}>
+                      <SopViewer bodyMd={t.body_md} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {SECTIONS.map((section) => (
         <div key={section.title} style={panelStyle}>
           <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>

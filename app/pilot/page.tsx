@@ -8,7 +8,7 @@ import PilotMissionLog from "@/components/PilotMissionLog";
 import PilotSidebar, { type PilotTab } from "@/components/PilotSidebar";
 import PilotProfileEditor from "@/components/PilotProfileEditor";
 import PilotPublicProfileEditor from "@/components/PilotPublicProfileEditor";
-import PilotResources from "@/components/PilotResources";
+import PilotResources, { type Tutorial } from "@/components/PilotResources";
 import PilotQueue from "@/components/PilotQueue";
 import SopViewer from "@/components/SopViewer";
 import { sopMarkdownToHtml } from "@/lib/sopMarkdown";
@@ -71,6 +71,7 @@ export default function PilotDashboard() {
   const [portfolio, setPortfolio] = useState<PortfolioImage[]>([]);
   const [requestsForMe, setRequestsForMe] = useState<RequestedForMe[]>([]);
   const [myClaims, setMyClaims] = useState<QueueClaim[]>([]);
+  const [tutorials, setTutorials] = useState<Tutorial[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [missionLogAssignment, setMissionLogAssignment] = useState<Assignment | null>(null);
   const [expandedSop, setExpandedSop] = useState<string | null>(null);
@@ -100,6 +101,7 @@ export default function PilotDashboard() {
     setPayouts(body.payouts ?? []);
     setSops(body.sops ?? []);
     setMyClaims(body.myClaims ?? []);
+    setTutorials(body.tutorials ?? []);
     setLoading(false);
   }, [router]);
 
@@ -428,7 +430,7 @@ export default function PilotDashboard() {
         <PilotPublicProfileEditor profile={profile} portfolio={portfolio} userId={userId} onSaved={load} />
       )}
 
-      {tab === "resources" && <PilotResources />}
+      {tab === "resources" && <PilotResources tutorials={tutorials} />}
 
       {tab === "profile" && (
         <div style={panelStyle}>

@@ -62,6 +62,29 @@ export async function GET(req: NextRequest) {
       .eq("is_current", true)
       .order("mission_type, category");
 
+    // Training tutorials (Resources tab). Free ones always include body_md;
+    // premium ones only include it once subscribed — otherwise the pilot
+    // sees the title/category as a locked teaser, not the content itself.
+    const { data: tutorialsRaw } = await admin
+      .from("pilot_tutorials")
+      .select("id, slug, title, category, is_premium, version, body_md")
+      .eq("is_current", true)
+      .order("category, title");
+
+    const tutorials = (tutorialsRaw ?? []).map((t) => {
+      const unlocked = !t.is_premium || contractor.subscription_active;
+      return {
+        id: t.id,
+        slug: t.slug,
+        title: t.title,
+        category: t.category,
+        is_premium: t.is_premium,
+        version: t.version,
+        locked: !unlocked,
+        body_md: unlocked ? t.body_md : null,
+      };
+    });
+
     // Clients can name this pilot specifically from their public profile
     // page (see /api/mission-request's requestedContractorId). These stay
     // in the normal admin review/quote pipeline — this is just an
@@ -140,6 +163,7 @@ export async function GET(req: NextRequest) {
       assignments: assignments ?? [],
       payouts: payouts ?? [],
       sops: sops ?? [],
+      tutorials: tutorials ?? [],
       requestsForMe: requestsForMe ?? [],
       portfolio: portfolio ?? [],
       myClaims: myClaims ?? [],

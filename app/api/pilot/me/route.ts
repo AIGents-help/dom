@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
     // Get SOPs the pilot needs to know
     const { data: sops } = await admin
       .from("sop_documents")
-      .select("id, slug, title, mission_type, category, version")
+      .select("id, slug, title, mission_type, category, version, body_md")
       .eq("is_current", true)
       .order("mission_type, category");
 

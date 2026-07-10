@@ -9,6 +9,8 @@ import PilotSidebar, { type PilotTab } from "@/components/PilotSidebar";
 import PilotProfileEditor from "@/components/PilotProfileEditor";
 import PilotPublicProfileEditor from "@/components/PilotPublicProfileEditor";
 import PilotResources from "@/components/PilotResources";
+import SopViewer from "@/components/SopViewer";
+import { sopMarkdownToHtml } from "@/lib/sopMarkdown";
 
 interface Profile {
   id: string; full_name: string; email: string; phone: string | null; status: string;
@@ -30,7 +32,7 @@ interface Assignment {
   job: { id: string; title: string; service_type: string; location: string; scheduled_for: string | null; status: string; mission_request_id: string; delivery_responsibility: string } | null;
 }
 interface Payout { id: string; contractor_amount_cents: number; status: string; created_at: string; }
-interface SOP { id: string; slug: string; title: string; mission_type: string; category: string; version: number; }
+interface SOP { id: string; slug: string; title: string; mission_type: string; category: string; version: number; body_md: string; }
 type Tab = PilotTab;
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
@@ -64,6 +66,7 @@ export default function PilotDashboard() {
   const [requestsForMe, setRequestsForMe] = useState<RequestedForMe[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
   const [missionLogAssignment, setMissionLogAssignment] = useState<Assignment | null>(null);
+  const [expandedSop, setExpandedSop] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -171,6 +174,42 @@ export default function PilotDashboard() {
       setError(e.message);
       setSubActionLoading(false);
     }
+  }
+
+  function missionTypeForService(serviceType: string | null | undefined): string {
+    if (!serviceType) return "general";
+    if (serviceType === "roof_inspection_residential" || serviceType === "roof_inspection_commercial") return "roof_inspection";
+    const known = ["construction_progress", "thermal_inspection", "ortho_survey", "powerline_inspection", "real_estate_media"];
+    return known.includes(serviceType) ? serviceType : "general";
+  }
+
+  function sopsFor(serviceType: string | null | undefined): SOP[] {
+    const mt = missionTypeForService(serviceType);
+    return sops.filter((s) => s.mission_type === mt);
+  }
+
+  function printSop(sop: SOP) {
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`<!doctype html><html><head><title>${sop.title}</title><style>
+      body { font-family: Georgia, serif; color: #1a1a1a; max-width: 720px; margin: 40px auto; padding: 0 20px; line-height: 1.5; }
+      h1 { font-size: 22px; margin-bottom: 2px; }
+      h2 { font-size: 14px; letter-spacing: .06em; text-transform: uppercase; color: #444; margin-top: 24px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+      .meta { font-size: 12px; color: #666; margin-bottom: 20px; }
+      ul.check-list { list-style: none; padding: 0; }
+      ul.check-list li { display: flex; gap: 8px; margin: 6px 0; font-size: 14px; }
+      .box { flex-shrink: 0; }
+      .gate { margin-top: 16px; padding: 10px 12px; border: 1px solid #999; background: #f5f5f5; font-size: 13px; }
+      p { font-size: 14px; }
+      @media print { body { margin: 0 auto; } }
+    </style></head><body>
+      <h1>${sop.title}</h1>
+      <div class="meta">${sop.mission_type.replace(/_/g, " ")} · ${sop.category} · v${sop.version}</div>
+      ${sopMarkdownToHtml(sop.body_md)}
+    </body></html>`);
+    win.document.close();
+    win.focus();
+    win.print();
   }
 
   if (loading) return <Shell><p style={{ color: V.inkDim }}>Loading your dashboard…</p></Shell>;
@@ -299,10 +338,21 @@ export default function PilotDashboard() {
                   </div>
                 )}
                 {a.status !== "offered" && a.status !== "declined" && job && (
-                  <div style={{ marginTop: 14 }}>
+                  <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
                     <button onClick={() => setMissionLogAssignment(a)} style={btnGhost}>
                       Mission Log →
                     </button>
+                    {sopsFor(job.service_type).length > 0 && (
+                      <button
+                        onClick={() => {
+                          setExpandedSop(sopsFor(job.service_type)[0].id);
+                          setTab("sops");
+                        }}
+                        style={btnGhost}
+                      >
+                        View SOP →
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -314,17 +364,36 @@ export default function PilotDashboard() {
       {tab === "sops" && (
         <div style={{ display: "grid", gap: 10 }}>
           {sops.length === 0 && <p style={{ color: V.inkDim }}>No SOPs published yet.</p>}
-          {sops.map((s) => (
-            <div key={s.id} style={panelStyle}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div>
-                  <div className="font-saira" style={{ fontWeight: 600, fontSize: 15 }}>{s.title}</div>
-                  <div className="font-mono-ibm" style={{ fontSize: 11, color: V.inkFaint, marginTop: 3 }}>{s.mission_type?.replace(/_/g, " ")} · {s.category} · v{s.version}</div>
+          {sops.map((s) => {
+            const open = expandedSop === s.id;
+            return (
+              <div key={s.id} style={panelStyle}>
+                <div
+                  onClick={() => setExpandedSop(open ? null : s.id)}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+                >
+                  <div>
+                    <div className="font-saira" style={{ fontWeight: 600, fontSize: 15 }}>{s.title}</div>
+                    <div className="font-mono-ibm" style={{ fontSize: 11, color: V.inkFaint, marginTop: 3 }}>{s.mission_type?.replace(/_/g, " ")} · {s.category} · v{s.version}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                    <span className="font-mono-ibm" style={{ fontSize: 11, color: V.telemetry }}>CURRENT</span>
+                    <span style={{ color: V.inkFaint, fontSize: 13 }}>{open ? "▲" : "▼"}</span>
+                  </div>
                 </div>
-                <span className="font-mono-ibm" style={{ fontSize: 11, color: V.telemetry }}>CURRENT</span>
+                {open && (
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${V.line}` }}>
+                    <SopViewer bodyMd={s.body_md} />
+                    <div style={{ marginTop: 18 }}>
+                      <button onClick={() => printSop(s)} style={btnGhost}>
+                        Print / Download →
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

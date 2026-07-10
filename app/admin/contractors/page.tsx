@@ -24,6 +24,7 @@ type Contractor = {
   membership_deadline: string | null;
   resource_access_locked: boolean;
   resource_access_active: boolean;
+  subscription_active: boolean;
 };
 
 function daysUntil(dateStr: string): number {
@@ -33,6 +34,7 @@ function daysUntil(dateStr: string): number {
 export default function AdminContractorsPage() {
   const router = useRouter();
   const [rows, setRows] = useState<Contractor[]>([]);
+  const [tierBps, setTierBps] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [authed, setAuthed] = useState(false);
 
@@ -43,6 +45,32 @@ export default function AdminContractorsPage() {
       .select("*")
       .order("created_at", { ascending: false });
     if (!error && data) setRows(data as Contractor[]);
+
+    // Tier badge — bulk-fetch trailing-90-day completed counts once and
+    // tally client-side (same pattern used on the mission Offer panel and
+    // the unverified-pilot funnel), instead of an RPC round-trip per row.
+    const ids = (data ?? []).map((c) => c.id);
+    if (ids.length) {
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      const { data: recentCompletions } = await supabaseBrowser
+        .from("mission_assignments")
+        .select("contractor_id")
+        .in("contractor_id", ids)
+        .in("status", ["qc_passed", "paid"])
+        .gte("completed_at", ninetyDaysAgo.toISOString());
+      const counts: Record<string, number> = {};
+      for (const row of recentCompletions ?? []) {
+        counts[row.contractor_id] = (counts[row.contractor_id] ?? 0) + 1;
+      }
+      const tiers: Record<string, number> = {};
+      for (const cid of ids) {
+        const count = counts[cid] ?? 0;
+        tiers[cid] = count >= 10 ? 1000 : count >= 5 ? 1500 : 2000;
+      }
+      setTierBps(tiers);
+    }
+
     setLoading(false);
   }, []);
 
@@ -174,6 +202,9 @@ export default function AdminContractorsPage() {
                   )}
                   <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: c.stripe_payouts_enabled ? "#4FD1C5" : "#5A6678", marginTop: 6 }}>
                     {c.stripe_connect_account_id ? (c.stripe_payouts_enabled ? "PAYOUTS READY" : "STRIPE PENDING") : "NO STRIPE ACCT"}
+                  </div>
+                  <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: "#5A6678", marginTop: 4 }}>
+                    {c.subscription_active ? "0% commission (subscribed)" : `${(tierBps[c.id] ?? 2000) / 100}% commission tier`}
                   </div>
                 </div>
               </div>

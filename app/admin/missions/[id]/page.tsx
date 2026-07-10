@@ -77,6 +77,7 @@ interface Assignment {
   mission_price_cents: number | null;
   contractor_payout_cents: number | null;
   dom_commission_cents: number | null;
+  commission_bps_applied: number | null;
   contractor?: { full_name: string } | null;
 }
 
@@ -102,6 +103,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [job, setJob] = useState<Job | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [contractors, setContractors] = useState<Contractor[]>([]);
+  const [contractorTierBps, setContractorTierBps] = useState<Record<string, number>>({});
   const [selectedContractor, setSelectedContractor] = useState("");
   const [scheduledFor, setScheduledFor] = useState("");
   const [offering, setOffering] = useState(false);
@@ -147,7 +149,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
     if (jobRow) {
       const { data: assigns } = await sb
         .from("mission_assignments")
-        .select("id, contractor_id, status, offered_at, accepted_at, mission_price_cents, contractor_payout_cents, dom_commission_cents, contractor:contractors(full_name)")
+        .select("id, contractor_id, status, offered_at, accepted_at, mission_price_cents, contractor_payout_cents, dom_commission_cents, commission_bps_applied, contractor:contractors(full_name)")
         .eq("job_id", jobRow.id)
         .order("offered_at", { ascending: false });
       setAssignments((assigns as any) ?? []);
@@ -171,6 +173,37 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
         .eq("insurance_verified", true)
         .order("rating", { ascending: false });
       setContractors((activeContractors as Contractor[]) ?? []);
+
+      // Tier badge per contractor — bulk-fetch trailing-90-day completed
+      // counts once and tally client-side (same pattern as the admin
+      // dashboard's funnel panels), rather than one RPC round-trip per row.
+      const contractorIds = (activeContractors ?? []).map((c) => c.id);
+      if (contractorIds.length) {
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const { data: recentCompletions } = await sb
+          .from("mission_assignments")
+          .select("contractor_id")
+          .in("contractor_id", contractorIds)
+          .in("status", ["qc_passed", "paid"])
+          .gte("completed_at", ninetyDaysAgo.toISOString());
+        const counts: Record<string, number> = {};
+        for (const row of recentCompletions ?? []) {
+          counts[row.contractor_id] = (counts[row.contractor_id] ?? 0) + 1;
+        }
+        // Display-only badge — mirrors calculate_commission_bps's tier
+        // bands (see the migration) since a real per-contractor RPC round
+        // trip per dropdown row isn't worth it for a label. The actual
+        // money calculation always goes through the SQL function; this
+        // can never itself write an incorrect commission, only mislabel
+        // the preview if the bands are ever retuned without updating here.
+        const tiers: Record<string, number> = {};
+        for (const cid of contractorIds) {
+          const count = counts[cid] ?? 0;
+          tiers[cid] = count >= 10 ? 1000 : count >= 5 ? 1500 : 2000;
+        }
+        setContractorTierBps(tiers);
+      }
     }
 
     setLoading(false);
@@ -469,9 +502,13 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                 <ModRow label={`Deliverable × ${quote.deliverable_mod}`} />
                 <div style={{ borderTop: `1px solid ${V.line}`, paddingTop: 8, marginTop: 4 }}>
                   <ModRow label="Total" value={`$${(quote.total_cents / 100).toFixed(2)}`} accent />
-                  <ModRow label="DOM commission" value={`$${(quote.commission_cents / 100).toFixed(2)}`} />
-                  <ModRow label="Contractor payout" value={`$${(quote.contractor_cents / 100).toFixed(2)}`} />
+                  <ModRow label="DOM commission (estimated)" value={`$${(quote.commission_cents / 100).toFixed(2)}`} />
+                  <ModRow label="Contractor payout (estimated)" value={`$${(quote.contractor_cents / 100).toFixed(2)}`} />
                 </div>
+                <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 4 }}>
+                  Estimated at the flat intake rate before a pilot is assigned. The real split
+                  depends on the assigned pilot's tier — see Job & Assignments once offered.
+                </p>
               </div>
             </div>
           )}
@@ -511,6 +548,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                     {contractors.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.full_name} {c.service_area ? `(${c.service_area})` : ""} — {c.missions_completed} missions{c.rating ? `, ${c.rating}★` : ""}
+                        {contractorTierBps[c.id] != null && ` — ${contractorTierBps[c.id] / 100}% tier`}
                       </option>
                     ))}
                   </select>
@@ -578,6 +616,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                     {a.mission_price_cents != null && (
                       <p className="font-mono-ibm" style={{ fontSize: 12, color: V.inkDim, marginTop: 6 }}>
                         ${(a.mission_price_cents / 100).toFixed(2)} total · ${((a.contractor_payout_cents ?? 0) / 100).toFixed(2)} payout
+                        {a.commission_bps_applied != null && ` · ${a.commission_bps_applied / 100}% commission (actual)`}
                       </p>
                     )}
                     {a.status === "accepted" && (

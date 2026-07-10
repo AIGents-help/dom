@@ -8,10 +8,13 @@ import { rateLimitResponse } from "@/lib/rateLimit";
 // POST /api/pilot/missions/create
 // Lets an approved pilot (contractors.can_create_missions = true) create and
 // immediately self-assign their own mission — they source the client, so
-// there's no separate "offer" step. Money is computed here server-side (the
-// same server-authoritative principle as /api/mission-request) and only the
-// final numbers are handed to pilot_create_own_mission, which re-verifies
-// the approval gate itself and does the atomic multi-table write.
+// there's no separate "offer" step. The total price is computed here
+// server-side (the same server-authoritative principle as
+// /api/mission-request); the DOM/pilot commission split is NOT — that's
+// computed inside pilot_create_own_mission itself via
+// calculate_commission_bps(), which re-verifies the approval gate and does
+// the atomic multi-table write. This route only reports the real numbers
+// back after the fact, it doesn't decide them.
 export async function POST(req: NextRequest) {
   const limited = rateLimitResponse(req);
   if (limited) return limited;
@@ -31,7 +34,7 @@ export async function POST(req: NextRequest) {
     const admin = getSupabaseAdmin();
     const { data: contractor } = await admin
       .from("contractors")
-      .select("id, can_create_missions, subscription_active")
+      .select("id, can_create_missions")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -73,15 +76,12 @@ export async function POST(req: NextRequest) {
     };
     const quote = calculateQuote(quoteInput);
 
-    // The one place subscription status changes the money math: a
-    // subscribed pilot keeps the full total, DOM's revenue comes from the
-    // flat monthly fee instead of a per-mission cut.
-    const commissionCents = contractor.subscription_active ? 0 : quote.commissionCents;
-    const contractorCents = contractor.subscription_active ? quote.totalCents : quote.contractorPayoutCents;
-
     // Call the RPC as the pilot themselves (forwarding their own bearer
     // token) so auth.uid() resolves correctly inside the SECURITY DEFINER
     // function — not the service-role client, which has no bound user.
+    // Note: no commissionCents/contractorCents in this payload — the RPC
+    // computes the real split itself via calculate_commission_bps() and
+    // ignores any caller-supplied split, so there's nothing to pre-guess.
     const { data: jobId, error: rpcError } = await supabaseAuth.rpc("pilot_create_own_mission", {
       p_client_name: clientName,
       p_client_email: clientEmail,
@@ -101,8 +101,6 @@ export async function POST(req: NextRequest) {
         deliverableMod: quote.modifiers.deliverable.factor,
         combinedMultiplier: quote.combinedMultiplier,
         totalCents: quote.totalCents,
-        commissionCents,
-        contractorCents,
         warnings: quote.warnings,
       },
     });
@@ -111,13 +109,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: rpcError.message }, { status: 400 });
     }
 
+    // Report the real, persisted split — not a pre-guess.
+    const { data: assignment } = await admin
+      .from("mission_assignments")
+      .select("contractor_payout_cents, dom_commission_cents, commission_bps_applied")
+      .eq("job_id", jobId)
+      .single();
+
     return NextResponse.json({
       jobId,
       quote: {
         serviceLabel: quote.serviceLabel,
         totalCents: quote.totalCents,
-        contractorCents,
-        commissionCents,
+        contractorCents: assignment?.contractor_payout_cents ?? null,
+        commissionCents: assignment?.dom_commission_cents ?? null,
+        commissionBps: assignment?.commission_bps_applied ?? null,
         warnings: quote.warnings,
       },
     });

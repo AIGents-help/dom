@@ -26,6 +26,7 @@ interface Profile {
   photo_url: string | null; website_url: string | null; profile_published: boolean;
   cert_timeline_bucket: string | null; membership_deadline: string | null;
   resource_access_locked: boolean; resource_access_active: boolean;
+  current_commission_bps: number | null;
 }
 interface PortfolioImage { id: string; image_url: string; caption: string | null; sort_order: number; }
 interface RequestedForMe { id: string; requester_name: string | null; company: string | null; service_type: string | null; location: string | null; status: string; created_at: string; }
@@ -482,12 +483,16 @@ export default function PilotDashboard() {
           </div>
           <p style={{ color: V.inkDim, fontSize: 13, marginTop: 10 }}>
             {profile.subscription_active
-              ? "You're subscribed — DOM takes 0% commission on missions you create yourself."
-              : `DOM takes a commission on missions you create yourself. Subscribe for $99/mo to keep 100% instead.`}
+              ? "You're subscribed — DOM takes 0% commission on every mission, whether DOM sources it or you do."
+              : "Your commission rate steps down as you complete more missions in the trailing 90 days. Subscribe for $99/mo to drop to 0% on every mission instead."}
           </p>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
             <span className="font-mono-ibm" style={{ fontSize: 20, fontWeight: 600, color: profile.subscription_active ? V.telemetry : V.signal }}>
-              {profile.subscription_active ? "0% commission" : "20% commission"}
+              {profile.subscription_active
+                ? "0% commission"
+                : profile.current_commission_bps != null
+                  ? `${profile.current_commission_bps / 100}% commission`
+                  : "…"}
             </span>
             <button
               onClick={profile.subscription_active ? manageSubscription : startSubscription}
@@ -497,6 +502,11 @@ export default function PilotDashboard() {
               {subActionLoading ? "…" : profile.subscription_active ? "Manage subscription" : "Subscribe — $99/mo"}
             </button>
           </div>
+          {!profile.subscription_active && (
+            <p style={{ color: V.inkFaint, fontSize: 12, marginTop: 10 }}>
+              Missions worth $500+ carry a 15% minimum commission regardless of your tier.
+            </p>
+          )}
         </div>
       )}
       </div>

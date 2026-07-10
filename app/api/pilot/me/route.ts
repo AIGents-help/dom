@@ -37,6 +37,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "No pilot profile found" }, { status: 404 });
     }
 
+    // The pilot's current commission rate, for display only. Passing 0 as
+    // the mission value deliberately evaluates the $500+ risk floor to 0,
+    // so this returns just the pilot-tier rate (or 0 if subscribed) —
+    // reuses the one real calculation instead of duplicating the tier
+    // bands in TypeScript. A specific mission's actual rate can still be
+    // higher once its real value is known (see the $500+ floor note in the
+    // dashboard copy).
+    const { data: currentCommissionBps } = await admin.rpc("calculate_commission_bps", {
+      p_contractor_id: contractor.id,
+      p_mission_value_cents: 0,
+    });
+
     // Get assignments with job details
     const { data: assignments } = await admin
       .from("mission_assignments")
@@ -170,6 +182,7 @@ export async function GET(req: NextRequest) {
         membership_deadline: contractor.membership_deadline,
         resource_access_locked: contractor.resource_access_locked,
         resource_access_active: contractor.resource_access_active,
+        current_commission_bps: currentCommissionBps ?? null,
       },
       resourcesLocked,
       assignments: assignments ?? [],

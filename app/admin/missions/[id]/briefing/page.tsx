@@ -242,6 +242,12 @@ export default function MissionBriefingPage({ params }: { params: Promise<{ id: 
           </Section>
 
           <Section title="Documents">
+            <p style={{ color: V.inkFaint, fontSize: 12, marginTop: -4 }}>
+              Need paperwork to attach? Blank{" "}
+              <a href="/templates/property-access-waiver.html" target="_blank" rel="noreferrer" style={{ color: V.telemetry }}>access waiver</a>,{" "}
+              <a href="/templates/model-image-release.html" target="_blank" rel="noreferrer" style={{ color: V.telemetry }}>image release</a>, or{" "}
+              <a href="/templates/service-agreement.html" target="_blank" rel="noreferrer" style={{ color: V.telemetry }}>service agreement</a> templates.
+            </p>
             {docs.map((d) => (
               <RowCard key={d.id}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>

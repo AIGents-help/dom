@@ -39,6 +39,14 @@ const SECTIONS: { title: string; links: ResourceLink[] }[] = [
       { name: "Avionics Insurance", desc: "Full-coverage aviation and drone liability policies.", url: "https://www.avionicsinsurance.com" },
     ],
   },
+  {
+    title: "Document Templates",
+    links: [
+      { name: "Property Access & Site Authorization Waiver", desc: "Get signed permission from a property owner before you fly.", url: "/templates/property-access-waiver.html" },
+      { name: "Model & Image Release Form", desc: "Use when captured imagery includes identifiable people.", url: "/templates/model-image-release.html" },
+      { name: "Mission Service Agreement", desc: "A fill-in scope/price/deliverables cover sheet for a client.", url: "/templates/service-agreement.html" },
+    ],
+  },
 ];
 
 export default function PilotResources() {

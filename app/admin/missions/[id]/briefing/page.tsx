@@ -115,13 +115,29 @@ export default function MissionBriefingPage({ params }: { params: Promise<{ id: 
     })();
   }, [router, load]);
 
-  const addDoc = useCallback(async (form: { category: string; name: string; is_required: boolean }) => {
+  const addDoc = useCallback(async (form: { category: string; name: string; is_required: boolean; file: File | null }) => {
     setError(null);
     const sb = getSupabaseBrowser();
-    const { error: insErr } = await sb.from("mission_documents").insert({ mission_request_id: id, ...form });
+    let file_url: string | null = null;
+    if (form.file) {
+      const path = `${id}/${Date.now()}-${form.file.name}`;
+      const { error: uploadError } = await sb.storage.from("mission-documents").upload(path, form.file);
+      if (uploadError) { setError(uploadError.message); return; }
+      file_url = path;
+    }
+    const { error: insErr } = await sb.from("mission_documents").insert({
+      mission_request_id: id, category: form.category, name: form.name, is_required: form.is_required, file_url,
+    });
     if (insErr) { setError(insErr.message); return; }
     await load();
   }, [id, load]);
+
+  const downloadDoc = useCallback(async (storageUrl: string) => {
+    const sb = getSupabaseBrowser();
+    const { data, error: signError } = await sb.storage.from("mission-documents").createSignedUrl(storageUrl, 300);
+    if (signError || !data) { setError(signError?.message ?? "Could not generate download link"); return; }
+    window.open(data.signedUrl, "_blank");
+  }, []);
 
   const addContact = useCallback(async (form: { role: string; name: string; phone: string; email: string }) => {
     setError(null);
@@ -232,7 +248,11 @@ export default function MissionBriefingPage({ params }: { params: Promise<{ id: 
                   <div>
                     <span style={{ fontWeight: 600 }}>{d.name}</span>
                     <span style={{ color: V.inkFaint, fontSize: 12, marginLeft: 8 }}>{d.category.replace(/_/g, " ")}{d.is_required ? " · required" : ""}</span>
-                    {d.file_url && <a href={d.file_url} target="_blank" rel="noreferrer" style={{ color: V.telemetry, fontSize: 12, marginLeft: 8 }}>view file</a>}
+                    {d.file_url && (
+                      <button onClick={() => downloadDoc(d.file_url!)} style={{ background: "none", border: "none", color: V.telemetry, fontSize: 12, marginLeft: 8, cursor: "pointer", textDecoration: "underline", padding: 0 }}>
+                        download
+                      </button>
+                    )}
                   </div>
                   <label style={{ fontSize: 12, color: V.inkDim, display: "flex", alignItems: "center", gap: 6 }}>
                     <input type="checkbox" checked={d.is_completed} onChange={(e) => toggleDocDone(d.id, e.target.checked)} /> done
@@ -302,10 +322,11 @@ function NoteBlock({ label, text }: { label: string; text: string }) {
   );
 }
 
-function AddDocForm({ onAdd }: { onAdd: (f: { category: string; name: string; is_required: boolean }) => void }) {
+function AddDocForm({ onAdd }: { onAdd: (f: { category: string; name: string; is_required: boolean; file: File | null }) => void }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("authorization");
   const [required, setRequired] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
   return (
     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
       <input placeholder="Document name" value={name} onChange={(e) => setName(e.target.value)} style={{ ...inputStyle, width: 220, marginTop: 0 }} />
@@ -315,7 +336,11 @@ function AddDocForm({ onAdd }: { onAdd: (f: { category: string; name: string; is
       <label style={{ fontSize: 12, color: V.inkDim, display: "flex", alignItems: "center", gap: 6 }}>
         <input type="checkbox" checked={required} onChange={(e) => setRequired(e.target.checked)} /> required
       </label>
-      <button style={btnGhost} disabled={!name} onClick={() => { onAdd({ name, category, is_required: required }); setName(""); setRequired(false); }}>Add</button>
+      <label style={{ ...btnGhost, display: "inline-block", fontSize: 12, padding: "8px 12px" }}>
+        {file ? file.name.slice(0, 20) : "Choose file (optional)"}
+        <input type="file" style={{ display: "none" }} onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      </label>
+      <button style={btnGhost} disabled={!name} onClick={() => { onAdd({ name, category, is_required: required, file }); setName(""); setRequired(false); setFile(null); }}>Add</button>
     </div>
   );
 }

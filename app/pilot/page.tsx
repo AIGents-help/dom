@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import PilotCreateMissionWizard from "@/components/PilotCreateMissionWizard";
+import PilotMissionLog from "@/components/PilotMissionLog";
 import PilotSidebar, { type PilotTab } from "@/components/PilotSidebar";
 import PilotProfileEditor from "@/components/PilotProfileEditor";
 import PilotPublicProfileEditor from "@/components/PilotPublicProfileEditor";
@@ -26,7 +27,7 @@ interface Assignment {
   id: string; status: string; mission_price_cents: number | null;
   contractor_payout_cents: number | null; offered_at: string;
   accepted_at: string | null; submitted_at: string | null;
-  job: { id: string; title: string; service_type: string; location: string; scheduled_for: string | null; status: string } | null;
+  job: { id: string; title: string; service_type: string; location: string; scheduled_for: string | null; status: string; mission_request_id: string; delivery_responsibility: string } | null;
 }
 interface Payout { id: string; contractor_amount_cents: number; status: string; created_at: string; }
 interface SOP { id: string; slug: string; title: string; mission_type: string; category: string; version: number; }
@@ -62,6 +63,7 @@ export default function PilotDashboard() {
   const [portfolio, setPortfolio] = useState<PortfolioImage[]>([]);
   const [requestsForMe, setRequestsForMe] = useState<RequestedForMe[]>([]);
   const [userId, setUserId] = useState<string | null>(null);
+  const [missionLogAssignment, setMissionLogAssignment] = useState<Assignment | null>(null);
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -234,7 +236,21 @@ export default function PilotDashboard() {
         </>
       )}
 
-      {tab === "missions" && (
+      {tab === "missions" && missionLogAssignment && (() => {
+        const j = Array.isArray(missionLogAssignment.job) ? missionLogAssignment.job[0] : missionLogAssignment.job;
+        if (!j) return null;
+        return (
+          <PilotMissionLog
+            jobId={j.id}
+            missionRequestId={j.mission_request_id}
+            missionTitle={j.title}
+            deliveryResponsibility={j.delivery_responsibility}
+            onClose={() => setMissionLogAssignment(null)}
+          />
+        );
+      })()}
+
+      {tab === "missions" && !missionLogAssignment && (
         <div style={{ display: "grid", gap: 10 }}>
           {requestsForMe.length > 0 && (
             <div style={{ ...panelStyle, borderColor: "rgba(79,209,197,.4)", background: "rgba(79,209,197,.05)" }}>
@@ -279,6 +295,13 @@ export default function PilotDashboard() {
                     </button>
                     <button onClick={() => respond(a.id, "decline")} disabled={actingOn === a.id} style={btnGhost}>
                       Decline
+                    </button>
+                  </div>
+                )}
+                {a.status !== "offered" && a.status !== "declined" && job && (
+                  <div style={{ marginTop: 14 }}>
+                    <button onClick={() => setMissionLogAssignment(a)} style={btnGhost}>
+                      Mission Log →
                     </button>
                   </div>
                 )}

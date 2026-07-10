@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
       .select(`
         id, status, mission_price_cents, contractor_payout_cents, dom_commission_cents,
         offered_at, accepted_at, submitted_at,
-        job:jobs ( id, title, service_type, location, scheduled_for, status )
+        job:jobs ( id, title, service_type, location, scheduled_for, status, mission_request_id, delivery_responsibility )
       `)
       .eq("contractor_id", contractor.id)
       .order("created_at", { ascending: false });

@@ -64,6 +64,7 @@ interface Job {
   title: string;
   status: string;
   scheduled_for: string | null;
+  delivery_responsibility: string;
 }
 
 interface Assignment {
@@ -136,7 +137,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
 
     const { data: jobRow } = await sb
       .from("jobs")
-      .select("id, title, status, scheduled_for")
+      .select("id, title, status, scheduled_for, delivery_responsibility")
       .eq("mission_request_id", id)
       .maybeSingle();
     setJob(jobRow as Job | null);
@@ -328,6 +329,14 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
     }
   }, []);
 
+  const setDeliveryResponsibility = useCallback(async (value: string) => {
+    if (!job) return;
+    const sb = getSupabaseBrowser();
+    const { error: updateError } = await sb.from("jobs").update({ delivery_responsibility: value }).eq("id", job.id);
+    if (updateError) { setError(updateError.message); return; }
+    await load();
+  }, [job, load]);
+
   if (!authed) return null;
 
   return (
@@ -492,12 +501,30 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
 
           {job && (
             <div style={panel}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                 <Label>Job & Assignments</Label>
                 <span className="font-mono-ibm" style={{ fontSize: 11, color: V.inkFaint }}>
                   {job.title}
                   {job.scheduled_for ? ` · ${new Date(job.scheduled_for).toLocaleDateString()}` : ""}
                 </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+                <span style={{ fontSize: 12, color: V.inkDim }}>Delivered by:</span>
+                {(["admin", "pilot"] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setDeliveryResponsibility(v)}
+                    style={{
+                      fontFamily: "Saira, sans-serif", fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 8, cursor: "pointer",
+                      border: `1px solid ${job.delivery_responsibility === v ? V.signal : V.line}`,
+                      background: job.delivery_responsibility === v ? "rgba(255,138,61,.12)" : "transparent",
+                      color: job.delivery_responsibility === v ? V.signal : V.inkFaint,
+                    }}
+                  >
+                    {v === "admin" ? "Admin" : "Pilot"}
+                  </button>
+                ))}
+                <span style={{ color: V.inkFaint, fontSize: 11 }}>— both can always view/upload; this is just who's expected to finalize delivery.</span>
               </div>
               <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
                 {assignments.map((a) => (

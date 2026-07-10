@@ -60,18 +60,27 @@ export async function POST(req: NextRequest) {
         break;
       }
 
-      // Pilot subscription lifecycle — keeps contractors.subscription_active
-      // in sync so the commission math in /api/pilot/missions/create stays
-      // correct without polling Stripe on every mission creation.
+      // Pilot subscription lifecycle — two independent products share this
+      // handler: the $99/mo self-service commission waiver
+      // (subscription_active / stripe_subscription_id) and the resource-
+      // access study plan for unverified pilots (resource_access_active /
+      // resource_access_subscription_id). A contractor could plausibly hold
+      // both at once over their lifecycle, so they're separate columns, not
+      // one pair discriminated by a type flag. subscription_type comes from
+      // metadata set at checkout (see /api/pilot/subscription/checkout and
+      // /api/pilot/resource-access/checkout) — defaults to "self_service"
+      // for subscriptions created before this distinction existed.
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         if (session.mode === "subscription" && session.metadata?.contractor_id) {
+          const isResourceAccess = session.metadata.subscription_type === "resource_access";
           await supabaseAdmin
             .from("contractors")
-            .update({
-              stripe_subscription_id: session.subscription as string,
-              subscription_active: true,
-            })
+            .update(
+              isResourceAccess
+                ? { resource_access_subscription_id: session.subscription as string, resource_access_active: true }
+                : { stripe_subscription_id: session.subscription as string, subscription_active: true }
+            )
             .eq("id", session.metadata.contractor_id);
         }
         break;
@@ -79,19 +88,25 @@ export async function POST(req: NextRequest) {
 
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
+        const isResourceAccess = subscription.metadata?.subscription_type === "resource_access";
         await supabaseAdmin
           .from("contractors")
-          .update({ subscription_active: subscription.status === "active" })
-          .eq("stripe_subscription_id", subscription.id);
+          .update(
+            isResourceAccess
+              ? { resource_access_active: subscription.status === "active" }
+              : { subscription_active: subscription.status === "active" }
+          )
+          .eq(isResourceAccess ? "resource_access_subscription_id" : "stripe_subscription_id", subscription.id);
         break;
       }
 
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
+        const isResourceAccess = subscription.metadata?.subscription_type === "resource_access";
         await supabaseAdmin
           .from("contractors")
-          .update({ subscription_active: false })
-          .eq("stripe_subscription_id", subscription.id);
+          .update(isResourceAccess ? { resource_access_active: false } : { subscription_active: false })
+          .eq(isResourceAccess ? "resource_access_subscription_id" : "stripe_subscription_id", subscription.id);
         break;
       }
     }

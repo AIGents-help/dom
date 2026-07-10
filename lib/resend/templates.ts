@@ -325,3 +325,102 @@ export function certificationExpiring(params: {
     ),
   };
 }
+
+// ---- Unverified pilot tier: signup-to-verification deadline sequence ----
+
+function firstNameOf(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] ?? fullName;
+}
+
+function link(url: string): string {
+  return `<a href="${url}" style="color:#0891b2;">${url}</a>`;
+}
+
+export function unverifiedPilotWelcome(params: {
+  pilotName: string;
+  deadlineDate: string;
+  resourcesLink: string;
+}): TemplateResult {
+  return {
+    subject: "You're in — here's your DOM access window",
+    html: shell(
+      "Welcome to DOM",
+      `
+        <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(firstNameOf(params.pilotName))}, you're signed up. While you work toward your Part 107 certificate, you've got full access to the resource library and tutorials.</p>
+        <p style="color:#444; line-height:1.5;"><strong>Your free access is active through ${escapeHtml(params.deadlineDate)} unless you're verified as a Part 107 pilot by then.</strong></p>
+        <p style="color:#444; line-height:1.5;">Resources: ${link(params.resourcesLink)}</p>
+      `
+    ),
+  };
+}
+
+const REMINDER_COPY: Record<14 | 7 | 3 | 1, { subject: string; body: (p: { firstName: string; deadlineDate: string; resourcesLink: string; verifyLink: string; upgradeLink?: string }) => string }> = {
+  14: {
+    subject: "14 days left on your free DOM access",
+    body: (p) => `
+      <p style="color:#444; line-height:1.5;">${escapeHtml(p.firstName)} — You've got 14 days of free resource access left before your DOM membership deadline on ${escapeHtml(p.deadlineDate)}. If you're on track for your Part 107 exam, this is just a heads-up — keep studying, submit your certificate number the day you pass, and your account upgrades to Verified Pilot automatically. If your timeline's slipped, now's the time to lock in a test date.</p>
+      <p style="color:#444; line-height:1.5;">Resources: ${link(p.resourcesLink)}.</p>
+      <p style="color:#444; line-height:1.5;">Already certified? Verify here and skip the rest of this sequence: ${link(p.verifyLink)}</p>
+    `,
+  },
+  7: {
+    subject: "One week until your free access ends",
+    body: (p) => `
+      <p style="color:#444; line-height:1.5;">${escapeHtml(p.firstName)} — 7 days left before ${escapeHtml(p.deadlineDate)}. Quick gut check: have you scheduled your knowledge test yet? If not, that's the single blocker between you and a Verified Pilot account — book it this week so results land before your deadline.</p>
+      <p style="color:#444; line-height:1.5;">Study materials: ${link(p.resourcesLink)}.</p>
+      <p style="color:#444; line-height:1.5;">Already passed? Verify now: ${link(p.verifyLink)}.</p>
+      <p style="color:#444; line-height:1.5;">After ${escapeHtml(p.deadlineDate)}, unverified access pauses unless you're mid-verification or opt into a paid resource plan to keep going. No penalty either way — just want you to have the option before it's a surprise.</p>
+    `,
+  },
+  3: {
+    subject: "3 days — action needed to keep access",
+    body: (p) => `
+      <p style="color:#444; line-height:1.5;">${escapeHtml(p.firstName)} — Your free DOM access ends in 3 days (${escapeHtml(p.deadlineDate)}). Two ways to keep it:</p>
+      <p style="color:#444; line-height:1.5;">1) Verified Pilot — submit your Part 107 certificate number: ${link(p.verifyLink)}.</p>
+      <p style="color:#444; line-height:1.5;">2) Not certified yet but still working toward it — keep resource access on a paid plan: ${link(p.upgradeLink ?? p.verifyLink)}.</p>
+      <p style="color:#444; line-height:1.5;">Do nothing, and access pauses on ${escapeHtml(p.deadlineDate)}. You can always come back and verify later, but you'll lose the resource library in the meantime.</p>
+    `,
+  },
+  1: {
+    subject: "Last day — your DOM access ends tomorrow",
+    body: (p) => `
+      <p style="color:#444; line-height:1.5;">${escapeHtml(p.firstName)} — Tomorrow's the deadline (${escapeHtml(p.deadlineDate)}).</p>
+      <p style="color:#444; line-height:1.5;">Certified? Verify now — takes under a minute: ${link(p.verifyLink)}.</p>
+      <p style="color:#444; line-height:1.5;">Not there yet? Keep your study access going on a paid plan so you don't lose progress: ${link(p.upgradeLink ?? p.verifyLink)}.</p>
+      <p style="color:#444; line-height:1.5;">If neither happens, your account pauses tomorrow. Come back and verify any time after — nothing's deleted, just gated until you're licensed.</p>
+    `,
+  },
+};
+
+export function verificationDeadlineReminder(
+  params: { pilotName: string; deadlineDate: string; resourcesLink: string; verifyLink: string; upgradeLink?: string },
+  daysRemaining: 14 | 7 | 3 | 1
+): TemplateResult {
+  const tier = REMINDER_COPY[daysRemaining];
+  return {
+    subject: tier.subject,
+    html: shell(tier.subject, tier.body({ firstName: firstNameOf(params.pilotName), deadlineDate: params.deadlineDate, resourcesLink: params.resourcesLink, verifyLink: params.verifyLink, upgradeLink: params.upgradeLink })),
+  };
+}
+
+export function verificationDeadlineFinal(params: {
+  pilotName: string;
+  deadlineDate: string;
+  verifyLink: string;
+  upgradeLink: string;
+}): TemplateResult {
+  const firstName = firstNameOf(params.pilotName);
+  return {
+    subject: "Your DOM access has paused — two ways back in",
+    html: shell(
+      "Your free access window closed",
+      `
+        <p style="color:#444; line-height:1.5;">${escapeHtml(firstName)} — Your DOM membership deadline (${escapeHtml(params.deadlineDate)}) has passed without a verified Part 107 certificate on file, so resource access is now paused.</p>
+        <p style="color:#444; line-height:1.5;">Two ways back in, any time:</p>
+        <p style="color:#444; line-height:1.5;">1) Verified Pilot — submit your Part 107 certificate number: ${link(params.verifyLink)}.</p>
+        <p style="color:#444; line-height:1.5;">2) Keep studying on a paid resource plan: ${link(params.upgradeLink)}.</p>
+        <p style="color:#444; line-height:1.5;">Nothing's deleted — your account just stays gated until one of those happens.</p>
+      `
+    ),
+  };
+}

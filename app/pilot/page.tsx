@@ -10,6 +10,7 @@ import PilotProfileEditor from "@/components/PilotProfileEditor";
 import PilotPublicProfileEditor from "@/components/PilotPublicProfileEditor";
 import PilotResources, { type Tutorial } from "@/components/PilotResources";
 import PilotQueue from "@/components/PilotQueue";
+import VerificationDeadlineBanner from "@/components/VerificationDeadlineBanner";
 import SopViewer from "@/components/SopViewer";
 import { sopMarkdownToHtml } from "@/lib/sopMarkdown";
 
@@ -23,6 +24,8 @@ interface Profile {
   can_create_missions: boolean; subscription_active: boolean;
   slug: string | null; bio: string | null; tagline: string | null;
   photo_url: string | null; website_url: string | null; profile_published: boolean;
+  cert_timeline_bucket: string | null; membership_deadline: string | null;
+  resource_access_locked: boolean; resource_access_active: boolean;
 }
 interface PortfolioImage { id: string; image_url: string; caption: string | null; sort_order: number; }
 interface RequestedForMe { id: string; requester_name: string | null; company: string | null; service_type: string | null; location: string | null; status: string; created_at: string; }
@@ -72,6 +75,7 @@ export default function PilotDashboard() {
   const [requestsForMe, setRequestsForMe] = useState<RequestedForMe[]>([]);
   const [myClaims, setMyClaims] = useState<QueueClaim[]>([]);
   const [tutorials, setTutorials] = useState<Tutorial[]>([]);
+  const [resourcesLocked, setResourcesLocked] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [missionLogAssignment, setMissionLogAssignment] = useState<Assignment | null>(null);
   const [expandedSop, setExpandedSop] = useState<string | null>(null);
@@ -102,6 +106,7 @@ export default function PilotDashboard() {
     setSops(body.sops ?? []);
     setMyClaims(body.myClaims ?? []);
     setTutorials(body.tutorials ?? []);
+    setResourcesLocked(!!body.resourcesLocked);
     setLoading(false);
   }, [router]);
 
@@ -264,6 +269,17 @@ export default function PilotDashboard() {
         <Stat k="Completed" v={String(profile.missions_completed)} />
         <Stat k="Earned" v={`$${(totalEarned / 100).toFixed(2)}`} color={V.telemetry} />
       </div>
+
+      {accessToken && (
+        <VerificationDeadlineBanner
+          accessToken={accessToken}
+          part107Verified={profile.part107_verified}
+          membershipDeadline={profile.membership_deadline}
+          resourcesLocked={resourcesLocked}
+          resourceAccessActive={profile.resource_access_active}
+          onGoToProfile={() => setTab("profile")}
+        />
+      )}
 
       {tab === "create" && accessToken && (
         <>

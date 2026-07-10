@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cron/check-certifications", "schedule": "0 13 * * *" }
+    { "path": "/api/cron/check-certifications", "schedule": "0 13 * * *" },
+    { "path": "/api/cron/check-verification-deadlines", "schedule": "5 13 * * *" }
   ]
 }

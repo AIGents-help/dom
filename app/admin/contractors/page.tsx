@@ -20,7 +20,15 @@ type Contractor = {
   service_area: string | null;
   missions_completed: number;
   can_create_missions: boolean;
+  cert_timeline_bucket: string | null;
+  membership_deadline: string | null;
+  resource_access_locked: boolean;
+  resource_access_active: boolean;
 };
+
+function daysUntil(dateStr: string): number {
+  return Math.ceil((new Date(dateStr).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+}
 
 export default function AdminContractorsPage() {
   const router = useRouter();
@@ -65,6 +73,13 @@ export default function AdminContractorsPage() {
     await supabaseBrowser.from("contractors").update({ status: "active" }).eq("id", id);
   }
 
+  async function unlockResourceAccess(id: string) {
+    setRows((r) => r.map((c) => (c.id === id ? { ...c, resource_access_locked: false } : c)));
+    const supabaseBrowser = getSupabaseBrowser();
+    const { error } = await supabaseBrowser.from("contractors").update({ resource_access_locked: false }).eq("id", id);
+    if (error) load();
+  }
+
   async function approveSelfService(id: string) {
     const supabaseBrowser = getSupabaseBrowser();
     const { error } = await supabaseBrowser.rpc("admin_approve_self_service", { p_contractor_id: id });
@@ -99,6 +114,36 @@ export default function AdminContractorsPage() {
         <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 12, color: "#5A6678" }}>{rows.length} total</span>
       </div>
 
+      {rows.length > 0 && (() => {
+        const unverified = rows.filter((c) => !c.part107_verified && c.membership_deadline);
+        const withinWeek = unverified.filter((c) => c.membership_deadline && daysUntil(c.membership_deadline) <= 7 && daysUntil(c.membership_deadline) >= 0);
+        const everUnverified = rows.filter((c) => c.cert_timeline_bucket !== null || (!c.part107_verified && c.membership_deadline));
+        const nowVerified = rows.filter((c) => c.part107_verified && c.cert_timeline_bucket !== null);
+        const conversionPct = everUnverified.length + nowVerified.length > 0
+          ? Math.round((nowVerified.length / (everUnverified.length + nowVerified.length)) * 100)
+          : 0;
+        const bucketCounts: Record<string, number> = {};
+        for (const c of unverified) {
+          const b = c.cert_timeline_bucket ?? "unknown";
+          bucketCounts[b] = (bucketCounts[b] ?? 0) + 1;
+        }
+        return (
+          <div style={{ ...rowCard, marginBottom: 18 }}>
+            <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, letterSpacing: ".1em", color: "#5A6678", textTransform: "uppercase", marginBottom: 10 }}>
+              Unverified Pilot Funnel
+            </div>
+            <div style={{ display: "flex", gap: 24, flexWrap: "wrap", fontSize: 13 }}>
+              <div><span style={{ color: "#E8ECF2", fontWeight: 600 }}>{unverified.length}</span> <span style={{ color: "#8A95A7" }}>active, unverified</span></div>
+              <div><span style={{ color: withinWeek.length > 0 ? "#FF8A3D" : "#E8ECF2", fontWeight: 600 }}>{withinWeek.length}</span> <span style={{ color: "#8A95A7" }}>within 7 days of deadline</span></div>
+              <div><span style={{ color: "#4FD1C5", fontWeight: 600 }}>{conversionPct}%</span> <span style={{ color: "#8A95A7" }}>convert to verified</span></div>
+              {Object.entries(bucketCounts).map(([bucket, count]) => (
+                <div key={bucket}><span style={{ color: "#E8ECF2", fontWeight: 600 }}>{count}</span> <span style={{ color: "#8A95A7" }}>{bucket.replace(/_/g, " ")}</span></div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {rows.length === 0 && <p style={{ color: "#8A95A7" }}>No applicants yet. Share /fly-for-dom to recruit pilots.</p>}
 
       <div style={{ display: "grid", gap: 12 }}>
@@ -113,6 +158,12 @@ export default function AdminContractorsPage() {
                   <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: "#5A6678", marginTop: 4 }}>
                     107#: {c.part107_number ?? "—"} · {c.missions_completed} mission{c.missions_completed === 1 ? "" : "s"} completed
                   </div>
+                  {!c.part107_verified && c.membership_deadline && (
+                    <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: c.resource_access_locked ? "#5A6678" : daysUntil(c.membership_deadline) <= 7 ? "#FF8A3D" : "#8A95A7", marginTop: 4 }}>
+                      {(c.cert_timeline_bucket ?? "—").replace(/_/g, " ")} · deadline {new Date(c.membership_deadline).toLocaleDateString()}
+                      {c.resource_access_locked ? " · LOCKED" : ` · ${daysUntil(c.membership_deadline)}d left`}
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <span style={{ ...badge, ...(cleared ? badgeOk : badgeWarn) }}>
@@ -137,6 +188,9 @@ export default function AdminContractorsPage() {
                 )}
                 {!c.can_create_missions && (
                   <Btn onClick={() => approveSelfService(c.id)}>Approve to Create Missions</Btn>
+                )}
+                {c.resource_access_locked && (
+                  <Btn onClick={() => unlockResourceAccess(c.id)}>Unlock resource access</Btn>
                 )}
               </div>
             </div>

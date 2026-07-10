@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStripe, getOrCreateSubscriptionPrice } from "@/lib/stripe";
+import { getStripe, getOrCreateResourceAccessPrice } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
 
-// POST /api/pilot/subscription/checkout
-// Starts a Stripe Checkout session for the $99/mo commission-waiver
-// subscription. The contractor is resolved from the pilot's own bearer
-// token (not a client-supplied id) so a pilot can only subscribe themselves.
+// POST /api/pilot/resource-access/checkout
+// Starts a Stripe Checkout session for the resource-access study plan —
+// the path an unverified pilot takes to keep tutorial/resource access past
+// their verification deadline. Mirrors
+// /api/pilot/subscription/checkout exactly, except for the price and the
+// subscription_type tag, which the webhook uses to tell the two products
+// apart (they're deliberately separate Stripe products/columns — see plan).
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get("authorization");
@@ -41,27 +44,24 @@ export async function POST(req: NextRequest) {
       await admin.from("contractors").update({ stripe_customer_id: customerId }).eq("id", contractor.id);
     }
 
-    const priceId = await getOrCreateSubscriptionPrice();
+    const priceId = await getOrCreateResourceAccessPrice();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
-      // subscription_type lives in both places on purpose: session-level
-      // metadata is what checkout.session.completed sees, but it's NOT
-      // copied onto the resulting Subscription object — subscription_data.
-      // metadata is, and that's what customer.subscription.updated/deleted
-      // read later to tell this product apart from resource-access.
-      metadata: { contractor_id: contractor.id, subscription_type: "self_service" },
-      subscription_data: { metadata: { contractor_id: contractor.id, subscription_type: "self_service" } },
-      success_url: `${siteUrl}/pilot?subscription=complete`,
-      cancel_url: `${siteUrl}/pilot?subscription=cancelled`,
+      // subscription_type lives in both places on purpose — see the
+      // matching comment in /api/pilot/subscription/checkout.
+      metadata: { contractor_id: contractor.id, subscription_type: "resource_access" },
+      subscription_data: { metadata: { contractor_id: contractor.id, subscription_type: "resource_access" } },
+      success_url: `${siteUrl}/pilot?resource_access=complete`,
+      cancel_url: `${siteUrl}/pilot?resource_access=cancelled`,
     });
 
     return NextResponse.json({ url: session.url });
   } catch (e: any) {
-    console.error("pilot subscription checkout error:", e);
+    console.error("pilot resource-access checkout error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

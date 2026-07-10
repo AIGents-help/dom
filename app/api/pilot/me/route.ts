@@ -71,8 +71,15 @@ export async function GET(req: NextRequest) {
       .eq("is_current", true)
       .order("category, title");
 
+    // An unverified pilot whose membership_deadline has lapsed into a lock
+    // (see /api/cron/check-verification-deadlines) loses ALL tutorial
+    // access, not just premium — verified status always overrides this
+    // regardless of deadline/lock state.
+    const resourcesLocked =
+      contractor.resource_access_locked && !contractor.part107_verified && !contractor.resource_access_active;
+
     const tutorials = (tutorialsRaw ?? []).map((t) => {
-      const unlocked = !t.is_premium || contractor.subscription_active;
+      const unlocked = !resourcesLocked && (!t.is_premium || contractor.subscription_active);
       return {
         id: t.id,
         slug: t.slug,
@@ -159,7 +166,12 @@ export async function GET(req: NextRequest) {
         photo_url: contractor.photo_url,
         website_url: contractor.website_url,
         profile_published: contractor.profile_published,
+        cert_timeline_bucket: contractor.cert_timeline_bucket,
+        membership_deadline: contractor.membership_deadline,
+        resource_access_locked: contractor.resource_access_locked,
+        resource_access_active: contractor.resource_access_active,
       },
+      resourcesLocked,
       assignments: assignments ?? [],
       payouts: payouts ?? [],
       sops: sops ?? [],

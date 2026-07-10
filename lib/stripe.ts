@@ -42,3 +42,25 @@ export async function getOrCreateSubscriptionPrice(): Promise<string> {
   });
   return price.id;
 }
+
+// Separate, cheaper product for unverified pilots who want to keep resource
+// library access past their verification deadline. Deliberately distinct
+// from the subscription above — that one's entire value is a commission
+// waiver on self-service missions, which an unverified pilot can't use yet.
+const RESOURCE_ACCESS_LOOKUP_KEY = "dom_resource_access_monthly";
+
+export async function getOrCreateResourceAccessPrice(): Promise<string> {
+  const stripe = getStripe();
+  const existing = await stripe.prices.list({ lookup_keys: [RESOURCE_ACCESS_LOOKUP_KEY], limit: 1 });
+  if (existing.data[0]) return existing.data[0].id;
+
+  const product = await stripe.products.create({ name: "DOM Resource Access — Study Plan" });
+  const price = await stripe.prices.create({
+    product: product.id,
+    unit_amount: Number(process.env.DOM_RESOURCE_ACCESS_CENTS ?? 1500),
+    currency: "usd",
+    recurring: { interval: "month" },
+    lookup_key: RESOURCE_ACCESS_LOOKUP_KEY,
+  });
+  return price.id;
+}

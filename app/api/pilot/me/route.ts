@@ -88,6 +88,7 @@ export async function GET(req: NextRequest) {
         part107_verified: contractor.part107_verified,
         insurance_verified: contractor.insurance_verified,
         stripe_payouts_enabled: contractor.stripe_payouts_enabled,
+        stripe_connect_account_id: contractor.stripe_connect_account_id,
         service_area: contractor.service_area,
         equipment: contractor.equipment,
         missions_completed: contractor.missions_completed,

@@ -76,13 +76,17 @@ export default function AdminContractorsPage() {
   }
 
   async function onboard(id: string) {
+    const supabaseBrowser = getSupabaseBrowser();
+    const { data: session } = await supabaseBrowser.auth.getSession();
+    if (!session.session) return;
     const res = await fetch("/api/connect/onboard", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.session.access_token}` },
       body: JSON.stringify({ contractorId: id }),
     });
     const data = await res.json();
     if (data.url) window.open(data.url, "_blank");
+    else if (data.error) alert(data.error);
   }
 
   if (!authed) return <Shell>Checking access…</Shell>;

@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { isAdminRequest } from "@/lib/authz";
 
 // POST /api/connect/onboard  { contractorId: string }
-// Creates (or resumes) a Stripe Express account for a contractor and returns
-// a hosted onboarding link. This previously duplicated checkout/route.ts by
-// mistake — it never actually created a Connect account.
+// Admin-triggered onboarding — starts/resumes Connect onboarding on behalf
+// of any contractor. This had no auth check at all until now: any caller
+// could pass an arbitrary contractorId and create/resume a Stripe Connect
+// account for a contractor they don't own. Pilots have their own
+// self-service equivalent at /api/pilot/connect/onboard.
 export async function POST(req: NextRequest) {
+  if (!(await isAdminRequest(req))) {
+    return NextResponse.json({ error: "Not authorized" }, { status: 401 });
+  }
+
   try {
     const stripe = getStripe();
     const supabaseAdmin = getSupabaseAdmin();

@@ -13,6 +13,7 @@ interface Profile {
   id: string; full_name: string; email: string; phone: string | null; status: string;
   part107_number: string | null; part107_verified: boolean;
   insurance_verified: boolean; stripe_payouts_enabled: boolean;
+  stripe_connect_account_id: string | null;
   service_area: string | null; equipment: string | null;
   missions_completed: number; rating: number | null;
   can_create_missions: boolean; subscription_active: boolean;
@@ -145,6 +146,24 @@ export default function PilotDashboard() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not open billing portal");
+      window.location.href = data.url;
+    } catch (e: any) {
+      setError(e.message);
+      setSubActionLoading(false);
+    }
+  }
+
+  async function connectStripe() {
+    if (!accessToken) return;
+    setSubActionLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/pilot/connect/onboard", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not start Stripe onboarding");
       window.location.href = data.url;
     } catch (e: any) {
       setError(e.message);
@@ -310,6 +329,27 @@ export default function PilotDashboard() {
       {tab === "profile" && (
         <div style={panelStyle}>
           <PilotProfileEditor profile={profile} onSaved={load} />
+        </div>
+      )}
+
+      {tab === "profile" && (
+        <div style={{ ...panelStyle, marginTop: 12 }}>
+          <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>
+            Payout Account
+          </div>
+          <p style={{ color: V.inkDim, fontSize: 13, marginTop: 10 }}>
+            {profile.stripe_payouts_enabled
+              ? "Your Stripe account is connected and ready to receive payouts."
+              : profile.stripe_connect_account_id
+                ? "You've started Stripe onboarding but haven't finished — pick up where you left off."
+                : "Connect a Stripe account to get paid for missions."}
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14 }}>
+            <CredBadge label={profile.stripe_payouts_enabled ? "Payouts Ready" : "Not Connected"} ok={profile.stripe_payouts_enabled} />
+            <button onClick={connectStripe} disabled={subActionLoading} style={btnPrimary}>
+              {subActionLoading ? "…" : profile.stripe_connect_account_id ? "Finish Stripe Setup" : "Connect Stripe Account"}
+            </button>
+          </div>
         </div>
       )}
 

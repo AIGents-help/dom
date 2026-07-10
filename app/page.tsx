@@ -35,8 +35,8 @@ export default function HomePage() {
         }
         @keyframes heroFade {
           0% { opacity: 0; }
-          5% { opacity: .32; }
-          28% { opacity: .32; }
+          5% { opacity: .68; }
+          28% { opacity: .68; }
           33% { opacity: 0; }
           100% { opacity: 0; }
         }
@@ -70,9 +70,9 @@ export default function HomePage() {
             style={{ opacity: 0, animationDelay: "-14s" }}
           />
           <div className="absolute inset-0" style={{
-            background: "radial-gradient(120% 80% at 78% -10%, rgba(255,138,61,.10), transparent 55%), radial-gradient(90% 70% at 12% 8%, rgba(79,209,197,.07), transparent 50%), linear-gradient(180deg,#0c1119 0%, #0A0E14 70%)"
+            background: "linear-gradient(100deg, rgba(10,14,20,.93) 8%, rgba(10,14,20,.66) 38%, rgba(10,14,20,.28) 64%, rgba(10,14,20,.22) 100%), radial-gradient(120% 80% at 78% -10%, rgba(255,138,61,.10), transparent 55%), radial-gradient(90% 70% at 12% 8%, rgba(79,209,197,.07), transparent 50%), linear-gradient(180deg, transparent 55%, #0A0E14 96%)"
           }} />
-          <div className="absolute inset-0 opacity-50 grid-bg" />
+          <div className="absolute inset-0 opacity-20 grid-bg" />
 
           <div className="relative z-10 max-w-[1200px] mx-auto px-6 py-20 md:py-24">
             <div className="grid md:grid-cols-[1.15fr_.85fr] gap-12 items-center">

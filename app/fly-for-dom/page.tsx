@@ -1,126 +1,139 @@
-"use client";
+import { ShieldCheck, Wallet, Radar, FileCheck, Compass, Users, CreditCard, LayoutDashboard } from "lucide-react";
+import FlyForDomApplyForm from "@/components/FlyForDomApplyForm";
 
-import { useState } from "react";
-import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+export const metadata = {
+  title: "Fly for DOM | Drone Operation Management",
+  description: "Commercial drone missions for Part 107 pilots — DOM brings the clients, airspace prep, and payment collection. You bring the aircraft and the discipline to fly to spec.",
+};
 
-// Public pilot-recruiting page: /fly-for-dom
-// A Part 107 pilot applies, gets a portal account immediately (gated by
-// contractors.status, not account existence — they'll see "under review"
-// until DOM verifies them), then is sent straight into Stripe Express
-// onboarding so their payout account is set up from the start.
+const steps = [
+  { n: "01", title: "Apply & verify", desc: "Submit your Part 107 certificate, insurance, and equipment. DOM verifies your credentials before any paid assignment." },
+  { n: "02", title: "Get matched or self-serve", desc: "DOM offers you missions sourced and quoted for your service area — or, once approved, build and price your own missions directly in your portal." },
+  { n: "03", title: "Fly to a documented standard", desc: "Every mission type has a reference SOP — equipment checklist, preflight/airspace review, flight ops, deliverable spec — so you know exactly what's expected before you launch." },
+  { n: "04", title: "Get paid automatically", desc: "Upload your deliverable, it clears QC, and payout hits your account via Stripe. No chasing invoices." },
+];
+
+const brings = [
+  { icon: Users, title: "Client sourcing", desc: "DOM finds and qualifies the clients — you don't spend time on sales." },
+  { icon: Compass, title: "Airspace & LAANC prep", desc: "Airspace class, authorization requirements, and risk review handled before you're offered the mission." },
+  { icon: CreditCard, title: "Quoting & payment collection", desc: "DOM prices the mission and collects payment from the client up front — you never chase an invoice." },
+  { icon: FileCheck, title: "SOPs & document templates", desc: "Reference checklists per mission type, plus ready-to-use waivers, release forms, and service agreements." },
+  { icon: LayoutDashboard, title: "A real mission portal", desc: "Track assignments, upload deliverables and mission docs, and see your payout history in one dashboard." },
+  { icon: ShieldCheck, title: "Credential tracking", desc: "DOM tracks your Part 107 and insurance expiration and reminds you before they lapse." },
+];
+
 export default function FlyForDomPage() {
-  const [form, setForm] = useState({
-    full_name: "",
-    email: "",
-    password: "",
-    phone: "",
-    part107_number: "",
-    service_area: "",
-    equipment: "",
-  });
-  const [status, setStatus] = useState<"idle" | "submitting" | "error">("idle");
-  const [error, setError] = useState<string | null>(null);
-
-  function set(k: string, v: string) {
-    setForm((f) => ({ ...f, [k]: v }));
-  }
-
-  async function submit() {
-    setStatus("submitting");
-    setError(null);
-    try {
-      // 1) create the portal account
-      const sb = getSupabaseBrowser();
-      const { data: signUpData, error: signUpError } = await sb.auth.signUp({
-        email: form.email,
-        password: form.password,
-        // Explicit redirect target for the confirmation email link — without
-        // this, Supabase falls back to the project's "Site URL" dashboard
-        // setting, which defaults to http://localhost:3000 and breaks the
-        // confirmation link for anyone but a local dev server.
-        options: { emailRedirectTo: `${window.location.origin}/pilot/login` },
-      });
-      if (signUpError) throw new Error(signUpError.message);
-
-      // Supabase returns a look-alike "success" response when the email is
-      // already registered (to prevent email enumeration) — no real user
-      // gets created, so its .id is a dummy value that doesn't exist in
-      // auth.users. The documented signal is an empty identities array.
-      if (signUpData.user?.identities && signUpData.user.identities.length === 0) {
-        throw new Error("This email is already registered. Try signing in at /pilot/login instead, or use a different email.");
-      }
-
-      // 2) create the contractor record, linked to that account
-      const applyRes = await fetch("/api/contractors/apply", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, authUserId: signUpData.user?.id }),
-      });
-      const apply = await applyRes.json();
-      if (!applyRes.ok) throw new Error(apply.error ?? "Application failed.");
-
-      // 3) launch Stripe Express onboarding for payouts
-      const onbRes = await fetch("/api/connect/onboard", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contractorId: apply.contractorId }),
-      });
-      const onb = await onbRes.json();
-      if (!onbRes.ok) throw new Error(onb.error ?? "Could not start payout setup.");
-
-      window.location.href = onb.url; // Stripe-hosted onboarding
-    } catch (e: any) {
-      setStatus("error");
-      setError(e.message);
-    }
-  }
-
   return (
-    <div style={wrap}>
-      <div style={card}>
-        <p style={eyebrow}>◆ Fly for DOM</p>
-        <h1 style={h1}>Get paid to fly missions to a standard.</h1>
-        <p style={sub}>
-          DOM brings the clients, the airspace prep, and the documentation system. You bring a
-          Part 107 certificate, your aircraft, and the discipline to fly to spec. Apply below,
-          set up payouts, and we'll be in touch to verify your credentials.
-        </p>
+    <>
+      <section className="border-b border-border bg-grid-fade">
+        <div className="container-app py-24">
+          <p className="eyebrow mb-4">◆ Fly for DOM</p>
+          <h1 className="heading-xl max-w-3xl">
+            Get paid to fly missions to a standard.
+          </h1>
+          <p className="body-muted mt-6 max-w-2xl text-lg">
+            DOM brings the clients, the airspace prep, and the documentation system. You bring a
+            Part 107 certificate, your aircraft, and the discipline to fly to spec.
+          </p>
+          <div className="mt-8 flex flex-wrap gap-3.5">
+            <a href="#apply" className="btn-primary">
+              Apply now →
+            </a>
+            <a
+              href="#how-it-works"
+              className="rounded-lg border border-border px-6 py-3 text-sm font-semibold text-white transition hover:border-accent/60"
+            >
+              See how it works
+            </a>
+          </div>
+        </div>
+      </section>
 
-        <Field label="Full name" v={form.full_name} on={(v) => set("full_name", v)} />
-        <Field label="Email" v={form.email} on={(v) => set("email", v)} type="email" />
-        <Field label="Password" v={form.password} on={(v) => set("password", v)} type="password" />
-        <Field label="Phone" v={form.phone} on={(v) => set("phone", v)} />
-        <Field label="Part 107 certificate #" v={form.part107_number} on={(v) => set("part107_number", v)} />
-        <Field label="Service area (city / radius)" v={form.service_area} on={(v) => set("service_area", v)} />
-        <Field label="Aircraft & sensors you own" v={form.equipment} on={(v) => set("equipment", v)} />
+      <section id="how-it-works" className="section border-b border-border">
+        <div className="container-app">
+          <h2 className="heading-lg mb-12">How it works</h2>
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            {steps.map((s) => (
+              <div key={s.n} className="card p-6">
+                <p className="mb-3 font-mono text-xs tracking-[.14em] text-accent">{s.n}</p>
+                <h3 className="mb-2 text-base font-semibold text-white">{s.title}</h3>
+                <p className="text-sm text-slate-400">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-        {error && <p style={{ color: "#FF8A3D", fontSize: 13, marginTop: 12 }}>{error}</p>}
+      <section className="section border-b border-border">
+        <div className="container-app grid gap-12 lg:grid-cols-2">
+          <div className="card p-8">
+            <Wallet className="mb-4 h-7 w-7 text-accent" />
+            <h2 className="heading-lg mb-3">What you keep</h2>
+            <div className="mt-6 space-y-5">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">Standard</p>
+                <p className="mt-1 text-2xl font-bold text-white">80% of every mission</p>
+                <p className="mt-1 text-sm text-slate-400">
+                  DOM sources the client, quotes the job, and collects payment — you fly and keep 80%.
+                </p>
+              </div>
+              <div className="border-t border-border pt-5">
+                <p className="text-sm font-semibold uppercase tracking-wide text-accent">Self-service subscribers</p>
+                <p className="mt-1 text-2xl font-bold text-white">100% on missions you create</p>
+                <p className="mt-1 text-sm text-slate-400">
+                  Once approved for self-service, subscribe for $99/mo to waive DOM's commission entirely
+                  on missions you build and price yourself in your own portal.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="card p-8">
+            <Radar className="mb-4 h-7 w-7 text-accent" />
+            <h2 className="heading-lg mb-3">What DOM brings</h2>
+            <div className="mt-6 grid gap-5 sm:grid-cols-2">
+              {brings.map((b) => (
+                <div key={b.title}>
+                  <b.icon className="mb-2 h-5 w-5 text-accent" />
+                  <h3 className="mb-1 text-sm font-semibold text-white">{b.title}</h3>
+                  <p className="text-xs text-slate-400">{b.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
 
-        <button onClick={submit} disabled={status === "submitting"} style={btn}>
-          {status === "submitting" ? "Setting up…" : "Apply & set up payouts →"}
-        </button>
-        <p style={{ color: "#5A6678", fontSize: 12, marginTop: 14 }}>
-          Payout setup is handled securely by Stripe. DOM verifies Part 107 and insurance
-          before any paid assignment.
-        </p>
-      </div>
-    </div>
+      <section className="section border-b border-border">
+        <div className="container-app">
+          <h2 className="heading-lg mb-8">What you need</h2>
+          <div className="grid gap-6 sm:grid-cols-3">
+            <div className="card p-6">
+              <h3 className="mb-2 text-base font-semibold text-white">FAA Part 107 certificate</h3>
+              <p className="text-sm text-slate-400">Current and in good standing — DOM verifies this before any paid assignment.</p>
+            </div>
+            <div className="card p-6">
+              <h3 className="mb-2 text-base font-semibold text-white">Active drone insurance</h3>
+              <p className="text-sm text-slate-400">Liability coverage on your aircraft and operations.</p>
+            </div>
+            <div className="card p-6">
+              <h3 className="mb-2 text-base font-semibold text-white">Your own aircraft & sensors</h3>
+              <p className="text-sm text-slate-400">Whatever's appropriate for the missions in your service area — visual, thermal, mapping, etc.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="apply" className="section">
+        <div className="container-app">
+          <div className="mx-auto mb-10 max-w-2xl text-center">
+            <h2 className="heading-lg mb-3">Ready to fly?</h2>
+            <p className="body-muted">
+              Apply below, set up payouts, and DOM will be in touch to verify your credentials.
+            </p>
+          </div>
+          <FlyForDomApplyForm />
+        </div>
+      </section>
+    </>
   );
 }
-
-function Field({ label, v, on, type = "text" }: { label: string; v: string; on: (v: string) => void; type?: string }) {
-  return (
-    <div style={{ marginTop: 14 }}>
-      <label style={{ fontSize: 12, color: "#8A95A7" }}>{label}</label>
-      <input type={type} value={v} onChange={(e) => on(e.target.value)} style={input} />
-    </div>
-  );
-}
-
-const wrap: React.CSSProperties = { minHeight: "100vh", display: "grid", placeItems: "center", background: "#0A0E14", padding: 24 };
-const card: React.CSSProperties = { width: "100%", maxWidth: 460, padding: 34, border: "1px solid #232C3B", borderRadius: 16, background: "#11161F", color: "#E8ECF2", fontFamily: "Inter, system-ui, sans-serif" };
-const eyebrow: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 12, letterSpacing: ".18em", textTransform: "uppercase", color: "#FF8A3D" };
-const h1: React.CSSProperties = { fontFamily: "Saira, sans-serif", fontSize: 26, marginTop: 10, lineHeight: 1.1 };
-const sub: React.CSSProperties = { color: "#8A95A7", fontSize: 14, marginTop: 12, marginBottom: 8 };
-const input: React.CSSProperties = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 9, border: "1px solid #232C3B", background: "#0A0E14", color: "#E8ECF2", fontSize: 14, outline: "none" };
-const btn: React.CSSProperties = { width: "100%", marginTop: 22, padding: 13, borderRadius: 10, border: "none", background: "#FF8A3D", color: "#0A0E14", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };

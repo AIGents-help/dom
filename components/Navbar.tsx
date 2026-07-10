@@ -8,6 +8,7 @@ import { Menu, X, Radar } from "lucide-react";
 const links = [
   { href: "/services", label: "Services" },
   { href: "/industries", label: "Industries" },
+  { href: "/fly-for-dom", label: "Fly for DOM" },
   { href: "/faa-compliance", label: "FAA Compliance" },
   { href: "/about", label: "About" },
 ];

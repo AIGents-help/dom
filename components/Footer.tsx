@@ -37,6 +37,8 @@ export default function Footer() {
           <h4 className="mb-4 text-sm font-semibold text-white">Operations</h4>
           <ul className="space-y-3 text-sm text-slate-400">
             <li><Link href="/request-mission" className="hover:text-accent">Request a Mission</Link></li>
+            <li><Link href="/fly-for-dom" className="hover:text-accent">Fly for DOM</Link></li>
+            <li><Link href="/pilot/login" className="hover:text-accent">Pilot Login</Link></li>
             <li><Link href="/admin/login" className="hover:text-accent">Admin Login</Link></li>
           </ul>
         </div>

@@ -126,6 +126,25 @@ export function invoiceSent(params: {
   };
 }
 
+export function paymentReceived(params: {
+  clientName: string;
+  amountCents: number;
+  missionTitle?: string;
+}): TemplateResult {
+  return {
+    subject: `Payment Received — ${formatCents(params.amountCents)}`,
+    html: shell(
+      "Payment received — thank you",
+      `
+        <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.clientName)}, we've received your payment${
+        params.missionTitle ? ` for ${escapeHtml(params.missionTitle)}` : ""
+      } of ${formatCents(params.amountCents)}.</p>
+        <p style="color:#444; line-height:1.5;">We'll be in touch as your mission progresses.</p>
+      `
+    ),
+  };
+}
+
 export function missionAvailable(params: {
   pilotName: string;
   missionTitle: string;

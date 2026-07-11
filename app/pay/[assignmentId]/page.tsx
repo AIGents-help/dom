@@ -11,6 +11,7 @@ export default function PayPage({ params }: { params: Promise<{ assignmentId: st
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [amount, setAmount] = useState<number | null>(null);
   const [desc, setDesc] = useState<string>("");
+  const [alreadyPaid, setAlreadyPaid] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -23,9 +24,13 @@ export default function PayPage({ params }: { params: Promise<{ assignmentId: st
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Could not start checkout.");
-        setClientSecret(data.clientSecret);
         setAmount(data.amount);
         setDesc(data.description ?? "Drone mission");
+        if (data.alreadyPaid) {
+          setAlreadyPaid(true);
+        } else {
+          setClientSecret(data.clientSecret);
+        }
       } catch (e: any) {
         setError(e.message);
       }
@@ -41,7 +46,11 @@ export default function PayPage({ params }: { params: Promise<{ assignmentId: st
 
         {error && <p style={{ color: "#FF8A3D", fontSize: 13 }}>{error}</p>}
 
-        {clientSecret ? (
+        {alreadyPaid ? (
+          <p style={{ color: "#4FD1C5", fontSize: 14, marginTop: 18 }}>
+            ✓ Payment received — thank you! A receipt has been sent to your email.
+          </p>
+        ) : clientSecret ? (
           <Elements
             stripe={getStripePromise()}
             options={{ clientSecret, appearance: { theme: "night", variables: { colorPrimary: "#FF8A3D" } } }}

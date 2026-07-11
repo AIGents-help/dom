@@ -81,6 +81,17 @@ interface Assignment {
   contractor?: { full_name: string } | null;
 }
 
+interface Payment {
+  id: string;
+  assignment_id: string;
+  status: string;
+  amount_total_cents: number;
+  contractor_amount_cents: number | null;
+  stripe_transfer_id: string | null;
+  transfer_error: string | null;
+  created_at: string;
+}
+
 interface Deliverable {
   id: string;
   name: string;
@@ -102,6 +113,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [quote, setQuote] = useState<Quote | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [contractors, setContractors] = useState<Contractor[]>([]);
   const [contractorTierBps, setContractorTierBps] = useState<Record<string, number>>({});
   const [selectedContractor, setSelectedContractor] = useState("");
@@ -110,6 +122,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [releasingClaim, setReleasingClaim] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
+  const [requestingPayment, setRequestingPayment] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [newDeliverableName, setNewDeliverableName] = useState("");
@@ -153,6 +166,18 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
         .eq("job_id", jobRow.id)
         .order("offered_at", { ascending: false });
       setAssignments((assigns as any) ?? []);
+
+      const assignmentIds = (assigns ?? []).map((a) => a.id);
+      if (assignmentIds.length) {
+        const { data: paymentRows } = await sb
+          .from("payments")
+          .select("id, assignment_id, status, amount_total_cents, contractor_amount_cents, stripe_transfer_id, transfer_error, created_at")
+          .in("assignment_id", assignmentIds)
+          .order("created_at", { ascending: false });
+        setPayments((paymentRows as Payment[]) ?? []);
+      } else {
+        setPayments([]);
+      }
 
       const { data: deliverableRows } = await sb
         .from("deliverables")
@@ -284,20 +309,54 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
     }
   }, [mission, id, load]);
 
+  // Also doubles as "Retry Payout" — /api/admin/complete-mission is
+  // re-callable by design: if the assignment is already qc_passed/paid with
+  // a captured-but-untransferred payment, it skips straight to retrying the
+  // transfer instead of re-running the completion RPC.
   const markComplete = useCallback(async (assignmentId: string) => {
     setCompleting(assignmentId);
     setError(null);
     try {
       const sb = getSupabaseBrowser();
-      const { error: rpcError } = await sb.rpc("admin_mark_mission_complete", {
-        p_assignment_id: assignmentId,
+      const { data: session } = await sb.auth.getSession();
+      if (!session.session) throw new Error("Not authenticated");
+      const res = await fetch("/api/admin/complete-mission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.session.access_token}` },
+        body: JSON.stringify({ assignmentId }),
       });
-      if (rpcError) throw rpcError;
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to mark mission complete");
+      if (data.transferError) {
+        setError(`Mission marked complete, but payout failed: ${data.transferError}`);
+      }
       await load();
     } catch (e: any) {
       setError(e.message ?? "Failed to mark mission complete");
     } finally {
       setCompleting(null);
+    }
+  }, [load]);
+
+  const requestPayment = useCallback(async (assignmentId: string) => {
+    setRequestingPayment(assignmentId);
+    setError(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data: session } = await sb.auth.getSession();
+      if (!session.session) throw new Error("Not authenticated");
+      const res = await fetch("/api/notify/payment-requested", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.session.access_token}` },
+        body: JSON.stringify({ assignmentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to send payment request");
+      await load();
+    } catch (e: any) {
+      setError(e.message ?? "Failed to send payment request");
+    } finally {
+      setRequestingPayment(null);
     }
   }, [load]);
 
@@ -601,35 +660,83 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                 <span style={{ color: V.inkFaint, fontSize: 11 }}>— both can always view/upload; this is just who's expected to finalize delivery.</span>
               </div>
               <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
-                {assignments.map((a) => (
-                  <div key={a.id} style={{ ...panel, padding: 14, background: V.raised }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ fontWeight: 600 }}>{a.contractor?.full_name ?? a.contractor_id}</span>
-                      <span className="font-mono-ibm" style={{
-                        fontSize: 10, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase",
-                        background: a.status === "declined" ? "rgba(90,102,120,.15)" : a.status === "qc_passed" ? "rgba(79,209,197,.2)" : "rgba(79,209,197,.14)",
-                        color: a.status === "declined" ? V.inkFaint : V.telemetry,
-                      }}>
-                        {a.status === "qc_passed" ? "completed" : a.status}
-                      </span>
+                {assignments.map((a) => {
+                  const payment = payments.find((p) => p.assignment_id === a.id);
+                  const hasActivePayment = !!payment && payment.status !== "failed";
+                  const canRequestPayment = a.status === "accepted" && !hasActivePayment;
+                  const canRetryPayout = payment?.status === "captured" && !payment.stripe_transfer_id;
+                  const completedUnpaid =
+                    a.status === "qc_passed" &&
+                    (!payment || (payment.status !== "captured" && payment.status !== "paid_out"));
+                  const paymentLabel =
+                    payment?.status === "captured" ? "Collected"
+                    : payment?.status === "paid_out" ? "Paid Out"
+                    : payment?.status === "pending" ? "Pending"
+                    : payment?.status === "failed" ? "Failed"
+                    : payment?.status === "refunded" ? "Refunded"
+                    : payment?.status ?? null;
+
+                  return (
+                    <div key={a.id} style={{ ...panel, padding: 14, background: V.raised }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontWeight: 600 }}>{a.contractor?.full_name ?? a.contractor_id}</span>
+                        <span className="font-mono-ibm" style={{
+                          fontSize: 10, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase",
+                          background: a.status === "declined" ? "rgba(90,102,120,.15)" : a.status === "qc_passed" ? "rgba(79,209,197,.2)" : "rgba(79,209,197,.14)",
+                          color: a.status === "declined" ? V.inkFaint : V.telemetry,
+                        }}>
+                          {a.status === "qc_passed" ? "completed" : a.status}
+                        </span>
+                      </div>
+                      {a.mission_price_cents != null && (
+                        <p className="font-mono-ibm" style={{ fontSize: 12, color: V.inkDim, marginTop: 6 }}>
+                          ${(a.mission_price_cents / 100).toFixed(2)} total · ${((a.contractor_payout_cents ?? 0) / 100).toFixed(2)} payout
+                          {a.commission_bps_applied != null && ` · ${a.commission_bps_applied / 100}% commission (actual)`}
+                        </p>
+                      )}
+                      {paymentLabel && (
+                        <p className="font-mono-ibm" style={{ fontSize: 12, color: payment?.status === "paid_out" ? V.telemetry : V.inkDim, marginTop: 4 }}>
+                          Payment: {paymentLabel}
+                          {payment?.transfer_error && ` — ${payment.transfer_error}`}
+                        </p>
+                      )}
+                      {completedUnpaid && (
+                        <p style={{ color: V.signal, fontSize: 12, marginTop: 4 }}>
+                          ⚠ Completed with no payment collected — no transfer attempted.
+                        </p>
+                      )}
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+                        {canRequestPayment && (
+                          <button
+                            onClick={() => requestPayment(a.id)}
+                            disabled={requestingPayment === a.id}
+                            style={{ ...btnGhost, padding: "7px 14px", fontSize: 13 }}
+                          >
+                            {requestingPayment === a.id ? "Sending…" : "Send Payment Request"}
+                          </button>
+                        )}
+                        {a.status === "accepted" && (
+                          <button
+                            onClick={() => markComplete(a.id)}
+                            disabled={completing === a.id}
+                            style={{ ...btnPrimary, padding: "7px 14px", fontSize: 13 }}
+                          >
+                            {completing === a.id ? "Marking…" : "Mark Mission Complete"}
+                          </button>
+                        )}
+                        {canRetryPayout && (
+                          <button
+                            onClick={() => markComplete(a.id)}
+                            disabled={completing === a.id}
+                            style={{ ...btnPrimary, padding: "7px 14px", fontSize: 13 }}
+                          >
+                            {completing === a.id ? "Retrying…" : "Retry Payout"}
+                          </button>
+                        )}
+                      </div>
                     </div>
-                    {a.mission_price_cents != null && (
-                      <p className="font-mono-ibm" style={{ fontSize: 12, color: V.inkDim, marginTop: 6 }}>
-                        ${(a.mission_price_cents / 100).toFixed(2)} total · ${((a.contractor_payout_cents ?? 0) / 100).toFixed(2)} payout
-                        {a.commission_bps_applied != null && ` · ${a.commission_bps_applied / 100}% commission (actual)`}
-                      </p>
-                    )}
-                    {a.status === "accepted" && (
-                      <button
-                        onClick={() => markComplete(a.id)}
-                        disabled={completing === a.id}
-                        style={{ ...btnPrimary, marginTop: 12, padding: "7px 14px", fontSize: 13 }}
-                      >
-                        {completing === a.id ? "Marking…" : "Mark Mission Complete"}
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {assignments.every((a) => a.status === "declined") && (

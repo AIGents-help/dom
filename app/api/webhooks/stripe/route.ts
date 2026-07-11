@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { sendNotification } from "@/lib/resend/client";
+import { paymentReceived } from "@/lib/resend/templates";
 import type Stripe from "stripe";
 
 // POST /api/webhooks/stripe
@@ -44,10 +46,50 @@ export async function POST(req: NextRequest) {
 
       case "payment_intent.succeeded": {
         const intent = event.data.object as Stripe.PaymentIntent;
-        await supabaseAdmin
+        const { data: payment } = await supabaseAdmin
           .from("payments")
           .update({ status: "captured" })
-          .eq("stripe_payment_intent_id", intent.id);
+          .eq("stripe_payment_intent_id", intent.id)
+          .select("client_id, amount_total_cents, assignment_id")
+          .maybeSingle();
+
+        // Client receipt — payment_received has existed as a real enum
+        // value/EmailType with no template or trigger until this PR.
+        if (payment?.client_id) {
+          const { data: client } = await supabaseAdmin
+            .from("clients")
+            .select("email, contact_name")
+            .eq("id", payment.client_id)
+            .maybeSingle();
+
+          let missionTitle: string | undefined;
+          if (payment.assignment_id) {
+            const { data: assignment } = await supabaseAdmin
+              .from("mission_assignments")
+              .select("job:jobs ( title )")
+              .eq("id", payment.assignment_id)
+              .maybeSingle();
+            const job: any = Array.isArray(assignment?.job) ? assignment?.job[0] : assignment?.job;
+            missionTitle = job?.title;
+          }
+
+          if (client?.email) {
+            const { subject, html } = paymentReceived({
+              clientName: client.contact_name ?? "there",
+              amountCents: payment.amount_total_cents,
+              missionTitle,
+            });
+            await sendNotification({
+              to: client.email,
+              emailType: "payment_received",
+              recipientType: "customer",
+              recipientEntityId: payment.client_id,
+              assignmentId: payment.assignment_id ?? undefined,
+              subject,
+              html,
+            });
+          }
+        }
         break;
       }
 

@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Property Access & Site Authorization Waiver — Drone Operation Management</title>
+<link rel="stylesheet" href="/templates/template.css">
 <style>
   body { font-family: Georgia, 'Times New Roman', serif; color: #1a1a1a; max-width: 720px; margin: 0 auto; padding: 48px 32px; line-height: 1.6; }
   header { border-bottom: 2px solid #1a1a1a; padding-bottom: 16px; margin-bottom: 28px; }
@@ -11,7 +12,6 @@
   h2 { font-size: 15px; margin-top: 28px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
   .field { margin: 10px 0; }
   .field label { display: inline-block; min-width: 220px; font-weight: 600; }
-  .fill { border-bottom: 1px solid #1a1a1a; display: inline-block; min-width: 260px; }
   ol { padding-left: 22px; }
   li { margin-bottom: 10px; }
   .sig-block { display: flex; gap: 40px; margin-top: 40px; }
@@ -28,19 +28,27 @@
     <h1>Property Access &amp; Site Authorization Waiver</h1>
   </header>
 
+  <div class="instructions no-print">
+    <strong>How to use this template</strong>
+    Fill in the fields below on-screen, or print and complete by hand. Once the property owner
+    has signed, upload the completed document to your Mission Log → Documents (category: <strong>Site
+    Access</strong>) so it's on file with the assignment.
+    <div><button onclick="window.print()">Print / Save as PDF</button></div>
+  </div>
+
   <p>This Property Access &amp; Site Authorization Waiver ("Waiver") is entered into on
-  <span class="fill">&nbsp;</span> (date) between the undersigned property owner or authorized
+  <input type="text" class="fill" data-autofill="today"> (date) between the undersigned property owner or authorized
   representative ("Property Owner") and the drone operator identified below ("Operator"), in
   connection with a commercial unmanned aircraft system (UAS) mission to be performed at the
   property described below.</p>
 
   <h2>1. Parties &amp; Site</h2>
-  <div class="field"><label>Property Owner / Representative:</label><span class="fill">&nbsp;</span></div>
-  <div class="field"><label>Property Address:</label><span class="fill">&nbsp;</span></div>
-  <div class="field"><label>Operator / Pilot Name:</label><span class="fill">&nbsp;</span></div>
-  <div class="field"><label>FAA Part 107 Certificate #:</label><span class="fill">&nbsp;</span></div>
-  <div class="field"><label>Scheduled Date(s) / Window:</label><span class="fill">&nbsp;</span></div>
-  <div class="field"><label>Purpose of Mission:</label><span class="fill">&nbsp;</span></div>
+  <div class="field"><label>Property Owner / Representative:</label><input type="text" class="fill"></div>
+  <div class="field"><label>Property Address:</label><input type="text" class="fill"></div>
+  <div class="field"><label>Operator / Pilot Name:</label><input type="text" class="fill"></div>
+  <div class="field"><label>FAA Part 107 Certificate #:</label><input type="text" class="fill"></div>
+  <div class="field"><label>Scheduled Date(s) / Window:</label><input type="text" class="fill"></div>
+  <div class="field"><label>Purpose of Mission:</label><input type="text" class="fill"></div>
 
   <h2>2. Authorization</h2>
   <ol>
@@ -80,5 +88,7 @@
     advice — have it reviewed by an attorney before relying on it, and adapt it to your
     jurisdiction and specific mission.
   </footer>
+
+  <script src="/templates/template.js"></script>
 </body>
 </html>

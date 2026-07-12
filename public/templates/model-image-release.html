@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <title>Model & Image Release Form — Drone Operation Management</title>
+<link rel="stylesheet" href="/templates/template.css">
 <style>
   body { font-family: Georgia, 'Times New Roman', serif; color: #1a1a1a; max-width: 720px; margin: 0 auto; padding: 48px 32px; line-height: 1.6; }
   header { border-bottom: 2px solid #1a1a1a; padding-bottom: 16px; margin-bottom: 28px; }
@@ -11,7 +12,6 @@
   h2 { font-size: 15px; margin-top: 28px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
   .field { margin: 10px 0; }
   .field label { display: inline-block; min-width: 220px; font-weight: 600; }
-  .fill { border-bottom: 1px solid #1a1a1a; display: inline-block; min-width: 260px; }
   ol { padding-left: 22px; }
   li { margin-bottom: 10px; }
   .sig-block { display: flex; gap: 40px; margin-top: 40px; }
@@ -28,16 +28,24 @@
     <h1>Model &amp; Image Release Form</h1>
   </header>
 
+  <div class="instructions no-print">
+    <strong>How to use this template</strong>
+    Fill in the fields below on-screen, or print and complete by hand. Once the individual (or
+    their parent/guardian) has signed, upload the completed document to your Mission Log →
+    Documents (category: <strong>Waiver</strong>) so it's on file with the assignment.
+    <div><button onclick="window.print()">Print / Save as PDF</button></div>
+  </div>
+
   <p>This release applies when aerial imagery captured during a mission may include identifiable
   individuals (e.g. workers on a job site, event attendees). Use it whenever a mission is likely
   to capture recognizable people, in addition to any general Terms of Service already in place
   with the client.</p>
 
   <h2>1. Parties &amp; Mission</h2>
-  <div class="field"><label>Individual Being Photographed:</label><span class="fill">&nbsp;</span></div>
-  <div class="field"><label>Client / Company:</label><span class="fill">&nbsp;</span></div>
-  <div class="field"><label>Mission Location:</label><span class="fill">&nbsp;</span></div>
-  <div class="field"><label>Mission Date:</label><span class="fill">&nbsp;</span></div>
+  <div class="field"><label>Individual Being Photographed:</label><input type="text" class="fill"></div>
+  <div class="field"><label>Client / Company:</label><input type="text" class="fill"></div>
+  <div class="field"><label>Mission Location:</label><input type="text" class="fill"></div>
+  <div class="field"><label>Mission Date:</label><input type="text" class="fill" data-autofill="today"></div>
 
   <h2>2. Grant of Rights</h2>
   <ol>
@@ -72,5 +80,7 @@
     advice — have it reviewed by an attorney before relying on it, and adapt it to your
     jurisdiction and specific mission.
   </footer>
+
+  <script src="/templates/template.js"></script>
 </body>
 </html>

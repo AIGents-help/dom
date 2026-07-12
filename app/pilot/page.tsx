@@ -17,7 +17,7 @@ import { sopMarkdownToHtml } from "@/lib/sopMarkdown";
 interface Profile {
   id: string; full_name: string; email: string; phone: string | null; status: string;
   part107_number: string | null; part107_verified: boolean;
-  insurance_verified: boolean; stripe_payouts_enabled: boolean;
+  insurance_verified: boolean; insurance_requested: boolean; stripe_payouts_enabled: boolean;
   stripe_connect_account_id: string | null;
   service_area: string | null; equipment: string | null;
   missions_completed: number; rating: number | null;
@@ -192,6 +192,26 @@ export default function PilotDashboard() {
     }
   }
 
+  async function requestInsurance() {
+    if (!accessToken) return;
+    window.open("https://www.skywatch.ai", "_blank");
+    setSubActionLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/pilot/insurance/request", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not record insurance request");
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSubActionLoading(false);
+    }
+  }
+
   function missionTypeForService(serviceType: string | null | undefined): string {
     if (!serviceType) return "general";
     if (serviceType === "roof_inspection_residential" || serviceType === "roof_inspection_commercial") return "roof_inspection";
@@ -255,6 +275,15 @@ export default function PilotDashboard() {
       {!cleared && (
         <div style={{ ...panelStyle, borderColor: "rgba(255,138,61,.4)", marginBottom: 18, background: "rgba(255,138,61,.05)" }}>
           <p style={{ color: V.signal, fontSize: 14 }}>Your credentials are not fully verified yet. DOM verifies Part 107 and insurance before assigning paid missions.{!profile.stripe_payouts_enabled && " Complete Stripe payout setup to receive payments."}</p>
+          {!profile.insurance_verified && (
+            profile.insurance_requested ? (
+              <p style={{ color: V.inkDim, fontSize: 13, marginTop: 10 }}>Insurance requested — pending confirmation.</p>
+            ) : (
+              <button onClick={requestInsurance} disabled={subActionLoading} style={{ ...btnGhost, marginTop: 10 }}>
+                {subActionLoading ? "…" : "Request Insurance via SkyWatch →"}
+              </button>
+            )
+          )}
         </div>
       )}
 

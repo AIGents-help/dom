@@ -1,24 +1,34 @@
 "use client";
 
-// Renders SOP body_md content. This is a small, hand-rolled subset renderer
-// (headers, checkbox/bulleted/numbered lists, bold, paragraphs) rather than
-// a full Markdown library — the content is entirely admin-authored (seeded
-// via migration, never user-generated), and the actual syntax used across
-// every SOP in this app is narrow enough that a real dependency isn't worth
-// it. Covers: #/## headers, "- [ ] " checkboxes, "- " bullets, "1. " numbered
-// items, **bold**, blank-line-separated paragraphs.
+// Renders SOP/tutorial body_md content. This is a small, hand-rolled subset
+// renderer (headers, checkbox/bulleted/numbered lists, bold, links,
+// paragraphs) rather than a full Markdown library — the content is entirely
+// admin-authored (seeded via migration, never user-generated), and the
+// actual syntax used across every SOP/tutorial in this app is narrow enough
+// that a real dependency isn't worth it. Covers: #/## headers, "- [ ] "
+// checkboxes, "- " bullets, "1. " numbered items, **bold**, [label](url)
+// links, blank-line-separated paragraphs.
 
 const V = { ground: "#0A0E14", surface: "#11161F", raised: "#161D29", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D", telemetry: "#4FD1C5" };
 
 function renderInline(text: string, key: string | number) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
   return (
     <span key={key}>
-      {parts.map((part, i) =>
-        part.startsWith("**") && part.endsWith("**")
-          ? <strong key={i} style={{ color: V.ink }}>{part.slice(2, -2)}</strong>
-          : <span key={i}>{part}</span>
-      )}
+      {parts.map((part, i) => {
+        if (part.startsWith("**") && part.endsWith("**")) {
+          return <strong key={i} style={{ color: V.ink }}>{part.slice(2, -2)}</strong>;
+        }
+        const linkMatch = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part);
+        if (linkMatch) {
+          return (
+            <a key={i} href={linkMatch[2]} target="_blank" rel="noreferrer" style={{ color: V.telemetry }}>
+              {linkMatch[1]}
+            </a>
+          );
+        }
+        return <span key={i}>{part}</span>;
+      })}
     </span>
   );
 }

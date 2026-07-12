@@ -15,6 +15,7 @@ type Contractor = {
   part107_number: string | null;
   part107_verified: boolean;
   insurance_verified: boolean;
+  insurance_requested: boolean;
   stripe_connect_account_id: string | null;
   stripe_payouts_enabled: boolean;
   service_area: string | null;
@@ -212,6 +213,11 @@ export default function AdminContractorsPage() {
               <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
                 <Toggle label="Part 107" on={c.part107_verified} onClick={() => toggle(c.id, "part107_verified", !c.part107_verified)} />
                 <Toggle label="Insurance" on={c.insurance_verified} onClick={() => toggle(c.id, "insurance_verified", !c.insurance_verified)} />
+                {c.insurance_requested && !c.insurance_verified && (
+                  <span style={{ ...badge, background: "rgba(196,107,224,.14)", color: "#C46BE0", alignSelf: "center" }}>
+                    INSURANCE REQUESTED
+                  </span>
+                )}
                 {c.status !== "active" && <Btn onClick={() => setActive(c.id)}>Mark active</Btn>}
                 {!c.stripe_connect_account_id && <Btn onClick={() => onboard(c.id)}>Start Stripe onboarding</Btn>}
                 {c.stripe_connect_account_id && !c.stripe_payouts_enabled && (

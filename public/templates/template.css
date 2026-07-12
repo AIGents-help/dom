@@ -1,0 +1,69 @@
+/* Shared styling for public/templates/*.html — fillable, printable document
+   templates. Loaded via <link rel="stylesheet"> from each template so the
+   three documents' fill/print behavior changes in lockstep. */
+
+.instructions {
+  margin: 0 0 24px;
+  padding: 14px 16px;
+  border-radius: 8px;
+  background: #f2f6f5;
+  border: 1px solid #cfe0dd;
+  font-family: Arial, sans-serif;
+  font-size: 13px;
+  color: #1a1a1a;
+  line-height: 1.6;
+}
+.instructions strong { display: block; margin-bottom: 6px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: #0b6b5e; }
+.instructions button {
+  margin-top: 10px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  background: #0b6b5e;
+  color: #fff;
+  font-family: Arial, sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* Fillable fields — look like the original underlined blank, but are real
+   inputs now. Same font/size as surrounding body copy so a filled value
+   reads naturally inline. */
+input.fill, textarea.fill {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 15px;
+  color: #1a1a1a;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #1a1a1a;
+  border-radius: 0;
+  padding: 0 2px;
+  min-width: 260px;
+  outline: none;
+}
+input.fill:focus, textarea.fill:focus {
+  background: #fffbe6;
+}
+textarea.fill.fill-block {
+  display: block;
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  line-height: 1.6;
+  margin-top: 6px;
+}
+/* Pricing-table cells: browser-default input width (~200px) looks wrong
+   inside a <td> — fill the cell instead. */
+td input.fill {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+@media print {
+  .no-print { display: none !important; }
+  /* A fixed-height scrollable textarea only paints its visible content when
+     printed — let it grow to fit whatever was typed instead of clipping. */
+  textarea.fill.fill-block { overflow: visible; height: auto; }
+}

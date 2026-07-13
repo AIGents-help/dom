@@ -58,7 +58,12 @@ export default function AdminSidebar() {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", padding: "18px 16px" }}>
-        {!collapsed && <span className="font-saira" style={{ fontWeight: 700, fontSize: 16, color: V.ink }}>DOM Admin</span>}
+        {!collapsed && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <img src="/brand/dom-icon-mark.png" alt="" style={{ height: 20, width: "auto" }} />
+            <span className="font-saira" style={{ fontWeight: 700, fontSize: 16, color: V.ink }}>DOM Admin</span>
+          </div>
+        )}
         <button
           onClick={toggle}
           aria-label="Toggle sidebar"

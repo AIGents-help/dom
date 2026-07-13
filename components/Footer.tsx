@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Radar } from "lucide-react";
 
 export default function Footer() {
   const pathname = usePathname();
@@ -12,11 +11,12 @@ export default function Footer() {
     <footer className="border-t border-border bg-surface/40">
       <div className="container-app grid gap-10 py-16 lg:grid-cols-4">
         <div>
-          <div className="mb-4 flex items-center gap-2">
-            <Radar className="h-5 w-5 text-accent" />
-            <span className="text-sm font-bold uppercase tracking-wide text-white">
-              Drone Operation Management
-            </span>
+          <div className="mb-4 flex items-center">
+            <img
+              src="/brand/dom-lockup-horizontal.png"
+              alt="DOM — Drone Operation Management"
+              className="h-7 w-auto"
+            />
           </div>
           <p className="body-muted max-w-xs">
             Commercial drone operations, aerial intelligence, and mission documentation for enterprise and government clients.

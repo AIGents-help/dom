@@ -53,9 +53,8 @@ export default function PilotLoginPage() {
           ← Back to droneopsman.com
         </Link>
         <div style={{ padding: 32, border: `1px solid ${V.line}`, borderRadius: 16, background: V.surface }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-          <span style={{ width: 28, height: 28, border: `1.5px solid ${V.signal}`, borderRadius: 7, display: "grid", placeItems: "center", color: V.signal, fontSize: 12, background: "rgba(255,138,61,.08)" }}>◤</span>
-          <span className="font-saira" style={{ fontWeight: 800, letterSpacing: ".04em", color: V.ink }}>DOM</span>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
+          <img src="/brand/dom-lockup-horizontal.png" alt="DOM — Drone Operation Management" style={{ height: 26, width: "auto" }} />
         </div>
         <h1 className="font-saira" style={{ fontSize: 22, color: V.ink, marginTop: 12 }}>Pilot Portal</h1>
         <p style={{ color: V.inkDim, fontSize: 13, marginBottom: 22 }}>

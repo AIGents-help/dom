@@ -69,7 +69,13 @@ export default function PilotSidebar({
         overflow: "hidden",
       }}
     >
-      <div style={{ display: "flex", justifyContent: collapsed ? "center" : "flex-end", padding: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", padding: "10px 10px 0" }}>
+        {!collapsed && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <img src="/brand/dom-icon-mark.png" alt="" style={{ height: 18, width: "auto" }} />
+            <span className="font-saira" style={{ fontWeight: 700, fontSize: 14, color: V.ink }}>DOM Pilot</span>
+          </div>
+        )}
         <button
           onClick={toggle}
           aria-label="Toggle sidebar"
@@ -78,6 +84,7 @@ export default function PilotSidebar({
           {collapsed ? "»" : "«"}
         </button>
       </div>
+      {!collapsed && <div style={{ height: 1, background: V.line, margin: "10px 10px 0" }} />}
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 2, padding: "0 8px 8px" }}>
         {ITEMS.map((item) => {

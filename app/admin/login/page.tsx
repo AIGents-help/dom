@@ -67,6 +67,7 @@ export default function AdminLoginPage() {
             fontFamily: "Inter, system-ui, sans-serif",
           }}
         >
+        <img src="/brand/dom-lockup-horizontal.png" alt="DOM — Drone Operation Management" style={{ height: 24, width: "auto", marginBottom: 14 }} />
         <h1 style={{ fontFamily: "Saira, sans-serif", fontSize: 22, marginBottom: 4 }}>
           DOM Admin
         </h1>

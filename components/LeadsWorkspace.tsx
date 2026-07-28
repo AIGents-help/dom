@@ -33,7 +33,16 @@ interface LeadActivity {
   amount: number | null; occurred_at: string; created_by: string | null; created_at: string;
 }
 
-const LEAD_STATUS_FLOW: Record<string, string> = { new: "contacted", contacted: "qualified", qualified: "converted" };
+const STATUS_OPTIONS = [
+  { value: "cold", label: "Cold", color: "border-slate-500 bg-slate-500/10 text-slate-300" },
+  { value: "contacted", label: "Contacted", color: "border-blue-500 bg-blue-500/10 text-blue-400" },
+  { value: "qualified", label: "Qualified", color: "border-amber-500 bg-amber-500/10 text-amber-400" },
+  { value: "quoted", label: "Quoted", color: "border-purple-500 bg-purple-500/10 text-purple-400" },
+  { value: "scheduled", label: "Scheduled", color: "border-cyan-500 bg-cyan-500/10 text-cyan-400" },
+  { value: "customer", label: "Customer", color: "border-green-500 bg-green-500/10 text-green-400" },
+  { value: "lost", label: "Lost", color: "border-rose-500 bg-rose-500/10 text-rose-400" },
+];
+const STATUS_LABELS: Record<string, string> = Object.fromEntries(STATUS_OPTIONS.map((s) => [s.value, s.label]));
 
 const TIER_OPTIONS = [
   { value: "tier_1", label: "Tier 1 — Roof Inspection" },
@@ -203,15 +212,16 @@ export default function LeadsWorkspace() {
   async function toggleLeadTier(lead: Lead, tierValue: string) {
     setBusy(lead.id);
     const sb = getSupabaseBrowser();
-    const nextTiers = lead.tier.includes(tierValue)
-      ? lead.tier.filter((t) => t !== tierValue)
-      : [...lead.tier, tierValue];
+    const currentTiers = lead.tier ?? [];
+    const nextTiers = currentTiers.includes(tierValue)
+      ? currentTiers.filter((t) => t !== tierValue)
+      : [...currentTiers, tierValue];
     const { error } = await sb.from("leads").update({ tier: nextTiers }).eq("id", lead.id);
     if (error) { alert(`Couldn't save tier: ${error.message}`); setBusy(null); return; }
     await logActivity(
       lead.id,
       "other",
-      `Tier ${lead.tier.includes(tierValue) ? "removed" : "added"}: ${TIER_LABELS[tierValue] ?? tierValue}`
+      `Tier ${currentTiers.includes(tierValue) ? "removed" : "added"}: ${TIER_LABELS[tierValue] ?? tierValue}`
     );
     await load();
     setBusy(null);
@@ -273,11 +283,19 @@ export default function LeadsWorkspace() {
       phone: lead.phone,
     });
     if (error) { alert(error.message); setBusy(null); return; }
-    await sb.from("leads").update({ status: "converted" }).eq("id", lead.id);
-    await logActivity(lead.id, "status_change", "Converted to client");
+    await sb.from("leads").update({ status: "customer" }).eq("id", lead.id);
+    await logActivity(lead.id, "status_change", "Converted to client (status: Customer)");
     await load();
     setBusy(null);
-    router.push("/admin/dashboard");
+  }
+
+  function handleStatusChange(lead: Lead, newStatus: string) {
+    if (newStatus === lead.status) return;
+    if (newStatus === "customer") {
+      convertLead(lead);
+    } else {
+      setLeadStatus(lead, newStatus);
+    }
   }
 
   async function addLead() {
@@ -295,7 +313,7 @@ export default function LeadsWorkspace() {
       address: leadForm.address || null,
       source: leadForm.source || null,
       message: leadForm.message || null,
-      tier: leadForm.tier.length > 0 ? leadForm.tier : null,
+      tier: leadForm.tier,
       vertical: leadForm.vertical || null,
       preferred_contact_method: leadForm.preferred_contact_method || null,
       next_follow_up_at: leadForm.next_follow_up_at || null,
@@ -458,7 +476,7 @@ export default function LeadsWorkspace() {
   const today = new Date().toISOString().slice(0, 10);
   const filtered = leads
     .filter((l) =>
-      (!filterTier || l.tier.includes(filterTier)) &&
+      (!filterTier || (l.tier ?? []).includes(filterTier)) &&
       (!filterVertical || l.vertical === filterVertical) &&
       (!filterStatus || l.status === filterStatus)
     )
@@ -561,7 +579,7 @@ export default function LeadsWorkspace() {
           </select>
           <select className={inputCls + " w-auto"} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">All statuses</option>
-            {["new", "contacted", "qualified", "converted", "lost"].map((s) => <option key={s} value={s}>{s}</option>)}
+            {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
           {(filterTier || filterVertical || filterStatus) && (
             <button className="text-xs text-slate-500 underline" onClick={() => { setFilterTier(""); setFilterVertical(""); setFilterStatus(""); }}>
@@ -589,7 +607,7 @@ export default function LeadsWorkspace() {
                     <div className="text-xs text-slate-500">{l.name ?? "No contact name"} · {l.email ?? "—"}</div>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
-                    {l.next_follow_up_at && l.next_follow_up_at <= today && !["converted", "lost"].includes(l.status) && (
+                    {l.next_follow_up_at && l.next_follow_up_at <= today && !["customer", "lost"].includes(l.status) && (
                       <Pill><span className="text-rose-400">Follow-up due</span></Pill>
                     )}
                     {contacts.filter((c) => c.lead_id === l.id && !c.is_primary).length > 0 && (
@@ -598,9 +616,11 @@ export default function LeadsWorkspace() {
                     {locations.filter((loc) => loc.lead_id === l.id).length > 0 && (
                       <Pill>{locations.filter((loc) => loc.lead_id === l.id).length} branch{locations.filter((loc) => loc.lead_id === l.id).length > 1 ? "es" : ""}</Pill>
                     )}
-                    {l.tier.map((t) => <Pill key={t}>{TIER_LABELS[t] ?? t}</Pill>)}
+                    {(l.tier ?? []).map((t) => <Pill key={t}>{TIER_LABELS[t] ?? t}</Pill>)}
                     {l.vertical && <Pill>{VERTICAL_LABELS[l.vertical] ?? l.vertical}</Pill>}
-                    <Pill>{l.status}</Pill>
+                    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${STATUS_OPTIONS.find((s) => s.value === l.status)?.color ?? "border-border bg-surface2 text-slate-300"}`}>
+                      {STATUS_LABELS[l.status] ?? l.status}
+                    </span>
                   </div>
                 </button>
 
@@ -648,7 +668,7 @@ export default function LeadsWorkspace() {
                         <label className={labelCls}>Tier <span className="text-slate-600">(a client can require more than one)</span></label>
                         <div className="flex flex-wrap gap-2">
                           {TIER_OPTIONS.map((t) => {
-                            const active = l.tier.includes(t.value);
+                            const active = (l.tier ?? []).includes(t.value);
                             return (
                               <button
                                 key={t.value}
@@ -687,19 +707,34 @@ export default function LeadsWorkspace() {
                         </div>
                       </div>
 
+                      <div>
+                        <label className={labelCls}>Status</label>
+                        <div className="flex flex-wrap gap-2">
+                          {STATUS_OPTIONS.map((s) => {
+                            const active = l.status === s.value;
+                            return (
+                              <button
+                                key={s.value}
+                                type="button"
+                                disabled={busy === l.id}
+                                onClick={() => handleStatusChange(l, s.value)}
+                                className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
+                                  active ? s.color : "border-border bg-surface text-slate-400 hover:text-white"
+                                }`}
+                              >
+                                <span className={`h-2.5 w-2.5 rounded-full border ${active ? "border-current bg-current" : "border-slate-600"}`} />
+                                {s.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        {l.status === "cold" || l.status === "contacted" || l.status === "qualified" || l.status === "quoted" || l.status === "scheduled" ? (
+                          <p className="mt-1 text-xs text-slate-600">Selecting "Customer" also creates a client record.</p>
+                        ) : null}
+                      </div>
+
                       <div className="flex flex-wrap gap-2 pt-2">
                         <ActionBtn disabled={busy === l.id} onClick={() => logContactNow(l)}>Log contact now</ActionBtn>
-                        {LEAD_STATUS_FLOW[l.status] && (
-                          <ActionBtn disabled={busy === l.id} onClick={() => setLeadStatus(l, LEAD_STATUS_FLOW[l.status])}>
-                            Mark {LEAD_STATUS_FLOW[l.status]}
-                          </ActionBtn>
-                        )}
-                        {l.status !== "converted" && l.status !== "lost" && (
-                          <ActionBtn disabled={busy === l.id} onClick={() => convertLead(l)}>Convert to client</ActionBtn>
-                        )}
-                        {l.status !== "lost" && l.status !== "converted" && (
-                          <ActionBtn disabled={busy === l.id} onClick={() => setLeadStatus(l, "lost")}>Mark lost</ActionBtn>
-                        )}
                       </div>
                     </div>
 

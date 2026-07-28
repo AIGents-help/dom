@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
           company: null,
           source: "cold_email",
           message: cleanReply,
-          status: "new",
+          status: "contacted",
           external_prospect_id: prospectId,
         });
       }

@@ -27,6 +27,10 @@ interface LeadLocation {
 interface LeadRelationship {
   id: string; lead_id: string; related_lead_id: string; relationship_type: string; notes: string | null; created_at: string;
 }
+interface LeadActivity {
+  id: string; lead_id: string; activity_type: string; summary: string;
+  amount: number | null; occurred_at: string; created_by: string | null; created_at: string;
+}
 
 const LEAD_STATUS_FLOW: Record<string, string> = { new: "contacted", contacted: "qualified", qualified: "converted" };
 
@@ -65,6 +69,17 @@ const RELATIONSHIP_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 const RELATIONSHIP_LABELS: Record<string, string> = Object.fromEntries(RELATIONSHIP_OPTIONS.map((r) => [r.value, r.label]));
+const ACTIVITY_TYPE_OPTIONS = [
+  { value: "call", label: "Call" },
+  { value: "email", label: "Email" },
+  { value: "letter", label: "Letter" },
+  { value: "meeting", label: "Meeting" },
+  { value: "bill", label: "Bill" },
+  { value: "job", label: "Job" },
+  { value: "status_change", label: "Status change" },
+  { value: "other", label: "Other" },
+];
+const ACTIVITY_TYPE_LABELS: Record<string, string> = Object.fromEntries(ACTIVITY_TYPE_OPTIONS.map((a) => [a.value, a.label]));
 
 const emptyLeadForm = {
   name: "", email: "", company: "", phone: "", source: "", message: "",
@@ -82,6 +97,12 @@ export default function LeadsWorkspace() {
   const [contacts, setContacts] = useState<LeadContact[]>([]);
   const [locations, setLocations] = useState<LeadLocation[]>([]);
   const [relationships, setRelationships] = useState<LeadRelationship[]>([]);
+  const [activities, setActivities] = useState<LeadActivity[]>([]);
+
+  const [editingLead, setEditingLead] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState({ name: "", company: "", email: "", phone: "", source: "", message: "" });
+
+  const [activityDraft, setActivityDraft] = useState<Record<string, { activity_type: string; summary: string; amount: string; occurred_at: string }>>({});
 
   const [sortKey, setSortKey] = useState<"company" | "name">("company");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -104,12 +125,13 @@ export default function LeadsWorkspace() {
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
-    const [leadsRes, notesRes, contactsRes, locationsRes, relationshipsRes] = await Promise.all([
+    const [leadsRes, notesRes, contactsRes, locationsRes, relationshipsRes, activitiesRes] = await Promise.all([
       sb.from("leads").select("*").order("created_at", { ascending: false }),
       sb.from("notes").select("*").eq("entity_type", "lead").order("created_at", { ascending: false }),
       sb.from("lead_contacts").select("*").order("is_primary", { ascending: false }),
       sb.from("lead_locations").select("*").order("created_at", { ascending: true }),
       sb.from("lead_relationships").select("*").order("created_at", { ascending: true }),
+      sb.from("lead_activities").select("*").order("occurred_at", { ascending: false }),
     ]);
     const leadRows = (leadsRes.data as Lead[]) ?? [];
     setLeads(leadRows);
@@ -117,6 +139,7 @@ export default function LeadsWorkspace() {
     setContacts((contactsRes.data as LeadContact[]) ?? []);
     setLocations((locationsRes.data as LeadLocation[]) ?? []);
     setRelationships((relationshipsRes.data as LeadRelationship[]) ?? []);
+    setActivities((activitiesRes.data as LeadActivity[]) ?? []);
 
     const prospectIds = leadRows.map((l) => l.external_prospect_id).filter((id): id is string => !!id);
     if (prospectIds.length > 0) {
@@ -154,6 +177,19 @@ export default function LeadsWorkspace() {
     }
   }, [searchParams, leads]);
 
+  async function logActivity(leadId: string, activityType: string, summary: string, amount?: number | null, occurredAt?: string) {
+    const sb = getSupabaseBrowser();
+    const { data: session } = await sb.auth.getSession();
+    await sb.from("lead_activities").insert({
+      lead_id: leadId,
+      activity_type: activityType,
+      summary,
+      amount: amount ?? null,
+      occurred_at: occurredAt || new Date().toISOString(),
+      created_by: session.session?.user.email ?? null,
+    });
+  }
+
   async function setLeadField(lead: Lead, field: keyof Lead, value: string) {
     setBusy(lead.id);
     const sb = getSupabaseBrowser();
@@ -162,10 +198,36 @@ export default function LeadsWorkspace() {
     setBusy(null);
   }
 
+  function startEditLead(lead: Lead) {
+    setEditingLead(lead.id);
+    setEditDraft({
+      name: lead.name ?? "", company: lead.company ?? "", email: lead.email ?? "",
+      phone: lead.phone ?? "", source: lead.source ?? "", message: lead.message ?? "",
+    });
+  }
+
+  async function saveEditLead(lead: Lead) {
+    setBusy(lead.id);
+    const sb = getSupabaseBrowser();
+    const { error } = await sb.from("leads").update({
+      name: editDraft.name || null,
+      company: editDraft.company || null,
+      email: editDraft.email || null,
+      phone: editDraft.phone || null,
+      source: editDraft.source || null,
+      message: editDraft.message || null,
+    }).eq("id", lead.id);
+    setBusy(null);
+    if (error) { alert(error.message); return; }
+    setEditingLead(null);
+    await load();
+  }
+
   async function setLeadStatus(lead: Lead, status: string) {
     setBusy(lead.id);
     const sb = getSupabaseBrowser();
     await sb.from("leads").update({ status }).eq("id", lead.id);
+    await logActivity(lead.id, "status_change", `Status changed to "${status}"`);
     await load();
     setBusy(null);
   }
@@ -174,6 +236,7 @@ export default function LeadsWorkspace() {
     setBusy(lead.id);
     const sb = getSupabaseBrowser();
     await sb.from("leads").update({ last_contacted_at: new Date().toISOString() }).eq("id", lead.id);
+    await logActivity(lead.id, "other", "Contact logged");
     await load();
     setBusy(null);
   }
@@ -189,6 +252,7 @@ export default function LeadsWorkspace() {
     });
     if (error) { alert(error.message); setBusy(null); return; }
     await sb.from("leads").update({ status: "converted" }).eq("id", lead.id);
+    await logActivity(lead.id, "status_change", "Converted to client");
     await load();
     setBusy(null);
     router.push("/admin/dashboard");
@@ -319,6 +383,33 @@ export default function LeadsWorkspace() {
     setBusy(leadId);
     const sb = getSupabaseBrowser();
     await sb.from("lead_relationships").delete().eq("id", relationshipId);
+    await load();
+    setBusy(null);
+  }
+
+  async function addActivity(leadId: string) {
+    const draft = activityDraft[leadId];
+    if (!draft || !draft.summary) {
+      alert("Add a description for this interaction.");
+      return;
+    }
+    setBusy(leadId);
+    await logActivity(
+      leadId,
+      draft.activity_type || "other",
+      draft.summary,
+      draft.amount ? parseFloat(draft.amount) : null,
+      draft.occurred_at ? new Date(draft.occurred_at).toISOString() : undefined
+    );
+    setBusy(null);
+    setActivityDraft((d) => ({ ...d, [leadId]: { activity_type: "call", summary: "", amount: "", occurred_at: "" } }));
+    await load();
+  }
+
+  async function deleteActivity(activityId: string, leadId: string) {
+    setBusy(leadId);
+    const sb = getSupabaseBrowser();
+    await sb.from("lead_activities").delete().eq("id", activityId);
     await load();
     setBusy(null);
   }
@@ -459,11 +550,39 @@ export default function LeadsWorkspace() {
                   <>
                   <div className="grid gap-6 border-t border-border p-4 lg:grid-cols-2">
                     <div className="space-y-3 text-sm text-slate-300">
-                      <p><span className="text-slate-500">Phone:</span> {l.phone ?? "—"}</p>
-                      <p><span className="text-slate-500">Source:</span> {l.source ?? "—"}</p>
-                      <p><span className="text-slate-500">Last contacted:</span> {l.last_contacted_at ? new Date(l.last_contacted_at).toLocaleString() : "Never"}</p>
-                      {l.message && <p><span className="text-slate-500">Message:</span> {l.message}</p>}
-                      <p className="text-xs text-slate-500">Submitted {new Date(l.created_at).toLocaleDateString()}</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Contact Info</p>
+                        {editingLead === l.id ? (
+                          <div className="flex gap-2">
+                            <ActionBtn disabled={busy === l.id} onClick={() => saveEditLead(l)}>{busy === l.id ? "Saving…" : "Save"}</ActionBtn>
+                            <ActionBtn onClick={() => setEditingLead(null)}>Cancel</ActionBtn>
+                          </div>
+                        ) : (
+                          <ActionBtn onClick={() => startEditLead(l)}>Edit</ActionBtn>
+                        )}
+                      </div>
+
+                      {editingLead === l.id ? (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div><label className={labelCls}>Contact name</label><input className={inputCls} value={editDraft.name} onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))} /></div>
+                          <div><label className={labelCls}>Company</label><input className={inputCls} value={editDraft.company} onChange={(e) => setEditDraft((d) => ({ ...d, company: e.target.value }))} /></div>
+                          <div><label className={labelCls}>Email</label><input className={inputCls} value={editDraft.email} onChange={(e) => setEditDraft((d) => ({ ...d, email: e.target.value }))} /></div>
+                          <div><label className={labelCls}>Phone</label><input className={inputCls} value={editDraft.phone} onChange={(e) => setEditDraft((d) => ({ ...d, phone: e.target.value }))} /></div>
+                          <div><label className={labelCls}>Source</label><input className={inputCls} value={editDraft.source} onChange={(e) => setEditDraft((d) => ({ ...d, source: e.target.value }))} /></div>
+                          <div className="sm:col-span-2"><label className={labelCls}>Message</label><textarea className={inputCls} rows={2} value={editDraft.message} onChange={(e) => setEditDraft((d) => ({ ...d, message: e.target.value }))} /></div>
+                        </div>
+                      ) : (
+                        <>
+                          <p><span className="text-slate-500">Company:</span> {l.company ?? "—"}</p>
+                          <p><span className="text-slate-500">Contact:</span> {l.name ?? "—"}</p>
+                          <p><span className="text-slate-500">Email:</span> {l.email ?? "—"}</p>
+                          <p><span className="text-slate-500">Phone:</span> {l.phone ?? "—"}</p>
+                          <p><span className="text-slate-500">Source:</span> {l.source ?? "—"}</p>
+                          <p><span className="text-slate-500">Last contacted:</span> {l.last_contacted_at ? new Date(l.last_contacted_at).toLocaleString() : "Never"}</p>
+                          {l.message && <p><span className="text-slate-500">Message:</span> {l.message}</p>}
+                          <p className="text-xs text-slate-500">Submitted {new Date(l.created_at).toLocaleDateString()}</p>
+                        </>
+                      )}
 
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div>
@@ -556,6 +675,77 @@ export default function LeadsWorkspace() {
                           )}
                         </div>
                       )}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-border p-4">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Interaction Log</p>
+                    {(() => {
+                      const leadActivities = activities.filter((a) => a.lead_id === l.id);
+                      return leadActivities.length === 0 ? (
+                        <p className="mb-3 text-xs text-slate-500">No interactions logged yet.</p>
+                      ) : (
+                        <div className="mb-3 overflow-x-auto">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-border text-slate-500">
+                                <th className="py-2 pr-4 font-medium">Date</th>
+                                <th className="py-2 pr-4 font-medium">Type</th>
+                                <th className="py-2 pr-4 font-medium">Description</th>
+                                <th className="py-2 pr-4 font-medium">Amount</th>
+                                <th className="py-2 pr-4 font-medium">Logged by</th>
+                                <th className="py-2 pr-2 font-medium"></th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {leadActivities.map((a) => (
+                                <tr key={a.id} className="border-b border-border/60 last:border-0">
+                                  <td className="py-2 pr-4 whitespace-nowrap text-slate-400">{new Date(a.occurred_at).toLocaleDateString()}</td>
+                                  <td className="py-2 pr-4 whitespace-nowrap"><Pill>{ACTIVITY_TYPE_LABELS[a.activity_type] ?? a.activity_type}</Pill></td>
+                                  <td className="py-2 pr-4 text-slate-300">{a.summary}</td>
+                                  <td className="py-2 pr-4 whitespace-nowrap text-slate-400">{a.amount != null ? `$${a.amount.toFixed(2)}` : "—"}</td>
+                                  <td className="py-2 pr-4 whitespace-nowrap text-slate-500">{a.created_by ?? "—"}</td>
+                                  <td className="py-2 pr-2 text-right">
+                                    <button className="text-slate-600 hover:text-rose-400" onClick={() => deleteActivity(a.id, l.id)}>✕</button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })()}
+
+                    <div className="grid gap-2 sm:grid-cols-[140px_1fr_120px_160px_auto]">
+                      <select
+                        className={inputCls}
+                        value={activityDraft[l.id]?.activity_type ?? "call"}
+                        onChange={(e) => setActivityDraft((d) => ({ ...d, [l.id]: { activity_type: e.target.value, summary: d[l.id]?.summary ?? "", amount: d[l.id]?.amount ?? "", occurred_at: d[l.id]?.occurred_at ?? "" } }))}
+                      >
+                        {ACTIVITY_TYPE_OPTIONS.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
+                      </select>
+                      <input
+                        className={inputCls}
+                        placeholder='What happened? e.g. "Called, left voicemail" / "Sent invoice #204" / "Roof job flown"'
+                        value={activityDraft[l.id]?.summary ?? ""}
+                        onChange={(e) => setActivityDraft((d) => ({ ...d, [l.id]: { activity_type: d[l.id]?.activity_type ?? "call", summary: e.target.value, amount: d[l.id]?.amount ?? "", occurred_at: d[l.id]?.occurred_at ?? "" } }))}
+                        onKeyDown={(e) => { if (e.key === "Enter") addActivity(l.id); }}
+                      />
+                      <input
+                        className={inputCls}
+                        placeholder="Amount"
+                        type="number"
+                        step="0.01"
+                        value={activityDraft[l.id]?.amount ?? ""}
+                        onChange={(e) => setActivityDraft((d) => ({ ...d, [l.id]: { activity_type: d[l.id]?.activity_type ?? "call", summary: d[l.id]?.summary ?? "", amount: e.target.value, occurred_at: d[l.id]?.occurred_at ?? "" } }))}
+                      />
+                      <input
+                        className={inputCls}
+                        type="date"
+                        value={activityDraft[l.id]?.occurred_at ?? ""}
+                        onChange={(e) => setActivityDraft((d) => ({ ...d, [l.id]: { activity_type: d[l.id]?.activity_type ?? "call", summary: d[l.id]?.summary ?? "", amount: d[l.id]?.amount ?? "", occurred_at: e.target.value } }))}
+                      />
+                      <ActionBtn disabled={busy === l.id} onClick={() => addActivity(l.id)}>Log</ActionBtn>
                     </div>
                   </div>
 

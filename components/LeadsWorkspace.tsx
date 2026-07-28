@@ -10,6 +10,7 @@ interface Lead {
   phone: string | null; source: string | null; message: string | null; status: string; created_at: string;
   tier: string | null; vertical: string | null; external_prospect_id: string | null;
   preferred_contact_method: string | null; last_contacted_at: string | null; next_follow_up_at: string | null;
+  address: string | null;
 }
 interface OutreachEvent {
   id: string; prospect_id: string; event_type: string; intent: string | null; created_at: string;
@@ -82,7 +83,7 @@ const ACTIVITY_TYPE_OPTIONS = [
 const ACTIVITY_TYPE_LABELS: Record<string, string> = Object.fromEntries(ACTIVITY_TYPE_OPTIONS.map((a) => [a.value, a.label]));
 
 const emptyLeadForm = {
-  name: "", email: "", company: "", phone: "", source: "", message: "",
+  name: "", email: "", company: "", phone: "", address: "", source: "", message: "",
   tier: "", vertical: "", preferred_contact_method: "", next_follow_up_at: "",
 };
 
@@ -100,7 +101,7 @@ export default function LeadsWorkspace() {
   const [activities, setActivities] = useState<LeadActivity[]>([]);
 
   const [editingLead, setEditingLead] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState({ name: "", company: "", email: "", phone: "", source: "", message: "" });
+  const [editDraft, setEditDraft] = useState({ name: "", company: "", email: "", phone: "", address: "", source: "", message: "" });
 
   const [activityDraft, setActivityDraft] = useState<Record<string, { activity_type: string; summary: string; amount: string; occurred_at: string }>>({});
 
@@ -202,7 +203,7 @@ export default function LeadsWorkspace() {
     setEditingLead(lead.id);
     setEditDraft({
       name: lead.name ?? "", company: lead.company ?? "", email: lead.email ?? "",
-      phone: lead.phone ?? "", source: lead.source ?? "", message: lead.message ?? "",
+      phone: lead.phone ?? "", address: lead.address ?? "", source: lead.source ?? "", message: lead.message ?? "",
     });
   }
 
@@ -214,6 +215,7 @@ export default function LeadsWorkspace() {
       company: editDraft.company || null,
       email: editDraft.email || null,
       phone: editDraft.phone || null,
+      address: editDraft.address || null,
       source: editDraft.source || null,
       message: editDraft.message || null,
     }).eq("id", lead.id);
@@ -270,6 +272,7 @@ export default function LeadsWorkspace() {
       email: leadForm.email || null,
       company: leadForm.company || null,
       phone: leadForm.phone || null,
+      address: leadForm.address || null,
       source: leadForm.source || null,
       message: leadForm.message || null,
       tier: leadForm.tier || null,
@@ -443,6 +446,7 @@ export default function LeadsWorkspace() {
             <div><label className={labelCls}>Company</label><input className={inputCls} value={leadForm.company} onChange={(e) => setLeadForm((f) => ({ ...f, company: e.target.value }))} /></div>
             <div><label className={labelCls}>Email</label><input className={inputCls} value={leadForm.email} onChange={(e) => setLeadForm((f) => ({ ...f, email: e.target.value }))} /></div>
             <div><label className={labelCls}>Phone</label><input className={inputCls} value={leadForm.phone} onChange={(e) => setLeadForm((f) => ({ ...f, phone: e.target.value }))} /></div>
+            <div><label className={labelCls}>Address</label><input className={inputCls} value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} /></div>
             <div><label className={labelCls}>Source</label><input className={inputCls} placeholder="phone, referral, website…" value={leadForm.source} onChange={(e) => setLeadForm((f) => ({ ...f, source: e.target.value }))} /></div>
             <div>
               <label className={labelCls}>Tier</label>
@@ -527,8 +531,8 @@ export default function LeadsWorkspace() {
                   className="flex w-full flex-wrap items-center justify-between gap-4 p-4 text-left"
                 >
                   <div>
-                    <div className="text-sm font-semibold text-white">{l.name ?? "Unnamed"}</div>
-                    <div className="text-xs text-slate-500">{l.company ?? "—"} · {l.email ?? "—"}</div>
+                    <div className="text-sm font-semibold text-white">{l.company ?? l.name ?? "Unnamed"}</div>
+                    <div className="text-xs text-slate-500">{l.name ?? "No contact name"} · {l.email ?? "—"}</div>
                   </div>
                   <div className="flex flex-wrap items-center justify-end gap-2">
                     {l.next_follow_up_at && l.next_follow_up_at <= today && !["converted", "lost"].includes(l.status) && (
@@ -568,6 +572,7 @@ export default function LeadsWorkspace() {
                           <div><label className={labelCls}>Company</label><input className={inputCls} value={editDraft.company} onChange={(e) => setEditDraft((d) => ({ ...d, company: e.target.value }))} /></div>
                           <div><label className={labelCls}>Email</label><input className={inputCls} value={editDraft.email} onChange={(e) => setEditDraft((d) => ({ ...d, email: e.target.value }))} /></div>
                           <div><label className={labelCls}>Phone</label><input className={inputCls} value={editDraft.phone} onChange={(e) => setEditDraft((d) => ({ ...d, phone: e.target.value }))} /></div>
+                          <div><label className={labelCls}>Address</label><input className={inputCls} value={editDraft.address} onChange={(e) => setEditDraft((d) => ({ ...d, address: e.target.value }))} /></div>
                           <div><label className={labelCls}>Source</label><input className={inputCls} value={editDraft.source} onChange={(e) => setEditDraft((d) => ({ ...d, source: e.target.value }))} /></div>
                           <div className="sm:col-span-2"><label className={labelCls}>Message</label><textarea className={inputCls} rows={2} value={editDraft.message} onChange={(e) => setEditDraft((d) => ({ ...d, message: e.target.value }))} /></div>
                         </div>
@@ -577,6 +582,7 @@ export default function LeadsWorkspace() {
                           <p><span className="text-slate-500">Contact:</span> {l.name ?? "—"}</p>
                           <p><span className="text-slate-500">Email:</span> {l.email ?? "—"}</p>
                           <p><span className="text-slate-500">Phone:</span> {l.phone ?? "—"}</p>
+                          <p><span className="text-slate-500">Address:</span> {l.address ?? "—"}</p>
                           <p><span className="text-slate-500">Source:</span> {l.source ?? "—"}</p>
                           <p><span className="text-slate-500">Last contacted:</span> {l.last_contacted_at ? new Date(l.last_contacted_at).toLocaleString() : "Never"}</p>
                           {l.message && <p><span className="text-slate-500">Message:</span> {l.message}</p>}

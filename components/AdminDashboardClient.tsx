@@ -46,6 +46,10 @@ const tabs: { key: TabKey; label: string; icon: typeof Users }[] = [
 interface Lead {
   id: string; name: string | null; email: string | null; company: string | null;
   phone: string | null; source: string | null; message: string | null; status: string; created_at: string;
+  tier: string | null; vertical: string | null; external_prospect_id: string | null;
+}
+interface OutreachEvent {
+  id: string; prospect_id: string; event_type: string; intent: string | null; created_at: string;
 }
 interface MissionRequest {
   id: string; requester_name: string | null; company: string | null; service_type: string | null;
@@ -73,6 +77,26 @@ interface NoteRow {
 const LEAD_STATUS_FLOW: Record<string, string> = { new: "contacted", contacted: "qualified", qualified: "converted" };
 const JOB_STATUSES = ["scheduled", "in_progress", "flown", "processing", "qc", "delivered", "cancelled"];
 
+const TIER_OPTIONS = [
+  { value: "tier_1", label: "Tier 1 — Roof Inspection" },
+  { value: "tier_2", label: "Tier 2 — Thermal / Moisture" },
+  { value: "tier_3", label: "Tier 3 — Ortho / Mapping" },
+];
+const VERTICAL_OPTIONS = [
+  { value: "roofing", label: "Roofing" },
+  { value: "insurance_restoration", label: "Insurance Restoration" },
+  { value: "public_adjuster", label: "Public Adjuster" },
+  { value: "property_management", label: "Property Management" },
+  { value: "general_contractor", label: "General Contractor" },
+  { value: "other", label: "Other" },
+];
+const TIER_LABELS: Record<string, string> = Object.fromEntries(TIER_OPTIONS.map((t) => [t.value, t.label]));
+const VERTICAL_LABELS: Record<string, string> = Object.fromEntries(VERTICAL_OPTIONS.map((v) => [v.value, v.label]));
+const EVENT_LABELS: Record<string, string> = {
+  sent: "Email sent", opened: "Opened", clicked: "Clicked link", replied: "Replied",
+  bounced: "Bounced", unsubscribed: "Unsubscribed",
+};
+
 const inputCls = "w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:border-accent/60 focus:outline-none";
 const labelCls = "mb-1 block text-xs text-slate-500";
 
@@ -84,7 +108,7 @@ function Pill({ children }: { children: React.ReactNode }) {
   );
 }
 
-const emptyLeadForm = { name: "", email: "", company: "", phone: "", source: "", message: "" };
+const emptyLeadForm = { name: "", email: "", company: "", phone: "", source: "", message: "", tier: "", vertical: "" };
 const emptyClientForm = { company_name: "", contact_name: "", email: "", phone: "", industry: "", notes: "" };
 const emptyNoteForm = { entity_type: "mission_request", entity_id: "", author: "", body: "" };
 
@@ -101,6 +125,10 @@ export default function AdminDashboardClient() {
   const [expandedLead, setExpandedLead] = useState<string | null>(null);
   const [expandedClient, setExpandedClient] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [eventsByProspect, setEventsByProspect] = useState<Record<string, OutreachEvent[]>>({});
+  const [filterTier, setFilterTier] = useState<string>("");
+  const [filterVertical, setFilterVertical] = useState<string>("");
+  const [filterStatus, setFilterStatus] = useState<string>("");
 
   const [showAddLead, setShowAddLead] = useState(false);
   const [leadForm, setLeadForm] = useState(emptyLeadForm);
@@ -135,6 +163,25 @@ export default function AdminDashboardClient() {
     setJobs((jobsRes.data as unknown as JobRow[]) ?? []);
     setDeliverables((deliverablesRes.data as unknown as DeliverableRow[]) ?? []);
     setNotes((notesRes.data as NoteRow[]) ?? []);
+
+    const prospectIds = ((leadsRes.data as Lead[]) ?? [])
+      .map((l) => l.external_prospect_id)
+      .filter((id): id is string => !!id);
+    if (prospectIds.length > 0) {
+      const { data: eventsData } = await sb
+        .from("outreach_events")
+        .select("id, prospect_id, event_type, intent, created_at")
+        .in("prospect_id", prospectIds)
+        .order("created_at", { ascending: false });
+      const grouped: Record<string, OutreachEvent[]> = {};
+      for (const ev of (eventsData as OutreachEvent[]) ?? []) {
+        (grouped[ev.prospect_id] ??= []).push(ev);
+      }
+      setEventsByProspect(grouped);
+    } else {
+      setEventsByProspect({});
+    }
+
     setLoading(false);
   }, []);
 
@@ -152,6 +199,14 @@ export default function AdminDashboardClient() {
     setBusy(lead.id);
     const sb = getSupabaseBrowser();
     await sb.from("leads").update({ status }).eq("id", lead.id);
+    await load();
+    setBusy(null);
+  }
+
+  async function setLeadCategory(lead: Lead, field: "tier" | "vertical", value: string) {
+    setBusy(lead.id);
+    const sb = getSupabaseBrowser();
+    await sb.from("leads").update({ [field]: value || null }).eq("id", lead.id);
     await load();
     setBusy(null);
   }
@@ -186,6 +241,8 @@ export default function AdminDashboardClient() {
       phone: leadForm.phone || null,
       source: leadForm.source || null,
       message: leadForm.message || null,
+      tier: leadForm.tier || null,
+      vertical: leadForm.vertical || null,
     });
     setBusy(null);
     if (error) { alert(error.message); return; }
@@ -370,51 +427,159 @@ export default function AdminDashboardClient() {
                 <div><label className={labelCls}>Email</label><input className={inputCls} value={leadForm.email} onChange={(e) => setLeadForm((f) => ({ ...f, email: e.target.value }))} /></div>
                 <div><label className={labelCls}>Phone</label><input className={inputCls} value={leadForm.phone} onChange={(e) => setLeadForm((f) => ({ ...f, phone: e.target.value }))} /></div>
                 <div><label className={labelCls}>Source</label><input className={inputCls} placeholder="phone, referral, website…" value={leadForm.source} onChange={(e) => setLeadForm((f) => ({ ...f, source: e.target.value }))} /></div>
+                <div>
+                  <label className={labelCls}>Tier</label>
+                  <select className={inputCls} value={leadForm.tier} onChange={(e) => setLeadForm((f) => ({ ...f, tier: e.target.value }))}>
+                    <option value="">—</option>
+                    {TIER_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Vertical</label>
+                  <select className={inputCls} value={leadForm.vertical} onChange={(e) => setLeadForm((f) => ({ ...f, vertical: e.target.value }))}>
+                    <option value="">—</option>
+                    {VERTICAL_OPTIONS.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+                  </select>
+                </div>
                 <div className="sm:col-span-2"><label className={labelCls}>Message</label><textarea className={inputCls} rows={2} value={leadForm.message} onChange={(e) => setLeadForm((f) => ({ ...f, message: e.target.value }))} /></div>
                 <div className="sm:col-span-2"><ActionBtn disabled={busy === "add-lead"} onClick={addLead}>{busy === "add-lead" ? "Saving…" : "Save Lead"}</ActionBtn></div>
               </div>
             )}
-            {leads.length === 0 && <Empty>No leads yet.</Empty>}
-            <div className="space-y-3">
-              {leads.map((l) => {
-                const open = expandedLead === l.id;
-                return (
-                  <div key={l.id} className="rounded-lg border border-border bg-surface2">
-                    <button
-                      onClick={() => setExpandedLead(open ? null : l.id)}
-                      className="flex w-full items-center justify-between gap-4 p-4 text-left"
-                    >
-                      <div>
-                        <div className="text-sm font-semibold text-white">{l.name ?? "Unnamed"}</div>
-                        <div className="text-xs text-slate-500">{l.company ?? "—"} · {l.email ?? "—"}</div>
-                      </div>
-                      <Pill>{l.status}</Pill>
-                    </button>
-                    {open && (
-                      <div className="space-y-3 border-t border-border p-4 text-sm text-slate-300">
-                        <p><span className="text-slate-500">Phone:</span> {l.phone ?? "—"}</p>
-                        <p><span className="text-slate-500">Source:</span> {l.source ?? "—"}</p>
-                        {l.message && <p><span className="text-slate-500">Message:</span> {l.message}</p>}
-                        <p className="text-xs text-slate-500">Submitted {new Date(l.created_at).toLocaleDateString()}</p>
-                        <div className="flex flex-wrap gap-2 pt-2">
-                          {LEAD_STATUS_FLOW[l.status] && (
-                            <ActionBtn disabled={busy === l.id} onClick={() => setLeadStatus(l, LEAD_STATUS_FLOW[l.status])}>
-                              Mark {LEAD_STATUS_FLOW[l.status]}
-                            </ActionBtn>
-                          )}
-                          {l.status !== "converted" && l.status !== "lost" && (
-                            <ActionBtn disabled={busy === l.id} onClick={() => convertLead(l)}>Convert to client</ActionBtn>
-                          )}
-                          {l.status !== "lost" && l.status !== "converted" && (
-                            <ActionBtn disabled={busy === l.id} onClick={() => setLeadStatus(l, "lost")}>Mark lost</ActionBtn>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+
+            <div className="mb-4 flex flex-wrap gap-3">
+              <select className={inputCls + " w-auto"} value={filterTier} onChange={(e) => setFilterTier(e.target.value)}>
+                <option value="">All tiers</option>
+                {TIER_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+              <select className={inputCls + " w-auto"} value={filterVertical} onChange={(e) => setFilterVertical(e.target.value)}>
+                <option value="">All verticals</option>
+                {VERTICAL_OPTIONS.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+              </select>
+              <select className={inputCls + " w-auto"} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="">All statuses</option>
+                {["new", "contacted", "qualified", "converted", "lost"].map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+              {(filterTier || filterVertical || filterStatus) && (
+                <button
+                  className="text-xs text-slate-500 underline"
+                  onClick={() => { setFilterTier(""); setFilterVertical(""); setFilterStatus(""); }}
+                >
+                  Clear filters
+                </button>
+              )}
             </div>
+
+            {leads.length === 0 && <Empty>No leads yet.</Empty>}
+            {(() => {
+              const filtered = leads.filter((l) =>
+                (!filterTier || l.tier === filterTier) &&
+                (!filterVertical || l.vertical === filterVertical) &&
+                (!filterStatus || l.status === filterStatus)
+              );
+              if (leads.length > 0 && filtered.length === 0) return <Empty>No leads match these filters.</Empty>;
+              return (
+                <div className="space-y-3">
+                  {filtered.map((l) => {
+                    const open = expandedLead === l.id;
+                    const events = l.external_prospect_id ? eventsByProspect[l.external_prospect_id] ?? [] : [];
+                    return (
+                      <div key={l.id} className="rounded-lg border border-border bg-surface2">
+                        <button
+                          onClick={() => setExpandedLead(open ? null : l.id)}
+                          className="flex w-full items-center justify-between gap-4 p-4 text-left"
+                        >
+                          <div>
+                            <div className="text-sm font-semibold text-white">{l.name ?? "Unnamed"}</div>
+                            <div className="text-xs text-slate-500">{l.company ?? "—"} · {l.email ?? "—"}</div>
+                          </div>
+                          <div className="flex flex-wrap items-center justify-end gap-2">
+                            {l.tier && <Pill>{TIER_LABELS[l.tier] ?? l.tier}</Pill>}
+                            {l.vertical && <Pill>{VERTICAL_LABELS[l.vertical] ?? l.vertical}</Pill>}
+                            <Pill>{l.status}</Pill>
+                          </div>
+                        </button>
+                        {open && (
+                          <div className="space-y-3 border-t border-border p-4 text-sm text-slate-300">
+                            <p><span className="text-slate-500">Phone:</span> {l.phone ?? "—"}</p>
+                            <p><span className="text-slate-500">Source:</span> {l.source ?? "—"}</p>
+                            {l.message && <p><span className="text-slate-500">Message:</span> {l.message}</p>}
+                            <p className="text-xs text-slate-500">Submitted {new Date(l.created_at).toLocaleDateString()}</p>
+
+                            <div className="grid gap-3 sm:grid-cols-2">
+                              <div>
+                                <label className={labelCls}>Tier</label>
+                                <select
+                                  className={inputCls}
+                                  value={l.tier ?? ""}
+                                  disabled={busy === l.id}
+                                  onChange={(e) => setLeadCategory(l, "tier", e.target.value)}
+                                >
+                                  <option value="">—</option>
+                                  {TIER_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <label className={labelCls}>Vertical</label>
+                                <select
+                                  className={inputCls}
+                                  value={l.vertical ?? ""}
+                                  disabled={busy === l.id}
+                                  onChange={(e) => setLeadCategory(l, "vertical", e.target.value)}
+                                >
+                                  <option value="">—</option>
+                                  {VERTICAL_OPTIONS.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2 pt-2">
+                              {LEAD_STATUS_FLOW[l.status] && (
+                                <ActionBtn disabled={busy === l.id} onClick={() => setLeadStatus(l, LEAD_STATUS_FLOW[l.status])}>
+                                  Mark {LEAD_STATUS_FLOW[l.status]}
+                                </ActionBtn>
+                              )}
+                              {l.status !== "converted" && l.status !== "lost" && (
+                                <ActionBtn disabled={busy === l.id} onClick={() => convertLead(l)}>Convert to client</ActionBtn>
+                              )}
+                              {l.status !== "lost" && l.status !== "converted" && (
+                                <ActionBtn disabled={busy === l.id} onClick={() => setLeadStatus(l, "lost")}>Mark lost</ActionBtn>
+                              )}
+                            </div>
+
+                            {l.external_prospect_id && (
+                              <div className="border-t border-border pt-3">
+                                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                  Outreach activity
+                                </p>
+                                {events.length === 0 ? (
+                                  <p className="text-xs text-slate-500">No events recorded yet.</p>
+                                ) : (
+                                  <ul className="space-y-1.5">
+                                    {events.map((ev) => (
+                                      <li key={ev.id} className="flex items-center justify-between text-xs">
+                                        <span className="text-slate-300">
+                                          {EVENT_LABELS[ev.event_type] ?? ev.event_type}
+                                          {ev.intent && ev.intent !== "unknown" && (
+                                            <span className="ml-2 text-slate-500">({ev.intent})</span>
+                                          )}
+                                        </span>
+                                        <span className="text-slate-500">
+                                          {new Date(ev.created_at).toLocaleString()}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </Section>
         )}
 

@@ -1,25 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHmac, timingSafeEqual } from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
-const WEBHOOK_SECRET = process.env.SMARTLEAD_WEBHOOK_SECRET;
+const SIGNING_SECRET = process.env.SMARTLEAD_WEBHOOK_SECRET;
+
+type SmartleadEventType =
+  | "EMAIL_SENT"
+  | "FIRST_EMAIL_SENT"
+  | "EMAIL_OPEN"
+  | "EMAIL_LINK_CLICK"
+  | "EMAIL_REPLY"
+  | "EMAIL_BOUNCE"
+  | "LEAD_UNSUBSCRIBED"
+  | "LEAD_CATEGORY_UPDATED";
 
 type SmartleadPayload = {
-  event_type: "EMAIL_SENT" | "EMAIL_OPEN" | "EMAIL_CLICK" | "EMAIL_REPLY" | "LEAD_UNSUBSCRIBED" | "EMAIL_BOUNCE";
-  campaign_id?: string | number;
+  event_type: SmartleadEventType;
+  campaign_id?: number;
   campaign_name?: string;
-  lead_email: string;
-  lead_first_name?: string;
-  lead_last_name?: string;
-  lead_company?: string;
-  lead_phone?: string;
+  to_email?: string;
+  to_name?: string;
   reply_body?: string;
+  lead_email?: string;
+  lead_name?: string;
   [key: string]: unknown;
 };
 
-const EVENT_MAP: Record<SmartleadPayload["event_type"], string> = {
+const EVENT_MAP: Partial<Record<SmartleadEventType, string>> = {
   EMAIL_SENT: "sent",
+  FIRST_EMAIL_SENT: "sent",
   EMAIL_OPEN: "opened",
-  EMAIL_CLICK: "clicked",
+  EMAIL_LINK_CLICK: "clicked",
   EMAIL_REPLY: "replied",
   LEAD_UNSUBSCRIBED: "unsubscribed",
   EMAIL_BOUNCE: "bounced",
@@ -27,34 +38,48 @@ const EVENT_MAP: Record<SmartleadPayload["event_type"], string> = {
 
 function classifyIntent(body: string | undefined): "interested" | "not_interested" | "ooo" | "unknown" {
   if (!body) return "unknown";
-  const text = body.toLowerCase();
+  const text = body.replace(/<[^>]*>/g, " ").toLowerCase();
   if (/(out of office|ooo|on vacation|automatic reply)/.test(text)) return "ooo";
   if (/(not interested|remove me|unsubscribe|stop emailing|no thanks)/.test(text)) return "not_interested";
   if (/(interested|tell me more|sounds good|call me|let's talk|set up a call|schedule)/.test(text)) return "interested";
   return "unknown";
 }
 
+function verifySignature(rawBody: string, signatureHeader: string | null): boolean {
+  if (!SIGNING_SECRET || !signatureHeader) return false;
+  const expected = "sha256=" + createHmac("sha256", SIGNING_SECRET).update(rawBody).digest("hex");
+  const a = Buffer.from(expected);
+  const b = Buffer.from(signatureHeader);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
 export async function POST(req: NextRequest) {
-  if (!WEBHOOK_SECRET) {
+  if (!SIGNING_SECRET) {
     return NextResponse.json({ error: "webhook not configured" }, { status: 400 });
   }
 
-  const providedSecret = req.headers.get("x-webhook-secret");
-  if (providedSecret !== WEBHOOK_SECRET) {
-    return NextResponse.json({ error: "invalid secret" }, { status: 401 });
+  const rawBody = await req.text();
+  const signature = req.headers.get("x-smartlead-signature");
+
+  if (!verifySignature(rawBody, signature)) {
+    return NextResponse.json({ error: "invalid signature" }, { status: 401 });
   }
 
-  const payload = (await req.json()) as SmartleadPayload;
+  const payload = JSON.parse(rawBody) as SmartleadPayload;
   const supabaseAdmin = getSupabaseAdmin();
 
-  if (!payload.lead_email || !payload.event_type) {
-    return NextResponse.json({ error: "missing lead_email or event_type" }, { status: 400 });
+  const email = payload.to_email ?? payload.lead_email;
+  const name = payload.to_name ?? payload.lead_name;
+
+  if (!email || !payload.event_type) {
+    return NextResponse.json({ error: "missing email or event_type" }, { status: 400 });
   }
 
   const { data: existingProspect } = await supabaseAdmin
     .from("prospects")
     .select("id, status")
-    .eq("email", payload.lead_email)
+    .eq("email", email)
     .maybeSingle();
 
   let prospectId = existingProspect?.id as string | undefined;
@@ -63,10 +88,9 @@ export async function POST(req: NextRequest) {
     const { data: newProspect, error: insertError } = await supabaseAdmin
       .from("prospects")
       .insert({
-        company_name: payload.lead_company ?? "Unknown",
-        contact_name: [payload.lead_first_name, payload.lead_last_name].filter(Boolean).join(" ") || null,
-        email: payload.lead_email,
-        phone: payload.lead_phone ?? null,
+        company_name: payload.campaign_name ?? "Unknown",
+        contact_name: name ?? null,
+        email,
         source: "smartlead",
         status: "sent",
       })
@@ -103,13 +127,13 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (!alreadyLead) {
+        const cleanReply = payload.reply_body?.replace(/<[^>]*>/g, " ").trim() ?? null;
         await supabaseAdmin.from("leads").insert({
-          name: [payload.lead_first_name, payload.lead_last_name].filter(Boolean).join(" ") || null,
-          email: payload.lead_email,
-          company: payload.lead_company ?? null,
-          phone: payload.lead_phone ?? null,
+          name: name ?? null,
+          email,
+          company: null,
           source: "cold_email",
-          message: payload.reply_body ?? null,
+          message: cleanReply,
           status: "new",
           external_prospect_id: prospectId,
         });

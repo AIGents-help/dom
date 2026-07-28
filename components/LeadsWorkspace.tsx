@@ -194,9 +194,10 @@ export default function LeadsWorkspace() {
   async function setLeadField(lead: Lead, field: keyof Lead, value: string) {
     setBusy(lead.id);
     const sb = getSupabaseBrowser();
-    await sb.from("leads").update({ [field]: value || null }).eq("id", lead.id);
-    await load();
+    const { error } = await sb.from("leads").update({ [field]: value || null }).eq("id", lead.id);
     setBusy(null);
+    if (error) { alert(`Couldn't save: ${error.message}`); return; }
+    await load();
   }
 
   async function toggleLeadTier(lead: Lead, tierValue: string) {
@@ -205,7 +206,8 @@ export default function LeadsWorkspace() {
     const nextTiers = lead.tier.includes(tierValue)
       ? lead.tier.filter((t) => t !== tierValue)
       : [...lead.tier, tierValue];
-    await sb.from("leads").update({ tier: nextTiers }).eq("id", lead.id);
+    const { error } = await sb.from("leads").update({ tier: nextTiers }).eq("id", lead.id);
+    if (error) { alert(`Couldn't save tier: ${error.message}`); setBusy(null); return; }
     await logActivity(
       lead.id,
       "other",
@@ -244,7 +246,8 @@ export default function LeadsWorkspace() {
   async function setLeadStatus(lead: Lead, status: string) {
     setBusy(lead.id);
     const sb = getSupabaseBrowser();
-    await sb.from("leads").update({ status }).eq("id", lead.id);
+    const { error } = await sb.from("leads").update({ status }).eq("id", lead.id);
+    if (error) { alert(`Couldn't update status: ${error.message}`); setBusy(null); return; }
     await logActivity(lead.id, "status_change", `Status changed to "${status}"`);
     await load();
     setBusy(null);
@@ -253,7 +256,8 @@ export default function LeadsWorkspace() {
   async function logContactNow(lead: Lead) {
     setBusy(lead.id);
     const sb = getSupabaseBrowser();
-    await sb.from("leads").update({ last_contacted_at: new Date().toISOString() }).eq("id", lead.id);
+    const { error } = await sb.from("leads").update({ last_contacted_at: new Date().toISOString() }).eq("id", lead.id);
+    if (error) { alert(`Couldn't log contact: ${error.message}`); setBusy(null); return; }
     await logActivity(lead.id, "other", "Contact logged");
     await load();
     setBusy(null);
@@ -343,10 +347,26 @@ export default function LeadsWorkspace() {
     await load();
   }
 
-  async function deleteContact(contactId: string, leadId: string) {
-    setBusy(leadId);
+  async function deleteContact(contact: LeadContact) {
+    const isLast = contacts.filter((c) => c.lead_id === contact.lead_id).length === 1;
+    const confirmMsg = contact.is_primary
+      ? isLast
+        ? "This is the only contact on this lead. Delete it? (The company record and its core email/phone stay, this just removes the contact card.)"
+        : "This is the primary contact. Another contact will be promoted to primary. Continue?"
+      : "Delete this contact?";
+    if (!window.confirm(confirmMsg)) return;
+
+    setBusy(contact.lead_id);
     const sb = getSupabaseBrowser();
-    await sb.from("lead_contacts").delete().eq("id", contactId);
+    await sb.from("lead_contacts").delete().eq("id", contact.id);
+
+    if (contact.is_primary && !isLast) {
+      const nextPrimary = contacts.find((c) => c.lead_id === contact.lead_id && c.id !== contact.id);
+      if (nextPrimary) {
+        await sb.from("lead_contacts").update({ is_primary: true }).eq("id", nextPrimary.id);
+      }
+    }
+
     await load();
     setBusy(null);
   }
@@ -806,9 +826,9 @@ export default function LeadsWorkspace() {
 
                   <div className="grid gap-6 border-t border-border p-4 lg:grid-cols-3">
                     <div>
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Additional Contacts</p>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Contacts</p>
                       {contacts.filter((c) => c.lead_id === l.id).length === 0 ? (
-                        <p className="mb-2 text-xs text-slate-500">No additional contacts.</p>
+                        <p className="mb-2 text-xs text-slate-500">No contacts yet.</p>
                       ) : (
                         <ul className="mb-2 space-y-2">
                           {contacts.filter((c) => c.lead_id === l.id).map((c) => (
@@ -822,9 +842,7 @@ export default function LeadsWorkspace() {
                                   {c.email && <p className="text-slate-400">{c.email}</p>}
                                   {c.phone && <p className="text-slate-400">{c.phone}</p>}
                                 </div>
-                                {!c.is_primary && (
-                                  <button className="text-slate-600 hover:text-rose-400" onClick={() => deleteContact(c.id, l.id)}>✕</button>
-                                )}
+                                <button className="text-slate-600 hover:text-rose-400" onClick={() => deleteContact(c)}>✕</button>
                               </div>
                             </li>
                           ))}

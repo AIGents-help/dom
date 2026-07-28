@@ -8,7 +8,7 @@ import { inputCls, labelCls, Pill, Section, Empty, ActionBtn } from "@/component
 interface Lead {
   id: string; name: string | null; email: string | null; company: string | null;
   phone: string | null; source: string | null; message: string | null; status: string; created_at: string;
-  tier: string | null; vertical: string | null; external_prospect_id: string | null;
+  tier: string[]; vertical: string | null; external_prospect_id: string | null;
   preferred_contact_method: string | null; last_contacted_at: string | null; next_follow_up_at: string | null;
   address: string | null;
 }
@@ -84,7 +84,7 @@ const ACTIVITY_TYPE_LABELS: Record<string, string> = Object.fromEntries(ACTIVITY
 
 const emptyLeadForm = {
   name: "", email: "", company: "", phone: "", address: "", source: "", message: "",
-  tier: "", vertical: "", preferred_contact_method: "", next_follow_up_at: "",
+  tier: [] as string[], vertical: "", preferred_contact_method: "", next_follow_up_at: "",
 };
 
 export default function LeadsWorkspace() {
@@ -199,6 +199,22 @@ export default function LeadsWorkspace() {
     setBusy(null);
   }
 
+  async function toggleLeadTier(lead: Lead, tierValue: string) {
+    setBusy(lead.id);
+    const sb = getSupabaseBrowser();
+    const nextTiers = lead.tier.includes(tierValue)
+      ? lead.tier.filter((t) => t !== tierValue)
+      : [...lead.tier, tierValue];
+    await sb.from("leads").update({ tier: nextTiers }).eq("id", lead.id);
+    await logActivity(
+      lead.id,
+      "other",
+      `Tier ${lead.tier.includes(tierValue) ? "removed" : "added"}: ${TIER_LABELS[tierValue] ?? tierValue}`
+    );
+    await load();
+    setBusy(null);
+  }
+
   function startEditLead(lead: Lead) {
     setEditingLead(lead.id);
     setEditDraft({
@@ -275,7 +291,7 @@ export default function LeadsWorkspace() {
       address: leadForm.address || null,
       source: leadForm.source || null,
       message: leadForm.message || null,
-      tier: leadForm.tier || null,
+      tier: leadForm.tier.length > 0 ? leadForm.tier : null,
       vertical: leadForm.vertical || null,
       preferred_contact_method: leadForm.preferred_contact_method || null,
       next_follow_up_at: leadForm.next_follow_up_at || null,
@@ -422,7 +438,7 @@ export default function LeadsWorkspace() {
   const today = new Date().toISOString().slice(0, 10);
   const filtered = leads
     .filter((l) =>
-      (!filterTier || l.tier === filterTier) &&
+      (!filterTier || l.tier.includes(filterTier)) &&
       (!filterVertical || l.vertical === filterVertical) &&
       (!filterStatus || l.status === filterStatus)
     )
@@ -448,12 +464,30 @@ export default function LeadsWorkspace() {
             <div><label className={labelCls}>Phone</label><input className={inputCls} value={leadForm.phone} onChange={(e) => setLeadForm((f) => ({ ...f, phone: e.target.value }))} /></div>
             <div><label className={labelCls}>Address</label><input className={inputCls} value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} /></div>
             <div><label className={labelCls}>Source</label><input className={inputCls} placeholder="phone, referral, website…" value={leadForm.source} onChange={(e) => setLeadForm((f) => ({ ...f, source: e.target.value }))} /></div>
-            <div>
-              <label className={labelCls}>Tier</label>
-              <select className={inputCls} value={leadForm.tier} onChange={(e) => setLeadForm((f) => ({ ...f, tier: e.target.value }))}>
-                <option value="">—</option>
-                {TIER_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-              </select>
+            <div className="sm:col-span-2 lg:col-span-3">
+              <label className={labelCls}>Tier <span className="text-slate-600">(a client can require more than one)</span></label>
+              <div className="flex flex-wrap gap-2">
+                {TIER_OPTIONS.map((t) => {
+                  const active = leadForm.tier.includes(t.value);
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      onClick={() =>
+                        setLeadForm((f) => ({
+                          ...f,
+                          tier: active ? f.tier.filter((v) => v !== t.value) : [...f.tier, t.value],
+                        }))
+                      }
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                        active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      {active ? "☑" : "☐"} {t.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div>
               <label className={labelCls}>Vertical</label>
@@ -544,7 +578,7 @@ export default function LeadsWorkspace() {
                     {locations.filter((loc) => loc.lead_id === l.id).length > 0 && (
                       <Pill>{locations.filter((loc) => loc.lead_id === l.id).length} branch{locations.filter((loc) => loc.lead_id === l.id).length > 1 ? "es" : ""}</Pill>
                     )}
-                    {l.tier && <Pill>{TIER_LABELS[l.tier] ?? l.tier}</Pill>}
+                    {l.tier.map((t) => <Pill key={t}>{TIER_LABELS[t] ?? t}</Pill>)}
                     {l.vertical && <Pill>{VERTICAL_LABELS[l.vertical] ?? l.vertical}</Pill>}
                     <Pill>{l.status}</Pill>
                   </div>
@@ -590,14 +624,29 @@ export default function LeadsWorkspace() {
                         </>
                       )}
 
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <label className={labelCls}>Tier</label>
-                          <select className={inputCls} value={l.tier ?? ""} disabled={busy === l.id} onChange={(e) => setLeadField(l, "tier", e.target.value)}>
-                            <option value="">—</option>
-                            {TIER_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                          </select>
+                      <div>
+                        <label className={labelCls}>Tier <span className="text-slate-600">(a client can require more than one)</span></label>
+                        <div className="flex flex-wrap gap-2">
+                          {TIER_OPTIONS.map((t) => {
+                            const active = l.tier.includes(t.value);
+                            return (
+                              <button
+                                key={t.value}
+                                type="button"
+                                disabled={busy === l.id}
+                                onClick={() => toggleLeadTier(l, t.value)}
+                                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
+                                  active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-slate-400 hover:text-white"
+                                }`}
+                              >
+                                {active ? "☑" : "☐"} {t.label}
+                              </button>
+                            );
+                          })}
                         </div>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2">
                         <div>
                           <label className={labelCls}>Vertical</label>
                           <select className={inputCls} value={l.vertical ?? ""} disabled={busy === l.id} onChange={(e) => setLeadField(l, "vertical", e.target.value)}>

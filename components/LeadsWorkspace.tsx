@@ -816,7 +816,7 @@ export default function LeadsWorkspace() {
                                   <td className="py-2 pr-4 whitespace-nowrap text-slate-400">{a.amount != null ? `$${a.amount.toFixed(2)}` : "—"}</td>
                                   <td className="py-2 pr-4 whitespace-nowrap text-slate-500">{a.created_by ?? "—"}</td>
                                   <td className="py-2 pr-2 text-right">
-                                    <button className="text-slate-600 hover:text-rose-400" onClick={() => deleteActivity(a.id, l.id)}>✕</button>
+                                    <button className="text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded px-1.5 py-0.5 font-bold transition" onClick={() => deleteActivity(a.id, l.id)}>✕</button>
                                   </td>
                                 </tr>
                               ))}
@@ -877,7 +877,7 @@ export default function LeadsWorkspace() {
                                   {c.email && <p className="text-slate-400">{c.email}</p>}
                                   {c.phone && <p className="text-slate-400">{c.phone}</p>}
                                 </div>
-                                <button className="text-slate-600 hover:text-rose-400" onClick={() => deleteContact(c)}>✕</button>
+                                <button className="text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded px-1.5 py-0.5 font-bold transition" onClick={() => deleteContact(c)}>✕</button>
                               </div>
                             </li>
                           ))}
@@ -910,7 +910,7 @@ export default function LeadsWorkspace() {
                                   {loc.address && <p className="text-slate-400">{loc.address}</p>}
                                   {loc.notes && <p className="text-slate-500">{loc.notes}</p>}
                                 </div>
-                                <button className="text-slate-600 hover:text-rose-400" onClick={() => deleteLocation(loc.id, l.id)}>✕</button>
+                                <button className="text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded px-1.5 py-0.5 font-bold transition" onClick={() => deleteLocation(loc.id, l.id)}>✕</button>
                               </div>
                             </li>
                           ))}
@@ -942,7 +942,7 @@ export default function LeadsWorkspace() {
                                     <p className="text-slate-200">{related?.company ?? related?.name ?? "Unknown lead"}</p>
                                     <p className="text-slate-500">{RELATIONSHIP_LABELS[r.relationship_type] ?? r.relationship_type}</p>
                                   </div>
-                                  <button className="text-slate-600 hover:text-rose-400" onClick={() => deleteRelationship(r.id, l.id)}>✕</button>
+                                  <button className="text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded px-1.5 py-0.5 font-bold transition" onClick={() => deleteRelationship(r.id, l.id)}>✕</button>
                                 </div>
                               </li>
                             );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { inputCls, labelCls, Pill, Section, Empty, ActionBtn } from "@/components/adminUi";
@@ -11,6 +11,27 @@ interface Lead {
   tier: string[]; vertical: string | null; external_prospect_id: string | null;
   preferred_contact_method: string | null; last_contacted_at: string | null; next_follow_up_at: string | null;
   address: string | null;
+  // Classification / opportunity fields (additive — see supabase/migrations)
+  industry: string | null;
+  engagement_model: string | null;
+  opportunity_ownership: string | null;
+  relationship_type: string | null;
+  service_opportunity: string | null;
+  dji_permitted: string | null;
+  ndaa_required: boolean | null;
+  blue_uas_required: boolean | null;
+  total_project_value: number | null;
+  expected_dom_revenue: number | null;
+  prime_contractor: string | null;
+  end_client: string | null;
+  source_url: string | null;
+  verification_notes: string | null;
+  next_action: string | null;
+  // Smartlead readiness (inbound webhook untouched — these are internal-only)
+  smartlead_campaign_id: string | null;
+  smartlead_lead_id: string | null;
+  outreach_approved_at: string | null;
+  outreach_paused_at: string | null;
 }
 interface OutreachEvent {
   id: string; prospect_id: string; event_type: string; intent: string | null; created_at: string;
@@ -91,9 +112,91 @@ const ACTIVITY_TYPE_OPTIONS = [
 ];
 const ACTIVITY_TYPE_LABELS: Record<string, string> = Object.fromEntries(ACTIVITY_TYPE_OPTIONS.map((a) => [a.value, a.label]));
 
+// --- New classification vocab (additive; see supabase/migrations) ---
+const INDUSTRY_OPTIONS = [
+  { value: "telecom_towers", label: "Telecom Towers" },
+  { value: "refinery_petrochemical", label: "Refinery / Petrochemical" },
+  { value: "utilities", label: "Utilities" },
+  { value: "construction", label: "Construction" },
+  { value: "surveying_engineering", label: "Surveying / Engineering" },
+  { value: "commercial_real_estate", label: "Commercial Real Estate" },
+  { value: "roofing", label: "Roofing" },
+  { value: "solar", label: "Solar" },
+  { value: "municipal", label: "Municipal" },
+  { value: "public_safety", label: "Public Safety" },
+  { value: "environmental", label: "Environmental" },
+  { value: "agriculture", label: "Agriculture" },
+  { value: "other", label: "Other" },
+];
+const INDUSTRY_LABELS: Record<string, string> = Object.fromEntries(INDUSTRY_OPTIONS.map((i) => [i.value, i.label]));
+
+const ENGAGEMENT_MODEL_OPTIONS = [
+  { value: "direct_project", label: "Direct Project" },
+  { value: "subcontracted_project", label: "Subcontracted Project" },
+  { value: "joint_project", label: "Joint Project" },
+  { value: "staff_augmentation", label: "Staff Augmentation" },
+  { value: "white_label_service", label: "White-Label Service" },
+  { value: "referral_only", label: "Referral Only" },
+  { value: "unknown", label: "Unknown" },
+];
+const ENGAGEMENT_MODEL_LABELS: Record<string, string> = Object.fromEntries(ENGAGEMENT_MODEL_OPTIONS.map((e) => [e.value, e.label]));
+
+const OWNERSHIP_OPTIONS = [
+  { value: "dom_owned", label: "DOM-Owned", color: "border-orange-500 bg-orange-500/10 text-orange-400" },
+  { value: "partner_owned", label: "Partner-Owned", color: "border-blue-500 bg-blue-500/10 text-blue-400" },
+  { value: "shared", label: "Shared", color: "border-purple-500 bg-purple-500/10 text-purple-400" },
+  { value: "unknown", label: "Unknown", color: "border-amber-500 bg-amber-500/10 text-amber-400" },
+];
+const OWNERSHIP_LABELS: Record<string, string> = Object.fromEntries(OWNERSHIP_OPTIONS.map((o) => [o.value, o.label]));
+const OWNERSHIP_COLORS: Record<string, string> = Object.fromEntries(OWNERSHIP_OPTIONS.map((o) => [o.value, o.color]));
+
+const DJI_OPTIONS = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "unknown", label: "Unknown" },
+  { value: "project_dependent", label: "Project-dependent" },
+];
+
+const DJI_RESTRICTED_COLOR = "border-rose-500 bg-rose-500/10 text-rose-400";
+const OUTREACH_READY_STATUSES = ["cold", "contacted", "qualified", "quoted", "scheduled"];
+
+type SavedViewKey = "all" | "direct" | "subcontract" | "partner" | "dji";
+const SAVED_VIEWS: { key: SavedViewKey; label: string }[] = [
+  { key: "all", label: "All Leads" },
+  { key: "direct", label: "Direct Opportunities" },
+  { key: "subcontract", label: "Subcontract Work" },
+  { key: "partner", label: "Partner Network" },
+  { key: "dji", label: "DJI Restricted" },
+];
+
+function matchesSavedView(lead: Lead, view: SavedViewKey): boolean {
+  switch (view) {
+    case "all":
+      return true;
+    case "direct":
+      return lead.opportunity_ownership === "dom_owned" || lead.engagement_model === "direct_project";
+    case "subcontract":
+      return ["subcontracted_project", "staff_augmentation", "white_label_service"].includes(lead.engagement_model ?? "");
+    case "partner":
+      return (
+        ["partner_owned", "shared"].includes(lead.opportunity_ownership ?? "") ||
+        ["joint_project", "referral_only"].includes(lead.engagement_model ?? "")
+      );
+    case "dji":
+      return lead.dji_permitted === "no" || lead.ndaa_required === true || lead.blue_uas_required === true;
+    default:
+      return true;
+  }
+}
+
+function isDjiRestricted(lead: Lead): boolean {
+  return lead.dji_permitted === "no" || lead.ndaa_required === true || lead.blue_uas_required === true;
+}
+
 const emptyLeadForm = {
   name: "", email: "", company: "", phone: "", address: "", source: "", message: "",
   tier: [] as string[], vertical: "", preferred_contact_method: "", next_follow_up_at: "",
+  industry: "", engagement_model: "", opportunity_ownership: "unknown", status: "cold", next_action: "",
 };
 
 export default function LeadsWorkspace() {
@@ -122,16 +225,24 @@ export default function LeadsWorkspace() {
   const [relationshipDraft, setRelationshipDraft] = useState<Record<string, { related_lead_id: string; relationship_type: string }>>({});
 
   const [expandedLead, setExpandedLead] = useState<string | null>(null);
+  const [menuLead, setMenuLead] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const [showAddLead, setShowAddLead] = useState(false);
+  const [showMoreFields, setShowMoreFields] = useState(false);
   const [leadForm, setLeadForm] = useState(emptyLeadForm);
 
+  const [search, setSearch] = useState("");
   const [filterTier, setFilterTier] = useState("");
   const [filterVertical, setFilterVertical] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterIndustry, setFilterIndustry] = useState("");
+  const [filterEngagement, setFilterEngagement] = useState("");
+  const [filterOwnership, setFilterOwnership] = useState("");
+  const [activeView, setActiveView] = useState<SavedViewKey>("all");
 
   const [quickNoteDraft, setQuickNoteDraft] = useState<Record<string, string>>({});
+  const [smartleadStatus, setSmartleadStatus] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -204,6 +315,25 @@ export default function LeadsWorkspace() {
     setBusy(lead.id);
     const sb = getSupabaseBrowser();
     const { error } = await sb.from("leads").update({ [field]: value || null }).eq("id", lead.id);
+    setBusy(null);
+    if (error) { alert(`Couldn't save: ${error.message}`); return; }
+    await load();
+  }
+
+  async function setLeadBooleanField(lead: Lead, field: keyof Lead, value: boolean | null) {
+    setBusy(lead.id);
+    const sb = getSupabaseBrowser();
+    const { error } = await sb.from("leads").update({ [field]: value }).eq("id", lead.id);
+    setBusy(null);
+    if (error) { alert(`Couldn't save: ${error.message}`); return; }
+    await load();
+  }
+
+  async function setLeadNumberField(lead: Lead, field: keyof Lead, value: string) {
+    setBusy(lead.id);
+    const sb = getSupabaseBrowser();
+    const parsed = value.trim() === "" ? null : parseFloat(value);
+    const { error } = await sb.from("leads").update({ [field]: Number.isNaN(parsed) ? null : parsed }).eq("id", lead.id);
     setBusy(null);
     if (error) { alert(`Couldn't save: ${error.message}`); return; }
     await load();
@@ -298,11 +428,130 @@ export default function LeadsWorkspace() {
     }
   }
 
-  async function addLead() {
-    if (!leadForm.name && !leadForm.email && !leadForm.company) {
-      alert("Add at least a name, email, or company.");
+  // --- Smartlead-ready internal workflow -----------------------------------
+  // The inbound webhook (app/api/webhooks/smartlead/route.ts) is untouched.
+  // These actions only ever write real DOM-internal state (outreach_approved_at,
+  // outreach_paused_at, status, activity log). None of them claim a lead was
+  // actually sent to Smartlead — that requires a configured outbound credential,
+  // which this repo does not have yet (see /api/admin/leads/[id]/smartlead-enroll).
+
+  function isValidEmail(email: string | null): boolean {
+    if (!email) return false;
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  }
+
+  async function approveForOutreach(lead: Lead) {
+    if (!isValidEmail(lead.email)) {
+      alert("This lead needs a valid email before it can be approved for outreach.");
       return;
     }
+    if (!OUTREACH_READY_STATUSES.includes(lead.status)) {
+      alert(`Leads with status "${STATUS_LABELS[lead.status] ?? lead.status}" aren't eligible for outreach approval.`);
+      return;
+    }
+    setBusy(lead.id);
+    const sb = getSupabaseBrowser();
+    const { error } = await sb.from("leads").update({ outreach_approved_at: new Date().toISOString() }).eq("id", lead.id);
+    if (error) { alert(`Couldn't approve: ${error.message}`); setBusy(null); return; }
+    await logActivity(lead.id, "other", "Approved for outreach (internal — not yet sent to Smartlead)");
+    await load();
+    setBusy(null);
+  }
+
+  async function pauseOutreach(lead: Lead) {
+    setBusy(lead.id);
+    const sb = getSupabaseBrowser();
+    const { error } = await sb.from("leads").update({ outreach_paused_at: new Date().toISOString() }).eq("id", lead.id);
+    if (error) { alert(`Couldn't pause: ${error.message}`); setBusy(null); return; }
+    const note = lead.smartlead_lead_id
+      ? "Outreach paused (internal). Smartlead campaign pause was NOT called — no outbound integration configured."
+      : "Outreach paused (internal DOM workflow only — this lead was never enrolled in Smartlead).";
+    await logActivity(lead.id, "other", note);
+    await load();
+    setBusy(null);
+  }
+
+  async function markReplied(lead: Lead) {
+    setBusy(lead.id);
+    const sb = getSupabaseBrowser();
+    const nextStatus = lead.status === "cold" ? "contacted" : lead.status;
+    const { error } = await sb.from("leads").update({ status: nextStatus }).eq("id", lead.id);
+    if (error) { alert(`Couldn't update: ${error.message}`); setBusy(null); return; }
+    await logActivity(lead.id, "email", "Marked as replied (manual entry, not from Smartlead webhook)");
+    await load();
+    setBusy(null);
+  }
+
+  async function createOpportunity(lead: Lead) {
+    if ((lead.engagement_model ?? "unknown") === "unknown" || !lead.engagement_model) {
+      alert("Set an engagement model before creating an opportunity (Direct, Subcontracted, Joint, etc.).");
+      return;
+    }
+    if (!lead.opportunity_ownership || lead.opportunity_ownership === "unknown") {
+      alert("Set opportunity ownership (DOM-Owned, Partner-Owned, or Shared) before creating an opportunity.");
+      return;
+    }
+    setBusy(lead.id);
+    const nextStatus = lead.status === "cold" ? "qualified" : lead.status;
+    const sb = getSupabaseBrowser();
+    const { error } = await sb.from("leads").update({ status: nextStatus }).eq("id", lead.id);
+    if (error) { alert(`Couldn't update: ${error.message}`); setBusy(null); return; }
+    await logActivity(
+      lead.id,
+      "other",
+      `Marked as active opportunity (${ENGAGEMENT_MODEL_LABELS[lead.engagement_model] ?? lead.engagement_model} / ${OWNERSHIP_LABELS[lead.opportunity_ownership] ?? lead.opportunity_ownership})`
+    );
+    await load();
+    setBusy(null);
+  }
+
+  async function markDoNotContact(lead: Lead) {
+    if (!window.confirm("Mark this lead Do Not Contact? This sets status to Lost and blocks future outreach approval.")) return;
+    setBusy(lead.id);
+    const sb = getSupabaseBrowser();
+    const { error } = await sb.from("leads").update({ status: "lost", outreach_paused_at: new Date().toISOString() }).eq("id", lead.id);
+    if (error) { alert(`Couldn't update: ${error.message}`); setBusy(null); return; }
+    await logActivity(lead.id, "status_change", "Marked Do Not Contact (status: Lost, outreach blocked)");
+    await load();
+    setBusy(null);
+  }
+
+  async function addToSmartlead(lead: Lead) {
+    setBusy(lead.id);
+    setSmartleadStatus((s) => ({ ...s, [lead.id]: "Checking…" }));
+    try {
+      const sb = getSupabaseBrowser();
+      const { data: session } = await sb.auth.getSession();
+      const token = session.session?.access_token;
+      const res = await fetch(`/api/admin/leads/${lead.id}/smartlead-enroll`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      const body = await res.json();
+      if (body.configured === false) {
+        setSmartleadStatus((s) => ({ ...s, [lead.id]: "Smartlead: Pending Configuration" }));
+      } else if (res.ok && body.ok) {
+        setSmartleadStatus((s) => ({ ...s, [lead.id]: "Enrolled" }));
+        await load();
+      } else {
+        setSmartleadStatus((s) => ({ ...s, [lead.id]: `Failed: ${body.message ?? "unknown error"}` }));
+      }
+    } catch {
+      setSmartleadStatus((s) => ({ ...s, [lead.id]: "Failed: network error" }));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function addLead() {
+    if (!leadForm.company.trim()) { alert("Company is required."); return; }
+    if (!leadForm.name.trim()) { alert("Contact name is required."); return; }
+    if (!leadForm.industry) { alert("Industry is required."); return; }
+    if (!leadForm.engagement_model) { alert("Engagement model is required."); return; }
+    if (!leadForm.opportunity_ownership) { alert("Opportunity ownership is required."); return; }
+    if (!leadForm.status) { alert("Status is required."); return; }
+    if (!leadForm.next_action.trim()) { alert("Next action is required."); return; }
+
     setBusy("add-lead");
     const sb = getSupabaseBrowser();
     const { error } = await sb.from("leads").insert({
@@ -317,11 +566,17 @@ export default function LeadsWorkspace() {
       vertical: leadForm.vertical || null,
       preferred_contact_method: leadForm.preferred_contact_method || null,
       next_follow_up_at: leadForm.next_follow_up_at || null,
+      industry: leadForm.industry,
+      engagement_model: leadForm.engagement_model,
+      opportunity_ownership: leadForm.opportunity_ownership,
+      status: leadForm.status,
+      next_action: leadForm.next_action,
     });
     setBusy(null);
     if (error) { alert(error.message); return; }
     setLeadForm(emptyLeadForm);
     setShowAddLead(false);
+    setShowMoreFields(false);
     await load();
   }
 
@@ -471,21 +726,34 @@ export default function LeadsWorkspace() {
     setBusy(null);
   }
 
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return leads
+      .filter((l) => matchesSavedView(l, activeView))
+      .filter((l) =>
+        (!filterTier || (l.tier ?? []).includes(filterTier)) &&
+        (!filterVertical || l.vertical === filterVertical) &&
+        (!filterStatus || l.status === filterStatus) &&
+        (!filterIndustry || l.industry === filterIndustry) &&
+        (!filterEngagement || l.engagement_model === filterEngagement) &&
+        (!filterOwnership || l.opportunity_ownership === filterOwnership) &&
+        (!q ||
+          (l.company ?? "").toLowerCase().includes(q) ||
+          (l.name ?? "").toLowerCase().includes(q) ||
+          (l.email ?? "").toLowerCase().includes(q))
+      )
+      .sort((a, b) => {
+        const av = (sortKey === "company" ? a.company : a.name) ?? "";
+        const bv = (sortKey === "company" ? b.company : b.name) ?? "";
+        const cmp = av.localeCompare(bv, undefined, { sensitivity: "base" });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+  }, [leads, activeView, filterTier, filterVertical, filterStatus, filterIndustry, filterEngagement, filterOwnership, search, sortKey, sortDir]);
+
   if (loading) return <p className="text-slate-400">Loading leads…</p>;
 
   const today = new Date().toISOString().slice(0, 10);
-  const filtered = leads
-    .filter((l) =>
-      (!filterTier || (l.tier ?? []).includes(filterTier)) &&
-      (!filterVertical || l.vertical === filterVertical) &&
-      (!filterStatus || l.status === filterStatus)
-    )
-    .sort((a, b) => {
-      const av = (sortKey === "company" ? a.company : a.name) ?? "";
-      const bv = (sortKey === "company" ? b.company : b.name) ?? "";
-      const cmp = av.localeCompare(bv, undefined, { sensitivity: "base" });
-      return sortDir === "asc" ? cmp : -cmp;
-    });
+  const anyFilterActive = !!(filterTier || filterVertical || filterStatus || filterIndustry || filterEngagement || filterOwnership || search);
 
   return (
     <div className="card p-6 lg:p-8">
@@ -494,63 +762,156 @@ export default function LeadsWorkspace() {
         desc="Inbound prospects from the website and outreach. Click a lead to view full details, log contact, and take action."
         action={<ActionBtn onClick={() => setShowAddLead((s) => !s)}>{showAddLead ? "Cancel" : "+ Add Lead"}</ActionBtn>}
       >
+        {/* Saved views */}
+        <div className="mb-4 flex flex-wrap gap-2">
+          {SAVED_VIEWS.map((v) => {
+            const count = leads.filter((l) => matchesSavedView(l, v.key)).length;
+            const active = activeView === v.key;
+            return (
+              <button
+                key={v.key}
+                onClick={() => setActiveView(v.key)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium transition ${
+                  active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface2 text-slate-400 hover:text-white"
+                }`}
+              >
+                {v.label} <span className="text-slate-600">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+
         {showAddLead && (
-          <div className="mb-4 grid gap-3 rounded-lg border border-border bg-surface2 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div><label className={labelCls}>Name</label><input className={inputCls} value={leadForm.name} onChange={(e) => setLeadForm((f) => ({ ...f, name: e.target.value }))} /></div>
-            <div><label className={labelCls}>Company</label><input className={inputCls} value={leadForm.company} onChange={(e) => setLeadForm((f) => ({ ...f, company: e.target.value }))} /></div>
-            <div><label className={labelCls}>Email</label><input className={inputCls} value={leadForm.email} onChange={(e) => setLeadForm((f) => ({ ...f, email: e.target.value }))} /></div>
-            <div><label className={labelCls}>Phone</label><input className={inputCls} value={leadForm.phone} onChange={(e) => setLeadForm((f) => ({ ...f, phone: e.target.value }))} /></div>
-            <div><label className={labelCls}>Address</label><input className={inputCls} value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} /></div>
-            <div><label className={labelCls}>Source</label><input className={inputCls} placeholder="phone, referral, website…" value={leadForm.source} onChange={(e) => setLeadForm((f) => ({ ...f, source: e.target.value }))} /></div>
-            <div className="sm:col-span-2 lg:col-span-3">
-              <label className={labelCls}>Tier <span className="text-slate-600">(a client can require more than one)</span></label>
-              <div className="flex flex-wrap gap-2">
-                {TIER_OPTIONS.map((t) => {
-                  const active = leadForm.tier.includes(t.value);
-                  return (
-                    <button
-                      key={t.value}
-                      type="button"
-                      onClick={() =>
-                        setLeadForm((f) => ({
-                          ...f,
-                          tier: active ? f.tier.filter((v) => v !== t.value) : [...f.tier, t.value],
-                        }))
-                      }
-                      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-                        active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      {active ? "☑" : "☐"} {t.label}
-                    </button>
-                  );
-                })}
+          <div className="mb-4 rounded-lg border border-border bg-surface2 p-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Quick Add — company, contact, industry, engagement model, ownership, status, and next action are required.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div><label className={labelCls}>Company *</label><input className={inputCls} value={leadForm.company} onChange={(e) => setLeadForm((f) => ({ ...f, company: e.target.value }))} /></div>
+              <div><label className={labelCls}>Contact name *</label><input className={inputCls} value={leadForm.name} onChange={(e) => setLeadForm((f) => ({ ...f, name: e.target.value }))} /></div>
+              <div>
+                <label className={labelCls}>Industry *</label>
+                <select className={inputCls} value={leadForm.industry} onChange={(e) => setLeadForm((f) => ({ ...f, industry: e.target.value }))}>
+                  <option value="">Select…</option>
+                  {INDUSTRY_OPTIONS.map((i) => <option key={i.value} value={i.value}>{i.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Engagement model *</label>
+                <select className={inputCls} value={leadForm.engagement_model} onChange={(e) => setLeadForm((f) => ({ ...f, engagement_model: e.target.value }))}>
+                  <option value="">Select…</option>
+                  {ENGAGEMENT_MODEL_OPTIONS.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Opportunity ownership *</label>
+                <select className={inputCls} value={leadForm.opportunity_ownership} onChange={(e) => setLeadForm((f) => ({ ...f, opportunity_ownership: e.target.value }))}>
+                  {OWNERSHIP_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelCls}>Status *</label>
+                <select className={inputCls} value={leadForm.status} onChange={(e) => setLeadForm((f) => ({ ...f, status: e.target.value }))}>
+                  {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+              <div className="sm:col-span-2 lg:col-span-3">
+                <label className={labelCls}>Next action *</label>
+                <input className={inputCls} placeholder='e.g. "Call Tuesday", "Send quote", "Wait for reply"' value={leadForm.next_action} onChange={(e) => setLeadForm((f) => ({ ...f, next_action: e.target.value }))} />
               </div>
             </div>
-            <div>
-              <label className={labelCls}>Vertical</label>
-              <select className={inputCls} value={leadForm.vertical} onChange={(e) => setLeadForm((f) => ({ ...f, vertical: e.target.value }))}>
-                <option value="">—</option>
-                {VERTICAL_OPTIONS.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Preferred contact method</label>
-              <select className={inputCls} value={leadForm.preferred_contact_method} onChange={(e) => setLeadForm((f) => ({ ...f, preferred_contact_method: e.target.value }))}>
-                <option value="">—</option>
-                {CONTACT_METHOD_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className={labelCls}>Next follow-up</label>
-              <input type="date" className={inputCls} value={leadForm.next_follow_up_at} onChange={(e) => setLeadForm((f) => ({ ...f, next_follow_up_at: e.target.value }))} />
-            </div>
-            <div className="sm:col-span-2 lg:col-span-3"><label className={labelCls}>Message</label><textarea className={inputCls} rows={2} value={leadForm.message} onChange={(e) => setLeadForm((f) => ({ ...f, message: e.target.value }))} /></div>
-            <div className="sm:col-span-2 lg:col-span-3"><ActionBtn disabled={busy === "add-lead"} onClick={addLead}>{busy === "add-lead" ? "Saving…" : "Save Lead"}</ActionBtn></div>
+
+            <button type="button" className="mt-3 text-xs text-accent underline" onClick={() => setShowMoreFields((s) => !s)}>
+              {showMoreFields ? "Hide additional fields" : "+ Additional fields (email, phone, tier, vertical…)"}
+            </button>
+
+            {showMoreFields && (
+              <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div><label className={labelCls}>Email</label><input className={inputCls} value={leadForm.email} onChange={(e) => setLeadForm((f) => ({ ...f, email: e.target.value }))} /></div>
+                <div><label className={labelCls}>Phone</label><input className={inputCls} value={leadForm.phone} onChange={(e) => setLeadForm((f) => ({ ...f, phone: e.target.value }))} /></div>
+                <div><label className={labelCls}>Address</label><input className={inputCls} value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} /></div>
+                <div><label className={labelCls}>Source</label><input className={inputCls} placeholder="phone, referral, website…" value={leadForm.source} onChange={(e) => setLeadForm((f) => ({ ...f, source: e.target.value }))} /></div>
+                <div>
+                  <label className={labelCls}>Vertical <span className="text-slate-600">(legacy)</span></label>
+                  <select className={inputCls} value={leadForm.vertical} onChange={(e) => setLeadForm((f) => ({ ...f, vertical: e.target.value }))}>
+                    <option value="">—</option>
+                    {VERTICAL_OPTIONS.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>Preferred contact method</label>
+                  <select className={inputCls} value={leadForm.preferred_contact_method} onChange={(e) => setLeadForm((f) => ({ ...f, preferred_contact_method: e.target.value }))}>
+                    <option value="">—</option>
+                    {CONTACT_METHOD_OPTIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  </select>
+                </div>
+                <div><label className={labelCls}>Next follow-up</label><input type="date" className={inputCls} value={leadForm.next_follow_up_at} onChange={(e) => setLeadForm((f) => ({ ...f, next_follow_up_at: e.target.value }))} /></div>
+                <div className="sm:col-span-2 lg:col-span-3">
+                  <label className={labelCls}>Tier <span className="text-slate-600">(a client can require more than one)</span></label>
+                  <div className="flex flex-wrap gap-2">
+                    {TIER_OPTIONS.map((t) => {
+                      const active = leadForm.tier.includes(t.value);
+                      return (
+                        <button
+                          key={t.value}
+                          type="button"
+                          onClick={() =>
+                            setLeadForm((f) => ({
+                              ...f,
+                              tier: active ? f.tier.filter((v) => v !== t.value) : [...f.tier, t.value],
+                            }))
+                          }
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
+                            active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-slate-400 hover:text-white"
+                          }`}
+                        >
+                          {active ? "☑" : "☐"} {t.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="sm:col-span-2 lg:col-span-3"><label className={labelCls}>Message</label><textarea className={inputCls} rows={2} value={leadForm.message} onChange={(e) => setLeadForm((f) => ({ ...f, message: e.target.value }))} /></div>
+              </div>
+            )}
+
+            <div className="mt-3"><ActionBtn disabled={busy === "add-lead"} onClick={addLead}>{busy === "add-lead" ? "Saving…" : "Save Lead"}</ActionBtn></div>
           </div>
         )}
 
+        {/* Filter bar */}
         <div className="mb-4 flex flex-wrap items-center gap-3">
+          <input
+            className={inputCls + " w-auto min-w-[160px]"}
+            placeholder="Search company, contact, email…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <select className={inputCls + " w-auto"} value={filterIndustry} onChange={(e) => setFilterIndustry(e.target.value)}>
+            <option value="">All industries</option>
+            {INDUSTRY_OPTIONS.map((i) => <option key={i.value} value={i.value}>{i.label}</option>)}
+          </select>
+          <select className={inputCls + " w-auto"} value={filterEngagement} onChange={(e) => setFilterEngagement(e.target.value)}>
+            <option value="">All engagement models</option>
+            {ENGAGEMENT_MODEL_OPTIONS.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
+          </select>
+          <select className={inputCls + " w-auto"} value={filterOwnership} onChange={(e) => setFilterOwnership(e.target.value)}>
+            <option value="">All ownership</option>
+            {OWNERSHIP_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+          <select className={inputCls + " w-auto"} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+            <option value="">All statuses</option>
+            {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+          {anyFilterActive && (
+            <button
+              className="text-xs text-slate-500 underline"
+              onClick={() => { setSearch(""); setFilterTier(""); setFilterVertical(""); setFilterStatus(""); setFilterIndustry(""); setFilterEngagement(""); setFilterOwnership(""); }}
+            >
+              Clear filters
+            </button>
+          )}
+          <span className="mx-1 h-4 w-px bg-border" />
           <span className="text-xs text-slate-500">Sort by</span>
           <div className="flex overflow-hidden rounded-lg border border-border">
             {(["company", "name"] as const).map((key) => (
@@ -568,64 +929,158 @@ export default function LeadsWorkspace() {
               </button>
             ))}
           </div>
-          <span className="mx-1 h-4 w-px bg-border" />
-          <select className={inputCls + " w-auto"} value={filterTier} onChange={(e) => setFilterTier(e.target.value)}>
-            <option value="">All tiers</option>
-            {TIER_OPTIONS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-          <select className={inputCls + " w-auto"} value={filterVertical} onChange={(e) => setFilterVertical(e.target.value)}>
-            <option value="">All verticals</option>
-            {VERTICAL_OPTIONS.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
-          </select>
-          <select className={inputCls + " w-auto"} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-            <option value="">All statuses</option>
-            {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-          {(filterTier || filterVertical || filterStatus) && (
-            <button className="text-xs text-slate-500 underline" onClick={() => { setFilterTier(""); setFilterVertical(""); setFilterStatus(""); }}>
-              Clear filters
-            </button>
-          )}
         </div>
 
         {leads.length === 0 && <Empty>No leads yet.</Empty>}
-        {leads.length > 0 && filtered.length === 0 && <Empty>No leads match these filters.</Empty>}
+        {leads.length > 0 && filtered.length === 0 && <Empty>No leads match this view/filters.</Empty>}
 
         <div className="space-y-3">
           {filtered.map((l) => {
             const open = expandedLead === l.id;
             const events = l.external_prospect_id ? eventsByProspect[l.external_prospect_id] ?? [] : [];
             const leadNotes = notes.filter((n) => n.entity_id === l.id);
+            const restricted = isDjiRestricted(l);
+            const ownershipColor = OWNERSHIP_COLORS[l.opportunity_ownership ?? "unknown"] ?? OWNERSHIP_COLORS.unknown;
+
             return (
               <div key={l.id} className="rounded-lg border border-border bg-surface2">
-                <button
-                  onClick={() => setExpandedLead(open ? null : l.id)}
-                  className="flex w-full flex-wrap items-center justify-between gap-4 p-4 text-left"
-                >
-                  <div>
+                {/* Compact row — Company/contact | Industry | Engagement | Ownership | Status | Next action | Follow-up | menu */}
+                <div className="flex flex-wrap items-center gap-3 p-4">
+                  <button onClick={() => setExpandedLead(open ? null : l.id)} className="flex-1 text-left min-w-[180px]">
                     <div className="text-sm font-semibold text-white">{l.company ?? l.name ?? "Unnamed"}</div>
                     <div className="text-xs text-slate-500">{l.name ?? "No contact name"} · {l.email ?? "—"}</div>
+                  </button>
+
+                  <div className="grid flex-1 grid-cols-2 gap-2 text-xs sm:grid-cols-4 sm:text-sm min-w-[240px]">
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wide text-slate-600">Industry</div>
+                      <div className="text-slate-300">{l.industry ? INDUSTRY_LABELS[l.industry] ?? l.industry : "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wide text-slate-600">Engagement</div>
+                      <div className="text-slate-300">{l.engagement_model ? ENGAGEMENT_MODEL_LABELS[l.engagement_model] ?? l.engagement_model : "—"}</div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wide text-slate-600">Ownership</div>
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${ownershipColor}`}>
+                        {OWNERSHIP_LABELS[l.opportunity_ownership ?? "unknown"] ?? "Unknown"}
+                      </span>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-wide text-slate-600">Next action</div>
+                      <div className="truncate text-slate-300" title={l.next_action ?? ""}>{l.next_action || "—"}</div>
+                    </div>
                   </div>
+
                   <div className="flex flex-wrap items-center justify-end gap-2">
-                    {l.next_follow_up_at && l.next_follow_up_at <= today && !["customer", "lost"].includes(l.status) && (
-                      <Pill><span className="text-rose-400">Follow-up due</span></Pill>
+                    {restricted && (
+                      <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium ${DJI_RESTRICTED_COLOR}`}>
+                        DJI Restricted
+                      </span>
                     )}
-                    {contacts.filter((c) => c.lead_id === l.id && !c.is_primary).length > 0 && (
-                      <Pill>+{contacts.filter((c) => c.lead_id === l.id && !c.is_primary).length} contact{contacts.filter((c) => c.lead_id === l.id && !c.is_primary).length > 1 ? "s" : ""}</Pill>
+                    {l.next_follow_up_at && (
+                      <span className={`text-xs ${l.next_follow_up_at <= today && !["customer", "lost"].includes(l.status) ? "text-rose-400" : "text-slate-500"}`}>
+                        {l.next_follow_up_at <= today && !["customer", "lost"].includes(l.status) ? "Follow-up due " : "Follow-up "}
+                        {new Date(l.next_follow_up_at).toLocaleDateString()}
+                      </span>
                     )}
-                    {locations.filter((loc) => loc.lead_id === l.id).length > 0 && (
-                      <Pill>{locations.filter((loc) => loc.lead_id === l.id).length} branch{locations.filter((loc) => loc.lead_id === l.id).length > 1 ? "es" : ""}</Pill>
-                    )}
-                    {(l.tier ?? []).map((t) => <Pill key={t}>{TIER_LABELS[t] ?? t}</Pill>)}
-                    {l.vertical && <Pill>{VERTICAL_LABELS[l.vertical] ?? l.vertical}</Pill>}
                     <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${STATUS_OPTIONS.find((s) => s.value === l.status)?.color ?? "border-border bg-surface2 text-slate-300"}`}>
                       {STATUS_LABELS[l.status] ?? l.status}
                     </span>
+
+                    <div className="relative">
+                      <button
+                        className="rounded-lg border border-border bg-surface px-2 py-1.5 text-xs text-slate-400 hover:text-white"
+                        onClick={() => setMenuLead(menuLead === l.id ? null : l.id)}
+                      >
+                        ⋯
+                      </button>
+                      {menuLead === l.id && (
+                        <div className="absolute right-0 z-10 mt-1 w-52 rounded-lg border border-border bg-surface shadow-lg">
+                          <button disabled={busy === l.id} className="block w-full px-3 py-2 text-left text-xs text-slate-300 hover:bg-surface2" onClick={() => { setMenuLead(null); approveForOutreach(l); }}>Approve for Outreach</button>
+                          <button disabled={busy === l.id} className="block w-full px-3 py-2 text-left text-xs text-slate-300 hover:bg-surface2" onClick={() => { setMenuLead(null); logContactNow(l); }}>Log contact now</button>
+                          <button disabled={busy === l.id} className="block w-full px-3 py-2 text-left text-xs text-slate-300 hover:bg-surface2" onClick={() => { setMenuLead(null); createOpportunity(l); }}>Create Opportunity</button>
+                          <button disabled={busy === l.id} className="block w-full px-3 py-2 text-left text-xs text-rose-400 hover:bg-surface2" onClick={() => { setMenuLead(null); markDoNotContact(l); }}>Do Not Contact</button>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </button>
+                </div>
 
                 {open && (
                   <>
+                  {/* Classification & Opportunity */}
+                  <div className="border-t border-border p-4">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Classification &amp; Opportunity</p>
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <div>
+                        <label className={labelCls}>Industry</label>
+                        <select className={inputCls} value={l.industry ?? ""} disabled={busy === l.id} onChange={(e) => setLeadField(l, "industry", e.target.value)}>
+                          <option value="">—</option>
+                          {INDUSTRY_OPTIONS.map((i) => <option key={i.value} value={i.value}>{i.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelCls}>Engagement model</label>
+                        <select className={inputCls} value={l.engagement_model ?? ""} disabled={busy === l.id} onChange={(e) => setLeadField(l, "engagement_model", e.target.value)}>
+                          <option value="">—</option>
+                          {ENGAGEMENT_MODEL_OPTIONS.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelCls}>Opportunity ownership</label>
+                        <select className={inputCls} value={l.opportunity_ownership ?? ""} disabled={busy === l.id} onChange={(e) => setLeadField(l, "opportunity_ownership", e.target.value)}>
+                          <option value="">—</option>
+                          {OWNERSHIP_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className={labelCls}>DJI permitted</label>
+                        <select className={inputCls} value={l.dji_permitted ?? ""} disabled={busy === l.id} onChange={(e) => setLeadField(l, "dji_permitted", e.target.value)}>
+                          <option value="">—</option>
+                          {DJI_OPTIONS.map((d) => <option key={d.value} value={d.value}>{d.label}</option>)}
+                        </select>
+                      </div>
+                      <div className="flex items-end gap-4">
+                        <label className="flex items-center gap-2 text-xs text-slate-400">
+                          <input type="checkbox" checked={!!l.ndaa_required} disabled={busy === l.id} onChange={(e) => setLeadBooleanField(l, "ndaa_required", e.target.checked)} />
+                          NDAA required
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-slate-400">
+                          <input type="checkbox" checked={!!l.blue_uas_required} disabled={busy === l.id} onChange={(e) => setLeadBooleanField(l, "blue_uas_required", e.target.checked)} />
+                          Blue UAS required
+                        </label>
+                      </div>
+                      <div><label className={labelCls}>Total project value ($)</label><input type="number" step="0.01" className={inputCls} defaultValue={l.total_project_value ?? ""} disabled={busy === l.id} onBlur={(e) => setLeadNumberField(l, "total_project_value", e.target.value)} /></div>
+                      <div><label className={labelCls}>Expected DOM revenue ($)</label><input type="number" step="0.01" className={inputCls} defaultValue={l.expected_dom_revenue ?? ""} disabled={busy === l.id} onBlur={(e) => setLeadNumberField(l, "expected_dom_revenue", e.target.value)} /></div>
+                      <div><label className={labelCls}>Prime contractor</label><input className={inputCls} defaultValue={l.prime_contractor ?? ""} disabled={busy === l.id} onBlur={(e) => setLeadField(l, "prime_contractor", e.target.value)} /></div>
+                      <div><label className={labelCls}>End client</label><input className={inputCls} defaultValue={l.end_client ?? ""} disabled={busy === l.id} onBlur={(e) => setLeadField(l, "end_client", e.target.value)} /></div>
+                      <div><label className={labelCls}>Source URL</label><input className={inputCls} defaultValue={l.source_url ?? ""} disabled={busy === l.id} onBlur={(e) => setLeadField(l, "source_url", e.target.value)} /></div>
+                      <div className="sm:col-span-2"><label className={labelCls}>Next action</label><input className={inputCls} defaultValue={l.next_action ?? ""} disabled={busy === l.id} onBlur={(e) => setLeadField(l, "next_action", e.target.value)} /></div>
+                      <div className="sm:col-span-2 lg:col-span-4"><label className={labelCls}>Verification notes</label><textarea className={inputCls} rows={2} defaultValue={l.verification_notes ?? ""} disabled={busy === l.id} onBlur={(e) => setLeadField(l, "verification_notes", e.target.value)} /></div>
+                    </div>
+                  </div>
+
+                  {/* Smartlead & Outreach workflow */}
+                  <div className="border-t border-border p-4">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Smartlead &amp; Outreach Workflow</p>
+                    <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-400">
+                      <span>Outreach approved: {l.outreach_approved_at ? new Date(l.outreach_approved_at).toLocaleString() : "Not approved"}</span>
+                      <span>Outreach paused: {l.outreach_paused_at ? new Date(l.outreach_paused_at).toLocaleString() : "Not paused"}</span>
+                      <span>Smartlead campaign: {l.smartlead_campaign_id ?? "Pending Configuration"}</span>
+                      <span>Smartlead lead ID: {l.smartlead_lead_id ?? "Pending Configuration"}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <ActionBtn disabled={busy === l.id} onClick={() => approveForOutreach(l)}>Approve for Outreach</ActionBtn>
+                      <ActionBtn disabled={busy === l.id} onClick={() => pauseOutreach(l)}>Pause Outreach</ActionBtn>
+                      <ActionBtn disabled={busy === l.id} onClick={() => markReplied(l)}>Mark Replied</ActionBtn>
+                      <ActionBtn disabled={busy === l.id} onClick={() => createOpportunity(l)}>Create Opportunity</ActionBtn>
+                      <ActionBtn disabled={busy === l.id} onClick={() => addToSmartlead(l)}>Add to Smartlead</ActionBtn>
+                      <ActionBtn disabled={busy === l.id} onClick={() => markDoNotContact(l)}>Do Not Contact</ActionBtn>
+                    </div>
+                    {smartleadStatus[l.id] && <p className="mt-2 text-xs text-amber-400">{smartleadStatus[l.id]}</p>}
+                  </div>
+
                   <div className="grid gap-6 border-t border-border p-4 lg:grid-cols-2">
                     <div className="space-y-3 text-sm text-slate-300">
                       <div className="flex items-center justify-between">
@@ -688,7 +1143,7 @@ export default function LeadsWorkspace() {
 
                       <div className="grid gap-3 sm:grid-cols-2">
                         <div>
-                          <label className={labelCls}>Vertical</label>
+                          <label className={labelCls}>Vertical <span className="text-slate-600">(legacy)</span></label>
                           <select className={inputCls} value={l.vertical ?? ""} disabled={busy === l.id} onChange={(e) => setLeadField(l, "vertical", e.target.value)}>
                             <option value="">—</option>
                             {VERTICAL_OPTIONS.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}

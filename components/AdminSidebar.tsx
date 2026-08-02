@@ -13,6 +13,7 @@ const V = { surface: "#11161F", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A
 
 const NAV = [
   { href: "/admin/dashboard", label: "Dashboard", icon: "◧" },
+  { href: "/admin/leads", label: "Leads", icon: "☍" },
   { href: "/admin/missions", label: "Missions", icon: "▤" },
   { href: "/admin/contractors", label: "Contractors", icon: "◎" },
 ];

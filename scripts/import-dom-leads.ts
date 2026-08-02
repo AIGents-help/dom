@@ -75,15 +75,17 @@ function parseCsv(text: string): string[][] {
 // Recognized header variants -> canonical field name. Extend this map once
 // the real CSV's headers are known — it's intentionally permissive.
 const HEADER_MAP: Record<string, string> = {
-  company: "company", "company name": "company", organization: "company",
+  company: "company", "company name": "company", company_name: "company", organization: "company",
   contact: "name", "contact name": "name", name: "name",
+  first_name: "first_name", last_name: "last_name",
   email: "email", "email address": "email",
   phone: "phone", "phone number": "phone",
   industry: "industry", vertical: "industry", sector: "industry",
-  website: "source_url", "source url": "source_url", url: "source_url", "company website": "source_url",
+  website: "source_url", "source url": "source_url", url: "source_url", "company website": "source_url", source_url: "source_url",
   notes: "verification_notes", "verification notes": "verification_notes",
-  address: "address",
-  "company type": "company_type", type: "company_type", role: "company_type",
+  address: "address", location: "address",
+  "company type": "company_type", type: "company_type", role: "company_type", category: "company_type", target_role: "target_role",
+  personalization: "personalization", last_verified: "last_verified",
 };
 
 function normalizeHeader(h: string): string {
@@ -222,14 +224,25 @@ async function main() {
     });
 
     const company = record.company?.trim() || null;
-    const name = record.name?.trim() || null;
+    const combinedFirstLast = [record.first_name, record.last_name].filter((p) => p && p.trim()).join(" ").trim();
+    const name = record.name?.trim() || (combinedFirstLast || null);
     const emailRaw = record.email?.trim() || "";
     const email = emailRaw ? normalizeEmail(emailRaw) : null;
     const phone = record.phone?.trim() || null;
     const address = record.address?.trim() || null;
     const sourceUrl = record.source_url ? normalizeUrl(record.source_url) : null;
-    const verificationNotes = record.verification_notes?.trim() || null;
     const companyType = record.company_type ?? "";
+
+    // Preserve context notes (personalization research, target role, and the
+    // as-of date this contact was verified) even though there's no dedicated
+    // column per field — verification_notes is the closest canonical fit.
+    const notesParts = [
+      record.verification_notes?.trim(),
+      record.personalization?.trim(),
+      record.target_role?.trim() ? `Target role: ${record.target_role.trim()}` : "",
+      record.last_verified?.trim() ? `Verified as of: ${record.last_verified.trim()}` : "",
+    ].filter((p): p is string => !!p);
+    const verificationNotes = notesParts.length > 0 ? notesParts.join(" | ") : null;
 
     if (!company && !name) {
       results.push({ kind: "validation_failure", reason: "Missing both company and contact name — cannot import.", raw: record });
@@ -249,7 +262,7 @@ async function main() {
     }
     seenInFile.add(dedupeKey);
 
-    const industry = record.industry ? guessIndustry(record.industry) : null;
+    const industry = guessIndustry(record.industry || companyType || "");
     const engagementModel = guessEngagementModel(companyType || record.industry || "");
     const opportunityOwnership = "unknown"; // never inferred without explicit evidence, per import rules
 
@@ -271,6 +284,11 @@ async function main() {
           company: importRow.company, name: importRow.name, email: importRow.email, phone: importRow.phone,
           address: importRow.address, industry: importRow.industry, engagement_model: importRow.engagement_model,
           opportunity_ownership: importRow.opportunity_ownership, source: "csv_import",
+          // "cold" is the compatible existing status for a not-yet-approved lead —
+          // there is no separate "Ready for Outreach" enum value. Outreach
+          // approval (outreach_approved_at) is a distinct, human-triggered step
+          // this importer never sets.
+          status: "cold",
           source_url: importRow.source_url, verification_notes: importRow.verification_notes,
         });
         if (error) { results[results.length - 1] = { kind: "validation_failure", reason: `Insert failed: ${error.message}`, raw: record }; }

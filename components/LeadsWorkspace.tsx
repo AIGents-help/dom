@@ -199,6 +199,52 @@ const emptyLeadForm = {
   industry: "", engagement_model: "", opportunity_ownership: "unknown", status: "cold", next_action: "",
 };
 
+function pluralize(n: number, singular: string, plural?: string): string {
+  return `${n} ${n === 1 ? singular : plural ?? `${singular}s`}`;
+}
+
+const DISCLOSURE_ACCENT = {
+  blue: "border-l-blue-500",
+  purple: "border-l-purple-500",
+} as const;
+
+function SectionDisclosure({
+  id,
+  title,
+  accent,
+  open,
+  onToggle,
+}: {
+  id: string;
+  title: string;
+  accent: keyof typeof DISCLOSURE_ACCENT;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      id={`${id}-trigger`}
+      aria-expanded={open}
+      aria-controls={`${id}-panel`}
+      onClick={onToggle}
+      className={`flex w-full items-center justify-between gap-3 rounded-r-lg border-l-2 bg-surface2/40 px-3 py-3 text-left transition hover:bg-surface2 ${DISCLOSURE_ACCENT[accent]}`}
+    >
+      <span className="text-xs font-semibold uppercase tracking-wide text-slate-300">{title}</span>
+      <svg
+        className={`h-4 w-4 flex-shrink-0 text-slate-500 transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+        viewBox="0 0 20 20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        aria-hidden="true"
+      >
+        <path d="M5 7l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </button>
+  );
+}
+
 export default function LeadsWorkspace() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -227,6 +273,17 @@ export default function LeadsWorkspace() {
   const [expandedLead, setExpandedLead] = useState<string | null>(null);
   const [menuLead, setMenuLead] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+
+  // Interaction Log and Contacts/Branches/Related Companies are collapsed by
+  // default and reset every time a (possibly different) lead profile opens —
+  // deliberately not keyed by lead id, since only one lead's detail panel is
+  // ever expanded at a time.
+  const [interactionLogOpen, setInteractionLogOpen] = useState(false);
+  const [contactsOpen, setContactsOpen] = useState(false);
+  useEffect(() => {
+    setInteractionLogOpen(false);
+    setContactsOpen(false);
+  }, [expandedLead]);
 
   const [showAddLead, setShowAddLead] = useState(false);
   const [showMoreFields, setShowMoreFields] = useState(false);
@@ -755,6 +812,15 @@ export default function LeadsWorkspace() {
   const today = new Date().toISOString().slice(0, 10);
   const anyFilterActive = !!(filterTier || filterVertical || filterStatus || filterIndustry || filterEngagement || filterOwnership || search);
 
+  // Deliberately not built on `inputCls` (which is `w-full`) — the filter
+  // bar needs compact, independently-sized controls on one row, and mixing
+  // a `w-full` base with width overrides here is what caused each control
+  // to render at full container width and stack one-per-row.
+  const filterInputCls =
+    "min-w-[150px] flex-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-white placeholder:text-slate-500 focus:border-accent/60 focus:outline-none sm:w-52 sm:flex-none lg:w-56";
+  const filterSelectCls =
+    "min-w-[110px] flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-white focus:border-accent/60 focus:outline-none sm:w-32 sm:flex-none lg:w-32";
+
   return (
     <div className="card p-6 lg:p-8">
       <Section
@@ -879,27 +945,28 @@ export default function LeadsWorkspace() {
           </div>
         )}
 
-        {/* Filter bar */}
-        <div className="mb-4 flex flex-wrap items-center gap-3">
+        {/* Filter bar — one compact row on desktop/laptop (lg:flex-nowrap),
+            wraps cleanly on tablet, stacks compactly on mobile. */}
+        <div className="mb-2 flex flex-wrap items-center gap-2 lg:flex-nowrap">
           <input
-            className={inputCls + " w-auto min-w-[160px]"}
+            className={filterInputCls}
             placeholder="Search company, contact, email…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <select className={inputCls + " w-auto"} value={filterIndustry} onChange={(e) => setFilterIndustry(e.target.value)}>
+          <select className={filterSelectCls} value={filterIndustry} onChange={(e) => setFilterIndustry(e.target.value)}>
             <option value="">All industries</option>
             {INDUSTRY_OPTIONS.map((i) => <option key={i.value} value={i.value}>{i.label}</option>)}
           </select>
-          <select className={inputCls + " w-auto"} value={filterEngagement} onChange={(e) => setFilterEngagement(e.target.value)}>
+          <select className={filterSelectCls} value={filterEngagement} onChange={(e) => setFilterEngagement(e.target.value)}>
             <option value="">All engagement models</option>
             {ENGAGEMENT_MODEL_OPTIONS.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
           </select>
-          <select className={inputCls + " w-auto"} value={filterOwnership} onChange={(e) => setFilterOwnership(e.target.value)}>
+          <select className={filterSelectCls} value={filterOwnership} onChange={(e) => setFilterOwnership(e.target.value)}>
             <option value="">All ownership</option>
             {OWNERSHIP_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
-          <select className={inputCls + " w-auto"} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+          <select className={filterSelectCls} value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">All statuses</option>
             {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
@@ -911,7 +978,10 @@ export default function LeadsWorkspace() {
               Clear filters
             </button>
           )}
-          <span className="mx-1 h-4 w-px bg-border" />
+        </div>
+
+        {/* Sort by — compact row directly below the filters */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500">Sort by</span>
           <div className="flex overflow-hidden rounded-lg border border-border">
             {(["company", "name"] as const).map((key) => (
@@ -1244,10 +1314,23 @@ export default function LeadsWorkspace() {
                   </div>
 
                   <div className="border-t border-border p-4">
-                    <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Interaction Log</p>
                     {(() => {
                       const leadActivities = activities.filter((a) => a.lead_id === l.id);
-                      return leadActivities.length === 0 ? (
+                      return (
+                      <SectionDisclosure
+                        id={`interaction-log-${l.id}`}
+                        title={`Interaction Log (${leadActivities.length})`}
+                        accent="blue"
+                        open={interactionLogOpen}
+                        onToggle={() => setInteractionLogOpen((o) => !o)}
+                      />
+                      );
+                    })()}
+                    {interactionLogOpen && (() => {
+                      const leadActivities = activities.filter((a) => a.lead_id === l.id);
+                      return (
+                    <div id={`interaction-log-${l.id}-panel`} role="region" aria-labelledby={`interaction-log-${l.id}-trigger`} className="pt-3">
+                    {leadActivities.length === 0 ? (
                         <p className="mb-3 text-xs text-slate-500">No interactions logged yet.</p>
                       ) : (
                         <div className="mb-3 overflow-x-auto">
@@ -1278,6 +1361,8 @@ export default function LeadsWorkspace() {
                             </tbody>
                           </table>
                         </div>
+                      )}
+                    </div>
                       );
                     })()}
 

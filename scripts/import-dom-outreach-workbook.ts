@@ -191,7 +191,7 @@ async function main() {
         const { error } = await supabase.from("leads").insert({
           company: importRow.company, name: importRow.name, email: importRow.email, phone: importRow.phone,
           address: importRow.address, industry: importRow.industry, engagement_model: importRow.engagement_model,
-          opportunity_ownership: importRow.opportunity_ownership, source: importRow.source, status: "cold",
+          opportunity_ownership: importRow.opportunity_ownership, source: importRow.source, status: "new",
           source_url: importRow.source_url, verification_notes: importRow.verification_notes,
           next_action: importRow.next_action,
         });

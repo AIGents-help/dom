@@ -1,46 +1,36 @@
--- Remaps `leads.status` from the original 7-value CRM vocabulary to the new
--- 13-stage sales pipeline, then locks the column down with a CHECK constraint.
+-- Adds the 10 new pipeline-stage labels to the `lead_status` Postgres enum
+-- type. `leads.status` is a real enum (confirmed by live introspection —
+-- the original version of this migration incorrectly assumed a plain `text`
+-- column with a CHECK constraint; that assumption was wrong and this file
+-- replaces it).
 --
--- This is the one migration in this batch that rewrites existing data rather
--- than only adding nullable columns — reviewed and isolated on purpose so it
--- can be applied (or held back) independently of the purely additive files
--- that follow it.
+-- Deliberately does NOT touch any row's data — see the follow-up migration
+-- (20260803004850_leads_status_data_remap.sql) for the UPDATE statements
+-- that move existing rows onto the new labels. Postgres cannot use a newly
+-- added enum value in the same transaction that added it, so the
+-- value-adding step and the data-remapping step must be two separate,
+-- sequentially-committed migrations — this file is the first of the two.
 --
 -- Safety notes:
--- * The UPDATE below only touches rows whose status is EXACTLY one of the 7
---   known legacy values. It is idempotent: after the first run, no row will
---   match any legacy value again, so re-running this file is a safe no-op
---   for the UPDATE (the CHECK constraint below is not re-runnable, matching
---   this repo's existing migration convention of plain `add constraint`).
--- * No row is deleted. No column is dropped. Every row keeps its identity;
---   only the `status` string on rows with a legacy value is rewritten to its
---   documented new-pipeline equivalent below.
--- * If a row somehow already has a value outside both the legacy list and the
---   new 13-value list (shouldn't happen — `status` has never had a DB
---   constraint until this migration), the UPDATE leaves it untouched and the
---   CHECK constraint addition below will fail loudly rather than silently
---   coercing unknown data — surface it for manual review instead of guessing.
---
--- Legacy -> new mapping (reviewed with the app owner before being applied):
---   cold       -> new
---   contacted  -> contacted
---   qualified  -> qualified
---   quoted     -> proposal
---   scheduled  -> outreach_scheduled
---   customer   -> won
---   lost       -> lost
+-- * `ADD VALUE IF NOT EXISTS` is idempotent — re-running this file is a
+--   no-op the second time.
+-- * No existing enum label is touched or removed. `cold`, `quoted`,
+--   `scheduled`, `customer` (the 3 legacy labels not already reused by the
+--   new vocabulary) remain valid members of the type — Postgres enums
+--   cannot have values removed without a full type rebuild, which is out of
+--   scope here (see the follow-up migration's header for why that's an
+--   acceptable, deliberate tradeoff).
+-- * `contacted`, `qualified`, and `lost` already exist in the enum with the
+--   exact spelling the new vocabulary also uses, so they need no ADD VALUE
+--   here and no remapping in the follow-up migration.
 
-update public.leads set status = 'new'                where status = 'cold';
-update public.leads set status = 'proposal'            where status = 'quoted';
-update public.leads set status = 'outreach_scheduled'  where status = 'scheduled';
-update public.leads set status = 'won'                 where status = 'customer';
--- contacted and lost already match their new-vocabulary spelling; no rewrite needed.
-
-alter table public.leads
-  add constraint leads_status_check check (
-    status in (
-      'new', 'researching', 'ready_for_outreach', 'outreach_scheduled',
-      'contacted', 'needs_response', 'follow_up', 'qualified', 'proposal',
-      'won', 'no_response', 'lost', 'do_not_contact'
-    )
-  );
+alter type public.lead_status add value if not exists 'new';
+alter type public.lead_status add value if not exists 'researching';
+alter type public.lead_status add value if not exists 'ready_for_outreach';
+alter type public.lead_status add value if not exists 'outreach_scheduled';
+alter type public.lead_status add value if not exists 'needs_response';
+alter type public.lead_status add value if not exists 'follow_up';
+alter type public.lead_status add value if not exists 'proposal';
+alter type public.lead_status add value if not exists 'won';
+alter type public.lead_status add value if not exists 'no_response';
+alter type public.lead_status add value if not exists 'do_not_contact';

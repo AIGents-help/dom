@@ -284,11 +284,11 @@ async function main() {
           company: importRow.company, name: importRow.name, email: importRow.email, phone: importRow.phone,
           address: importRow.address, industry: importRow.industry, engagement_model: importRow.engagement_model,
           opportunity_ownership: importRow.opportunity_ownership, source: "csv_import",
-          // "cold" is the compatible existing status for a not-yet-approved lead —
-          // there is no separate "Ready for Outreach" enum value. Outreach
-          // approval (outreach_approved_at) is a distinct, human-triggered step
-          // this importer never sets.
-          status: "cold",
+          // "new" is the pipeline stage for a not-yet-approved lead (see
+          // lib/leadsPipeline.ts STATUS_OPTIONS). Outreach approval
+          // (outreach_approved_at) is a distinct, human-triggered step this
+          // importer never sets.
+          status: "new",
           source_url: importRow.source_url, verification_notes: importRow.verification_notes,
         });
         if (error) { results[results.length - 1] = { kind: "validation_failure", reason: `Insert failed: ${error.message}`, raw: record }; }

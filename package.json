@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run",
     "import:leads": "tsx scripts/import-dom-leads.ts"
   },
   "dependencies": {
@@ -35,6 +36,7 @@
     "tailwindcss": "^3.4.13",
     "tsx": "^4.23.1",
     "typescript": "^5.6.3",
+    "vitest": "^4.1.10",
     "xlsx": "^0.18.5"
   }
 }

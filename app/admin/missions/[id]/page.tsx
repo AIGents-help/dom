@@ -101,7 +101,11 @@ interface Deliverable {
   delivered_at: string | null;
 }
 
-const DELIVERABLE_TYPES = ["orthomosaic", "3d_model", "point_cloud", "report", "raw_images", "video", "other"];
+// dsm, dtm, and processing_report added for the DOM Mapper module — the
+// worker (services/mapper-worker) registers deliverables using these types.
+// deliverables.type has no DB constraint (verified live), so this app-level
+// list is the only place this vocabulary is defined.
+const DELIVERABLE_TYPES = ["orthomosaic", "3d_model", "dsm", "dtm", "point_cloud", "processing_report", "report", "raw_images", "video", "other"];
 
 export default function MissionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);

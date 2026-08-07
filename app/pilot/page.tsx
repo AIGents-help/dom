@@ -13,6 +13,7 @@ import PilotQueue from "@/components/PilotQueue";
 import VerificationDeadlineBanner from "@/components/VerificationDeadlineBanner";
 import SopViewer from "@/components/SopViewer";
 import { sopMarkdownToHtml } from "@/lib/sopMarkdown";
+import MappingTab from "@/components/mapper/MappingTab";
 
 interface Profile {
   id: string; full_name: string; email: string; phone: string | null; status: string;
@@ -420,6 +421,8 @@ export default function PilotDashboard() {
       {tab === "queue" && accessToken && (
         <PilotQueue accessToken={accessToken} myClaims={myClaims} onClaimed={load} />
       )}
+
+      {tab === "mapping" && accessToken && <MappingTab accessToken={accessToken} />}
 
       {tab === "sops" && (
         <div style={{ display: "grid", gap: 10 }}>

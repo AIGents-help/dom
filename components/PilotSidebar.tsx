@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 
 const V = { surface: "#11161F", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D" };
 
-export type PilotTab = "missions" | "queue" | "create" | "publicprofile" | "resources" | "sops" | "payouts" | "profile";
+export type PilotTab = "missions" | "queue" | "create" | "mapping" | "publicprofile" | "resources" | "sops" | "payouts" | "profile";
 
 // The open Mission Queue is built but stays dark (hidden from nav) until
 // escrow ships in a later PR — an open claim queue without payment
@@ -18,10 +18,18 @@ export type PilotTab = "missions" | "queue" | "create" | "publicprofile" | "reso
 // turn it on; no redeploy of logic needed.
 const QUEUE_ENABLED = process.env.NEXT_PUBLIC_MISSION_QUEUE_ENABLED === "true";
 
+// DOM Mapper — same "ship dark, flip flag" pattern as the Queue tab above.
+// The processing worker (services/mapper-worker) needs to actually be
+// running against a real NodeODM instance before this is useful to pilots;
+// until then it stays out of the nav. Flip NEXT_PUBLIC_MAPPER_ENABLED=true
+// once that's set up.
+const MAPPER_ENABLED = process.env.NEXT_PUBLIC_MAPPER_ENABLED === "true";
+
 const ITEMS: { id: PilotTab; label: string; icon: string }[] = [
   { id: "missions", label: "Missions", icon: "▤" },
   ...(QUEUE_ENABLED ? [{ id: "queue" as PilotTab, label: "Queue", icon: "◫" }] : []),
   { id: "create", label: "Create Mission", icon: "✎" },
+  ...(MAPPER_ENABLED ? [{ id: "mapping" as PilotTab, label: "Mapping", icon: "▦" }] : []),
   { id: "publicprofile", label: "Public Profile", icon: "◈" },
   { id: "resources", label: "Resources", icon: "⬡" },
   { id: "sops", label: "SOPs", icon: "☰" },

@@ -103,6 +103,17 @@ export type ProcessingJobStatus = (typeof PROCESSING_JOB_STATUS_OPTIONS)[number]
 // any mapper UI reference the same vocabulary instead of drifting.
 export const MAPPER_DELIVERABLE_TYPES = ["orthomosaic", "3d_model", "dsm", "dtm", "point_cloud", "processing_report"] as const;
 
+// mission_assignments.status values that represent "this contractor has (or
+// had) a real, confirmed working relationship to this job" — i.e. anything
+// past the offer stage that wasn't declined/cancelled. A mapping project is
+// just as legitimate to start on a job that's already been flown/delivered
+// (status qc_passed/paid) as on one freshly accepted — found via live
+// testing that restricting this to literally 'accepted' only excluded every
+// job that had actually progressed, which is most of them in practice.
+export const MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES = [
+  "accepted", "in_progress", "submitted", "qc_passed", "qc_rejected", "paid",
+] as const;
+
 // A project can't be re-queued while a job for it is already in flight, and
 // terminal states (completed/failed/cancelled) require an explicit new
 // project rather than silently re-queuing the same one.

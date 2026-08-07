@@ -44,6 +44,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!body?.storage_path || !body?.original_filename) {
     return NextResponse.json({ error: "storage_path and original_filename are required." }, { status: 400 });
   }
+  // storage_path is client-supplied (it's the path the upload-url route
+  // issued earlier) — verify it's actually within THIS project's folder
+  // before trusting it. Without this, a caller could reference a real
+  // object path belonging to a different project/contractor and have the
+  // worker (service-role, bypasses Storage RLS) download and process it as
+  // if it were their own imagery.
+  if (typeof body.storage_path !== "string" || !body.storage_path.startsWith(`${project.id}/`)) {
+    return NextResponse.json({ error: "storage_path does not belong to this project." }, { status: 403 });
+  }
 
   const fileSize = typeof body.file_size === "number" ? body.file_size : null;
 

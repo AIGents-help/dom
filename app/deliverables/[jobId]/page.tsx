@@ -71,8 +71,8 @@ export default async function DeliverablesPage({ params }: Props) {
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {withSignedUrls.map((d) => (
               <div key={d.id} className="card p-6">
-                <p className="text-sm text-slate-500">{(d.type ?? "").replace(/_/g, " ")}</p>
-                <h3 className="mt-1 text-lg font-semibold text-white">{d.name}</h3>
+                <p className="text-sm text-muted">{(d.type ?? "").replace(/_/g, " ")}</p>
+                <h3 className="mt-1 text-lg font-semibold text-ink">{d.name}</h3>
                 {d.signedUrl ? (
                   <a href={d.signedUrl} className="btn-primary mt-4 inline-flex">
                     Download →

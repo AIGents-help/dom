@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { V } from "@/lib/theme";
 
 // Pilot > Public Profile tab — lets an approved pilot build a public,
 // client-facing portfolio page at /pilots/[slug]. Drafting (bio, photo,
@@ -14,7 +15,6 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 // public "pilot-media" Storage bucket under {user_id}/... , matching the
 // storage.objects RLS policy that scopes writes to the caller's own folder.
 
-const V = { ground: "#0A0E14", surface: "#11161F", raised: "#161D29", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D", telemetry: "#4FD1C5" };
 const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
 const inputStyle: React.CSSProperties = { width: "100%", marginTop: 6, padding: "10px 12px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.ground, color: V.ink, fontSize: 14, outline: "none" };
 const labelStyle: React.CSSProperties = { fontSize: 11, color: V.inkFaint, letterSpacing: ".1em", textTransform: "uppercase" };
@@ -180,8 +180,8 @@ export default function PilotPublicProfileEditor({
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {error && (
-        <div style={{ ...panelStyle, borderColor: "#FF8A3D" }}>
-          <p style={{ color: "#FF8A3D", fontSize: 13 }}>{error}</p>
+        <div style={{ ...panelStyle, borderColor: "#DC2626" }}>
+          <p style={{ color: "#DC2626", fontSize: 13 }}>{error}</p>
         </div>
       )}
 
@@ -297,7 +297,7 @@ export default function PilotPublicProfileEditor({
                 <img src={img.image_url} alt={img.caption ?? ""} style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 8 }} />
                 <button
                   onClick={() => deletePortfolioImage(img.id)}
-                  style={{ position: "absolute", top: 4, right: 4, background: "rgba(10,14,20,.8)", border: "none", color: V.ink, borderRadius: 6, width: 22, height: 22, cursor: "pointer", fontSize: 12 }}
+                  style={{ position: "absolute", top: 4, right: 4, background: "rgba(245,247,250,.8)", border: "none", color: V.ink, borderRadius: 6, width: 22, height: 22, cursor: "pointer", fontSize: 12 }}
                 >
                   ×
                 </button>

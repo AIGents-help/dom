@@ -9,7 +9,8 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 // (that page renders its own centered full-screen form). Collapsed state
 // persists in localStorage so it doesn't reset on every navigation.
 
-const V = { surface: "#11161F", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D" };
+// Navy nav shell with light text + blue active state (DOM light theme).
+const V = { surface: "#172033", line: "rgba(255,255,255,0.08)", ink: "#FFFFFF", inkDim: "#AEB7C4", inkFaint: "#8A95A7", signal: "#FFFFFF" };
 
 const NAV = [
   { href: "/admin/dashboard", label: "Dashboard", icon: "◧" },
@@ -85,7 +86,7 @@ export default function AdminSidebar() {
               style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8,
                 textDecoration: "none", color: active ? V.signal : V.inkDim,
-                background: active ? "rgba(255,138,61,.10)" : "transparent",
+                background: active ? "rgba(37,99,235,.22)" : "transparent",
                 fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13,
                 justifyContent: collapsed ? "center" : "flex-start",
               }}

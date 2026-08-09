@@ -109,15 +109,15 @@ export default function FlyForDomApplyForm() {
 
       {!alreadyCertified && (
         <div style={{ marginTop: 14 }}>
-          <label style={{ fontSize: 12, color: "#8A95A7" }}>When do you expect to pass your Part 107 exam?</label>
+          <label style={{ fontSize: 12, color: "#5F6B7A" }}>When do you expect to pass your Part 107 exam?</label>
           <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
             {(Object.keys(CERT_TIMELINE_CONFIG) as CertTimelineBucket[]).map((bucket) => (
               <label
                 key={bucket}
                 style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 9,
-                  border: `1px solid ${certTimelineBucket === bucket ? "#FF8A3D" : "#232C3B"}`,
-                  background: certTimelineBucket === bucket ? "rgba(255,138,61,.08)" : "#0A0E14",
+                  border: `1px solid ${certTimelineBucket === bucket ? "#2563EB" : "#D9E0E8"}`,
+                  background: certTimelineBucket === bucket ? "rgba(37,99,235,.08)" : "#F5F7FA",
                   fontSize: 13, cursor: "pointer",
                 }}
               >
@@ -133,7 +133,7 @@ export default function FlyForDomApplyForm() {
           </div>
           {certTimelineBucket === "has_test_date" && (
             <div style={{ marginTop: 10 }}>
-              <label style={{ fontSize: 12, color: "#8A95A7" }}>Test date</label>
+              <label style={{ fontSize: 12, color: "#5F6B7A" }}>Test date</label>
               <input type="date" value={part107TestDate} onChange={(e) => setPart107TestDate(e.target.value)} style={input} />
             </div>
           )}
@@ -143,12 +143,12 @@ export default function FlyForDomApplyForm() {
       <Field label="Service area (city / radius)" v={form.service_area} on={(v) => set("service_area", v)} />
       <Field label="Aircraft & sensors you own" v={form.equipment} on={(v) => set("equipment", v)} />
 
-      {error && <p style={{ color: "#FF8A3D", fontSize: 13, marginTop: 12 }}>{error}</p>}
+      {error && <p style={{ color: "#DC2626", fontSize: 13, marginTop: 12 }}>{error}</p>}
 
       <button onClick={submit} disabled={status === "submitting"} style={btn}>
         {status === "submitting" ? "Setting up…" : alreadyCertified ? "Apply & set up payouts →" : "Start studying →"}
       </button>
-      <p style={{ color: "#5A6678", fontSize: 12, marginTop: 14 }}>
+      <p style={{ color: "#8A95A7", fontSize: 12, marginTop: 14 }}>
         {alreadyCertified
           ? "Payout setup is handled securely by Stripe. DOM verifies Part 107 and insurance before any paid assignment."
           : "No certificate needed to sign up — we'll email you before your free access window closes."}
@@ -160,15 +160,15 @@ export default function FlyForDomApplyForm() {
 function Field({ label, v, on, type = "text" }: { label: string; v: string; on: (v: string) => void; type?: string }) {
   return (
     <div style={{ marginTop: 14 }}>
-      <label style={{ fontSize: 12, color: "#8A95A7" }}>{label}</label>
+      <label style={{ fontSize: 12, color: "#5F6B7A" }}>{label}</label>
       <input type={type} value={v} onChange={(e) => on(e.target.value)} style={input} />
     </div>
   );
 }
 
-const card: React.CSSProperties = { width: "100%", maxWidth: 460, margin: "0 auto", padding: 34, border: "1px solid #232C3B", borderRadius: 16, background: "#11161F", color: "#E8ECF2" };
-const eyebrow: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 12, letterSpacing: ".18em", textTransform: "uppercase", color: "#FF8A3D" };
+const card: React.CSSProperties = { width: "100%", maxWidth: 460, margin: "0 auto", padding: 34, border: "1px solid #D9E0E8", borderRadius: 16, background: "#FFFFFF", color: "#172033" };
+const eyebrow: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 12, letterSpacing: ".18em", textTransform: "uppercase", color: "#2563EB" };
 const h2: React.CSSProperties = { fontFamily: "Saira, sans-serif", fontSize: 24, fontWeight: 700, marginTop: 10, lineHeight: 1.1 };
-const sub: React.CSSProperties = { color: "#8A95A7", fontSize: 14, marginTop: 12, marginBottom: 8 };
-const input: React.CSSProperties = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 9, border: "1px solid #232C3B", background: "#0A0E14", color: "#E8ECF2", fontSize: 14, outline: "none" };
-const btn: React.CSSProperties = { width: "100%", marginTop: 22, padding: 13, borderRadius: 10, border: "none", background: "#FF8A3D", color: "#0A0E14", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };
+const sub: React.CSSProperties = { color: "#5F6B7A", fontSize: 14, marginTop: 12, marginBottom: 8 };
+const input: React.CSSProperties = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 9, border: "1px solid #D9E0E8", background: "#FFFFFF", color: "#172033", fontSize: 14, outline: "none" };
+const btn: React.CSSProperties = { width: "100%", marginTop: 22, padding: 13, borderRadius: 10, border: "none", background: "#2563EB", color: "#FFFFFF", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };

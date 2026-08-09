@@ -53,7 +53,7 @@ export default function FaaCompliancePage() {
             {standards.map((s) => (
               <div key={s.title} className="card p-8">
                 <s.icon className="mb-4 h-7 w-7 text-accent" />
-                <h3 className="mb-2 text-lg font-semibold text-white">{s.title}</h3>
+                <h3 className="mb-2 text-lg font-semibold text-ink">{s.title}</h3>
                 <p className="body-muted">{s.desc}</p>
               </div>
             ))}
@@ -72,7 +72,7 @@ export default function FaaCompliancePage() {
             </p>
             <ul className="space-y-3">
               {waivers.map((w) => (
-                <li key={w} className="flex gap-3 text-sm text-slate-300">
+                <li key={w} className="flex gap-3 text-sm text-ink">
                   <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-accent" /> {w}
                 </li>
               ))}
@@ -80,7 +80,7 @@ export default function FaaCompliancePage() {
           </div>
           <div className="card flex flex-col gap-4 p-8">
             <AlertTriangle className="h-7 w-7 text-accent" />
-            <h3 className="text-lg font-semibold text-white">Documentation on every mission</h3>
+            <h3 className="text-lg font-semibold text-ink">Documentation on every mission</h3>
             <p className="body-muted">
               Clients receive a compliance package with each completed mission, including flight
               logs, airspace authorization records, pilot certification confirmation, and

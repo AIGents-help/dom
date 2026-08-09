@@ -30,24 +30,24 @@ export default function GetAQuotePage() {
           <aside className="space-y-6">
             <div className="card p-6">
               <ShieldCheck className="mb-3 h-6 w-6 text-accent" />
-              <h3 className="mb-1 text-sm font-semibold text-white">Real Airspace Data</h3>
-              <p className="text-sm text-slate-400">
+              <h3 className="mb-1 text-sm font-semibold text-ink">Real Airspace Data</h3>
+              <p className="text-sm text-muted">
                 Every quote starts with an automatic FAA airspace classification for your
                 exact site.
               </p>
             </div>
             <div className="card p-6">
               <Clock className="mb-3 h-6 w-6 text-accent" />
-              <h3 className="mb-1 text-sm font-semibold text-white">Instant Estimate</h3>
-              <p className="text-sm text-slate-400">
+              <h3 className="mb-1 text-sm font-semibold text-ink">Instant Estimate</h3>
+              <p className="text-sm text-muted">
                 See pricing immediately based on scope, complexity, and timeline — no waiting
                 for a callback.
               </p>
             </div>
             <div className="card p-6">
               <FileCheck className="mb-3 h-6 w-6 text-accent" />
-              <h3 className="mb-1 text-sm font-semibold text-white">Confirmed by Ops</h3>
-              <p className="text-sm text-slate-400">
+              <h3 className="mb-1 text-sm font-semibold text-ink">Confirmed by Ops</h3>
+              <p className="text-sm text-muted">
                 Our operations team reviews every request and follows up within one business
                 day before scheduling.
               </p>

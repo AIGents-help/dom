@@ -85,10 +85,10 @@ export default async function PilotProfilePage({ params }: Props) {
                 <span className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">✓ Part 107 Certified</span>
                 <span className="rounded-full border border-accent/40 bg-accent/10 px-3 py-1 text-xs font-semibold text-accent">✓ Insured</span>
                 {pilot.service_area && (
-                  <span className="rounded-full border border-border px-3 py-1 text-xs text-slate-300">{pilot.service_area}</span>
+                  <span className="rounded-full border border-border px-3 py-1 text-xs text-ink">{pilot.service_area}</span>
                 )}
                 {pilot.rating != null && (
-                  <span className="rounded-full border border-border px-3 py-1 text-xs text-slate-300">{pilot.rating}/5.0</span>
+                  <span className="rounded-full border border-border px-3 py-1 text-xs text-ink">{pilot.rating}/5.0</span>
                 )}
               </div>
             </div>
@@ -102,7 +102,7 @@ export default async function PilotProfilePage({ params }: Props) {
             {pilot.bio && <p className="body-muted whitespace-pre-line text-lg">{pilot.bio}</p>}
             {pilot.equipment && (
               <p className="body-muted mt-4">
-                <span className="font-semibold text-white">Equipment: </span>
+                <span className="font-semibold text-ink">Equipment: </span>
                 {pilot.equipment}
               </p>
             )}

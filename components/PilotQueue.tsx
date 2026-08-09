@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { V } from "@/lib/theme";
 
 // Pilot > Queue — the open mission marketplace. Combines /api/pilot/queue
 // (approved, unclaimed missions anyone verified can request) with the
@@ -11,9 +12,8 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 // is the same redacted set the API returns — no contact info, no raw
 // address, ever, until admin actually assigns it.
 
-const V = { surface: "#11161F", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D", telemetry: "#4FD1C5" };
 const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
-const btnPrimary: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: "none", background: V.signal, color: "#0A0E14", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
+const btnPrimary: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: "none", background: V.signal, color: "#F5F7FA", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 
 interface QueueArea { lat_grid: number; lng_grid: number }
 interface QueueItem {
@@ -110,7 +110,7 @@ export default function PilotQueue({
               style={{
                 fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase",
                 border: `1px solid ${sortKey === k ? V.signal : V.line}`,
-                background: sortKey === k ? "rgba(255,138,61,.12)" : "transparent",
+                background: sortKey === k ? "rgba(37,99,235,.12)" : "transparent",
                 color: sortKey === k ? V.signal : V.inkFaint,
               }}
             >
@@ -120,7 +120,7 @@ export default function PilotQueue({
         </div>
       </div>
 
-      {error && <p style={{ color: V.signal, fontSize: 13, marginBottom: 12 }}>{error}</p>}
+      {error && <p style={{ color: V.danger, fontSize: 13, marginBottom: 12 }}>{error}</p>}
       {loading && <p style={{ color: V.inkDim }}>Loading queue…</p>}
       {!loading && sorted.length === 0 && (
         <div style={{ ...panelStyle, textAlign: "center", padding: 40 }}>
@@ -148,7 +148,7 @@ export default function PilotQueue({
                   </div>
                 )}
                 {m.mine ? (
-                  <span className="font-mono-ibm" style={{ fontSize: 10, padding: "4px 9px", borderRadius: 20, background: "rgba(255,138,61,.12)", color: V.signal, letterSpacing: ".06em", textTransform: "uppercase", display: "inline-block", marginTop: 8 }}>
+                  <span className="font-mono-ibm" style={{ fontSize: 10, padding: "4px 9px", borderRadius: 20, background: "rgba(229,112,31,.12)", color: V.warn, letterSpacing: ".06em", textTransform: "uppercase", display: "inline-block", marginTop: 8 }}>
                     Awaiting review
                   </span>
                 ) : (

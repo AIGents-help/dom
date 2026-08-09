@@ -150,7 +150,7 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
   return (
     <div>
       <h2 className="heading-lg mb-4 text-2xl">{title}</h2>
-      <div className="body-muted space-y-3 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-6 [&_strong]:text-white">
+      <div className="body-muted space-y-3 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-6 [&_strong]:text-ink">
         {children}
       </div>
     </div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { V } from "@/lib/theme";
 
 export default function PilotLoginPage() {
   const router = useRouter();
@@ -68,7 +69,7 @@ export default function PilotLoginPage() {
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleLogin()} style={inputStyle} />
 
-        {error && <p style={{ color: V.signal, fontSize: 13, marginTop: 12 }}>{error}</p>}
+        {error && <p style={{ color: V.danger, fontSize: 13, marginTop: 12 }}>{error}</p>}
 
         <button onClick={handleLogin} disabled={loading} style={btnPrimary}>
           {loading ? "Signing in…" : "Sign in"}
@@ -84,6 +85,5 @@ export default function PilotLoginPage() {
   );
 }
 
-const V = { ground: "#0A0E14", surface: "#11161F", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D" };
 const inputStyle: React.CSSProperties = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 9, border: `1px solid ${V.line}`, background: V.ground, color: V.ink, fontSize: 14, outline: "none" };
 const btnPrimary: React.CSSProperties = { width: "100%", marginTop: 20, padding: 12, borderRadius: 9, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };

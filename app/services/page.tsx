@@ -82,9 +82,9 @@ export default function ServicesPage() {
           {services.map((s) => (
             <div key={s.name} className="card p-8">
               <s.icon className="mb-5 h-8 w-8 text-accent" />
-              <h2 className="mb-3 text-xl font-semibold text-white">{s.name}</h2>
+              <h2 className="mb-3 text-xl font-semibold text-ink">{s.name}</h2>
               <p className="body-muted mb-5">{s.desc}</p>
-              <ul className="space-y-2 text-sm text-slate-300">
+              <ul className="space-y-2 text-sm text-ink">
                 {s.items.map((i) => (
                   <li key={i} className="flex gap-2">
                     <span className="text-accent">—</span> {i}

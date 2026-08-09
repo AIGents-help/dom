@@ -52,6 +52,9 @@ export default function LeadCard({
 }) {
   const { lead, openNextAction } = ctx;
   const status = normalizeStatus(lead.status);
+  // Companies that already provide drone/UAS services are flagged in Supabase
+  // with relationship_type = 'drone_provider' and get a pale yellow card.
+  const isDroneProvider = lead.relationship_type === "drone_provider";
   const restricted = isDjiRestricted(lead);
   const score = scoreLead(ctx);
   const outreachSummary = smartleadSummary(ctx);
@@ -61,11 +64,11 @@ export default function LeadCard({
   const enrollGuard = canEnrollInOutreach(lead, ctx.smartlead);
 
   return (
-    <div className="rounded-lg border border-border bg-surface2 p-4">
+    <div className={`rounded-lg border border-border p-4 ${isDroneProvider ? "bg-[#FFF4C2]" : "bg-surface"}`}>
       <div className="flex flex-wrap items-start gap-3">
         <button onClick={() => onOpen()} className="min-w-[180px] flex-1 text-left">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-white">{lead.company ?? lead.name ?? "Unnamed"}</span>
+            <span className="text-sm font-semibold text-ink">{lead.company ?? lead.name ?? "Unnamed"}</span>
             {restricted && (
               <span className="inline-flex items-center rounded-full border border-rose-500 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-medium text-rose-400">
                 DJI Restricted
@@ -78,19 +81,19 @@ export default function LeadCard({
         <div className="grid flex-[2] grid-cols-2 gap-2 text-xs sm:grid-cols-4 min-w-[260px]">
           <div>
             <div className="text-[10px] uppercase tracking-wide text-slate-600">Industry</div>
-            <div className="text-slate-300">{lead.industry ? INDUSTRY_LABELS[lead.industry] ?? lead.industry : "—"}</div>
+            <div className="text-ink">{lead.industry ? INDUSTRY_LABELS[lead.industry] ?? lead.industry : "—"}</div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wide text-slate-600">Service opportunity</div>
-            <div className="truncate text-slate-300" title={lead.service_opportunity ?? ""}>{lead.service_opportunity || "—"}</div>
+            <div className="truncate text-ink" title={lead.service_opportunity ?? ""}>{lead.service_opportunity || "—"}</div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wide text-slate-600">Location</div>
-            <div className="truncate text-slate-300" title={location ?? ""}>{location || "—"}</div>
+            <div className="truncate text-ink" title={location ?? ""}>{location || "—"}</div>
           </div>
           <div>
             <div className="text-[10px] uppercase tracking-wide text-slate-600">Est. value</div>
-            <div className="text-slate-300">
+            <div className="text-ink">
               {lead.total_project_value ? `$${lead.total_project_value.toLocaleString()}` : lead.expected_dom_revenue ? `$${lead.expected_dom_revenue.toLocaleString()}` : "—"}
             </div>
           </div>
@@ -103,7 +106,7 @@ export default function LeadCard({
               value={status}
               disabled={busy}
               onChange={(e) => onStatusChange(e.target.value as StatusValue)}
-              className={`rounded-full border bg-surface px-2 py-1 text-xs font-medium disabled:opacity-50 ${STATUS_OPTIONS.find((s) => s.value === status)?.color ?? "border-border text-slate-300"}`}
+              className={`rounded-full border bg-surface px-2 py-1 text-xs font-medium disabled:opacity-50 ${STATUS_OPTIONS.find((s) => s.value === status)?.color ?? "border-border text-ink"}`}
             >
               {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
@@ -132,7 +135,7 @@ export default function LeadCard({
           <a
             href={lead.email ? `mailto:${lead.email}` : undefined}
             aria-disabled={!lead.email}
-            className={`rounded border border-border px-2 py-1 ${lead.email ? "text-slate-300 hover:text-white hover:border-accent/60" : "cursor-not-allowed text-slate-700"}`}
+            className={`rounded border border-border px-2 py-1 ${lead.email ? "text-ink hover:text-ink hover:border-accent/60" : "cursor-not-allowed text-slate-400"}`}
             onClick={(e) => { if (!lead.email) e.preventDefault(); }}
           >
             Email
@@ -140,22 +143,22 @@ export default function LeadCard({
           <a
             href={lead.phone ? `tel:${lead.phone}` : undefined}
             aria-disabled={!lead.phone}
-            className={`rounded border border-border px-2 py-1 ${lead.phone ? "text-slate-300 hover:text-white hover:border-accent/60" : "cursor-not-allowed text-slate-700"}`}
+            className={`rounded border border-border px-2 py-1 ${lead.phone ? "text-ink hover:text-ink hover:border-accent/60" : "cursor-not-allowed text-slate-400"}`}
             onClick={(e) => { if (!lead.phone) e.preventDefault(); }}
           >
             Call
           </a>
-          <button disabled={busy} className="rounded border border-border px-2 py-1 text-slate-300 hover:text-white hover:border-accent/60 disabled:opacity-50" onClick={() => onOpen("activity")}>
+          <button disabled={busy} className="rounded border border-border px-2 py-1 text-ink hover:text-ink hover:border-accent/60 disabled:opacity-50" onClick={() => onOpen("activity")}>
             Log
           </button>
-          <button disabled={busy} className="rounded border border-border px-2 py-1 text-slate-300 hover:text-white hover:border-accent/60 disabled:opacity-50" onClick={() => onOpen("next_action")}>
+          <button disabled={busy} className="rounded border border-border px-2 py-1 text-ink hover:text-ink hover:border-accent/60 disabled:opacity-50" onClick={() => onOpen("next_action")}>
             Schedule
           </button>
-          <button disabled={busy} className="rounded border border-border px-2 py-1 text-slate-300 hover:text-white hover:border-accent/60 disabled:opacity-50" onClick={onLogContactNow}>
+          <button disabled={busy} className="rounded border border-border px-2 py-1 text-ink hover:text-ink hover:border-accent/60 disabled:opacity-50" onClick={onLogContactNow}>
             Log contact
           </button>
           {!isTerminal && (
-            <button disabled={busy} className="rounded border border-border px-2 py-1 text-slate-300 hover:text-white hover:border-accent/60 disabled:opacity-50" onClick={onApproveForOutreach}>
+            <button disabled={busy} className="rounded border border-border px-2 py-1 text-ink hover:text-ink hover:border-accent/60 disabled:opacity-50" onClick={onApproveForOutreach}>
               Approve outreach
             </button>
           )}
@@ -163,7 +166,7 @@ export default function LeadCard({
             <button
               disabled={busy || !enrollGuard.ok}
               title={enrollGuard.ok ? "Add to a Smartlead campaign" : enrollGuard.reason}
-              className="rounded border border-border px-2 py-1 text-slate-300 hover:text-white hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded border border-border px-2 py-1 text-ink hover:text-ink hover:border-accent/60 disabled:cursor-not-allowed disabled:opacity-40"
               onClick={onAddToSmartlead}
             >
               Add to Smartlead

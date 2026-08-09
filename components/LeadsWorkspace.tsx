@@ -687,7 +687,7 @@ export default function LeadsWorkspace() {
       });
   }, [contexts, activeView, filterOpportunityType, filterDjiOnly, search, filterStatus, filterIndustry, filterEngagement, filterOwnership, sortKey, sortDir, today]);
 
-  if (loading) return <p className="text-slate-400">Loading leads…</p>;
+  if (loading) return <p className="text-muted">Loading leads…</p>;
 
   const anyFilterActive = !!(filterStatus || filterIndustry || filterEngagement || filterOwnership || search || filterOpportunityType || filterDjiOnly);
 
@@ -696,9 +696,9 @@ export default function LeadsWorkspace() {
   // a `w-full` base with width overrides here is what caused each control
   // to render at full container width and stack one-per-row.
   const filterInputCls =
-    "min-w-[150px] flex-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-white placeholder:text-slate-500 focus:border-accent/60 focus:outline-none sm:w-52 sm:flex-none lg:w-56";
+    "min-w-[150px] flex-1 rounded-lg border border-border bg-surface px-3 py-1.5 text-sm text-ink placeholder:text-muted focus:border-accent/60 focus:outline-none sm:w-52 sm:flex-none lg:w-56";
   const filterSelectCls =
-    "min-w-[110px] flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-white focus:border-accent/60 focus:outline-none sm:w-32 sm:flex-none lg:w-32";
+    "min-w-[110px] flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm text-ink focus:border-accent/60 focus:outline-none sm:w-32 sm:flex-none lg:w-32";
 
   const openLead = openLeadId ? leads.find((l) => l.id === openLeadId) ?? null : null;
   const openCtx = openLeadId ? contexts.find((c) => c.lead.id === openLeadId) ?? null : null;
@@ -723,9 +723,9 @@ export default function LeadsWorkspace() {
               <button
                 key={v.key}
                 onClick={() => setActiveView(v.key)}
-                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition ${active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface2 text-slate-400 hover:text-white"}`}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition ${active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface2 text-muted hover:text-ink"}`}
               >
-                {v.label} <span className="text-slate-600">({count})</span>
+                {v.label} <span className="text-muted">({count})</span>
               </button>
             );
           })}
@@ -735,7 +735,7 @@ export default function LeadsWorkspace() {
             DJI saved views, kept (not deleted) as a lighter secondary row so
             they don't crowd the 13 pipeline-stage pills above. */}
         <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-slate-500">Type</span>
+          <span className="text-muted">Type</span>
           <div className="flex overflow-hidden rounded-lg border border-border">
             {([
               { value: "", label: "All" }, { value: "direct", label: "Direct" },
@@ -744,7 +744,7 @@ export default function LeadsWorkspace() {
               <button
                 key={opt.value}
                 onClick={() => setFilterOpportunityType(opt.value)}
-                className={`px-2.5 py-1 font-medium transition ${filterOpportunityType === opt.value ? "bg-accent/10 text-accent" : "bg-surface2 text-slate-400 hover:text-white"}`}
+                className={`px-2.5 py-1 font-medium transition ${filterOpportunityType === opt.value ? "bg-accent/10 text-accent" : "bg-surface2 text-muted hover:text-ink"}`}
               >
                 {opt.label}
               </button>
@@ -752,7 +752,7 @@ export default function LeadsWorkspace() {
           </div>
           <button
             onClick={() => setFilterDjiOnly((v) => !v)}
-            className={`rounded-full border px-3 py-1 font-medium transition ${filterDjiOnly ? "border-rose-500 bg-rose-500/10 text-rose-400" : "border-border bg-surface2 text-slate-400 hover:text-white"}`}
+            className={`rounded-full border px-3 py-1 font-medium transition ${filterDjiOnly ? "border-rose-500 bg-rose-500/10 text-rose-400" : "border-border bg-surface2 text-muted hover:text-ink"}`}
           >
             DJI Restricted only
           </button>
@@ -760,7 +760,7 @@ export default function LeadsWorkspace() {
 
         {showAddLead && (
           <div className="mb-4 rounded-lg border border-border bg-surface2 p-4">
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted">
               Quick Add — company, contact, industry, engagement model, ownership, status, and next action are required.
             </p>
             <DuplicateWarning matches={addLeadDuplicates} />
@@ -810,7 +810,7 @@ export default function LeadsWorkspace() {
                 <div><label className={labelCls}>Address</label><input className={inputCls} value={leadForm.address} onChange={(e) => setLeadForm((f) => ({ ...f, address: e.target.value }))} /></div>
                 <div><label className={labelCls}>Source</label><input className={inputCls} placeholder="phone, referral, website…" value={leadForm.source} onChange={(e) => setLeadForm((f) => ({ ...f, source: e.target.value }))} /></div>
                 <div>
-                  <label className={labelCls}>Vertical <span className="text-slate-600">(legacy)</span></label>
+                  <label className={labelCls}>Vertical <span className="text-muted">(legacy)</span></label>
                   <select className={inputCls} value={leadForm.vertical} onChange={(e) => setLeadForm((f) => ({ ...f, vertical: e.target.value }))}>
                     <option value="">—</option>
                     {VERTICAL_OPTIONS.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
@@ -825,13 +825,13 @@ export default function LeadsWorkspace() {
                 </div>
                 <div><label className={labelCls}>Next follow-up</label><input type="date" className={inputCls} value={leadForm.next_follow_up_at} onChange={(e) => setLeadForm((f) => ({ ...f, next_follow_up_at: e.target.value }))} /></div>
                 <div className="sm:col-span-2 lg:col-span-3">
-                  <label className={labelCls}>Tier <span className="text-slate-600">(a client can require more than one)</span></label>
+                  <label className={labelCls}>Tier <span className="text-muted">(a client can require more than one)</span></label>
                   <div className="flex flex-wrap gap-2">
                     {TIER_OPTIONS.map((t) => {
                       const active = leadForm.tier.includes(t.value);
                       return (
                         <button key={t.value} type="button" onClick={() => setLeadForm((f) => ({ ...f, tier: active ? f.tier.filter((v) => v !== t.value) : [...f.tier, t.value] }))}
-                          className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-slate-400 hover:text-white"}`}>
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${active ? "border-accent bg-accent/10 text-accent" : "border-border bg-surface text-muted hover:text-ink"}`}>
                           {active ? "☑" : "☐"} {t.label}
                         </button>
                       );
@@ -868,7 +868,7 @@ export default function LeadsWorkspace() {
           </select>
           {anyFilterActive && (
             <button
-              className="text-xs text-slate-500 underline"
+              className="text-xs text-muted underline"
               onClick={() => { setSearch(""); setFilterStatus(""); setFilterIndustry(""); setFilterEngagement(""); setFilterOwnership(""); setFilterOpportunityType(""); setFilterDjiOnly(false); }}
             >
               Clear filters
@@ -878,13 +878,13 @@ export default function LeadsWorkspace() {
 
         {/* Sort by — compact row directly below the filters */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500">Sort by</span>
+          <span className="text-xs text-muted">Sort by</span>
           <div className="flex overflow-hidden rounded-lg border border-border">
             {(["company", "name"] as const).map((key) => (
               <button
                 key={key}
                 onClick={() => { if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc")); else { setSortKey(key); setSortDir("asc"); } }}
-                className={`px-3 py-1.5 text-xs font-medium transition ${sortKey === key ? "bg-accent/10 text-accent" : "bg-surface2 text-slate-400 hover:text-white"}`}
+                className={`px-3 py-1.5 text-xs font-medium transition ${sortKey === key ? "bg-accent/10 text-accent" : "bg-surface2 text-muted hover:text-ink"}`}
               >
                 {key === "company" ? "Company" : "Contact"} {sortKey === key ? (sortDir === "asc" ? "↑" : "↓") : ""}
               </button>

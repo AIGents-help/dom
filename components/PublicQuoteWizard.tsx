@@ -210,7 +210,7 @@ export default function PublicQuoteWizard({
     return (
       <div className="card flex flex-col items-center gap-4 p-12 text-center">
         <CheckCircle2 className="h-12 w-12 text-accent" />
-        <h3 className="text-xl font-semibold text-white">Request received</h3>
+        <h3 className="text-xl font-semibold text-ink">Request received</h3>
         <p className="body-muted max-w-md">
           Thanks, {clientName.split(" ")[0] || "there"}. Our operations team will confirm scope
           and compliance, then follow up within one business day to schedule your mission
@@ -247,10 +247,10 @@ export default function PublicQuoteWizard({
 
           {airspace && (
             <div className="rounded-lg border border-border bg-surface2 p-4 text-sm">
-              <p className="mb-2 font-semibold text-white">Airspace: Class {airspace.airspace_class}</p>
+              <p className="mb-2 font-semibold text-ink">Airspace: Class {airspace.airspace_class}</p>
               <p className="body-muted">{airspace.authorization_summary}</p>
               {airspace.nearest_airport && (
-                <p className="mt-2 text-xs text-slate-500">
+                <p className="mt-2 text-xs text-muted">
                   Nearest airport: {airspace.nearest_airport.name} ({airspace.nearest_airport.icao}),{" "}
                   {airspace.nearest_airport.distance_nm} nm {airspace.nearest_airport.bearing}
                 </p>
@@ -324,7 +324,7 @@ export default function PublicQuoteWizard({
       {step === "quote" && quote && (
         <div className="space-y-5">
           <div className="rounded-lg border border-border bg-surface2 p-6">
-            <p className="text-sm text-slate-400">{quote.serviceLabel}</p>
+            <p className="text-sm text-muted">{quote.serviceLabel}</p>
             <p className="mt-1 text-4xl font-bold text-accent">${(quote.totalCents / 100).toFixed(2)}</p>
 
             <div className="mt-4 space-y-1 text-sm">
@@ -345,7 +345,7 @@ export default function PublicQuoteWizard({
             )}
           </div>
 
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted">
             This is an automated estimate based on airspace classification and scope. Final pricing
             is confirmed by our operations team before scheduling.
           </p>
@@ -413,7 +413,7 @@ function StepIndicator({ current }: { current: Step }) {
         <span
           key={s.key}
           className={`rounded-md px-3 py-1 text-xs font-medium ${
-            s.key === current ? "bg-accent/15 text-accent" : "text-slate-500"
+            s.key === current ? "bg-accent/15 text-accent" : "text-muted"
           }`}
         >
           {s.label}
@@ -425,9 +425,9 @@ function StepIndicator({ current }: { current: Step }) {
 
 function ModRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between text-slate-400">
+    <div className="flex justify-between text-muted">
       <span>{label}</span>
-      <span className="text-slate-300">{value}</span>
+      <span className="text-ink">{value}</span>
     </div>
   );
 }

@@ -10,7 +10,7 @@ type ProjectRow = MappingProject & { job: { id: string; title: string; location:
 const STATUS_COLOR: Record<string, string> = Object.fromEntries(
   MAPPING_PROJECT_STATUS_OPTIONS.map((s) => [
     s.value,
-    s.value === "completed" ? "#4FD1C5" : s.value === "failed" ? "#FF5C5C" : s.value === "processing" || s.value === "queued" ? "#FF8A3D" : "#8A95A7",
+    s.value === "completed" ? "#16A34A" : s.value === "failed" ? "#DC2626" : s.value === "processing" || s.value === "queued" ? "#E5701F" : "#5F6B7A",
   ])
 );
 

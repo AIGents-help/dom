@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { V } from "@/lib/theme";
 
 // Admin > Create Mission — the interactive intake wizard.
 // Step 1: Location → auto airspace classification
@@ -195,7 +196,7 @@ export default function CreateMissionPage() {
         <StepIndicator current={step} />
       </div>
 
-      {error && <div style={{ ...panel, borderColor: "#FF8A3D", marginBottom: 18 }}><p style={{ color: "#FF8A3D", fontSize: 14 }}>{error}</p></div>}
+      {error && <div style={{ ...panel, borderColor: "#DC2626", marginBottom: 18 }}><p style={{ color: "#DC2626", fontSize: 14 }}>{error}</p></div>}
 
       {/* ═══ STEP 1: LOCATION ═══ */}
       {step === "location" && (
@@ -339,7 +340,7 @@ export default function CreateMissionPage() {
             </div>
 
             {quote.warnings.length > 0 && (
-              <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "rgba(255,138,61,.08)", border: `1px solid rgba(255,138,61,.25)` }}>
+              <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "rgba(37,99,235,.08)", border: `1px solid rgba(37,99,235,.25)` }}>
                 {quote.warnings.map((w, i) => (
                   <p key={i} style={{ color: V.signal, fontSize: 13 }}>⚠ {w}</p>
                 ))}
@@ -362,7 +363,7 @@ export default function CreateMissionPage() {
 // ── Airspace Panel ──
 function AirspacePanel({ data, compact }: { data: AirspaceData; compact?: boolean }) {
   const cls = data.airspace_class;
-  const riskColors: Record<string, string> = { low: V.telemetry, moderate: V.signal, elevated: "#E5701F", high: "#EF4444" };
+  const riskColors: Record<string, string> = { low: "#16A34A", moderate: "#F59E0B", elevated: "#E5701F", high: "#DC2626" };
   const riskColor = riskColors[data.risk_level] ?? V.inkDim;
 
   return (
@@ -413,7 +414,7 @@ function StepIndicator({ current }: { current: Step }) {
       {steps.map((s) => (
         <span key={s} className="font-mono-ibm" style={{
           fontSize: 11, padding: "4px 10px", borderRadius: 6,
-          background: s === current ? "rgba(255,138,61,.14)" : "transparent",
+          background: s === current ? "rgba(37,99,235,.14)" : "transparent",
           color: s === current ? V.signal : V.inkFaint,
         }}>
           {labels[s]}
@@ -444,13 +445,7 @@ function Input({ label, value, onChange, type = "text" }: { label: string; value
 }
 
 // ── Design tokens ──
-const V = {
-  ground: "#0A0E14", surface: "#11161F", raised: "#161D29",
-  line: "#232C3B", lineSoft: "#1A222F",
-  ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678",
-  signal: "#FF8A3D", telemetry: "#4FD1C5",
-};
 const panel: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 22 };
-const inputStyle: React.CSSProperties = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 9, border: `1px solid ${V.line}`, background: V.ground, color: V.ink, fontSize: 14, outline: "none" };
-const btnPrimary: React.CSSProperties = { padding: "12px 20px", borderRadius: 10, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };
+const inputStyle: React.CSSProperties = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 9, border: `1px solid ${V.line}`, background: "#FFFFFF", color: V.ink, fontSize: 14, outline: "none" };
+const btnPrimary: React.CSSProperties = { padding: "12px 20px", borderRadius: 10, border: "none", background: V.signal, color: "#FFFFFF", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { padding: "12px 20px", borderRadius: 10, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };

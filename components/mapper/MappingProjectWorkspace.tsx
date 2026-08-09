@@ -16,8 +16,8 @@ interface WorkspacePayload {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-  draft: "#8A95A7", uploading: "#4FD1C5", uploaded: "#4FD1C5", queued: "#FF8A3D",
-  processing: "#FF8A3D", completed: "#4FD1C5", failed: "#FF5C5C", cancelled: "#5A6678",
+  draft: "#5F6B7A", uploading: "#16A34A", uploaded: "#16A34A", queued: "#E5701F",
+  processing: "#E5701F", completed: "#16A34A", failed: "#DC2626", cancelled: "#5F6B7A",
 };
 
 export default function MappingProjectWorkspace({

@@ -41,7 +41,7 @@ export default function FlyForDomPage() {
             </a>
             <a
               href="#how-it-works"
-              className="rounded-lg border border-border px-6 py-3 text-sm font-semibold text-white transition hover:border-accent/60"
+              className="rounded-lg border border-border px-6 py-3 text-sm font-semibold text-ink transition hover:border-accent/60"
             >
               See how it works
             </a>
@@ -56,8 +56,8 @@ export default function FlyForDomPage() {
             {steps.map((s) => (
               <div key={s.n} className="card p-6">
                 <p className="mb-3 font-mono text-xs tracking-[.14em] text-accent">{s.n}</p>
-                <h3 className="mb-2 text-base font-semibold text-white">{s.title}</h3>
-                <p className="text-sm text-slate-400">{s.desc}</p>
+                <h3 className="mb-2 text-base font-semibold text-ink">{s.title}</h3>
+                <p className="text-sm text-muted">{s.desc}</p>
               </div>
             ))}
           </div>
@@ -71,16 +71,16 @@ export default function FlyForDomPage() {
             <h2 className="heading-lg mb-3">What you keep</h2>
             <div className="mt-6 space-y-5">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">Standard</p>
-                <p className="mt-1 text-2xl font-bold text-white">80% of every mission</p>
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="text-sm font-semibold uppercase tracking-wide text-muted">Standard</p>
+                <p className="mt-1 text-2xl font-bold text-ink">80% of every mission</p>
+                <p className="mt-1 text-sm text-muted">
                   DOM sources the client, quotes the job, and collects payment — you fly and keep 80%.
                 </p>
               </div>
               <div className="border-t border-border pt-5">
                 <p className="text-sm font-semibold uppercase tracking-wide text-accent">Self-service subscribers</p>
-                <p className="mt-1 text-2xl font-bold text-white">100% on missions you create</p>
-                <p className="mt-1 text-sm text-slate-400">
+                <p className="mt-1 text-2xl font-bold text-ink">100% on missions you create</p>
+                <p className="mt-1 text-sm text-muted">
                   Once approved for self-service, subscribe for $99/mo to waive DOM's commission entirely
                   on missions you build and price yourself in your own portal.
                 </p>
@@ -94,8 +94,8 @@ export default function FlyForDomPage() {
               {brings.map((b) => (
                 <div key={b.title}>
                   <b.icon className="mb-2 h-5 w-5 text-accent" />
-                  <h3 className="mb-1 text-sm font-semibold text-white">{b.title}</h3>
-                  <p className="text-xs text-slate-400">{b.desc}</p>
+                  <h3 className="mb-1 text-sm font-semibold text-ink">{b.title}</h3>
+                  <p className="text-xs text-muted">{b.desc}</p>
                 </div>
               ))}
             </div>
@@ -108,16 +108,16 @@ export default function FlyForDomPage() {
           <h2 className="heading-lg mb-8">What you need</h2>
           <div className="grid gap-6 sm:grid-cols-3">
             <div className="card p-6">
-              <h3 className="mb-2 text-base font-semibold text-white">FAA Part 107 certificate</h3>
-              <p className="text-sm text-slate-400">Current and in good standing — DOM verifies this before any paid assignment.</p>
+              <h3 className="mb-2 text-base font-semibold text-ink">FAA Part 107 certificate</h3>
+              <p className="text-sm text-muted">Current and in good standing — DOM verifies this before any paid assignment.</p>
             </div>
             <div className="card p-6">
-              <h3 className="mb-2 text-base font-semibold text-white">Active drone insurance</h3>
-              <p className="text-sm text-slate-400">Liability coverage on your aircraft and operations.</p>
+              <h3 className="mb-2 text-base font-semibold text-ink">Active drone insurance</h3>
+              <p className="text-sm text-muted">Liability coverage on your aircraft and operations.</p>
             </div>
             <div className="card p-6">
-              <h3 className="mb-2 text-base font-semibold text-white">Your own aircraft & sensors</h3>
-              <p className="text-sm text-slate-400">Whatever's appropriate for the missions in your service area — visual, thermal, mapping, etc.</p>
+              <h3 className="mb-2 text-base font-semibold text-ink">Your own aircraft & sensors</h3>
+              <p className="text-sm text-muted">Whatever's appropriate for the missions in your service area — visual, thermal, mapping, etc.</p>
             </div>
           </div>
         </div>

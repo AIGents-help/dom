@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { V } from "@/lib/theme";
 
 // Pilot > Profile tab — editable basic info. These columns (full_name,
 // phone, service_area, equipment, part107_number) are all outside the
@@ -10,7 +11,6 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 // no new API route, same pattern app/admin/contractors/page.tsx's toggle()
 // already uses for its own writes.
 
-const V = { ground: "#0A0E14", surface: "#11161F", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D" };
 const inputStyle: React.CSSProperties = { width: "100%", marginTop: 6, padding: "10px 12px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.ground, color: V.ink, fontSize: 14, outline: "none" };
 const labelStyle: React.CSSProperties = { fontSize: 11, color: V.inkFaint, letterSpacing: ".1em", textTransform: "uppercase" };
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
@@ -85,7 +85,7 @@ export default function PilotProfileEditor({ profile, onSaved }: { profile: Prof
 
   return (
     <div>
-      {error && <p style={{ color: "#FF8A3D", fontSize: 13, marginBottom: 12 }}>{error}</p>}
+      {error && <p style={{ color: "#DC2626", fontSize: 13, marginBottom: 12 }}>{error}</p>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
         <div>
           <label style={labelStyle}>Full Name</label>

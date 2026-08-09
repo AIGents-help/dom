@@ -74,7 +74,7 @@ export default function IndustriesPage() {
           {industries.map((ind) => (
             <div key={ind.name} className="card p-8">
               <ind.icon className="mb-5 h-8 w-8 text-accent" />
-              <h2 className="mb-3 text-xl font-semibold text-white">{ind.name}</h2>
+              <h2 className="mb-3 text-xl font-semibold text-ink">{ind.name}</h2>
               <p className="body-muted">{ind.desc}</p>
             </div>
           ))}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { V } from "@/lib/theme";
 
 // Pilot > Mission Log — per-assignment documents + deliverables, mirroring
 // the admin Mission Briefing / Deliverables panels but driven by the
@@ -10,7 +11,6 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 // the mission was admin-offered or pilot-self-created — access is the
 // same RLS check either way, so there's nothing to special-case here.
 
-const V = { ground: "#0A0E14", surface: "#11161F", raised: "#161D29", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D", telemetry: "#4FD1C5" };
 const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { padding: "8px 14px", borderRadius: 8, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
@@ -104,8 +104,8 @@ export default function PilotMissionLog({
       </div>
 
       {error && (
-        <div style={{ ...panelStyle, borderColor: "#FF8A3D" }}>
-          <p style={{ color: "#FF8A3D", fontSize: 13 }}>{error}</p>
+        <div style={{ ...panelStyle, borderColor: "#DC2626" }}>
+          <p style={{ color: "#DC2626", fontSize: 13 }}>{error}</p>
         </div>
       )}
 
@@ -147,7 +147,7 @@ export default function PilotMissionLog({
                       <span style={{ color: V.inkFaint, fontSize: 12, marginLeft: 8 }}>{(d.type ?? "").replace(/_/g, " ")}</span>
                     </div>
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <span className="font-mono-ibm" style={{ fontSize: 10, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase", background: d.qc_passed ? "rgba(79,209,197,.2)" : "rgba(255,138,61,.14)", color: d.qc_passed ? V.telemetry : V.signal }}>
+                      <span className="font-mono-ibm" style={{ fontSize: 10, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase", background: d.qc_passed ? "rgba(22,163,74,.2)" : "rgba(229,112,31,.14)", color: d.qc_passed ? V.telemetry : V.warn }}>
                         {d.qc_passed ? "QC passed" : "pending QC"}
                       </span>
                       {d.storage_url && <button onClick={() => downloadDeliverable(d.storage_url!)} style={{ ...btnGhost, padding: "5px 10px", fontSize: 12 }}>Download</button>}

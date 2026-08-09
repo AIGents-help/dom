@@ -49,21 +49,21 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#0A0E14" }}>
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F5F7FA" }}>
       <div style={{ width: 360 }}>
         <Link
           href="/"
-          style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#8A95A7", fontSize: 13, textDecoration: "none", marginBottom: 14 }}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "#5F6B7A", fontSize: 13, textDecoration: "none", marginBottom: 14 }}
         >
           ← Back to droneopsman.com
         </Link>
         <div
           style={{
             padding: 32,
-            border: "1px solid #232C3B",
+            border: "1px solid #D9E0E8",
             borderRadius: 14,
-            background: "#11161F",
-            color: "#E8ECF2",
+            background: "#FFFFFF",
+            color: "#172033",
             fontFamily: "Inter, system-ui, sans-serif",
           }}
         >
@@ -71,11 +71,11 @@ export default function AdminLoginPage() {
         <h1 style={{ fontFamily: "Saira, sans-serif", fontSize: 22, marginBottom: 4 }}>
           DOM Admin
         </h1>
-        <p style={{ color: "#8A95A7", fontSize: 13, marginBottom: 22 }}>
+        <p style={{ color: "#5F6B7A", fontSize: 13, marginBottom: 22 }}>
           Operations console — authorized access only.
         </p>
 
-        <label style={{ fontSize: 12, color: "#8A95A7" }}>Email</label>
+        <label style={{ fontSize: 12, color: "#5F6B7A" }}>Email</label>
         <input
           type="email"
           value={email}
@@ -83,7 +83,7 @@ export default function AdminLoginPage() {
           style={inputStyle}
         />
 
-        <label style={{ fontSize: 12, color: "#8A95A7", marginTop: 12, display: "block" }}>
+        <label style={{ fontSize: 12, color: "#5F6B7A", marginTop: 12, display: "block" }}>
           Password
         </label>
         <input
@@ -95,7 +95,7 @@ export default function AdminLoginPage() {
         />
 
         {error && (
-          <p style={{ color: "#FF8A3D", fontSize: 13, marginTop: 12 }}>{error}</p>
+          <p style={{ color: "#DC2626", fontSize: 13, marginTop: 12 }}>{error}</p>
         )}
 
         <button onClick={handleLogin} disabled={loading} style={btnStyle}>
@@ -112,9 +112,9 @@ const inputStyle: React.CSSProperties = {
   marginTop: 6,
   padding: "11px 12px",
   borderRadius: 9,
-  border: "1px solid #232C3B",
-  background: "#0A0E14",
-  color: "#E8ECF2",
+  border: "1px solid #D9E0E8",
+  background: "#FFFFFF",
+  color: "#172033",
   fontSize: 14,
   outline: "none",
 };
@@ -125,8 +125,8 @@ const btnStyle: React.CSSProperties = {
   padding: "12px",
   borderRadius: 9,
   border: "none",
-  background: "#FF8A3D",
-  color: "#0A0E14",
+  background: "#2563EB",
+  color: "#FFFFFF",
   fontFamily: "Saira, sans-serif",
   fontWeight: 600,
   fontSize: 15,

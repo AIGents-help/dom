@@ -7,7 +7,8 @@ import { useEffect, useState } from "react";
 // client state, so this takes the active tab + setter as props instead of
 // using next/navigation.
 
-const V = { surface: "#11161F", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D" };
+// Navy nav shell with light text + blue active state (DOM light theme).
+const V = { surface: "#172033", line: "rgba(255,255,255,0.08)", ink: "#FFFFFF", inkDim: "#AEB7C4", inkFaint: "#8A95A7", signal: "#FFFFFF" };
 
 export type PilotTab = "missions" | "queue" | "create" | "mapping" | "publicprofile" | "resources" | "sops" | "payouts" | "profile";
 
@@ -106,7 +107,7 @@ export default function PilotSidebar({
                 display: "flex", alignItems: "center", gap: 10, padding: "10px 10px", borderRadius: 8,
                 border: "none", cursor: "pointer", textAlign: "left",
                 color: active ? V.signal : V.inkDim,
-                background: active ? "rgba(255,138,61,.10)" : "transparent",
+                background: active ? "rgba(37,99,235,.22)" : "transparent",
                 fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13,
                 justifyContent: collapsed ? "center" : "flex-start",
               }}

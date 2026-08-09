@@ -30,22 +30,22 @@ export default function RequestMissionPage() {
           <aside className="space-y-6">
             <div className="card p-6">
               <Clock className="mb-3 h-6 w-6 text-accent" />
-              <h3 className="mb-1 text-sm font-semibold text-white">Response Time</h3>
-              <p className="text-sm text-slate-400">
+              <h3 className="mb-1 text-sm font-semibold text-ink">Response Time</h3>
+              <p className="text-sm text-muted">
                 Our team responds to all mission requests within one business day.
               </p>
             </div>
             <div className="card p-6">
               <ShieldCheck className="mb-3 h-6 w-6 text-accent" />
-              <h3 className="mb-1 text-sm font-semibold text-white">FAA Compliant</h3>
-              <p className="text-sm text-slate-400">
+              <h3 className="mb-1 text-sm font-semibold text-ink">FAA Compliant</h3>
+              <p className="text-sm text-muted">
                 Every mission is flown under Part 107 with full airspace authorization.
               </p>
             </div>
             <div className="card p-6">
               <FileCheck className="mb-3 h-6 w-6 text-accent" />
-              <h3 className="mb-1 text-sm font-semibold text-white">Documented Delivery</h3>
-              <p className="text-sm text-slate-400">
+              <h3 className="mb-1 text-sm font-semibold text-ink">Documented Delivery</h3>
+              <p className="text-sm text-muted">
                 Receive flight logs, compliance records, and processed deliverables with every job.
               </p>
             </div>

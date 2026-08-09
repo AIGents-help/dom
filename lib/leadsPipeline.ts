@@ -139,10 +139,10 @@ export const ENGAGEMENT_MODEL_OPTIONS = [
 export const ENGAGEMENT_MODEL_LABELS: Record<string, string> = Object.fromEntries(ENGAGEMENT_MODEL_OPTIONS.map((e) => [e.value, e.label]));
 
 export const OWNERSHIP_OPTIONS = [
-  { value: "dom_owned", label: "DOM-Owned", color: "border-orange-500 bg-orange-500/10 text-orange-400" },
-  { value: "partner_owned", label: "Partner-Owned", color: "border-blue-500 bg-blue-500/10 text-blue-400" },
-  { value: "shared", label: "Shared", color: "border-purple-500 bg-purple-500/10 text-purple-400" },
-  { value: "unknown", label: "Unknown", color: "border-amber-500 bg-amber-500/10 text-amber-400" },
+  { value: "dom_owned", label: "DOM-Owned", color: "border-orange-500 bg-orange-500/10 text-orange-700" },
+  { value: "partner_owned", label: "Partner-Owned", color: "border-blue-500 bg-blue-500/10 text-blue-700" },
+  { value: "shared", label: "Shared", color: "border-purple-500 bg-purple-500/10 text-purple-700" },
+  { value: "unknown", label: "Unknown", color: "border-amber-500 bg-amber-500/10 text-amber-700" },
 ];
 export const OWNERSHIP_LABELS: Record<string, string> = Object.fromEntries(OWNERSHIP_OPTIONS.map((o) => [o.value, o.label]));
 export const OWNERSHIP_COLORS: Record<string, string> = Object.fromEntries(OWNERSHIP_OPTIONS.map((o) => [o.value, o.color]));
@@ -154,26 +154,26 @@ export const DJI_OPTIONS = [
   { value: "project_dependent", label: "Project-dependent" },
 ];
 
-export const DJI_RESTRICTED_COLOR = "border-rose-500 bg-rose-500/10 text-rose-400";
+export const DJI_RESTRICTED_COLOR = "border-rose-500 bg-rose-500/10 text-rose-700";
 
 // ---------------------------------------------------------------------------
 // Pipeline stages
 // ---------------------------------------------------------------------------
 
 export const STATUS_OPTIONS = [
-  { value: "new", label: "New", color: "border-slate-500 bg-slate-500/10 text-slate-300" },
-  { value: "researching", label: "Researching", color: "border-slate-400 bg-slate-400/10 text-slate-300" },
-  { value: "ready_for_outreach", label: "Ready for Outreach", color: "border-sky-500 bg-sky-500/10 text-sky-400" },
-  { value: "outreach_scheduled", label: "Outreach Scheduled", color: "border-cyan-500 bg-cyan-500/10 text-cyan-400" },
-  { value: "contacted", label: "Contacted", color: "border-blue-500 bg-blue-500/10 text-blue-400" },
-  { value: "needs_response", label: "Needs Response", color: "border-amber-500 bg-amber-500/10 text-amber-400" },
-  { value: "follow_up", label: "Follow-up", color: "border-orange-500 bg-orange-500/10 text-orange-400" },
-  { value: "qualified", label: "Qualified", color: "border-teal-500 bg-teal-500/10 text-teal-400" },
-  { value: "proposal", label: "Proposal", color: "border-purple-500 bg-purple-500/10 text-purple-400" },
-  { value: "won", label: "Won", color: "border-green-500 bg-green-500/10 text-green-400" },
-  { value: "no_response", label: "No Response", color: "border-slate-600 bg-slate-600/10 text-slate-400" },
-  { value: "lost", label: "Lost", color: "border-rose-500 bg-rose-500/10 text-rose-400" },
-  { value: "do_not_contact", label: "Do Not Contact", color: "border-red-600 bg-red-600/10 text-red-400" },
+  { value: "new", label: "New", color: "border-slate-500 bg-slate-500/10 text-slate-700" },
+  { value: "researching", label: "Researching", color: "border-slate-400 bg-slate-400/10 text-slate-700" },
+  { value: "ready_for_outreach", label: "Ready for Outreach", color: "border-sky-500 bg-sky-500/10 text-sky-700" },
+  { value: "outreach_scheduled", label: "Outreach Scheduled", color: "border-cyan-500 bg-cyan-500/10 text-cyan-700" },
+  { value: "contacted", label: "Contacted", color: "border-blue-500 bg-blue-500/10 text-blue-700" },
+  { value: "needs_response", label: "Needs Response", color: "border-amber-500 bg-amber-500/10 text-amber-700" },
+  { value: "follow_up", label: "Follow-up", color: "border-orange-500 bg-orange-500/10 text-orange-700" },
+  { value: "qualified", label: "Qualified", color: "border-teal-500 bg-teal-500/10 text-teal-700" },
+  { value: "proposal", label: "Proposal", color: "border-purple-500 bg-purple-500/10 text-purple-700" },
+  { value: "won", label: "Won", color: "border-green-500 bg-green-500/10 text-green-700" },
+  { value: "no_response", label: "No Response", color: "border-slate-600 bg-slate-600/10 text-slate-600" },
+  { value: "lost", label: "Lost", color: "border-rose-500 bg-rose-500/10 text-rose-700" },
+  { value: "do_not_contact", label: "Do Not Contact", color: "border-red-600 bg-red-600/10 text-red-700" },
 ] as const;
 
 export type StatusValue = (typeof STATUS_OPTIONS)[number]["value"];

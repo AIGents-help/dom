@@ -14,6 +14,7 @@ import VerificationDeadlineBanner from "@/components/VerificationDeadlineBanner"
 import SopViewer from "@/components/SopViewer";
 import { sopMarkdownToHtml } from "@/lib/sopMarkdown";
 import MappingTab from "@/components/mapper/MappingTab";
+import { V } from "@/lib/theme";
 
 interface Profile {
   id: string; full_name: string; email: string; phone: string | null; status: string;
@@ -47,16 +48,15 @@ interface QueueClaim {
 type Tab = PilotTab;
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  offered: { bg: "rgba(255,138,61,.12)", text: "#FF8A3D" },
-  accepted: { bg: "rgba(79,209,197,.12)", text: "#4FD1C5" },
-  in_progress: { bg: "rgba(196,107,224,.14)", text: "#C46BE0" },
-  submitted: { bg: "rgba(79,209,197,.14)", text: "#4FD1C5" },
-  qc_passed: { bg: "rgba(79,209,197,.18)", text: "#4FD1C5" },
-  paid: { bg: "rgba(79,209,197,.2)", text: "#4FD1C5" },
-  declined: { bg: "rgba(90,102,120,.15)", text: "#5A6678" },
-  cancelled: { bg: "rgba(90,102,120,.15)", text: "#5A6678" },
+  offered: { bg: "rgba(229,112,31,.12)", text: "#E5701F" },
+  accepted: { bg: "rgba(22,163,74,.12)", text: "#16A34A" },
+  in_progress: { bg: "rgba(124,58,237,.14)", text: "#7C3AED" },
+  submitted: { bg: "rgba(22,163,74,.14)", text: "#16A34A" },
+  qc_passed: { bg: "rgba(22,163,74,.18)", text: "#16A34A" },
+  paid: { bg: "rgba(22,163,74,.2)", text: "#16A34A" },
+  declined: { bg: "rgba(95,107,122,.15)", text: "#5F6B7A" },
+  cancelled: { bg: "rgba(95,107,122,.15)", text: "#5F6B7A" },
 };
-const V = { ground: "#0A0E14", surface: "#11161F", raised: "#161D29", line: "#232C3B", lineSoft: "#1A222F", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D", telemetry: "#4FD1C5" };
 const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
@@ -250,7 +250,7 @@ export default function PilotDashboard() {
   }
 
   if (loading) return <Shell><p style={{ color: V.inkDim }}>Loading your dashboard…</p></Shell>;
-  if (!profile) return <Shell><p style={{ color: V.signal }}>Could not load profile.</p></Shell>;
+  if (!profile) return <Shell><p style={{ color: V.danger }}>Could not load profile.</p></Shell>;
 
   const cleared = profile.part107_verified && profile.insurance_verified;
   const activeAssignments = assignments.filter((a) => !["paid", "cancelled"].includes(a.status));
@@ -274,8 +274,8 @@ export default function PilotDashboard() {
       </div>
 
       {!cleared && (
-        <div style={{ ...panelStyle, borderColor: "rgba(255,138,61,.4)", marginBottom: 18, background: "rgba(255,138,61,.05)" }}>
-          <p style={{ color: V.signal, fontSize: 14 }}>Your credentials are not fully verified yet. DOM verifies Part 107 and insurance before assigning paid missions.{!profile.stripe_payouts_enabled && " Complete Stripe payout setup to receive payments."}</p>
+        <div style={{ ...panelStyle, borderColor: "rgba(229,112,31,.4)", marginBottom: 18, background: "rgba(229,112,31,.05)" }}>
+          <p style={{ color: V.warn, fontSize: 14 }}>Your credentials are not fully verified yet. DOM verifies Part 107 and insurance before assigning paid missions.{!profile.stripe_payouts_enabled && " Complete Stripe payout setup to receive payments."}</p>
           {!profile.insurance_verified && (
             profile.insurance_requested ? (
               <p style={{ color: V.inkDim, fontSize: 13, marginTop: 10 }}>Insurance requested — pending confirmation.</p>
@@ -289,13 +289,13 @@ export default function PilotDashboard() {
       )}
 
       {error && (
-        <div style={{ ...panelStyle, borderColor: "#FF8A3D", marginBottom: 18 }}>
-          <p style={{ color: "#FF8A3D", fontSize: 13 }}>{error}</p>
+        <div style={{ ...panelStyle, borderColor: "#DC2626", marginBottom: 18 }}>
+          <p style={{ color: "#DC2626", fontSize: 13 }}>{error}</p>
         </div>
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, background: V.lineSoft, borderRadius: 12, overflow: "hidden", marginBottom: 24 }}>
-        <Stat k="Status" v={profile.status.toUpperCase()} color={profile.status === "active" ? V.telemetry : V.signal} />
+        <Stat k="Status" v={profile.status.toUpperCase()} color={profile.status === "active" ? V.telemetry : V.warn} />
         <Stat k="Active Missions" v={String(activeAssignments.length)} />
         <Stat k="Completed" v={String(profile.missions_completed)} />
         <Stat k="Earned" v={`$${(totalEarned / 100).toFixed(2)}`} color={V.telemetry} />
@@ -315,8 +315,8 @@ export default function PilotDashboard() {
       {tab === "create" && accessToken && (
         <>
           {!profile.can_create_missions && (
-            <div style={{ ...panelStyle, borderColor: "rgba(255,138,61,.4)", marginBottom: 18, background: "rgba(255,138,61,.05)" }}>
-              <p style={{ color: V.signal, fontSize: 14 }}>
+            <div style={{ ...panelStyle, borderColor: "rgba(229,112,31,.4)", marginBottom: 18, background: "rgba(229,112,31,.05)" }}>
+              <p style={{ color: V.warn, fontSize: 14 }}>
                 You can build out a mission below to see how quoting and self-service works, but you can't finalize
                 it yet — DOM admin needs to approve your account for self-service first, either after you complete
                 a DOM-assigned mission or once your credentials are verified.
@@ -349,7 +349,7 @@ export default function PilotDashboard() {
       {tab === "missions" && !missionLogAssignment && (
         <div style={{ display: "grid", gap: 10 }}>
           {requestsForMe.length > 0 && (
-            <div style={{ ...panelStyle, borderColor: "rgba(79,209,197,.4)", background: "rgba(79,209,197,.05)" }}>
+            <div style={{ ...panelStyle, borderColor: "rgba(22,163,74,.4)", background: "rgba(22,163,74,.05)" }}>
               <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.telemetry, textTransform: "uppercase" }}>
                 Requests for you ({requestsForMe.length})
               </div>
@@ -469,7 +469,7 @@ export default function PilotDashboard() {
                 <div className="font-mono-ibm" style={{ fontSize: 14, color: V.telemetry, fontWeight: 500 }}>${(p.contractor_amount_cents / 100).toFixed(2)}</div>
                 <div className="font-mono-ibm" style={{ fontSize: 11, color: V.inkFaint, marginTop: 3 }}>{new Date(p.created_at).toLocaleDateString()}</div>
               </div>
-              <span className="font-mono-ibm" style={{ fontSize: 10, padding: "4px 9px", borderRadius: 20, background: ["captured", "paid_out"].includes(p.status) ? "rgba(79,209,197,.12)" : "rgba(255,138,61,.12)", color: ["captured", "paid_out"].includes(p.status) ? V.telemetry : V.signal, textTransform: "uppercase", letterSpacing: ".06em" }}>{p.status.replace("_", " ")}</span>
+              <span className="font-mono-ibm" style={{ fontSize: 10, padding: "4px 9px", borderRadius: 20, background: ["captured", "paid_out"].includes(p.status) ? "rgba(22,163,74,.12)" : "rgba(229,112,31,.12)", color: ["captured", "paid_out"].includes(p.status) ? V.telemetry : V.warn, textTransform: "uppercase", letterSpacing: ".06em" }}>{p.status.replace("_", " ")}</span>
             </div>
           ))}
         </div>
@@ -551,7 +551,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (<div style={{ minHeight: "100vh", background: V.ground, color: V.ink, fontFamily: "Inter, system-ui, sans-serif" }}><div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px" }}>{children}</div></div>);
 }
 function CredBadge({ label, ok }: { label: string; ok: boolean }) {
-  return (<span className="font-mono-ibm" style={{ fontSize: 10, padding: "5px 10px", borderRadius: 8, border: `1px solid ${ok ? V.telemetry : V.line}`, background: ok ? "rgba(79,209,197,.1)" : "transparent", color: ok ? V.telemetry : V.inkFaint, letterSpacing: ".06em" }}>{ok ? "✓ " : "○ "}{label}</span>);
+  return (<span className="font-mono-ibm" style={{ fontSize: 10, padding: "5px 10px", borderRadius: 8, border: `1px solid ${ok ? V.telemetry : V.line}`, background: ok ? "rgba(22,163,74,.1)" : "transparent", color: ok ? V.telemetry : V.inkFaint, letterSpacing: ".06em" }}>{ok ? "✓ " : "○ "}{label}</span>);
 }
 function Stat({ k, v, color }: { k: string; v: string; color?: string }) {
   return (<div style={{ background: V.raised, padding: "14px 16px" }}><div className="font-mono-ibm" style={{ fontSize: 10, letterSpacing: ".12em", color: V.inkFaint, textTransform: "uppercase" }}>{k}</div><div className="font-mono-ibm" style={{ fontSize: 18, color: color ?? V.ink, marginTop: 2, fontWeight: 600 }}>{v}</div></div>);

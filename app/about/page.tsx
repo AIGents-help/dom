@@ -62,8 +62,8 @@ export default function AboutPage() {
             {values.map((v) => (
               <div key={v.title} className="card p-6">
                 <v.icon className="mb-4 h-7 w-7 text-accent" />
-                <h3 className="mb-2 text-base font-semibold text-white">{v.title}</h3>
-                <p className="text-sm text-slate-400">{v.desc}</p>
+                <h3 className="mb-2 text-base font-semibold text-ink">{v.title}</h3>
+                <p className="text-sm text-muted">{v.desc}</p>
               </div>
             ))}
           </div>

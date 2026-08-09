@@ -39,7 +39,7 @@ export default function MissionRequestForm() {
     return (
       <div className="card flex flex-col items-center gap-4 p-12 text-center">
         <CheckCircle2 className="h-12 w-12 text-accent" />
-        <h3 className="text-xl font-semibold text-white">Mission request received</h3>
+        <h3 className="text-xl font-semibold text-ink">Mission request received</h3>
         <p className="body-muted max-w-md">
           Thank you. Our operations team will review your request and follow up within one
           business day with scope, compliance status, and scheduling options.

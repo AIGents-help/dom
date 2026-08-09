@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { V } from "@/lib/theme";
 
 // Pilot > Create Mission — self-service wizard for approved pilots (only
 // rendered when contractors.can_create_missions is true). Modeled on
@@ -10,7 +11,6 @@ import { useState, useCallback } from "react";
 // match the dark inline-style theme used throughout app/pilot/page.tsx
 // rather than the marketing site's Tailwind classes.
 
-const V = { ground: "#0A0E14", surface: "#11161F", raised: "#161D29", line: "#232C3B", lineSoft: "#1A222F", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D", telemetry: "#4FD1C5" };
 const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
 const btnPrimary: React.CSSProperties = { padding: "10px 18px", borderRadius: 9, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { padding: "10px 18px", borderRadius: 9, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" };
@@ -215,8 +215,8 @@ export default function PilotCreateMissionWizard({
   return (
     <div style={{ display: "grid", gap: 16 }}>
       {error && (
-        <div style={{ ...panelStyle, borderColor: "#FF8A3D" }}>
-          <p style={{ color: "#FF8A3D", fontSize: 13 }}>{error}</p>
+        <div style={{ ...panelStyle, borderColor: "#DC2626" }}>
+          <p style={{ color: "#DC2626", fontSize: 13 }}>{error}</p>
         </div>
       )}
 
@@ -348,12 +348,12 @@ export default function PilotCreateMissionWizard({
               : "Your exact payout after DOM's commission will be shown once the mission is created."}
           </p>
           {quote.warnings.length > 0 && (
-            <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(255,138,61,.08)" }}>
-              {quote.warnings.map((w, i) => <p key={i} style={{ color: V.signal, fontSize: 12 }}>⚠ {w}</p>)}
+            <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(229,112,31,.08)" }}>
+              {quote.warnings.map((w, i) => <p key={i} style={{ color: V.warn, fontSize: 12 }}>⚠ {w}</p>)}
             </div>
           )}
           {!canFinalize && (
-            <p style={{ fontSize: 12, color: V.signal, marginTop: 12 }}>
+            <p style={{ fontSize: 12, color: V.warn, marginTop: 12 }}>
               This is a preview — your account isn't yet approved for self-service, so this mission can't be
               finalized. Ask DOM admin to approve you once you're ready.
             </p>

@@ -44,21 +44,21 @@ export default function PayPage({ params }: { params: Promise<{ assignmentId: st
         <h1 style={h1}>{desc || "Mission payment"}</h1>
         {amount != null && <p style={amt}>${(amount / 100).toFixed(2)} USD</p>}
 
-        {error && <p style={{ color: "#FF8A3D", fontSize: 13 }}>{error}</p>}
+        {error && <p style={{ color: "#DC2626", fontSize: 13 }}>{error}</p>}
 
         {alreadyPaid ? (
-          <p style={{ color: "#4FD1C5", fontSize: 14, marginTop: 18 }}>
+          <p style={{ color: "#16A34A", fontSize: 14, marginTop: 18 }}>
             ✓ Payment received — thank you! A receipt has been sent to your email.
           </p>
         ) : clientSecret ? (
           <Elements
             stripe={getStripePromise()}
-            options={{ clientSecret, appearance: { theme: "night", variables: { colorPrimary: "#FF8A3D" } } }}
+            options={{ clientSecret, appearance: { theme: "stripe", variables: { colorPrimary: "#2563EB" } } }}
           >
             <PayForm />
           </Elements>
         ) : (
-          !error && <p style={{ color: "#8A95A7", fontSize: 14 }}>Loading secure checkout…</p>
+          !error && <p style={{ color: "#5F6B7A", fontSize: 14 }}>Loading secure checkout…</p>
         )}
       </div>
     </div>
@@ -88,7 +88,7 @@ function PayForm() {
   return (
     <div style={{ marginTop: 18 }}>
       <PaymentElement />
-      {err && <p style={{ color: "#FF8A3D", fontSize: 13, marginTop: 12 }}>{err}</p>}
+      {err && <p style={{ color: "#DC2626", fontSize: 13, marginTop: 12 }}>{err}</p>}
       <button onClick={pay} disabled={!stripe || submitting} style={btn}>
         {submitting ? "Processing…" : "Pay now"}
       </button>
@@ -96,9 +96,9 @@ function PayForm() {
   );
 }
 
-const wrap: React.CSSProperties = { minHeight: "100vh", display: "grid", placeItems: "center", background: "#0A0E14", padding: 24 };
-const card: React.CSSProperties = { width: "100%", maxWidth: 440, padding: 32, border: "1px solid #232C3B", borderRadius: 16, background: "#11161F", color: "#E8ECF2", fontFamily: "Inter, system-ui, sans-serif" };
-const eyebrow: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 12, letterSpacing: ".18em", textTransform: "uppercase", color: "#FF8A3D" };
+const wrap: React.CSSProperties = { minHeight: "100vh", display: "grid", placeItems: "center", background: "#F5F7FA", padding: 24 };
+const card: React.CSSProperties = { width: "100%", maxWidth: 440, padding: 32, border: "1px solid #D9E0E8", borderRadius: 16, background: "#FFFFFF", color: "#172033", fontFamily: "Inter, system-ui, sans-serif" };
+const eyebrow: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 12, letterSpacing: ".18em", textTransform: "uppercase", color: "#2563EB" };
 const h1: React.CSSProperties = { fontFamily: "Saira, sans-serif", fontSize: 23, marginTop: 10 };
-const amt: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 28, color: "#4FD1C5", margin: "6px 0 18px" };
-const btn: React.CSSProperties = { width: "100%", marginTop: 20, padding: 13, borderRadius: 10, border: "none", background: "#FF8A3D", color: "#0A0E14", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };
+const amt: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 28, color: "#2563EB", margin: "6px 0 18px" };
+const btn: React.CSSProperties = { width: "100%", marginTop: 20, padding: 13, borderRadius: 10, border: "none", background: "#2563EB", color: "#FFFFFF", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };

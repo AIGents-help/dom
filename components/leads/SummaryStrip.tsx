@@ -42,8 +42,8 @@ export default function SummaryStrip({
                   : "border-border bg-surface2 hover:border-accent/40"
             }`}
           >
-            <div className={`text-xl font-semibold ${highlight ? "text-rose-400" : "text-white"}`}>{count}</div>
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">{tile.label}</div>
+            <div className={`text-xl font-semibold ${highlight ? "text-rose-400" : "text-ink"}`}>{count}</div>
+            <div className="text-[11px] uppercase tracking-wide text-muted">{tile.label}</div>
           </button>
         );
       })}

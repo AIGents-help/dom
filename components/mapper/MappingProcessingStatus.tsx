@@ -6,8 +6,8 @@ import { canQueueProcessing, formatProgress, PROCESSING_JOB_STATUS_OPTIONS } fro
 import type { MappingProject, MappingProcessingJob } from "./types";
 
 const JOB_STATUS_COLOR: Record<string, string> = {
-  queued: "#FF8A3D", claimed: "#4FD1C5", processing: "#4FD1C5",
-  completed: "#4FD1C5", failed: "#FF5C5C", cancelled: "#5A6678",
+  queued: "#E5701F", claimed: "#16A34A", processing: "#16A34A",
+  completed: "#16A34A", failed: "#DC2626", cancelled: "#5F6B7A",
 };
 
 export default function MappingProcessingStatus({

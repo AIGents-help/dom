@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { V } from "@/lib/theme";
 
 // Admin > Missions — list all missions with status, airspace, and financials at a glance.
 
@@ -18,17 +19,17 @@ interface Mission {
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  requested: { bg: "rgba(255,138,61,.12)", text: "#FF8A3D" },
-  reviewing: { bg: "rgba(255,138,61,.12)", text: "#FF8A3D" },
-  scoped: { bg: "rgba(79,209,197,.12)", text: "#4FD1C5" },
-  quoted: { bg: "rgba(79,209,197,.12)", text: "#4FD1C5" },
-  approved: { bg: "rgba(79,209,197,.18)", text: "#4FD1C5" },
-  claimed: { bg: "rgba(255,138,61,.14)", text: "#FF8A3D" },
-  assigned: { bg: "rgba(196,107,224,.14)", text: "#C46BE0" },
-  in_progress: { bg: "rgba(196,107,224,.14)", text: "#C46BE0" },
-  delivered: { bg: "rgba(79,209,197,.18)", text: "#4FD1C5" },
-  closed: { bg: "rgba(90,102,120,.15)", text: "#5A6678" },
-  cancelled: { bg: "rgba(90,102,120,.15)", text: "#5A6678" },
+  requested: { bg: "rgba(229,112,31,.12)", text: "#E5701F" },
+  reviewing: { bg: "rgba(229,112,31,.12)", text: "#E5701F" },
+  scoped: { bg: "rgba(22,163,74,.12)", text: "#16A34A" },
+  quoted: { bg: "rgba(22,163,74,.12)", text: "#16A34A" },
+  approved: { bg: "rgba(22,163,74,.18)", text: "#16A34A" },
+  claimed: { bg: "rgba(229,112,31,.14)", text: "#E5701F" },
+  assigned: { bg: "rgba(124,58,237,.14)", text: "#7C3AED" },
+  in_progress: { bg: "rgba(124,58,237,.14)", text: "#7C3AED" },
+  delivered: { bg: "rgba(22,163,74,.18)", text: "#16A34A" },
+  closed: { bg: "rgba(95,107,122,.15)", text: "#5F6B7A" },
+  cancelled: { bg: "rgba(95,107,122,.15)", text: "#5F6B7A" },
 };
 
 export default function MissionsPage() {
@@ -83,7 +84,7 @@ export default function MissionsPage() {
           <button key={f} onClick={() => setFilter(f)} className="font-mono-ibm" style={{
             fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer",
             border: `1px solid ${f === filter ? V.signal : V.line}`,
-            background: f === filter ? "rgba(255,138,61,.12)" : "transparent",
+            background: f === filter ? "rgba(37,99,235,.12)" : "transparent",
             color: f === filter ? V.signal : V.inkFaint,
           }}>
             {f.replace("_", " ").toUpperCase()}
@@ -155,11 +156,5 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-const V = {
-  ground: "#0A0E14", surface: "#11161F", raised: "#161D29",
-  line: "#232C3B", lineSoft: "#1A222F",
-  ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678",
-  signal: "#FF8A3D", telemetry: "#4FD1C5",
-};
 const panel: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
-const btnPrimary: React.CSSProperties = { padding: "10px 18px", borderRadius: 10, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" };
+const btnPrimary: React.CSSProperties = { padding: "10px 18px", borderRadius: 10, border: "none", background: V.signal, color: "#FFFFFF", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" };

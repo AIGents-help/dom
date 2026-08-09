@@ -22,7 +22,7 @@ export default function Navbar() {
   if (pathname?.startsWith("/admin") || pathname === "/pilot" || pathname?.startsWith("/pilot/")) return null;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-navy/95 backdrop-blur-md">
       <div className="container-app flex h-18 items-center justify-between py-4">
         <Link href="/" className="flex items-center">
           <img
@@ -37,7 +37,7 @@ export default function Navbar() {
             <Link
               key={l.href}
               href={l.href}
-              className="text-sm font-medium text-slate-300 transition hover:text-accent"
+              className="text-sm font-medium text-slate-200 transition hover:text-white"
             >
               {l.label}
             </Link>
@@ -47,7 +47,7 @@ export default function Navbar() {
         <div className="hidden items-center gap-3 lg:flex">
           <Link
             href="/pilot/login"
-            className="rounded-lg border border-[#232C3B] px-6 py-3 text-sm font-semibold text-[#E8ECF2] transition hover:border-[#FF8A3D]"
+            className="rounded-lg border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:border-accent"
           >
             Pilot Login
           </Link>
@@ -66,14 +66,14 @@ export default function Navbar() {
       </div>
 
       {open && (
-        <div className="border-t border-border bg-background lg:hidden">
+        <div className="border-t border-white/10 bg-navy lg:hidden">
           <div className="container-app flex flex-col gap-4 py-6">
             {links.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
                 onClick={() => setOpen(false)}
-                className="text-sm font-medium text-slate-300 hover:text-accent"
+                className="text-sm font-medium text-slate-200 hover:text-white"
               >
                 {l.label}
               </Link>
@@ -81,7 +81,7 @@ export default function Navbar() {
             <Link
               href="/pilot/login"
               onClick={() => setOpen(false)}
-              className="rounded-lg border border-[#232C3B] px-6 py-3 text-center text-sm font-semibold text-[#E8ECF2] transition hover:border-[#FF8A3D]"
+              className="rounded-lg border border-white/20 px-6 py-3 text-center text-sm font-semibold text-white transition hover:border-accent"
             >
               Pilot Login
             </Link>

@@ -11,8 +11,8 @@ html {
 }
 
 body {
-  background-color: #05080f;
-  color: #e6edf7;
+  background-color: #F5F7FA;
+  color: #172033;
 }
 
 .container-app {
@@ -28,33 +28,33 @@ body {
 }
 
 .heading-xl {
-  @apply text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl;
+  @apply text-4xl font-bold tracking-tight text-ink sm:text-5xl lg:text-6xl;
 }
 
 .heading-lg {
-  @apply text-3xl font-bold tracking-tight text-white sm:text-4xl;
+  @apply text-3xl font-bold tracking-tight text-ink sm:text-4xl;
 }
 
 .body-muted {
-  @apply text-base leading-relaxed text-slate-400;
+  @apply text-base leading-relaxed text-muted;
 }
 
 .card {
-  @apply rounded-2xl border border-border bg-surface/60 backdrop-blur-sm transition-colors hover:border-accent/40;
+  @apply rounded-2xl border border-border bg-surface shadow-sm transition-colors hover:border-accent/50;
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-background transition hover:bg-accent-dim;
+  @apply inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent-dim;
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-6 py-3 text-sm font-semibold text-white transition hover:border-accent/60 hover:bg-surface2;
+  @apply inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-6 py-3 text-sm font-semibold text-ink transition hover:border-accent/60 hover:bg-surface2;
 }
 
 .label {
-  @apply mb-2 block text-sm font-medium text-slate-300;
+  @apply mb-2 block text-sm font-medium text-ink;
 }
 
 .input {
-  @apply w-full rounded-lg border border-border bg-surface px-4 py-3 text-sm text-white placeholder:text-slate-500 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent;
+  @apply w-full rounded-lg border border-border bg-white px-4 py-3 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent;
 }

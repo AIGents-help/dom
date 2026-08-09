@@ -9,7 +9,7 @@
 // checkboxes, "- " bullets, "1. " numbered items, **bold**, [label](url)
 // links, blank-line-separated paragraphs.
 
-const V = { ground: "#0A0E14", surface: "#11161F", raised: "#161D29", line: "#232C3B", ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678", signal: "#FF8A3D", telemetry: "#4FD1C5" };
+import { V } from "@/lib/theme";
 
 function renderInline(text: string, key: string | number) {
   const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
@@ -84,8 +84,8 @@ export default function SopViewer({ bodyMd }: { bodyMd: string }) {
     } else if (trimmed.startsWith("**Gate:**")) {
       flushList();
       blocks.push(
-        <div key={idx} style={{ marginTop: 16, padding: 12, borderRadius: 8, background: "rgba(255,138,61,.08)", border: `1px solid ${V.signal}` }}>
-          <p style={{ fontSize: 13, color: V.signal, margin: 0 }}>{renderInline(trimmed, idx)}</p>
+        <div key={idx} style={{ marginTop: 16, padding: 12, borderRadius: 8, background: "rgba(229,112,31,.08)", border: `1px solid ${V.warn}` }}>
+          <p style={{ fontSize: 13, color: V.warn, margin: 0 }}>{renderInline(trimmed, idx)}</p>
         </div>
       );
     } else {

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { use } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { V } from "@/lib/theme";
 
 // Admin > Mission detail — view a mission's quote/airspace, advance its status
 // through the mission lifecycle, and offer it to a contractor.
@@ -494,7 +495,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
               </div>
               <span className="font-mono-ibm" style={{
                 fontSize: 11, letterSpacing: ".06em", padding: "5px 11px", borderRadius: 20,
-                background: "rgba(196,107,224,.14)", color: "#C46BE0", textTransform: "uppercase",
+                background: "rgba(124,58,237,.14)", color: "#7C3AED", textTransform: "uppercase",
               }}>
                 {mission.status.replace("_", " ")}
               </span>
@@ -528,7 +529,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                     style={{
                       fontSize: 10, letterSpacing: ".04em", padding: "5px 10px", borderRadius: 6,
                       textTransform: "uppercase",
-                      background: isCurrent ? "rgba(255,138,61,.14)" : isDone ? "rgba(79,209,197,.10)" : "transparent",
+                      background: isCurrent ? "rgba(37,99,235,.14)" : isDone ? "rgba(22,163,74,.10)" : "transparent",
                       color: isCurrent ? V.signal : isDone ? V.telemetry : V.inkFaint,
                       border: `1px solid ${isCurrent ? V.signal : V.line}`,
                     }}
@@ -577,8 +578,8 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
           )}
 
           {error && (
-            <div style={{ ...panel, borderColor: "#FF8A3D" }}>
-              <p style={{ color: "#FF8A3D", fontSize: 13 }}>{error}</p>
+            <div style={{ ...panel, borderColor: "#DC2626" }}>
+              <p style={{ color: "#DC2626", fontSize: 13 }}>{error}</p>
             </div>
           )}
 
@@ -586,7 +587,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
             <div style={panel}>
               <Label>Offer to Contractor</Label>
               {mission.status === "claimed" && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 10, padding: 12, borderRadius: 8, background: "rgba(255,138,61,.08)", border: `1px solid ${V.signal}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 10, padding: 12, borderRadius: 8, background: "rgba(37,99,235,.08)", border: `1px solid ${V.signal}` }}>
                   <p style={{ color: V.signal, fontSize: 13, margin: 0 }}>
                     {contractors.find((c) => c.id === mission.claimed_by_contractor_id)?.full_name ?? "A pilot"} requested this from the open queue — pre-selected below.
                   </p>
@@ -654,7 +655,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                     style={{
                       fontFamily: "Saira, sans-serif", fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 8, cursor: "pointer",
                       border: `1px solid ${job.delivery_responsibility === v ? V.signal : V.line}`,
-                      background: job.delivery_responsibility === v ? "rgba(255,138,61,.12)" : "transparent",
+                      background: job.delivery_responsibility === v ? "rgba(37,99,235,.12)" : "transparent",
                       color: job.delivery_responsibility === v ? V.signal : V.inkFaint,
                     }}
                   >
@@ -686,7 +687,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                         <span style={{ fontWeight: 600 }}>{a.contractor?.full_name ?? a.contractor_id}</span>
                         <span className="font-mono-ibm" style={{
                           fontSize: 10, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase",
-                          background: a.status === "declined" ? "rgba(90,102,120,.15)" : a.status === "qc_passed" ? "rgba(79,209,197,.2)" : "rgba(79,209,197,.14)",
+                          background: a.status === "declined" ? "rgba(95,107,122,.15)" : a.status === "qc_passed" ? "rgba(22,163,74,.2)" : "rgba(22,163,74,.14)",
                           color: a.status === "declined" ? V.inkFaint : V.telemetry,
                         }}>
                           {a.status === "qc_passed" ? "completed" : a.status}
@@ -773,7 +774,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <span className="font-mono-ibm" style={{
                           fontSize: 10, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase",
-                          background: d.qc_passed ? "rgba(79,209,197,.2)" : "rgba(255,138,61,.14)",
+                          background: d.qc_passed ? "rgba(22,163,74,.2)" : "rgba(37,99,235,.14)",
                           color: d.qc_passed ? V.telemetry : V.signal,
                         }}>
                           {d.qc_passed ? "QC passed" : "pending QC"}
@@ -862,13 +863,7 @@ function ModRow({ label, value, accent }: { label: string; value?: string; accen
   );
 }
 
-const V = {
-  ground: "#0A0E14", surface: "#11161F", raised: "#161D29",
-  line: "#232C3B", lineSoft: "#1A222F",
-  ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678",
-  signal: "#FF8A3D", telemetry: "#4FD1C5",
-};
 const panel: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
-const btnPrimary: React.CSSProperties = { padding: "10px 18px", borderRadius: 10, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" };
+const btnPrimary: React.CSSProperties = { padding: "10px 18px", borderRadius: 10, border: "none", background: V.signal, color: "#FFFFFF", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { padding: "8px 14px", borderRadius: 10, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
-const inputStyle: React.CSSProperties = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 9, border: `1px solid ${V.line}`, background: V.ground, color: V.ink, fontSize: 14, outline: "none" };
+const inputStyle: React.CSSProperties = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 9, border: `1px solid ${V.line}`, background: "#FFFFFF", color: V.ink, fontSize: 14, outline: "none" };

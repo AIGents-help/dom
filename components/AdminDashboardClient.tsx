@@ -209,7 +209,7 @@ export default function AdminDashboardClient() {
     }
   }
 
-  if (loading) return <p className="text-slate-400">Loading dashboard…</p>;
+  if (loading) return <p className="text-muted">Loading dashboard…</p>;
 
   const scheduled = jobs
     .filter((j) => j.scheduled_for)
@@ -243,8 +243,8 @@ export default function AdminDashboardClient() {
       <div key={j.id} className="rounded-lg border border-border bg-surface2 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-white">{j.title}</div>
-            <div className="text-xs text-slate-500">
+            <div className="text-sm font-semibold text-ink">{j.title}</div>
+            <div className="text-xs text-muted">
               {j.mission_request?.company ?? j.mission_request?.requester_name ?? "—"} · {pilot ?? "Unassigned"}
               {j.scheduled_for && <> · {new Date(j.scheduled_for).toLocaleString()}</>}
             </div>
@@ -290,7 +290,7 @@ export default function AdminDashboardClient() {
       <nav className="space-y-1">
         <button
           onClick={() => router.push("/admin/leads")}
-          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-slate-400 transition hover:bg-surface2 hover:text-white"
+          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-muted transition hover:bg-surface2 hover:text-ink"
         >
           <Users className="h-4 w-4" /> Leads
         </button>
@@ -301,7 +301,7 @@ export default function AdminDashboardClient() {
             className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition ${
               active === t.key
                 ? "bg-accent/10 text-accent"
-                : "text-slate-400 hover:bg-surface2 hover:text-white"
+                : "text-muted hover:bg-surface2 hover:text-ink"
             }`}
           >
             <t.icon className="h-4 w-4" /> {t.label}
@@ -362,19 +362,19 @@ export default function AdminDashboardClient() {
                       className="flex w-full items-center justify-between gap-4 p-4 text-left"
                     >
                       <div>
-                        <div className="text-sm font-semibold text-white">{c.company_name}</div>
-                        <div className="text-xs text-slate-500">{c.contact_name ?? "—"} · {c.email ?? "—"}</div>
+                        <div className="text-sm font-semibold text-ink">{c.company_name}</div>
+                        <div className="text-xs text-muted">{c.contact_name ?? "—"} · {c.email ?? "—"}</div>
                       </div>
                       <Pill>{related.length} mission{related.length === 1 ? "" : "s"}</Pill>
                     </button>
                     {open && (
-                      <div className="space-y-3 border-t border-border p-4 text-sm text-slate-300">
-                        <p><span className="text-slate-500">Phone:</span> {c.phone ?? "—"}</p>
-                        <p><span className="text-slate-500">Industry:</span> {c.industry ?? "—"}</p>
-                        {c.notes && <p><span className="text-slate-500">Notes:</span> {c.notes}</p>}
+                      <div className="space-y-3 border-t border-border p-4 text-sm text-ink">
+                        <p><span className="text-muted">Phone:</span> {c.phone ?? "—"}</p>
+                        <p><span className="text-muted">Industry:</span> {c.industry ?? "—"}</p>
+                        {c.notes && <p><span className="text-muted">Notes:</span> {c.notes}</p>}
                         {related.length > 0 && (
                           <div className="pt-2">
-                            <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">Missions</p>
+                            <p className="mb-2 text-xs uppercase tracking-wide text-muted">Missions</p>
                             <div className="space-y-1">
                               {related.map((m) => (
                                 <button
@@ -476,10 +476,10 @@ export default function AdminDashboardClient() {
                   className="block w-full rounded-lg border border-border bg-surface2 p-4 text-left transition hover:border-accent/60"
                 >
                   <div className="mb-2 flex items-center justify-between">
-                    <span className="text-sm font-semibold text-white">{n.entity_type} →</span>
-                    <span className="text-xs text-slate-500">{n.author ?? "Ops Team"}</span>
+                    <span className="text-sm font-semibold text-ink">{n.entity_type} →</span>
+                    <span className="text-xs text-muted">{n.author ?? "Ops Team"}</span>
                   </div>
-                  <p className="text-sm text-slate-400">{n.body}</p>
+                  <p className="text-sm text-muted">{n.body}</p>
                 </button>
               ))}
             </div>
@@ -498,7 +498,7 @@ export default function AdminDashboardClient() {
                   <p className={`mb-3 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${s.tone}`}>
                     {s.label}
                   </p>
-                  <p className="text-3xl font-bold text-white">{s.count}</p>
+                  <p className="text-3xl font-bold text-ink">{s.count}</p>
                 </button>
               ))}
             </div>

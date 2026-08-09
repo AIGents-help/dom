@@ -5,7 +5,7 @@ import type { LeadScore } from "@/lib/leadsPipeline";
 const COLORS: Record<"high" | "medium" | "low", string> = {
   high: "border-rose-500 bg-rose-500/10 text-rose-400",
   medium: "border-amber-500 bg-amber-500/10 text-amber-400",
-  low: "border-slate-500 bg-slate-500/10 text-slate-400",
+  low: "border-slate-500 bg-slate-500/10 text-muted",
 };
 
 const LABELS: Record<"high" | "medium" | "low", string> = {

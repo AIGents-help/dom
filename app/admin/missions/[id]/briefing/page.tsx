@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { use } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { V } from "@/lib/theme";
 
 // Admin > Mission Briefing — the full operational package for a mission:
 // documents, contacts, expenses, permissions/clearances, and a SkyVector
@@ -218,8 +219,8 @@ export default function MissionBriefingPage({ params }: { params: Promise<{ id: 
           </div>
 
           {error && (
-            <div style={{ ...panel, borderColor: "#FF8A3D" }}>
-              <p style={{ color: "#FF8A3D", fontSize: 13 }}>{error}</p>
+            <div style={{ ...panel, borderColor: "#DC2626" }}>
+              <p style={{ color: "#DC2626", fontSize: 13 }}>{error}</p>
             </div>
           )}
 
@@ -437,13 +438,7 @@ function Readout({ k, v }: { k: string; v: string }) {
   );
 }
 
-const V = {
-  ground: "#0A0E14", surface: "#11161F", raised: "#161D29",
-  line: "#232C3B", lineSoft: "#1A222F",
-  ink: "#E8ECF2", inkDim: "#8A95A7", inkFaint: "#5A6678",
-  signal: "#FF8A3D", telemetry: "#4FD1C5",
-};
 const panel: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
-const btnPrimary: React.CSSProperties = { padding: "10px 18px", borderRadius: 10, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" };
+const btnPrimary: React.CSSProperties = { padding: "10px 18px", borderRadius: 10, border: "none", background: V.signal, color: "#FFFFFF", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { padding: "8px 14px", borderRadius: 10, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
-const inputStyle: React.CSSProperties = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 9, border: `1px solid ${V.line}`, background: V.ground, color: V.ink, fontSize: 14, outline: "none" };
+const inputStyle: React.CSSProperties = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 9, border: `1px solid ${V.line}`, background: "#FFFFFF", color: V.ink, fontSize: 14, outline: "none" };

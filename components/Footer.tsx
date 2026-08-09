@@ -24,8 +24,8 @@ export default function Footer() {
         </div>
 
         <div>
-          <h4 className="mb-4 text-sm font-semibold text-white">Company</h4>
-          <ul className="space-y-3 text-sm text-slate-400">
+          <h4 className="mb-4 text-sm font-semibold text-ink">Company</h4>
+          <ul className="space-y-3 text-sm text-muted">
             <li><Link href="/about" className="hover:text-accent">About</Link></li>
             <li><Link href="/services" className="hover:text-accent">Services</Link></li>
             <li><Link href="/industries" className="hover:text-accent">Industries</Link></li>
@@ -34,8 +34,8 @@ export default function Footer() {
         </div>
 
         <div>
-          <h4 className="mb-4 text-sm font-semibold text-white">Operations</h4>
-          <ul className="space-y-3 text-sm text-slate-400">
+          <h4 className="mb-4 text-sm font-semibold text-ink">Operations</h4>
+          <ul className="space-y-3 text-sm text-muted">
             <li><Link href="/request-mission" className="hover:text-accent">Request a Mission</Link></li>
             <li><Link href="/fly-for-dom" className="hover:text-accent">Fly for DOM</Link></li>
             <li><Link href="/pilot/login" className="hover:text-accent">Pilot Login</Link></li>
@@ -44,8 +44,8 @@ export default function Footer() {
         </div>
 
         <div>
-          <h4 className="mb-4 text-sm font-semibold text-white">Contact</h4>
-          <ul className="space-y-3 text-sm text-slate-400">
+          <h4 className="mb-4 text-sm font-semibold text-ink">Contact</h4>
+          <ul className="space-y-3 text-sm text-muted">
             <li>ops@droneopsman.com</li>
             <li>DroneOpsMan.com</li>
             <li>FAA Part 107 Certified Operations</li>
@@ -54,7 +54,7 @@ export default function Footer() {
       </div>
 
       <div className="border-t border-border py-6">
-        <div className="container-app flex flex-col gap-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="container-app flex flex-col gap-3 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} Drone Operation Management. All rights reserved. Operated under FAA Part 107 regulations.</p>
           <div className="flex gap-5">
             <Link href="/privacy" className="hover:text-accent">Privacy Policy</Link>

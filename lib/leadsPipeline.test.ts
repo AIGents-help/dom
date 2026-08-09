@@ -3,7 +3,7 @@ import {
   type Lead, type LeadContext, type LeadNextAction, type LeadSmartleadStatus,
   LEGACY_STATUS_MAP, matchesSavedView, matchesFilters, matchesOpportunityType,
   isDueToday, isOverdue, scoreLead, findLikelyDuplicates, canEnrollInOutreach,
-  isDjiRestricted, normalizeStatus,
+  isDjiRestricted, normalizeStatus, tierRank, compareLeadsForSort,
 } from "./leadsPipeline";
 
 function makeLead(overrides: Partial<Lead> = {}): Lead {
@@ -237,6 +237,67 @@ describe("findLikelyDuplicates", () => {
   it("no match for unrelated candidate", () => {
     const matches = findLikelyDuplicates(existing, { email: "nobody@other.com", company: "Totally Different" });
     expect(matches).toHaveLength(0);
+  });
+});
+
+describe("compareLeadsForSort", () => {
+  // Sort a set of leads with the comparator and return their ids in order.
+  const order = (leads: Lead[], key: Parameters<typeof compareLeadsForSort>[2], dir: Parameters<typeof compareLeadsForSort>[3] = "asc") =>
+    [...leads].sort((a, b) => compareLeadsForSort(a, b, key, dir)).map((l) => l.id);
+
+  it("tierRank ranks Tier 1 highest and unassigned lowest", () => {
+    expect(tierRank(makeLead({ tier: ["tier_1"] }))).toBe(1);
+    expect(tierRank(makeLead({ tier: ["tier_2"] }))).toBe(2);
+    expect(tierRank(makeLead({ tier: ["tier_3"] }))).toBe(3);
+    expect(tierRank(makeLead({ tier: [] }))).toBe(99);
+    // Multiple tiers → best (lowest-numbered) tier wins.
+    expect(tierRank(makeLead({ tier: ["tier_3", "tier_1"] }))).toBe(1);
+  });
+
+  it("priority: orders Tier 1 → Tier 2 → Tier 3 → unassigned", () => {
+    const leads = [
+      makeLead({ id: "unassigned", tier: [], company: "A" }),
+      makeLead({ id: "t3", tier: ["tier_3"], company: "A" }),
+      makeLead({ id: "t1", tier: ["tier_1"], company: "A" }),
+      makeLead({ id: "t2", tier: ["tier_2"], company: "A" }),
+    ];
+    expect(order(leads, "priority")).toEqual(["t1", "t2", "t3", "unassigned"]);
+    // Unassigned stays last even when the direction is flipped.
+    expect(order(leads, "priority", "desc")).toEqual(["t3", "t2", "t1", "unassigned"]);
+  });
+
+  it("contact: named contacts first (A–Z), leads with no contact last", () => {
+    const leads = [
+      makeLead({ id: "empty", name: "", company: "A" }),
+      makeLead({ id: "nullname", name: null, company: "B" }),
+      makeLead({ id: "bob", name: "bob", company: "C" }),
+      makeLead({ id: "alice", name: "Alice", company: "D" }),
+    ];
+    const result = order(leads, "name");
+    // Named contacts sorted case-insensitively, then the two contactless leads.
+    expect(result.slice(0, 2)).toEqual(["alice", "bob"]);
+    expect(result.slice(2).sort()).toEqual(["empty", "nullname"]);
+    // No-contact leads remain last even when direction is flipped.
+    const flipped = order(leads, "name", "desc");
+    expect(flipped.slice(0, 2)).toEqual(["bob", "alice"]);
+    expect(flipped.slice(2).sort()).toEqual(["empty", "nullname"]);
+  });
+
+  it("company name is the stable secondary sort for equal primary values", () => {
+    // Same tier → falls back to company A–Z.
+    const sameTier = [
+      makeLead({ id: "zeta", tier: ["tier_1"], company: "Zeta" }),
+      makeLead({ id: "alpha", tier: ["tier_1"], company: "Alpha" }),
+      makeLead({ id: "mid", tier: ["tier_1"], company: "Mid" }),
+    ];
+    expect(order(sameTier, "priority")).toEqual(["alpha", "mid", "zeta"]);
+
+    // Same contact name → falls back to company A–Z.
+    const sameName = [
+      makeLead({ id: "z", name: "Sam", company: "Zeta" }),
+      makeLead({ id: "a", name: "Sam", company: "Alpha" }),
+    ];
+    expect(order(sameName, "name")).toEqual(["a", "z"]);
   });
 });
 

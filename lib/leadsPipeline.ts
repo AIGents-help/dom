@@ -84,6 +84,57 @@ export const CONTACT_METHOD_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 export const TIER_LABELS: Record<string, string> = Object.fromEntries(TIER_OPTIONS.map((t) => [t.value, t.label]));
+
+// Numeric priority rank for a lead's tier assignment, used by "Sort by → Priority".
+// Tier 1 (highest) → 1, Tier 2 → 2, Tier 3 → 3, unassigned/unknown → 99.
+// Lower rank = higher priority (sorts first). A lead may carry multiple tiers;
+// the best (lowest-numbered) tier wins.
+export function tierRank(lead: Pick<Lead, "tier">): number {
+  const tiers = lead.tier ?? [];
+  if (tiers.includes("tier_1")) return 1;
+  if (tiers.includes("tier_2")) return 2;
+  if (tiers.includes("tier_3")) return 3;
+  return 99;
+}
+
+export type LeadSortKey = "company" | "name" | "priority";
+export type LeadSortDir = "asc" | "desc";
+
+// Comparator for the Leads workspace "Sort by" control. Predictable secondary
+// order is always company name A–Z (independent of direction) so equal primary
+// values stay stable.
+//   - company:  company name A–Z
+//   - name:     contact name A–Z; leads with no contact always sort last
+//   - priority: Tier 1 → Tier 2 → Tier 3, then unassigned (always last)
+export function compareLeadsForSort(a: Pick<Lead, "company" | "name" | "tier">, b: Pick<Lead, "company" | "name" | "tier">, sortKey: LeadSortKey, sortDir: LeadSortDir): number {
+  const dir = sortDir === "asc" ? 1 : -1;
+  const companyA = a.company ?? "";
+  const companyB = b.company ?? "";
+  const tieByCompany = companyA.localeCompare(companyB, undefined, { sensitivity: "base" });
+
+  if (sortKey === "priority") {
+    const ra = tierRank(a);
+    const rb = tierRank(b);
+    // Unassigned leads always sort last, regardless of direction.
+    const assignedA = ra !== 99;
+    const assignedB = rb !== 99;
+    if (assignedA !== assignedB) return assignedA ? -1 : 1;
+    if (ra !== rb) return (ra - rb) * dir; // Tier 1 first by default (asc)
+    return tieByCompany;
+  }
+
+  if (sortKey === "name") {
+    const nameA = a.name?.trim() ?? "";
+    const nameB = b.name?.trim() ?? "";
+    // Leads with no contact always sort after those with one, regardless of direction.
+    if (!nameA !== !nameB) return nameA ? -1 : 1;
+    const cmp = nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
+    return cmp !== 0 ? cmp * dir : tieByCompany;
+  }
+
+  // company
+  return tieByCompany * dir;
+}
 export const VERTICAL_LABELS: Record<string, string> = Object.fromEntries(VERTICAL_OPTIONS.map((v) => [v.value, v.label]));
 export const EVENT_LABELS: Record<string, string> = {
   sent: "Email sent", opened: "Opened", clicked: "Clicked link", replied: "Replied",

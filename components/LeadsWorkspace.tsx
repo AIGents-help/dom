@@ -6,12 +6,12 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { inputCls, labelCls, Section, Empty, ActionBtn } from "@/components/adminUi";
 import {
   type Lead, type LeadNextAction, type LeadSmartleadStatus, type LeadContext, type StatusValue,
-  type SavedViewKey, type OpportunityType,
+  type SavedViewKey, type OpportunityType, type LeadSortKey,
   STATUS_OPTIONS, SAVED_VIEWS, TIER_LABELS, INDUSTRY_OPTIONS, ENGAGEMENT_MODEL_OPTIONS, OWNERSHIP_OPTIONS,
   VERTICAL_OPTIONS, CONTACT_METHOD_OPTIONS, TIER_OPTIONS, ACTIVITY_TYPE_LABELS,
   OUTREACH_READY_STATUSES,
   matchesSavedView, matchesFilters, matchesOpportunityType, isDjiRestricted, isValidEmail,
-  findLikelyDuplicates,
+  findLikelyDuplicates, compareLeadsForSort,
 } from "@/lib/leadsPipeline";
 import SummaryStrip from "@/components/leads/SummaryStrip";
 import LeadCard from "@/components/leads/LeadCard";
@@ -78,7 +78,7 @@ export default function LeadsWorkspace() {
   const [activityDraft, setActivityDraft] = useState<Record<string, typeof emptyActivityDraft>>({});
   const [nextActionDraft, setNextActionDraft] = useState<Record<string, typeof emptyNextActionDraft>>({});
 
-  const [sortKey, setSortKey] = useState<"company" | "name">("company");
+  const [sortKey, setSortKey] = useState<LeadSortKey>("company");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const [contactDraft, setContactDraft] = useState<Record<string, typeof emptyContactDraft>>({});
@@ -679,12 +679,7 @@ export default function LeadsWorkspace() {
       .filter((ctx) => matchesOpportunityType(ctx.lead, filterOpportunityType))
       .filter((ctx) => !filterDjiOnly || isDjiRestricted(ctx.lead))
       .filter((ctx) => matchesFilters(ctx.lead, { search, status: filterStatus, industry: filterIndustry, engagement: filterEngagement, ownership: filterOwnership }))
-      .sort((a, b) => {
-        const av = (sortKey === "company" ? a.lead.company : a.lead.name) ?? "";
-        const bv = (sortKey === "company" ? b.lead.company : b.lead.name) ?? "";
-        const cmp = av.localeCompare(bv, undefined, { sensitivity: "base" });
-        return sortDir === "asc" ? cmp : -cmp;
-      });
+      .sort((a, b) => compareLeadsForSort(a.lead, b.lead, sortKey, sortDir));
   }, [contexts, activeView, filterOpportunityType, filterDjiOnly, search, filterStatus, filterIndustry, filterEngagement, filterOwnership, sortKey, sortDir, today]);
 
   if (loading) return <p className="text-muted">Loading leads…</p>;
@@ -880,13 +875,13 @@ export default function LeadsWorkspace() {
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted">Sort by</span>
           <div className="flex overflow-hidden rounded-lg border border-border">
-            {(["company", "name"] as const).map((key) => (
+            {(["company", "name", "priority"] as const).map((key) => (
               <button
                 key={key}
                 onClick={() => { if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc")); else { setSortKey(key); setSortDir("asc"); } }}
                 className={`px-3 py-1.5 text-xs font-medium transition ${sortKey === key ? "bg-accent/10 text-accent" : "bg-surface2 text-muted hover:text-ink"}`}
               >
-                {key === "company" ? "Company" : "Contact"} {sortKey === key ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                {key === "company" ? "Company" : key === "name" ? "Contact" : "Priority"} {sortKey === key ? (sortDir === "asc" ? "↑" : "↓") : ""}
               </button>
             ))}
           </div>

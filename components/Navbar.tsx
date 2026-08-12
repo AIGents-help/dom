@@ -10,6 +10,7 @@ const links = [
   { href: "/industries", label: "Industries" },
   { href: "/fly-for-dom", label: "Fly for DOM" },
   { href: "/faa-compliance", label: "FAA Compliance" },
+  { href: "/shop", label: "Shop" },
   { href: "/about", label: "About" },
 ];
 
@@ -37,7 +38,7 @@ export default function Navbar() {
             <Link
               key={l.href}
               href={l.href}
-              className="text-sm font-medium text-slate-200 transition hover:text-white"
+              className={l.href === "/shop" ? "text-sm font-bold text-[#f26a1b] transition hover:text-[#ff8a3d]" : "text-sm font-medium text-slate-200 transition hover:text-white"}
             >
               {l.label}
             </Link>
@@ -73,7 +74,7 @@ export default function Navbar() {
                 key={l.href}
                 href={l.href}
                 onClick={() => setOpen(false)}
-                className="text-sm font-medium text-slate-200 hover:text-white"
+                className={l.href === "/shop" ? "text-sm font-bold text-[#f26a1b] hover:text-[#ff8a3d]" : "text-sm font-medium text-slate-200 hover:text-white"}
               >
                 {l.label}
               </Link>

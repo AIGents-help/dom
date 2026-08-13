@@ -7,48 +7,56 @@ const services = [
   {
     icon: Camera,
     name: "Aerial Cinematography & Photography",
+    href: "/services/aerial-photography",
     desc: "Cinema-grade aerial video and photography for marketing, real estate, and corporate production. Shot by FAA-certified pilots with broadcast-ready equipment.",
     items: ["4K/6K cinema capture", "Real estate & commercial campaigns", "Event and facility coverage"],
   },
   {
     icon: Map,
     name: "Mapping & Surveying",
+    href: "/services/mapping-surveying",
     desc: "High-accuracy orthomosaic mapping, topographic survey, and 3D modeling for engineering, planning, and land development teams.",
     items: ["Orthomosaic & DEM generation", "GCP-based survey accuracy", "Volumetric & stockpile measurement"],
   },
   {
     icon: Radio,
     name: "Infrastructure Inspection",
+    href: "/services/infrastructure-inspection",
     desc: "Detailed visual inspection of towers, rooftops, pipelines, and transmission infrastructure to identify defects before they become failures.",
     items: ["Cell tower & utility inspection", "Roof and building envelope assessment", "Pipeline & corridor monitoring"],
   },
   {
     icon: Thermometer,
     name: "Thermal & Multispectral Imaging",
+    href: "/services/thermal-multispectral",
     desc: "Thermal and multispectral sensor data for energy audits, agricultural health, and solar panel diagnostics.",
     items: ["Solar panel thermal diagnostics", "Crop health (NDVI) analysis", "Building envelope heat-loss mapping"],
   },
   {
     icon: Database,
     name: "Data & Analytics Deliverables",
+    href: "/services/data-analytics",
     desc: "Processed, decision-ready outputs — GIS layers, point clouds, and structured reports built for your engineering and planning workflows.",
     items: ["GIS-ready shapefiles & layers", "Point cloud & mesh exports", "Custom reporting dashboards"],
   },
   {
     icon: Plane,
     name: "BVLOS & Advanced Operations",
+    href: "/request-mission",
     desc: "Beyond visual line of sight missions conducted under FAA waiver for long-corridor inspection and large-area mapping programs.",
     items: ["FAA waiver-supported BVLOS flights", "Long-corridor pipeline & rail mapping", "Multi-site mapping programs"],
   },
   {
     icon: Boxes,
     name: "Construction Site Monitoring",
+    href: "/services/construction-monitoring",
     desc: "Recurring aerial capture for progress tracking, stakeholder reporting, and as-built documentation throughout a project lifecycle.",
     items: ["Scheduled progress flights", "Time-lapse & comparison reporting", "As-built site documentation"],
   },
   {
     icon: ClipboardCheck,
     name: "Mission Documentation & Compliance",
+    href: "/services/mission-compliance",
     desc: "Full flight logs, risk assessments, and chain-of-custody documentation delivered alongside every mission's data.",
     items: ["Pre-flight risk assessments", "Flight logs & airspace authorization", "Compliance reporting packages"],
   },
@@ -91,6 +99,9 @@ export default function ServicesPage() {
                   </li>
                 ))}
               </ul>
+              <Link href={s.href} className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-accent hover:underline">
+                Learn more <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           ))}
         </div>

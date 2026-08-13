@@ -8,11 +8,12 @@
 
 html {
   scroll-behavior: smooth;
+  background: #090F16;
 }
 
 body {
-  background-color: #F5F7FA;
-  color: #172033;
+  background-color: #090F16;
+  color: #F8FAFC;
 }
 
 .container-app {
@@ -24,15 +25,15 @@ body {
 }
 
 .eyebrow {
-  @apply text-xs font-semibold uppercase tracking-[0.2em] text-accent;
+  @apply text-xs font-black uppercase tracking-[0.22em] text-accent;
 }
 
 .heading-xl {
-  @apply text-4xl font-bold tracking-tight text-ink sm:text-5xl lg:text-6xl;
+  @apply text-4xl font-black tracking-tight text-ink sm:text-5xl lg:text-6xl;
 }
 
 .heading-lg {
-  @apply text-3xl font-bold tracking-tight text-ink sm:text-4xl;
+  @apply text-3xl font-black tracking-tight text-ink sm:text-4xl;
 }
 
 .body-muted {
@@ -40,21 +41,34 @@ body {
 }
 
 .card {
-  @apply rounded-2xl border border-border bg-surface shadow-sm transition-colors hover:border-accent/50;
+  @apply rounded-2xl border border-border bg-surface shadow-xl transition duration-300 hover:-translate-y-1 hover:border-accent/60 hover:shadow-2xl;
 }
 
 .btn-primary {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-semibold text-white transition hover:bg-accent-dim;
+  @apply inline-flex items-center justify-center gap-2 rounded-lg bg-accent px-6 py-3 text-sm font-black text-white transition hover:bg-accent-dim;
 }
 
 .btn-secondary {
-  @apply inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-surface px-6 py-3 text-sm font-semibold text-ink transition hover:border-accent/60 hover:bg-surface2;
+  @apply inline-flex items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/5 px-6 py-3 text-sm font-bold text-ink transition hover:border-accent/60 hover:bg-white/10;
 }
 
 .label {
-  @apply mb-2 block text-sm font-medium text-ink;
+  @apply mb-2 block text-sm font-semibold text-ink;
 }
 
 .input {
-  @apply w-full rounded-lg border border-border bg-white px-4 py-3 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent;
+  @apply w-full rounded-lg border border-border bg-[#0D141D] px-4 py-3 text-sm text-ink placeholder:text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent;
+}
+
+main > section:first-child:not(.bg-white):not(.bg-surface) {
+  position: relative;
+  overflow: hidden;
+}
+
+main > section:first-child:not(.bg-white):not(.bg-surface)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 80% 15%, rgba(244, 90, 30, 0.12), transparent 28%);
 }

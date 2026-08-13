@@ -28,7 +28,7 @@ export default function KnowledgePage() {
           <h2 className="heading-lg mb-8">Services</h2>
           <div className="grid gap-6 md:grid-cols-2">
             {domKnowledge.services.map((service) => (
-              <article key={service.slug} className="card p-6">
+              <article id={service.slug} key={service.slug} className="card scroll-mt-24 p-6">
                 <h3 className="mb-2 text-lg font-semibold text-ink">{service.name}</h3>
                 <p className="body-muted">{service.description}</p>
               </article>

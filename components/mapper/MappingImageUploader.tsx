@@ -198,6 +198,7 @@ export default function MappingImageUploader({
       for (const t of tracked) {
         updateFile(t.clientId, { status: "checksumming" });
         const checksum = await sha256Hex(t.file);
+        t.checksum = checksum; // updateFile only patches React state, not this local object — the dedup filter below reads t.checksum directly
         updateFile(t.clientId, { checksum });
       }
 

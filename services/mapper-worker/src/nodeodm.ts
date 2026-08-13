@@ -39,21 +39,39 @@ async function fileToBlob(path: string): Promise<Blob> {
   return new Blob([Buffer.concat(chunks, stat.size)]);
 }
 
-// POST /task/new/init — starts a new task and uploads the initial batch of
-// images as multipart form data. Returns the new task's uuid.
-export async function initTask(imagePaths: string[], name: string, options: { name: string; value: unknown }[]): Promise<string> {
+// POST /task/new/init — creates a new task (metadata only, per NodeODM's
+// swagger spec at /swagger.json: this endpoint does NOT accept image files;
+// attaching an "images" field here is rejected with {"error":"Unexpected
+// field"}). Returns the new task's uuid; images are added afterward via
+// uploadImagesToTask, then the task is started via commitTask.
+export async function initTask(name: string, options: { name: string; value: unknown }[]): Promise<string> {
   const form = new FormData();
   form.append("name", name);
   form.append("options", JSON.stringify(options));
-  for (const path of imagePaths) {
-    form.append("images", await fileToBlob(path), basename(path));
-  }
 
   const res = await fetch(url("/task/new/init"), { method: "POST", body: form });
   if (!res.ok) throw new Error(`NodeODM /task/new/init failed: ${res.status} ${await res.text()}`);
   const body = (await res.json()) as { uuid?: string; error?: string };
   if (!body.uuid) throw new Error(`NodeODM /task/new/init did not return a uuid: ${JSON.stringify(body)}`);
   return body.uuid;
+}
+
+const UPLOAD_BATCH_SIZE = 20;
+
+// POST /task/new/upload/{uuid} — adds images to a task created via
+// /task/new/init. Called once per batch (repeatable, per the documented API).
+export async function uploadImagesToTask(uuid: string, imagePaths: string[]): Promise<void> {
+  for (let i = 0; i < imagePaths.length; i += UPLOAD_BATCH_SIZE) {
+    const batch = imagePaths.slice(i, i + UPLOAD_BATCH_SIZE);
+    const form = new FormData();
+    for (const path of batch) {
+      form.append("images", await fileToBlob(path), basename(path));
+    }
+    const res = await fetch(url(`/task/new/upload/${uuid}`), { method: "POST", body: form });
+    if (!res.ok) throw new Error(`NodeODM /task/new/upload/${uuid} failed: ${res.status} ${await res.text()}`);
+    const body = (await res.json()) as { success?: boolean; error?: string };
+    if (!body.success) throw new Error(`NodeODM /task/new/upload/${uuid} did not report success: ${JSON.stringify(body)}`);
+  }
 }
 
 // POST /task/new/commit/{uuid} — commits (starts) a task created via init.

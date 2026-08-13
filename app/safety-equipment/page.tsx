@@ -2,12 +2,12 @@ import Link from "next/link";
 import BarrierProductVisual from "@/components/shop/BarrierProductVisual";
 
 const products = [
-  { count: 1 as const, name: "Single Barrier", price: "$69", href: "/shop/drone-operation-barriers#single", badge: "START HERE" },
-  { count: 3 as const, name: "3-Post Field Kit", price: "$179", href: "/shop/drone-operation-barriers#three-pack", badge: "FIELD KIT" },
-  { count: 4 as const, name: "4-Post Perimeter Kit", price: "$229", href: "/shop/drone-operation-barriers#four-pack", badge: "BEST VALUE" },
-  { count: 6 as const, name: "6-Post Jobsite Kit", price: "$319", href: "/shop/drone-operation-barriers#six-pack", badge: "JOBSITE" },
-  { count: 12 as const, name: "12-Post Fleet Kit", price: "$599", href: "/shop/drone-operation-barriers#twelve-pack", badge: "FLEET" },
-  { count: 24 as const, name: "24-Post Corporate Kit", price: "$1,099", href: "/shop/drone-operation-barriers#twenty-four-pack", badge: "CORPORATE" },
+  { count: 1 as const, name: "Single Barrier", price: "$69", href: "/safety-equipment/single-barrier", badge: "START HERE" },
+  { count: 3 as const, name: "3-Post Field Kit", price: "$179", href: "/safety-equipment/3-post-field-kit", badge: "FIELD KIT" },
+  { count: 4 as const, name: "4-Post Perimeter Kit", price: "$229", href: "/safety-equipment/4-post-perimeter-kit", badge: "BEST VALUE" },
+  { count: 6 as const, name: "6-Post Jobsite Kit", price: "$319", href: "/safety-equipment/6-post-jobsite-kit", badge: "JOBSITE" },
+  { count: 12 as const, name: "12-Post Fleet Kit", price: "$599", href: "/safety-equipment/12-post-fleet-kit", badge: "FLEET" },
+  { count: 24 as const, name: "24-Post Corporate Kit", price: "$1,099", href: "/safety-equipment/24-post-corporate-kit", badge: "CORPORATE" },
 ];
 
 export default function SafetyEquipmentPage() {
@@ -52,7 +52,7 @@ export default function SafetyEquipmentPage() {
                   <span className="text-2xl font-extrabold text-[#f26a1b]">{product.price}</span>
                 </div>
                 <p className="mt-3 text-sm leading-6 text-slate-400">Exactly {product.count} retractable {product.count === 1 ? "post" : "posts"}. High-visibility orange finish and 6 ft webbing per unit.</p>
-                <div className="mt-5 font-bold text-[#f26a1b]">View & buy securely →</div>
+                <div className="mt-5 font-bold text-[#f26a1b]">View product →</div>
               </div>
             </Link>
           ))}

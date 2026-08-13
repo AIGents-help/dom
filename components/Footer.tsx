@@ -12,15 +12,9 @@ export default function Footer() {
       <div className="container-app grid gap-10 py-16 lg:grid-cols-4">
         <div>
           <div className="mb-4 flex items-center">
-            <img
-              src="/brand/dom-lockup-horizontal.png?v=3"
-              alt="DOM — Drone Operation Management"
-              className="h-7 w-auto"
-            />
+            <img src="/brand/dom-lockup-horizontal.png?v=3" alt="DOM — Drone Operation Management" className="h-7 w-auto" />
           </div>
-          <p className="body-muted max-w-xs">
-            Commercial drone operations, aerial intelligence, and mission documentation for enterprise and government clients.
-          </p>
+          <p className="body-muted max-w-xs">Commercial drone operations, aerial intelligence, and mission documentation for enterprise and government clients.</p>
         </div>
 
         <div>
@@ -37,7 +31,8 @@ export default function Footer() {
           <h4 className="mb-4 text-sm font-semibold text-ink">Operations</h4>
           <ul className="space-y-3 text-sm text-muted">
             <li><Link href="/request-mission" className="hover:text-accent">Request a Mission</Link></li>
-            <li><Link href="/shop" className="font-semibold text-[#f26a1b] hover:text-[#d9570c]">Shop Equipment</Link></li>
+            <li><Link href="/safety-equipment" className="font-semibold text-[#f26a1b] hover:text-[#d9570c]">Safety Equipment</Link></li>
+            <li><Link href="/shop" className="font-semibold text-[#f26a1b] hover:text-[#d9570c]">Shop</Link></li>
             <li><Link href="/fly-for-dom" className="hover:text-accent">Fly for DOM</Link></li>
             <li><Link href="/pilot/login" className="hover:text-accent">Pilot Login</Link></li>
             <li><Link href="/admin/login" className="hover:text-accent">Admin Login</Link></li>

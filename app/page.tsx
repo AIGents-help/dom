@@ -103,40 +103,24 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* ── Telemetry HUD ── */}
-              <div className="rounded-[14px] overflow-hidden" style={{ border: "1px solid var(--line)", background: "linear-gradient(160deg,rgba(255,255,255,.95),rgba(245,247,250,.95))" }}>
-                <div className="flex justify-between items-center px-4 py-3 font-mono-ibm text-[11px] tracking-[.14em]" style={{ borderBottom: "1px solid var(--line-soft)", color: "var(--ink-faint)" }}>
-                  <span>MISSION&nbsp;PLAN&nbsp;//&nbsp;PREVIEW</span>
-                  <span className="flex items-center gap-2" style={{ color: "var(--telemetry)" }}>
-                    <span className="w-[7px] h-[7px] rounded-full dot-pulse" style={{ background: "var(--telemetry)" }} />
-                    STANDBY
-                  </span>
+              {/* ── Drone operation safety ── */}
+              <figure className="group relative min-h-[390px] overflow-hidden rounded-[18px] border border-white/40 bg-slate-900 shadow-[0_24px_70px_rgba(15,23,42,.22)] md:min-h-[460px]">
+                <img
+                  src="/images/drone-operation-safety.png"
+                  alt="Professional drone operation safety perimeter at an active construction site"
+                  className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.025]"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/5 to-transparent" />
+                <div className="absolute left-5 top-5 rounded-full border border-white/25 bg-slate-950/75 px-3.5 py-2 font-mono-ibm text-[10px] font-semibold uppercase tracking-[.16em] text-white backdrop-blur-md">
+                  Safety-First Operations
                 </div>
-                <div className="relative h-[188px]" style={{ background: "radial-gradient(80% 120% at 30% 20%, rgba(22,163,74,.06), transparent 60%)" }}>
-                  <svg viewBox="0 0 360 188" preserveAspectRatio="none" className="absolute inset-0 w-full h-full">
-                    <path className="path-draw" d="M28,150 C90,120 110,60 175,72 C235,83 250,40 332,38" stroke="var(--signal)" strokeWidth="2" fill="none" />
-                    <circle cx="28" cy="150" r="5" fill="var(--ground)" stroke="var(--signal)" strokeWidth="1.6" />
-                    <circle cx="28" cy="150" r="2.4" fill="var(--signal)" className="wp-fade" style={{ animationDelay: ".5s" }} />
-                    <circle cx="175" cy="72" r="5" fill="var(--ground)" stroke="var(--signal)" strokeWidth="1.6" />
-                    <circle cx="175" cy="72" r="2.4" fill="var(--signal)" className="wp-fade" style={{ animationDelay: "1.6s" }} />
-                    <circle cx="332" cy="38" r="5" fill="var(--ground)" stroke="var(--signal)" strokeWidth="1.6" />
-                    <circle cx="332" cy="38" r="2.4" fill="var(--signal)" className="wp-fade" style={{ animationDelay: "2.7s" }} />
-                  </svg>
-                </div>
-                <div className="grid grid-cols-2" style={{ borderTop: "1px solid var(--line-soft)", background: "var(--line-soft)", gap: "1px" }}>
-                  {[
-                    ["Airspace", "CLASS G · CLEAR"],
-                    ["Authorization", "LAANC ✓"],
-                    ["Deliverable", "ORTHO + REPORT"],
-                    ["Chain-of-custody", "LOGGED"],
-                  ].map(([k, v]) => (
-                    <div key={k} className="px-4 py-3" style={{ background: "var(--raised)" }}>
-                      <div className="font-mono-ibm text-[10px] tracking-[.14em] uppercase" style={{ color: "var(--ink-faint)" }}>{k}</div>
-                      <div className="font-mono-ibm text-[15px] font-medium mt-0.5" style={{ color: "var(--telemetry)" }}>{v}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+                <figcaption className="absolute inset-x-0 bottom-0 p-6 text-white">
+                  <div className="font-saira text-2xl font-bold">A controlled work zone on every mission.</div>
+                  <p className="mt-1 max-w-md text-sm leading-6 text-slate-200">
+                    Professional perimeter control protects the public, the pilot, and your site while operations are active.
+                  </p>
+                </figcaption>
+              </figure>
             </div>
           </div>
         </header>

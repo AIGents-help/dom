@@ -55,7 +55,7 @@ export default function PilotLoginPage() {
         </Link>
         <div style={{ padding: 32, border: `1px solid ${V.line}`, borderRadius: 16, background: V.surface }}>
         <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
-          <img src="/brand/dom-lockup-horizontal.png" alt="DOM — Drone Operation Management" style={{ height: 26, width: "auto" }} />
+          <img src="/brand/dom-lockup-horizontal.png?v=3" alt="DOM — Drone Operation Management" style={{ height: 26, width: "auto" }} />
         </div>
         <h1 className="font-saira" style={{ fontSize: 22, color: V.ink, marginTop: 12 }}>Pilot Portal</h1>
         <p style={{ color: V.inkDim, fontSize: 13, marginBottom: 22 }}>

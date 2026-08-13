@@ -81,7 +81,7 @@ export default function PilotSidebar({
       <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", padding: "10px 10px 0" }}>
         {!collapsed && (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <img src="/brand/dom-icon-mark.png" alt="" style={{ height: 18, width: "auto" }} />
+            <img src="/brand/dom-icon-mark.png?v=3" alt="" style={{ height: 18, width: "auto" }} />
             <span className="font-saira" style={{ fontWeight: 700, fontSize: 14, color: V.ink }}>DOM Pilot</span>
           </div>
         )}

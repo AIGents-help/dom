@@ -13,7 +13,7 @@ export default function Footer() {
         <div>
           <div className="mb-4 flex items-center">
             <img
-              src="/brand/dom-lockup-horizontal.png"
+              src="/brand/dom-lockup-horizontal.png?v=3"
               alt="DOM — Drone Operation Management"
               className="h-7 w-auto"
             />

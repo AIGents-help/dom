@@ -23,11 +23,11 @@ export default function Navbar() {
   if (pathname?.startsWith("/admin") || pathname === "/pilot" || pathname?.startsWith("/pilot/")) return null;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-navy/95 backdrop-blur-md">
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-navy/95 shadow-sm backdrop-blur-md">
       <div className="container-app flex h-18 items-center justify-between py-4">
         <Link href="/" className="flex items-center">
           <img
-            src="/brand/dom-lockup-horizontal.png"
+            src="/brand/dom-lockup-horizontal.png?v=3"
             alt="DOM — Drone Operation Management"
             className="h-9 w-auto"
           />

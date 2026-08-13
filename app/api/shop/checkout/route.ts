@@ -2,15 +2,35 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 
 const PRODUCTS = {
+  "barrier-1": {
+    name: "Drone Operation Retractable Barrier — Single",
+    unitAmount: 6900,
+    description: "One high-visibility retractable barrier post with 6 ft DRONE OPERATION webbing.",
+  },
   "barrier-3": {
     name: "Drone Operation Barrier Kit — 3 Pack",
-    unitAmount: 14900,
+    unitAmount: 17900,
     description: "Three high-visibility retractable barrier posts with 6 ft DRONE OPERATION webbing on each unit.",
   },
   "barrier-4": {
     name: "Drone Operation Barrier Kit — 4 Pack",
-    unitAmount: 19900,
+    unitAmount: 22900,
     description: "Four high-visibility retractable barrier posts with 6 ft DRONE OPERATION webbing on each unit.",
+  },
+  "barrier-6": {
+    name: "Drone Operation Barrier Kit — 6 Pack",
+    unitAmount: 31900,
+    description: "Six high-visibility retractable barrier posts with 6 ft DRONE OPERATION webbing on each unit.",
+  },
+  "barrier-12": {
+    name: "Drone Operation Barrier Kit — 12 Pack",
+    unitAmount: 59900,
+    description: "Twelve high-visibility retractable barrier posts with 6 ft DRONE OPERATION webbing on each unit.",
+  },
+  "barrier-24": {
+    name: "Drone Operation Corporate Barrier Kit — 24 Pack",
+    unitAmount: 109900,
+    description: "Twenty-four high-visibility retractable barrier posts with 6 ft DRONE OPERATION webbing on each unit.",
   },
 } as const;
 
@@ -22,39 +42,27 @@ export async function POST(req: NextRequest) {
     const product = PRODUCTS[productKey as ProductKey];
     const qty = Number(quantity);
 
-    if (!product) {
-      return NextResponse.json({ error: "Unknown product" }, { status: 400 });
-    }
-    if (!Number.isInteger(qty) || qty < 1 || qty > 20) {
-      return NextResponse.json({ error: "Invalid quantity" }, { status: 400 });
-    }
+    if (!product) return NextResponse.json({ error: "Unknown product" }, { status: 400 });
+    if (!Number.isInteger(qty) || qty < 1 || qty > 20) return NextResponse.json({ error: "Invalid quantity" }, { status: 400 });
 
     const stripe = getStripe();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
-      line_items: [
-        {
-          quantity: qty,
-          price_data: {
-            currency: "usd",
-            unit_amount: product.unitAmount,
-            product_data: {
-              name: product.name,
-              description: product.description,
-            },
-          },
+      line_items: [{
+        quantity: qty,
+        price_data: {
+          currency: "usd",
+          unit_amount: product.unitAmount,
+          product_data: { name: product.name, description: product.description },
         },
-      ],
+      }],
       billing_address_collection: "required",
       shipping_address_collection: { allowed_countries: ["US"] },
       phone_number_collection: { enabled: true },
       allow_promotion_codes: true,
-      metadata: {
-        order_type: "dom_shop",
-        product_key: productKey,
-      },
+      metadata: { order_type: "dom_safety_equipment", product_key: productKey },
       success_url: `${siteUrl}/shop/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteUrl}/shop/drone-operation-barriers?checkout=cancelled`,
     });

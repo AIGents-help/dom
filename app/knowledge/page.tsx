@@ -6,9 +6,27 @@ import { domKnowledge } from "@/lib/knowledge";
 export const metadata: Metadata = {
   title: "DOM Knowledge Catalog | Drone Operation Management",
   description:
-    "Explore Drone Operation Management services, industries, deliverables, and commercial drone terminology in one authoritative knowledge catalog.",
+    "Explore Drone Operation Management services, industries, equipment, service areas, deliverables, FAQs, and commercial drone terminology in one authoritative knowledge catalog.",
   alternates: { canonical: "/knowledge" },
 };
+
+const hubs = [
+  {
+    href: "/knowledge/faq",
+    title: "Commercial Drone FAQ",
+    description: "Buyer-focused answers about mapping, inspections, accuracy, construction progress, and deliverables.",
+  },
+  {
+    href: "/knowledge/equipment",
+    title: "Equipment",
+    description: "Aircraft and the mission workflows they support.",
+  },
+  {
+    href: "/knowledge/service-areas",
+    title: "Service Areas",
+    description: "DOM's home-region coverage across Delaware County, Greater Philadelphia, and Southeastern Pennsylvania.",
+  },
+];
 
 export default function KnowledgePage() {
   return (
@@ -18,8 +36,23 @@ export default function KnowledgePage() {
           <p className="eyebrow mb-4">Knowledge Catalog</p>
           <h1 className="heading-xl max-w-4xl">The authoritative guide to what DOM does, serves, and delivers.</h1>
           <p className="body-muted mt-6 max-w-3xl text-lg">
-            This catalog gives clients, search engines, and AI systems a clear source of truth for Drone Operation Management services, industries, deliverables, and operating terminology.
+            This catalog gives clients, search engines, and AI systems a clear source of truth for Drone Operation Management services, industries, equipment, service areas, deliverables, and operating terminology.
           </p>
+        </div>
+      </section>
+
+      <section className="section border-b border-border">
+        <div className="container-app">
+          <h2 className="heading-lg mb-8">Explore the DOM knowledge base</h2>
+          <div className="grid gap-6 md:grid-cols-3">
+            {hubs.map((hub) => (
+              <Link key={hub.href} href={hub.href} className="card group p-6">
+                <h3 className="mb-2 text-lg font-semibold text-ink group-hover:text-accent">{hub.title}</h3>
+                <p className="body-muted mb-4">{hub.description}</p>
+                <span className="inline-flex items-center gap-2 text-sm font-semibold text-accent">Explore <ArrowRight className="h-4 w-4" /></span>
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
 

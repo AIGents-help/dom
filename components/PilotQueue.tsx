@@ -110,7 +110,7 @@ export default function PilotQueue({
               style={{
                 fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase",
                 border: `1px solid ${sortKey === k ? V.signal : V.line}`,
-                background: sortKey === k ? "rgba(37,99,235,.12)" : "transparent",
+                background: sortKey === k ? "rgba(244,90,30,.12)" : "transparent",
                 color: sortKey === k ? V.signal : V.inkFaint,
               }}
             >

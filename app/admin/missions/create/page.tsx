@@ -340,7 +340,7 @@ export default function CreateMissionPage() {
             </div>
 
             {quote.warnings.length > 0 && (
-              <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "rgba(37,99,235,.08)", border: `1px solid rgba(37,99,235,.25)` }}>
+              <div style={{ marginTop: 14, padding: 12, borderRadius: 10, background: "rgba(244,90,30,.08)", border: `1px solid rgba(244,90,30,.25)` }}>
                 {quote.warnings.map((w, i) => (
                   <p key={i} style={{ color: V.signal, fontSize: 13 }}>⚠ {w}</p>
                 ))}
@@ -414,7 +414,7 @@ function StepIndicator({ current }: { current: Step }) {
       {steps.map((s) => (
         <span key={s} className="font-mono-ibm" style={{
           fontSize: 11, padding: "4px 10px", borderRadius: 6,
-          background: s === current ? "rgba(37,99,235,.14)" : "transparent",
+          background: s === current ? "rgba(244,90,30,.14)" : "transparent",
           color: s === current ? V.signal : V.inkFaint,
         }}>
           {labels[s]}

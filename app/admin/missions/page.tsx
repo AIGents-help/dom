@@ -84,7 +84,7 @@ export default function MissionsPage() {
           <button key={f} onClick={() => setFilter(f)} className="font-mono-ibm" style={{
             fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer",
             border: `1px solid ${f === filter ? V.signal : V.line}`,
-            background: f === filter ? "rgba(37,99,235,.12)" : "transparent",
+            background: f === filter ? "rgba(244,90,30,.12)" : "transparent",
             color: f === filter ? V.signal : V.inkFaint,
           }}>
             {f.replace("_", " ").toUpperCase()}

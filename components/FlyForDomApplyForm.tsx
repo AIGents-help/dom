@@ -116,8 +116,8 @@ export default function FlyForDomApplyForm() {
                 key={bucket}
                 style={{
                   display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 9,
-                  border: `1px solid ${certTimelineBucket === bucket ? "#2563EB" : "#D9E0E8"}`,
-                  background: certTimelineBucket === bucket ? "rgba(37,99,235,.08)" : "#F5F7FA",
+                  border: `1px solid ${certTimelineBucket === bucket ? "#F45A1E" : "#D9E0E8"}`,
+                  background: certTimelineBucket === bucket ? "rgba(244,90,30,.08)" : "#F5F7FA",
                   fontSize: 13, cursor: "pointer",
                 }}
               >
@@ -167,8 +167,8 @@ function Field({ label, v, on, type = "text" }: { label: string; v: string; on: 
 }
 
 const card: React.CSSProperties = { width: "100%", maxWidth: 460, margin: "0 auto", padding: 34, border: "1px solid #D9E0E8", borderRadius: 16, background: "#FFFFFF", color: "#172033" };
-const eyebrow: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 12, letterSpacing: ".18em", textTransform: "uppercase", color: "#2563EB" };
+const eyebrow: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 12, letterSpacing: ".18em", textTransform: "uppercase", color: "#F45A1E" };
 const h2: React.CSSProperties = { fontFamily: "Saira, sans-serif", fontSize: 24, fontWeight: 700, marginTop: 10, lineHeight: 1.1 };
 const sub: React.CSSProperties = { color: "#5F6B7A", fontSize: 14, marginTop: 12, marginBottom: 8 };
 const input: React.CSSProperties = { width: "100%", marginTop: 6, padding: "11px 12px", borderRadius: 9, border: "1px solid #D9E0E8", background: "#FFFFFF", color: "#172033", fontSize: 14, outline: "none" };
-const btn: React.CSSProperties = { width: "100%", marginTop: 22, padding: 13, borderRadius: 10, border: "none", background: "#2563EB", color: "#FFFFFF", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };
+const btn: React.CSSProperties = { width: "100%", marginTop: 22, padding: 13, borderRadius: 10, border: "none", background: "#F45A1E", color: "#FFFFFF", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };

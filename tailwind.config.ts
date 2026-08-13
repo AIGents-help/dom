@@ -17,9 +17,9 @@ const config: Config = {
         muted: "#5F6B7A", // secondary text
         navy: "#172033", // nav / sidebar shell
         accent: {
-          DEFAULT: "#2563EB", // DOM primary blue (buttons, links, active nav, key metrics)
-          dim: "#1D4ED8", // darker blue for hover
-          blue: "#2563EB",
+          DEFAULT: "#F45A1E", // DOM primary orange (buttons, links, active nav, key metrics)
+          dim: "#D9480F", // darker orange for hover
+          blue: "#F45A1E",
         },
       },
       fontFamily: {
@@ -27,7 +27,7 @@ const config: Config = {
       },
       backgroundImage: {
         "grid-fade":
-          "radial-gradient(ellipse at top, rgba(37,99,235,0.08), transparent 60%)",
+          "radial-gradient(ellipse at top, rgba(244,90,30,0.08), transparent 60%)",
       },
     },
   },

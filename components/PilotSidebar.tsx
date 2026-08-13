@@ -107,7 +107,7 @@ export default function PilotSidebar({
                 display: "flex", alignItems: "center", gap: 10, padding: "10px 10px", borderRadius: 8,
                 border: "none", cursor: "pointer", textAlign: "left",
                 color: active ? V.signal : V.inkDim,
-                background: active ? "rgba(37,99,235,.22)" : "transparent",
+                background: active ? "rgba(244,90,30,.22)" : "transparent",
                 fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13,
                 justifyContent: collapsed ? "center" : "flex-start",
               }}

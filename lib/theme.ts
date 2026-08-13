@@ -3,7 +3,7 @@
 // re-declared its own dark `const V = {...}`; they now import this single
 // source so the theme stays consistent. Content surfaces use white cards on a
 // light page with dark text; nav shells use `navy` with light text (handled in
-// the individual nav components). DOM blue (#2563EB) is the primary accent;
+// the individual nav components). DOM orange (#F45A1E) is the primary accent;
 // status colors keep their semantic meaning (green=success, orange=warning,
 // red=error, purple=distinct status).
 
@@ -16,7 +16,7 @@ export const V = {
   ink: "#172033", // primary text
   inkDim: "#5F6B7A", // secondary text
   inkFaint: "#8A95A7", // tertiary / faint text
-  signal: "#2563EB", // PRIMARY action / accent (DOM blue)
+  signal: "#F45A1E", // PRIMARY action / accent (DOM orange)
   telemetry: "#16A34A", // success / completed / won (green)
   airspace: "#7C3AED", // distinct status (purple)
   danger: "#DC2626", // errors

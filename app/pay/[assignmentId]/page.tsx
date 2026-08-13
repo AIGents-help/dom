@@ -53,7 +53,7 @@ export default function PayPage({ params }: { params: Promise<{ assignmentId: st
         ) : clientSecret ? (
           <Elements
             stripe={getStripePromise()}
-            options={{ clientSecret, appearance: { theme: "stripe", variables: { colorPrimary: "#2563EB" } } }}
+            options={{ clientSecret, appearance: { theme: "stripe", variables: { colorPrimary: "#F45A1E" } } }}
           >
             <PayForm />
           </Elements>
@@ -98,7 +98,7 @@ function PayForm() {
 
 const wrap: React.CSSProperties = { minHeight: "100vh", display: "grid", placeItems: "center", background: "#F5F7FA", padding: 24 };
 const card: React.CSSProperties = { width: "100%", maxWidth: 440, padding: 32, border: "1px solid #D9E0E8", borderRadius: 16, background: "#FFFFFF", color: "#172033", fontFamily: "Inter, system-ui, sans-serif" };
-const eyebrow: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 12, letterSpacing: ".18em", textTransform: "uppercase", color: "#2563EB" };
+const eyebrow: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 12, letterSpacing: ".18em", textTransform: "uppercase", color: "#F45A1E" };
 const h1: React.CSSProperties = { fontFamily: "Saira, sans-serif", fontSize: 23, marginTop: 10 };
-const amt: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 28, color: "#2563EB", margin: "6px 0 18px" };
-const btn: React.CSSProperties = { width: "100%", marginTop: 20, padding: 13, borderRadius: 10, border: "none", background: "#2563EB", color: "#FFFFFF", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };
+const amt: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 28, color: "#F45A1E", margin: "6px 0 18px" };
+const btn: React.CSSProperties = { width: "100%", marginTop: 20, padding: 13, borderRadius: 10, border: "none", background: "#F45A1E", color: "#FFFFFF", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 15, cursor: "pointer" };

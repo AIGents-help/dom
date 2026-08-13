@@ -247,7 +247,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 }
 function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{ ...toggleBase, background: on ? "rgba(37,99,235,.12)" : "#F5F7FA", color: on ? "#2563EB" : "#5F6B7A", borderColor: on ? "#2563EB" : "#D9E0E8" }}>
+    <button onClick={onClick} style={{ ...toggleBase, background: on ? "rgba(244,90,30,.12)" : "#F5F7FA", color: on ? "#F45A1E" : "#5F6B7A", borderColor: on ? "#F45A1E" : "#D9E0E8" }}>
       {on ? "✓ " : "○ "}{label} verified
     </button>
   );

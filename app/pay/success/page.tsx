@@ -11,7 +11,7 @@ export default function PaySuccessPage() {
         <p style={{ color: "#5F6B7A", marginTop: 10 }}>
           Thanks — your mission is confirmed. DOM will be in touch with scheduling and deliverable timing.
         </p>
-        <a href="/" style={{ display: "inline-block", marginTop: 22, color: "#2563EB", fontFamily: "Saira, sans-serif", fontWeight: 600 }}>
+        <a href="/" style={{ display: "inline-block", marginTop: 22, color: "#F45A1E", fontFamily: "Saira, sans-serif", fontWeight: 600 }}>
           Return to DOM →
         </a>
       </div>

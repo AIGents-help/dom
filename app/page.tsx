@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 
 // ── DOM Homepage — "Flight Operations Console" direction ──
-// Light business theme: white workspace, DOM-blue (#2563EB) brand accent,
+// Light business theme: white workspace, DOM orange (#F45A1E) brand accent,
 // IBM Plex Mono for telemetry, Saira for display, honest pre-launch claims.
 
 export default function HomePage() {
@@ -16,7 +16,7 @@ export default function HomePage() {
           --ground:#F5F7FA; --surface:#FFFFFF; --raised:#FFFFFF;
           --line:#D9E0E8; --line-soft:#E8EDF2;
           --ink:#172033; --ink-dim:#5F6B7A; --ink-faint:#8A95A7;
-          --signal:#2563EB; --signal-deep:#1D4ED8;
+          --signal:#F45A1E; --signal-deep:#D9480F;
           --telemetry:#16A34A; --airspace:#7C3AED;
         }
         .font-saira { font-family: 'Saira', sans-serif; }
@@ -70,7 +70,7 @@ export default function HomePage() {
             style={{ opacity: 0, animationDelay: "-14s" }}
           />
           <div className="absolute inset-0" style={{
-            background: "linear-gradient(100deg, rgba(245,247,250,.96) 8%, rgba(245,247,250,.80) 38%, rgba(245,247,250,.45) 64%, rgba(245,247,250,.30) 100%), radial-gradient(120% 80% at 78% -10%, rgba(37,99,235,.08), transparent 55%), radial-gradient(90% 70% at 12% 8%, rgba(22,163,74,.05), transparent 50%), linear-gradient(180deg, transparent 55%, #F5F7FA 96%)"
+            background: "linear-gradient(100deg, rgba(245,247,250,.96) 8%, rgba(245,247,250,.80) 38%, rgba(245,247,250,.45) 64%, rgba(245,247,250,.30) 100%), radial-gradient(120% 80% at 78% -10%, rgba(244,90,30,.08), transparent 55%), radial-gradient(90% 70% at 12% 8%, rgba(22,163,74,.05), transparent 50%), linear-gradient(180deg, transparent 55%, #F5F7FA 96%)"
           }} />
           <div className="absolute inset-0 opacity-20 grid-bg" />
 
@@ -213,7 +213,7 @@ export default function HomePage() {
                 </div>
                 <div className="flex flex-wrap gap-1 px-4 pt-3 font-mono-ibm text-[11px]" style={{ color: "var(--ink-faint)" }}>
                   {["Missions", "Clients", "Schedule", "Deliverables", "Status"].map((t, i) => (
-                    <span key={t} className="px-2.5 py-1.5 rounded-md" style={i === 0 ? { background: "rgba(37,99,235,.12)", color: "var(--signal)" } : {}}>
+                    <span key={t} className="px-2.5 py-1.5 rounded-md" style={i === 0 ? { background: "rgba(244,90,30,.12)", color: "var(--signal)" } : {}}>
                       {t}
                     </span>
                   ))}
@@ -231,7 +231,7 @@ export default function HomePage() {
                         <div className="font-mono-ibm text-[11px]" style={{ color: "var(--ink-faint)" }}>{loc}</div>
                       </div>
                       <span className="font-mono-ibm text-[10px] tracking-wide px-2.5 py-1 rounded-full uppercase" style={{
-                        background: cls === "rev" ? "rgba(22,163,74,.12)" : cls === "del" ? "rgba(124,58,237,.14)" : "rgba(37,99,235,.12)",
+                        background: cls === "rev" ? "rgba(22,163,74,.12)" : cls === "del" ? "rgba(124,58,237,.14)" : "rgba(244,90,30,.12)",
                         color: cls === "rev" ? "var(--telemetry)" : cls === "del" ? "var(--airspace)" : "var(--signal)",
                       }}>{st}</span>
                     </div>
@@ -305,7 +305,7 @@ export default function HomePage() {
           <div className="max-w-[1200px] mx-auto px-6">
             <div className="rounded-[18px] p-10 md:p-14 flex flex-col md:flex-row justify-between items-start md:items-center gap-8" style={{
               border: "1px solid var(--line)",
-              background: "radial-gradient(90% 130% at 85% 10%, rgba(37,99,235,.10), transparent 55%), var(--raised)",
+              background: "radial-gradient(90% 130% at 85% 10%, rgba(244,90,30,.10), transparent 55%), var(--raised)",
             }}>
               <div>
                 <span className="font-mono-ibm text-xs tracking-[.18em] uppercase inline-flex items-center gap-2.5" style={{ color: "var(--signal)" }}>
@@ -356,7 +356,7 @@ function Card({ icon, title, desc, image }: { icon: string; title: string; desc:
         </div>
       )}
       <div className="p-6">
-        <div className="w-10 h-10 rounded-[10px] grid place-items-center text-[19px]" style={{ background: "rgba(37,99,235,.1)", color: "var(--signal)", border: "1px solid rgba(37,99,235,.22)" }}>
+        <div className="w-10 h-10 rounded-[10px] grid place-items-center text-[19px]" style={{ background: "rgba(244,90,30,.1)", color: "var(--signal)", border: "1px solid rgba(244,90,30,.22)" }}>
           {icon}
         </div>
         <h3 className="font-saira font-semibold text-[18px] mt-4">{title}</h3>

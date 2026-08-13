@@ -86,7 +86,7 @@ export default function AdminSidebar() {
               style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8,
                 textDecoration: "none", color: active ? V.signal : V.inkDim,
-                background: active ? "rgba(37,99,235,.22)" : "transparent",
+                background: active ? "rgba(244,90,30,.22)" : "transparent",
                 fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13,
                 justifyContent: collapsed ? "center" : "flex-start",
               }}

@@ -529,7 +529,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                     style={{
                       fontSize: 10, letterSpacing: ".04em", padding: "5px 10px", borderRadius: 6,
                       textTransform: "uppercase",
-                      background: isCurrent ? "rgba(37,99,235,.14)" : isDone ? "rgba(22,163,74,.10)" : "transparent",
+                      background: isCurrent ? "rgba(244,90,30,.14)" : isDone ? "rgba(22,163,74,.10)" : "transparent",
                       color: isCurrent ? V.signal : isDone ? V.telemetry : V.inkFaint,
                       border: `1px solid ${isCurrent ? V.signal : V.line}`,
                     }}
@@ -587,7 +587,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
             <div style={panel}>
               <Label>Offer to Contractor</Label>
               {mission.status === "claimed" && (
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 10, padding: 12, borderRadius: 8, background: "rgba(37,99,235,.08)", border: `1px solid ${V.signal}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 10, padding: 12, borderRadius: 8, background: "rgba(244,90,30,.08)", border: `1px solid ${V.signal}` }}>
                   <p style={{ color: V.signal, fontSize: 13, margin: 0 }}>
                     {contractors.find((c) => c.id === mission.claimed_by_contractor_id)?.full_name ?? "A pilot"} requested this from the open queue — pre-selected below.
                   </p>
@@ -655,7 +655,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                     style={{
                       fontFamily: "Saira, sans-serif", fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 8, cursor: "pointer",
                       border: `1px solid ${job.delivery_responsibility === v ? V.signal : V.line}`,
-                      background: job.delivery_responsibility === v ? "rgba(37,99,235,.12)" : "transparent",
+                      background: job.delivery_responsibility === v ? "rgba(244,90,30,.12)" : "transparent",
                       color: job.delivery_responsibility === v ? V.signal : V.inkFaint,
                     }}
                   >
@@ -774,7 +774,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <span className="font-mono-ibm" style={{
                           fontSize: 10, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase",
-                          background: d.qc_passed ? "rgba(22,163,74,.2)" : "rgba(37,99,235,.14)",
+                          background: d.qc_passed ? "rgba(22,163,74,.2)" : "rgba(244,90,30,.14)",
                           color: d.qc_passed ? V.telemetry : V.signal,
                         }}>
                           {d.qc_passed ? "QC passed" : "pending QC"}

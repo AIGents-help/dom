@@ -1,56 +1,80 @@
 import Link from "next/link";
+import BarrierProductVisual from "@/components/shop/BarrierProductVisual";
+
+const products = [
+  { count: 1 as const, name: "Single Barrier", price: "$69", href: "/shop/drone-operation-barriers#single", badge: "START HERE" },
+  { count: 3 as const, name: "3-Post Field Kit", price: "$179", href: "/shop/drone-operation-barriers#three-pack", badge: "FIELD KIT" },
+  { count: 4 as const, name: "4-Post Perimeter Kit", price: "$229", href: "/shop/drone-operation-barriers#four-pack", badge: "BEST VALUE" },
+  { count: 6 as const, name: "6-Post Jobsite Kit", price: "$319", href: "/shop/drone-operation-barriers#six-pack", badge: "JOBSITE" },
+  { count: 12 as const, name: "12-Post Fleet Kit", price: "$599", href: "/shop/drone-operation-barriers#twelve-pack", badge: "FLEET" },
+  { count: 24 as const, name: "24-Post Corporate Kit", price: "$1,099", href: "/shop/drone-operation-barriers#twenty-four-pack", badge: "CORPORATE" },
+];
 
 export default function SafetyEquipmentPage() {
   return (
-    <div className="bg-[#f5f7fa] text-[#172033]">
-      <section className="bg-[#0b1118] text-white">
-        <div className="container-app grid gap-10 py-16 md:grid-cols-2 md:items-center md:py-20">
+    <div className="bg-[#0b1118] text-white">
+      <section className="border-b border-white/10">
+        <div className="container-app grid gap-10 py-16 md:grid-cols-[1.05fr_.95fr] md:items-center md:py-20">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[.18em] text-[#f26a1b]">Drone Safety Equipment</p>
-            <h1 className="mt-3 text-4xl font-extrabold leading-tight md:text-5xl">Professional ground-control equipment for drone operations.</h1>
-            <p className="mt-5 max-w-xl text-lg leading-8 text-slate-300">DOM keeps this category intentionally focused. We are starting with one field-ready product: retractable Drone Operation barriers that create a clear, professional perimeter around pilots, launch points, equipment, and client viewing areas.</p>
-            <Link href="/shop/drone-operation-barriers" className="mt-7 inline-flex rounded-lg bg-[#f26a1b] px-6 py-3.5 font-bold text-white transition hover:bg-[#d9570c]">View Barrier Systems →</Link>
+            <p className="text-sm font-bold uppercase tracking-[.2em] text-[#f26a1b]">DOM Safety Equipment</p>
+            <h1 className="mt-3 text-4xl font-extrabold leading-tight md:text-6xl">Professional ground safety. Professional operations.</h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">Purpose-built field equipment for commercial drone crews. The first DOM product is a high-visibility retractable barrier with simple <strong className="text-white">DRONE OPERATION</strong> webbing so it works across many operating environments.</p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="#barriers" className="rounded-lg bg-[#f26a1b] px-6 py-3.5 font-bold text-white transition hover:bg-[#d9570c]">Shop Barrier Systems</Link>
+              <Link href="/shop" className="rounded-lg border border-white/20 px-6 py-3.5 font-bold text-white transition hover:border-[#f26a1b]">DOM Merchandise →</Link>
+            </div>
           </div>
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-            <img src="/shop/drone-barrier-hero.svg" alt="Drone Operation retractable barriers" className="h-full w-full object-cover" />
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-white">
+            <BarrierProductVisual count={4} className="h-full w-full" label="Four Drone Operation retractable barriers" />
           </div>
         </div>
       </section>
 
-      <section className="container-app py-16 md:py-20">
-        <div className="mb-10">
-          <p className="text-sm font-bold uppercase tracking-[.16em] text-[#f26a1b]">Available Now</p>
-          <h2 className="mt-2 text-3xl font-extrabold md:text-4xl">Drone Operation Barrier Systems</h2>
-          <p className="mt-3 max-w-2xl text-[#5f6b7a]">High-visibility orange retractable posts with 6 ft webbing printed simply with DRONE OPERATION.</p>
+      <section id="barriers" className="container-app py-16 md:py-20">
+        <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[.18em] text-[#f26a1b]">Barriers & Perimeters</p>
+            <h2 className="mt-2 text-3xl font-extrabold md:text-4xl">Choose the exact kit for your operation.</h2>
+          </div>
+          <p className="max-w-xl text-sm leading-6 text-slate-400">Every listing below shows the exact number of posts included. Each post has 6 ft retractable DRONE OPERATION webbing.</p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          <Link href="/shop/drone-operation-barriers#three-pack" className="overflow-hidden rounded-2xl border border-[#d9e0e8] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
-            <img src="/shop/drone-barrier-3-pack.svg" alt="Exactly three Drone Operation barrier posts" className="aspect-[9/6] w-full object-cover" />
-            <div className="p-6">
-              <div className="flex items-center justify-between gap-4"><h3 className="text-2xl font-extrabold">3-Post Barrier Kit</h3><span className="text-3xl font-extrabold text-[#f26a1b]">$149</span></div>
-              <p className="mt-3 text-sm leading-6 text-[#5f6b7a]">Three posts for a compact pilot station, launch point, or temporary work perimeter.</p>
-              <div className="mt-5 font-bold">View & buy with Stripe →</div>
-            </div>
-          </Link>
-
-          <Link href="/shop/drone-operation-barriers#four-pack" className="overflow-hidden rounded-2xl border-2 border-[#f26a1b] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
-            <img src="/shop/drone-barrier-4-pack.svg" alt="Exactly four Drone Operation barrier posts" className="aspect-[9/6] w-full object-cover" />
-            <div className="p-6">
-              <div className="flex items-center justify-between gap-4"><h3 className="text-2xl font-extrabold">4-Post Barrier Kit</h3><span className="text-3xl font-extrabold text-[#f26a1b]">$199</span></div>
-              <p className="mt-3 text-sm leading-6 text-[#5f6b7a]">Four posts for a complete square or rectangular operating perimeter.</p>
-              <div className="mt-5 font-bold">View & buy with Stripe →</div>
-            </div>
-          </Link>
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {products.map((product) => (
+            <Link key={product.count} href={product.href} className="group overflow-hidden rounded-2xl border border-white/10 bg-[#111923] transition hover:-translate-y-1 hover:border-[#f26a1b] hover:shadow-2xl">
+              <div className="relative bg-white p-3">
+                <BarrierProductVisual count={product.count} className="aspect-[9/6] w-full" label={`Exactly ${product.count} Drone Operation barrier ${product.count === 1 ? "post" : "posts"}`} />
+                <span className="absolute left-5 top-5 rounded-full bg-[#172033] px-3 py-1 text-xs font-bold tracking-wider text-white">{product.badge}</span>
+              </div>
+              <div className="p-6">
+                <div className="flex items-start justify-between gap-4">
+                  <h3 className="text-xl font-extrabold">{product.name}</h3>
+                  <span className="text-2xl font-extrabold text-[#f26a1b]">{product.price}</span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-400">Exactly {product.count} retractable {product.count === 1 ? "post" : "posts"}. High-visibility orange finish and 6 ft webbing per unit.</p>
+                <div className="mt-5 font-bold text-[#f26a1b]">View & buy securely →</div>
+              </div>
+            </Link>
+          ))}
         </div>
       </section>
 
-      <section className="border-y border-[#d9e0e8] bg-white">
-        <div className="container-app grid gap-8 py-12 md:grid-cols-3">
-          <div><p className="text-sm font-bold uppercase tracking-wider text-[#f26a1b]">Visible</p><h3 className="mt-2 text-xl font-extrabold">Clearly defines the work area</h3><p className="mt-2 text-sm text-[#5f6b7a]">A simple visual cue for crews, clients, pedestrians, and nearby workers.</p></div>
-          <div><p className="text-sm font-bold uppercase tracking-wider text-[#f26a1b]">Flexible</p><h3 className="mt-2 text-xl font-extrabold">Generic wording by design</h3><p className="mt-2 text-sm text-[#5f6b7a]">DRONE OPERATION works across mapping, inspections, construction, training, events, and other missions.</p></div>
-          <div><p className="text-sm font-bold uppercase tracking-wider text-[#f26a1b]">Scalable</p><h3 className="mt-2 text-xl font-extrabold">Fleet orders available</h3><p className="mt-2 text-sm text-[#5f6b7a]">For 12+ posts or multi-crew orders, contact DOM for direct pricing and freight coordination.</p></div>
+      <section className="border-y border-white/10 bg-[#0e151e]">
+        <div className="container-app grid gap-8 py-12 md:grid-cols-4">
+          {[
+            ["Professional Quality", "Built for repeat field use."],
+            ["High Visibility", "A clear visual boundary around operations."],
+            ["Secure Checkout", "Stripe payment and shipping details."],
+            ["Volume Options", "From one post to 24-post corporate kits."],
+          ].map(([title, copy]) => <div key={title}><p className="font-extrabold text-white">{title}</p><p className="mt-2 text-sm text-slate-400">{copy}</p></div>)}
         </div>
+      </section>
+
+      <section className="container-app py-14 text-center">
+        <p className="text-sm font-bold uppercase tracking-[.18em] text-[#f26a1b]">Larger Orders</p>
+        <h2 className="mt-3 text-3xl font-extrabold">Need more than 24 posts or custom corporate webbing?</h2>
+        <p className="mx-auto mt-3 max-w-2xl text-slate-400">Contact DOM directly for larger fleet quantities, freight coordination, and future custom-webbing requests.</p>
+        <a href="mailto:ops@droneopsman.com?subject=Corporate%20Drone%20Barrier%20Order" className="mt-7 inline-flex rounded-lg bg-[#f26a1b] px-6 py-3.5 font-bold text-white transition hover:bg-[#d9570c]">Contact Corporate Sales</a>
       </section>
     </div>
   );

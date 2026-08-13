@@ -1,10 +1,9 @@
 import type { MetadataRoute } from "next";
-import { domKnowledge } from "@/lib/knowledge";
 
 const baseUrl = "https://droneopsman.com";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const staticRoutes = [
+  const routes = [
     "",
     "/about",
     "/services",
@@ -19,13 +18,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/get-a-quote",
   ];
 
-  const knowledgeAnchors = [
-    ...domKnowledge.services.map((service) => `/knowledge#${service.slug}`),
-    ...domKnowledge.equipment.map((item) => `/knowledge/equipment#${item.slug}`),
-    ...domKnowledge.serviceAreas.map((area) => `/knowledge/service-areas#${area.slug}`),
-  ];
-
-  return [...staticRoutes, ...knowledgeAnchors].map((route) => ({
+  return routes.map((route) => ({
     url: `${baseUrl}${route}`,
     lastModified: new Date(),
     changeFrequency: route.startsWith("/knowledge") ? "weekly" : "monthly",

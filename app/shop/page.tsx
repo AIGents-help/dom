@@ -1,34 +1,19 @@
 import Link from "next/link";
 
 const merch = [
-  { name: "DOM T-Shirts", type: "Apparel", icon: "T", copy: "Branded everyday shirts for pilots, crews, supporters, and events." },
-  { name: "DOM Performance Polos", type: "Professional Apparel", icon: "P", copy: "A clean client-facing option for site visits, meetings, and trade events." },
-  { name: "DOM Hats", type: "Headwear", icon: "H", copy: "Low-profile branded caps for field crews and everyday wear." },
-  { name: "DOM Hoodies", type: "Apparel", icon: "D", copy: "Cold-weather branded gear for field operations and off-site wear." },
-  { name: "DOM Sticker & Decal Packs", type: "Accessories", icon: "S", copy: "Equipment-case, laptop, trailer, and hard-surface DOM branding." },
-  { name: "DOM Patches", type: "Accessories", icon: "◈", copy: "Velcro-ready and sew-on branding for bags, jackets, and crew gear." },
+  { name: "DOM T-Shirts", type: "Apparel", image: "/shop/merch/dom-merch-tshirt-action.webp", copy: "Branded everyday shirts for pilots, crews, supporters, and events." },
+  { name: "DOM Performance Polos", type: "Professional Apparel", image: "/shop/merch/dom-merch-polo-action.webp", copy: "A clean client-facing option for site visits, meetings, and trade events." },
+  { name: "DOM Hats", type: "Headwear", image: "/shop/merch/dom-merch-collection.webp", copy: "Low-profile branded caps for field crews and everyday wear." },
+  { name: "DOM Hoodies", type: "Apparel", image: "/shop/merch/dom-merch-collection.webp", copy: "Cold-weather branded gear for field operations and off-site wear." },
+  { name: "DOM Sticker & Decal Packs", type: "Accessories", image: "/shop/merch/dom-merch-collection.webp", copy: "Equipment-case, laptop, trailer, and hard-surface DOM branding." },
+  { name: "DOM Patches", type: "Accessories", image: "/shop/merch/dom-merch-collection.webp", copy: "Velcro-ready and sew-on branding for bags, jackets, and crew gear." },
 ];
-
-function MerchVisual({ icon, label }: { icon: string; label: string }) {
-  return (
-    <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-[radial-gradient(circle_at_50%_35%,#1e2a38_0%,#101820_48%,#070b10_100%)]">
-      <div className="absolute inset-x-0 top-0 h-1 bg-[#f26a1b]" />
-      <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full border border-[#f26a1b]/20" />
-      <div className="absolute -left-20 -bottom-20 h-56 w-56 rounded-full border border-white/5" />
-      <div className="relative text-center">
-        <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full border-2 border-[#f26a1b] bg-black/25 text-5xl font-black text-white shadow-2xl">{icon}</div>
-        <p className="mt-5 text-xs font-bold uppercase tracking-[.22em] text-[#f26a1b]">Official DOM Merch</p>
-        <p className="mt-2 text-sm font-semibold text-slate-300">{label}</p>
-      </div>
-    </div>
-  );
-}
 
 export default function ShopPage() {
   return (
     <div className="bg-[#090f16] text-white">
       <section className="border-b border-white/10 bg-[linear-gradient(135deg,#090f16_0%,#0d1722_55%,#111923_100%)]">
-        <div className="container-app grid gap-10 py-14 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:py-20">
+        <div className="container-app grid gap-10 py-14 lg:grid-cols-[.95fr_1.05fr] lg:items-center lg:py-20">
           <div>
             <p className="text-sm font-black uppercase tracking-[.22em] text-[#f26a1b]">DOM Shop</p>
             <h1 className="mt-3 max-w-xl text-5xl font-black leading-[.95] md:text-7xl">Wear the operation.</h1>
@@ -39,19 +24,19 @@ export default function ShopPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-[#111923] p-5 shadow-2xl">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-[#0b1118] p-7">
-                <img src="/brand/dom-lockup-horizontal.png?v=3" alt="DOM Drone Operation Management" className="h-12 w-auto" />
-                <p className="mt-10 text-xs font-black uppercase tracking-[.2em] text-[#f26a1b]">Field Apparel</p>
-                <h2 className="mt-2 text-2xl font-black">DOM T-Shirts</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-400">Simple black-and-orange field identity that matches the DOM operating setup.</p>
+          <div className="grid grid-cols-2 gap-3 overflow-hidden rounded-3xl border border-white/10 bg-[#111923] p-3 shadow-2xl">
+            <div className="relative min-h-[420px] overflow-hidden rounded-2xl">
+              <img src="/shop/merch/dom-merch-tshirt-action.webp" alt="DOM branded T-shirt worn during a live drone field operation" className="absolute inset-0 h-full w-full object-cover" />
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-5 pt-24">
+                <p className="text-xs font-black uppercase tracking-[.18em] text-[#f26a1b]">Field Apparel</p>
+                <p className="mt-1 text-xl font-black">DOM T-Shirt</p>
               </div>
-              <div className="rounded-2xl border border-[#f26a1b]/35 bg-[linear-gradient(145deg,#151d27,#080d12)] p-7">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-[#f26a1b] text-2xl font-black">DOM</div>
-                <p className="mt-8 text-xs font-black uppercase tracking-[.2em] text-[#f26a1b]">Client Facing</p>
-                <h2 className="mt-2 text-2xl font-black">Performance Polos</h2>
-                <p className="mt-3 text-sm leading-6 text-slate-400">A cleaner professional option for client meetings, inspections, and field presentations.</p>
+            </div>
+            <div className="relative min-h-[420px] overflow-hidden rounded-2xl">
+              <img src="/shop/merch/dom-merch-polo-action.webp" alt="DOM branded polo worn at a professional drone command station" className="absolute inset-0 h-full w-full object-cover" />
+              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-5 pt-24">
+                <p className="text-xs font-black uppercase tracking-[.18em] text-[#f26a1b]">Client Facing</p>
+                <p className="mt-1 text-xl font-black">DOM Performance Polo</p>
               </div>
             </div>
           </div>
@@ -62,15 +47,22 @@ export default function ShopPage() {
         <div className="mb-10 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-sm font-black uppercase tracking-[.2em] text-[#f26a1b]">Merchandise</p>
-            <h2 className="mt-2 text-3xl font-black md:text-4xl">DOM branded gear.</h2>
+            <h2 className="mt-2 text-3xl font-black md:text-4xl">DOM branded gear in the field.</h2>
           </div>
-          <p className="max-w-xl text-sm leading-6 text-slate-400">The merch collection is being finalized. Product photography, sizes, inventory, and final pricing will be added only when the actual merchandise is ready to sell.</p>
+          <p className="max-w-xl text-sm leading-6 text-slate-400">Live-action merchandise concepts are shown below. Final sizes, inventory, and pricing will be added as the actual merchandise is finalized.</p>
         </div>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {merch.map((item) => (
+          {merch.map((item, index) => (
             <article key={item.name} className="overflow-hidden rounded-2xl border border-white/10 bg-[#111923] transition hover:-translate-y-1 hover:border-[#f26a1b]/70 hover:shadow-2xl">
-              <MerchVisual icon={item.icon} label={item.name} />
+              <div className="relative aspect-[4/3] overflow-hidden bg-[#0b1118]">
+                <img
+                  src={item.image}
+                  alt={`${item.name} DOM merchandise concept`}
+                  className={`h-full w-full object-cover transition duration-300 hover:scale-[1.03] ${index >= 2 ? "object-center" : ""}`}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
+              </div>
               <div className="p-6">
                 <p className="text-xs font-black uppercase tracking-[.16em] text-[#f26a1b]">{item.type}</p>
                 <h3 className="mt-2 text-xl font-black">{item.name}</h3>

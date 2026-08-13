@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, FlaskConical, Database, Layers3 } from "lucide-react";
 import { domKnowledge } from "@/lib/knowledge";
 
 type PageProps = { params: Promise<{ slug: string }> };
@@ -41,64 +41,71 @@ export default async function ProjectEvidencePage({ params }: PageProps) {
   };
 
   return (
-    <>
+    <div className="bg-background text-ink">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <section className="border-b border-border bg-grid-fade">
-        <div className="container-app py-24">
-          <p className="eyebrow mb-4">{item.type}</p>
-          <h1 className="heading-xl max-w-4xl">{item.title}</h1>
-          <p className="body-muted mt-6 max-w-3xl text-lg">{item.summary}</p>
-        </div>
-      </section>
 
-      <section className="section border-b border-border">
-        <div className="container-app grid gap-10 lg:grid-cols-2">
-          <div>
-            <h2 className="heading-lg mb-5">Purpose</h2>
-            <p className="body-muted text-lg">{item.purpose}</p>
-          </div>
-          <div className="card p-7">
-            <p className="eyebrow mb-4">Evidence Facts</p>
-            <dl className="space-y-4 text-sm">
-              <div><dt className="font-semibold text-ink">Source dataset</dt><dd className="text-muted">{item.source}</dd></div>
-              <div><dt className="font-semibold text-ink">Image count</dt><dd className="text-muted">{item.imageCount}</dd></div>
-              <div><dt className="font-semibold text-ink">Classification</dt><dd className="text-muted">{item.type}</dd></div>
-            </dl>
+      <section className="relative min-h-[560px] overflow-hidden border-b border-white/10">
+        <img src="/images/construction-aerial.jpg" alt="Photogrammetry workflow validation evidence" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#07111c]/96 via-[#07111c]/80 to-[#07111c]/35" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
+        <div className="container-app relative flex min-h-[560px] items-end py-16 lg:items-center lg:py-24">
+          <div className="max-w-4xl">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/25 px-4 py-2 text-xs font-black uppercase tracking-[.18em] text-white backdrop-blur"><FlaskConical className="h-4 w-4 text-accent" /> {item.type}</div>
+            <h1 className="text-5xl font-black leading-[1] tracking-tight text-white sm:text-6xl">{item.title}</h1>
+            <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-300">{item.summary}</p>
           </div>
         </div>
       </section>
 
-      <section className="section border-b border-border">
+      <section className="border-b border-white/10 bg-[#0E151E]">
+        <div className="container-app grid gap-px md:grid-cols-3">
+          <div className="border-b border-white/10 px-6 py-8 md:border-b-0 md:border-r"><Database className="h-6 w-6 text-accent" /><p className="mt-4 text-xs font-black uppercase tracking-[.16em] text-slate-500">Source Dataset</p><p className="mt-2 text-lg font-black text-white">{item.source}</p></div>
+          <div className="border-b border-white/10 px-6 py-8 md:border-b-0 md:border-r"><Layers3 className="h-6 w-6 text-accent" /><p className="mt-4 text-xs font-black uppercase tracking-[.16em] text-slate-500">Image Count</p><p className="mt-2 text-3xl font-black text-white">{item.imageCount}</p></div>
+          <div className="px-6 py-8"><FlaskConical className="h-6 w-6 text-accent" /><p className="mt-4 text-xs font-black uppercase tracking-[.16em] text-slate-500">Classification</p><p className="mt-2 text-lg font-black text-white">{item.type}</p></div>
+        </div>
+      </section>
+
+      <section className="container-app py-20 lg:py-28">
+        <div className="grid gap-10 lg:grid-cols-[.85fr_1.15fr]">
+          <div className="lg:sticky lg:top-28 lg:self-start">
+            <p className="eyebrow mb-4">Purpose</p>
+            <h2 className="text-4xl font-black tracking-tight text-white">Why this validation exists.</h2>
+            <p className="mt-5 text-lg leading-8 text-slate-400">{item.purpose}</p>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-[#111923] p-8 lg:p-10">
+            <p className="eyebrow mb-5">Validated Workflow Elements</p>
+            <div className="space-y-4">
+              {item.deliverables.map((deliverable, index) => <div key={deliverable} className="flex gap-4 rounded-xl border border-white/10 bg-white/[.03] p-5"><span className="text-xs font-black tracking-[.16em] text-accent">0{index + 1}</span><span className="font-bold text-slate-200">{deliverable}</span></div>)}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-white/10 bg-[#0E151E] py-20">
         <div className="container-app grid gap-10 lg:grid-cols-2">
           <div>
-            <h2 className="heading-lg mb-6">Related DOM services</h2>
-            <ul className="space-y-3">
+            <p className="eyebrow mb-4">Related DOM Services</p>
+            <h2 className="text-3xl font-black text-white">Where this workflow connects to commercial work.</h2>
+            <div className="mt-7 space-y-3">
               {item.services.map((serviceSlug) => {
                 const service = domKnowledge.services.find((entry) => entry.slug === serviceSlug);
-                return service ? <li key={serviceSlug}><Link className="font-semibold text-accent" href={`/services/${service.slug}`}>{service.name}</Link></li> : null;
+                return service ? <Link key={serviceSlug} href={`/services/${service.slug}`} className="group flex items-center justify-between rounded-xl border border-white/10 bg-[#111923] px-5 py-4 text-sm font-black text-white transition hover:border-accent/50"><span>{service.name}</span><ArrowRight className="h-4 w-4 text-accent transition group-hover:translate-x-1" /></Link> : null;
               })}
-            </ul>
+            </div>
           </div>
-          <div>
-            <h2 className="heading-lg mb-6">Validated workflow elements</h2>
-            <ul className="space-y-3 text-ink">
-              {item.deliverables.map((deliverable) => <li key={deliverable} className="flex gap-3"><span className="text-accent">—</span>{deliverable}</li>)}
-            </ul>
+          <div className="rounded-2xl border border-accent/30 bg-accent/5 p-8">
+            <p className="eyebrow mb-4">Disclosure</p>
+            <h2 className="text-2xl font-black text-white">What this evidence does — and does not — prove.</h2>
+            <p className="mt-4 leading-7 text-slate-400">{item.disclosure}</p>
           </div>
         </div>
       </section>
 
-      <section className="section">
-        <div className="container-app">
-          <div className="card p-8">
-            <p className="eyebrow mb-3">Disclosure</p>
-            <p className="body-muted max-w-3xl">{item.disclosure}</p>
-          </div>
-          <div className="mt-8">
-            <Link href="/request-mission" className="btn-primary">Request a Mission <ArrowRight className="h-4 w-4" /></Link>
-          </div>
-        </div>
+      <section className="container-app py-16 text-center lg:py-20">
+        <h2 className="text-3xl font-black text-white lg:text-4xl">Need this workflow applied to a real site?</h2>
+        <p className="mx-auto mt-4 max-w-2xl text-slate-400">DOM can scope the capture method, aircraft, processing path, and deliverables around your actual property or project.</p>
+        <Link href="/request-mission" className="mt-8 inline-flex items-center gap-2 rounded-lg bg-accent px-7 py-4 text-sm font-black text-white transition hover:bg-accent-dim">Request a Mission <ArrowRight className="h-4 w-4" /></Link>
       </section>
-    </>
+    </div>
   );
 }

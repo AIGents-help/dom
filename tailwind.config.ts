@@ -8,17 +8,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Light professional business theme.
-        background: "#F5F7FA", // page background
-        surface: "#FFFFFF", // cards / panels
-        surface2: "#F5F7FA", // nested / secondary panels, hover
-        border: "#D9E0E8", // borders / dividers
-        ink: "#172033", // primary text
-        muted: "#5F6B7A", // secondary text
-        navy: "#172033", // nav / sidebar shell
+        // DOM dark operations theme.
+        background: "#090F16",
+        surface: "#111923",
+        surface2: "#0E151E",
+        border: "#283442",
+        ink: "#F8FAFC",
+        muted: "#94A3B8",
+        navy: "#172033",
         accent: {
-          DEFAULT: "#F45A1E", // DOM primary orange (buttons, links, active nav, key metrics)
-          dim: "#D9480F", // darker orange for hover
+          DEFAULT: "#F45A1E",
+          dim: "#D9480F",
           blue: "#F45A1E",
         },
       },
@@ -27,7 +27,7 @@ const config: Config = {
       },
       backgroundImage: {
         "grid-fade":
-          "radial-gradient(ellipse at top, rgba(244,90,30,0.08), transparent 60%)",
+          "radial-gradient(ellipse at top, rgba(244,90,30,0.16), transparent 58%), linear-gradient(180deg, #0E151E 0%, #090F16 100%)",
       },
     },
   },

@@ -1,367 +1,177 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useRef } from "react";
+import { ArrowRight, Map, Radio, Database, Camera, Thermometer, ClipboardCheck, ShieldCheck, CheckCircle2 } from "lucide-react";
 
-// ── DOM Homepage — "Flight Operations Console" direction ──
-// Light business theme: white workspace, DOM orange (#F45A1E) brand accent,
-// IBM Plex Mono for telemetry, Saira for display, honest pre-launch claims.
+const services = [
+  { icon: Map, title: "Mapping & Surveying", copy: "Orthomosaics, 3D models, point clouds, and measurable site intelligence.", image: "/images/construction-aerial.jpg", href: "/services/mapping-surveying" },
+  { icon: Radio, title: "Infrastructure Inspection", copy: "Detailed aerial inspection of roofs, towers, utilities, corridors, and difficult assets.", image: "/images/drone-operation-safety.png", href: "/services/infrastructure-inspection" },
+  { icon: Database, title: "Data & Analytics", copy: "Processed outputs for GIS, engineering, reporting, and decision-making workflows.", image: "/images/city-night-aerial.jpg", href: "/services/data-analytics" },
+  { icon: Camera, title: "Aerial Photography", copy: "Professional aerial imagery for commercial properties, facilities, marketing, and documentation.", image: "/images/city-night-aerial.jpg", href: "/services/aerial-photography" },
+  { icon: Thermometer, title: "Thermal & Multispectral", copy: "Specialized sensor capture for energy, solar, agriculture, and building-envelope work.", image: "/images/solar-aerial.jpg", href: "/services/thermal-multispectral" },
+  { icon: ClipboardCheck, title: "Mission Documentation", copy: "Structured mission planning, flight records, risk review, and delivery documentation.", image: "/images/drone-operation-safety.png", href: "/services/mission-compliance" },
+];
+
+const workflow = [
+  ["01", "Mission Request", "Tell us the site, objective, timeline, and what you need delivered."],
+  ["02", "Airspace & Risk", "DOM reviews airspace, site conditions, operating constraints, and mission requirements."],
+  ["03", "Flight Operations", "The mission is executed to the planned capture and documentation standard."],
+  ["04", "Processing", "Raw capture is processed into the maps, models, imagery, measurements, or reports required."],
+  ["05", "Delivery", "Final assets and mission documentation are organized for the client workflow."],
+];
 
 export default function HomePage() {
   return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
-        :root {
-          --ground:#F5F7FA; --surface:#FFFFFF; --raised:#FFFFFF;
-          --line:#D9E0E8; --line-soft:#E8EDF2;
-          --ink:#172033; --ink-dim:#5F6B7A; --ink-faint:#8A95A7;
-          --signal:#F45A1E; --signal-deep:#D9480F;
-          --telemetry:#16A34A; --airspace:#7C3AED;
-        }
-        .font-saira { font-family: 'Saira', sans-serif; }
-        .font-mono-ibm { font-family: 'IBM Plex Mono', monospace; }
-        @keyframes draw { from { stroke-dashoffset: 520; } to { stroke-dashoffset: 0; } }
-        @keyframes pulse-dot { 0% { box-shadow: 0 0 0 0 rgba(22,163,74,.5); } 70% { box-shadow: 0 0 0 7px rgba(22,163,74,0); } 100% { box-shadow: 0 0 0 0 rgba(22,163,74,0); } }
-        @keyframes wpin { to { opacity: 1; } }
-        .path-draw { stroke-dasharray: 520; stroke-dashoffset: 520; animation: draw 2.6s ease forwards .4s; }
-        .dot-pulse { animation: pulse-dot 2.4s infinite; }
-        .wp-fade { opacity: 0; animation: wpin .4s ease forwards; }
-        .grid-bg {
-          background-image: linear-gradient(#D9E0E8 1px, transparent 1px), linear-gradient(90deg, #D9E0E8 1px, transparent 1px);
-          background-size: 64px 64px;
-          -webkit-mask-image: radial-gradient(120% 90% at 70% 0%, #000 30%, transparent 80%);
-          mask-image: radial-gradient(120% 90% at 70% 0%, #000 30%, transparent 80%);
-        }
-        @keyframes heroFade {
-          0% { opacity: 0; }
-          5% { opacity: .68; }
-          28% { opacity: .68; }
-          33% { opacity: 0; }
-          100% { opacity: 0; }
-        }
-        .hero-bg { animation: heroFade 21s ease-in-out infinite; }
-      `}</style>
+    <div className="bg-background text-ink">
+      <section className="relative min-h-[720px] overflow-hidden border-b border-white/10">
+        <img src="/images/construction-aerial.jpg" alt="Commercial drone operation over a construction and development site" className="absolute inset-0 h-full w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#07111c]/98 via-[#07111c]/82 to-[#07111c]/30" />
+        <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
 
-      <div className="min-h-screen" style={{ background: "var(--ground)", color: "var(--ink)", fontFamily: "Inter, system-ui, sans-serif" }}>
-
-        {/* ═══ HERO ═══ */}
-        <header className="relative overflow-hidden" style={{ borderBottom: "1px solid var(--line-soft)" }}>
-          {/* Background layers — crossfading slideshow of aerial capture stills */}
-          <img
-            src="/images/city-night-aerial.jpg"
-            alt=""
-            aria-hidden="true"
-            className="hero-bg absolute inset-0 w-full h-full object-cover"
-            style={{ opacity: 0, animationDelay: "0s" }}
-          />
-          <img
-            src="/images/construction-aerial.jpg"
-            alt=""
-            aria-hidden="true"
-            className="hero-bg absolute inset-0 w-full h-full object-cover"
-            style={{ opacity: 0, animationDelay: "-7s" }}
-          />
-          <img
-            src="/images/solar-aerial.jpg"
-            alt=""
-            aria-hidden="true"
-            className="hero-bg absolute inset-0 w-full h-full object-cover"
-            style={{ opacity: 0, animationDelay: "-14s" }}
-          />
-          <div className="absolute inset-0" style={{
-            background: "linear-gradient(100deg, rgba(245,247,250,.96) 8%, rgba(245,247,250,.80) 38%, rgba(245,247,250,.45) 64%, rgba(245,247,250,.30) 100%), radial-gradient(120% 80% at 78% -10%, rgba(244,90,30,.08), transparent 55%), radial-gradient(90% 70% at 12% 8%, rgba(22,163,74,.05), transparent 50%), linear-gradient(180deg, transparent 55%, #F5F7FA 96%)"
-          }} />
-          <div className="absolute inset-0 opacity-20 grid-bg" />
-
-          <div className="relative z-10 max-w-[1200px] mx-auto px-6 py-20 md:py-24">
-            <div className="grid md:grid-cols-[1.15fr_.85fr] gap-12 items-center">
-              <div>
-                <span className="font-mono-ibm text-xs tracking-[.18em] uppercase inline-flex items-center gap-2.5" style={{ color: "var(--signal)" }}>
-                  <span className="w-[7px] h-[7px] border-[1.5px] rotate-45 inline-block" style={{ borderColor: "var(--signal)" }} />
-                  FAA Part 107 · Commercial UAS Operations
-                </span>
-
-                <h1 className="font-saira font-bold mt-5 leading-[1.05] tracking-tight" style={{ fontSize: "clamp(38px,5.4vw,68px)", maxWidth: "13ch" }}>
-                  Aerial missions, run like{" "}
-                  <span style={{ color: "var(--signal)" }}>flight operations.</span>
-                </h1>
-
-                <p className="mt-5" style={{ color: "var(--ink-dim)", fontSize: "clamp(16px,1.4vw,19px)", maxWidth: "46ch" }}>
-                  Commercial drone services — flown to a documented standard, processed into
-                  deliverables your engineering and compliance teams can act on. Every mission
-                  logged, tracked, and accountable.
-                </p>
-
-                <div className="flex flex-wrap gap-3.5 mt-8">
-                  <Link href="/request-mission" className="font-saira font-semibold text-[15px] tracking-wide px-6 py-3.5 rounded-[10px] inline-flex items-center gap-2 transition-transform hover:-translate-y-0.5" style={{ background: "var(--signal)", color: "var(--ground)" }}>
-                    Request a Mission <span className="text-[17px]">→</span>
-                  </Link>
-                  <Link href="/services" className="font-saira font-semibold text-[15px] tracking-wide px-6 py-3.5 rounded-[10px] inline-flex items-center gap-2 transition-all hover:-translate-y-0.5" style={{ border: "1px solid var(--line)", color: "var(--ink)" }}>
-                    View Capabilities
-                  </Link>
-                </div>
+        <div className="container-app relative flex min-h-[720px] items-center py-20">
+          <div className="grid w-full gap-12 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
+            <div className="max-w-4xl">
+              <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-white/15 bg-black/25 px-4 py-2 text-xs font-black uppercase tracking-[.2em] text-white backdrop-blur">
+                <span className="h-2 w-2 rounded-full bg-accent" /> FAA Part 107 Commercial UAS Operations
               </div>
+              <h1 className="text-5xl font-black leading-[.95] tracking-tight text-white sm:text-6xl lg:text-7xl xl:text-8xl">
+                Aerial missions.
+                <span className="block text-accent">Run like operations.</span>
+              </h1>
+              <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300 lg:text-xl">
+                DOM turns drone flights into usable intelligence — mapping, inspections, imagery, models, measurements, and documented deliverables built around the actual mission objective.
+              </p>
+              <div className="mt-9 flex flex-wrap gap-4">
+                <Link href="/request-mission" className="inline-flex items-center gap-2 rounded-lg bg-accent px-7 py-4 text-sm font-black text-white transition hover:bg-accent-dim">Request a Mission <ArrowRight className="h-4 w-4" /></Link>
+                <Link href="/services" className="inline-flex items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-7 py-4 text-sm font-bold text-white backdrop-blur transition hover:border-accent/70 hover:bg-white/15">View Capabilities</Link>
+              </div>
+            </div>
 
-              {/* ── Drone operation safety ── */}
-              <figure className="group relative min-h-[390px] overflow-hidden rounded-[18px] border border-white/40 bg-slate-900 shadow-[0_24px_70px_rgba(15,23,42,.22)] md:min-h-[460px]">
-                <img
-                  src="/images/drone-operation-safety.png"
-                  alt="Professional drone operation safety perimeter at an active construction site"
-                  className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-[1.025]"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/5 to-transparent" />
-                <div className="absolute left-5 top-5 rounded-full border border-white/25 bg-slate-950/75 px-3.5 py-2 font-mono-ibm text-[10px] font-semibold uppercase tracking-[.16em] text-white backdrop-blur-md">
-                  Safety-First Operations
-                </div>
-                <figcaption className="absolute inset-x-0 bottom-0 p-6 text-white">
-                  <div className="font-saira text-2xl font-bold">A controlled work zone on every mission.</div>
-                  <p className="mt-1 max-w-md text-sm leading-6 text-slate-200">
-                    Professional perimeter control protects the public, the pilot, and your site while operations are active.
-                  </p>
-                </figcaption>
-              </figure>
+            <div className="relative min-h-[450px] overflow-hidden rounded-3xl border border-white/10 bg-[#111923] shadow-2xl">
+              <img src="/images/drone-operation-safety.png" alt="Professional drone operation safety perimeter" className="absolute inset-0 h-full w-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
+              <div className="absolute left-5 top-5 rounded-full border border-white/20 bg-black/60 px-4 py-2 text-[10px] font-black uppercase tracking-[.18em] text-white backdrop-blur">Safety-First Field Operations</div>
+              <div className="absolute inset-x-0 bottom-0 p-7">
+                <h2 className="text-2xl font-black text-white">Professional work zones. Professional missions.</h2>
+                <p className="mt-2 max-w-lg text-sm leading-6 text-slate-300">Site control, mission planning, and operational documentation are treated as part of the service — not optional extras.</p>
+              </div>
             </div>
           </div>
-        </header>
+        </div>
+      </section>
 
-        {/* ═══ CAPABILITY STRIP ═══ */}
-        <section style={{ borderBottom: "1px solid var(--line-soft)", background: "var(--line-soft)" }}>
-          <div className="max-w-[1200px] mx-auto grid grid-cols-2 md:grid-cols-4" style={{ gap: "1px" }}>
-            {[
-              ["Part 107 Standard", "Operations built to federal commercial UAS rules."],
-              ["LAANC Authorized", "Controlled-airspace clearance, mission by mission."],
-              ["Insured Operations", "Liability coverage on every flight."],
-              ["Documented", "Flight logs & deliverable chain-of-custody."],
-            ].map(([t, d]) => (
-              <div key={t} className="px-6 py-7" style={{ background: "var(--surface)" }}>
-                <div className="font-saira font-bold text-[17px]">{t}</div>
-                <div className="text-[13px] mt-1" style={{ color: "var(--ink-dim)" }}>{d}</div>
-              </div>
-            ))}
+      <section className="border-b border-white/10 bg-[#0E151E]">
+        <div className="container-app grid grid-cols-2 gap-px sm:grid-cols-4">
+          {[
+            ["MAP", "Orthomosaics + 3D"],
+            ["INSPECT", "Assets + Infrastructure"],
+            ["DOCUMENT", "Progress + Compliance"],
+            ["DELIVER", "Decision-Ready Data"],
+          ].map(([label, value]) => (
+            <div key={label} className="border-white/10 px-5 py-8 sm:border-l sm:first:border-l-0 lg:px-8">
+              <p className="text-[11px] font-black tracking-[.22em] text-accent">{label}</p>
+              <p className="mt-2 text-sm font-bold text-white/90 lg:text-base">{value}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="container-app py-20 lg:py-28">
+        <div className="mb-12 flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+          <div>
+            <p className="eyebrow mb-4">Core Services</p>
+            <h2 className="max-w-3xl text-4xl font-black tracking-tight text-white lg:text-5xl">From flight to final deliverable.</h2>
           </div>
-        </section>
+          <p className="max-w-xl text-base leading-7 text-slate-400">DOM scopes the aircraft, capture plan, processing workflow, and outputs around what your team actually needs to know, prove, measure, inspect, or communicate.</p>
+        </div>
 
-        {/* ═══ SERVICES ═══ */}
-        <section className="py-24" style={{ borderBottom: "1px solid var(--line-soft)" }}>
-          <div className="max-w-[1200px] mx-auto px-6">
-            <SectionHead anno="Core Services" title="From flight to final deliverable." lead="Not flight hours — finished data products your teams can use." />
-            <div className="grid md:grid-cols-3 gap-4 mt-12">
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {services.map((service) => (
+            <Link key={service.title} href={service.href} className="group relative min-h-[390px] overflow-hidden rounded-2xl border border-white/10 bg-[#111923] transition duration-300 hover:-translate-y-1 hover:border-accent/60 hover:shadow-2xl">
+              <img src={service.image} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#07111c] via-[#07111c]/60 to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-7">
+                <service.icon className="mb-4 h-7 w-7 text-accent" />
+                <h3 className="text-2xl font-black text-white">{service.title}</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-300">{service.copy}</p>
+                <span className="mt-5 inline-flex items-center gap-2 text-sm font-black text-accent">Explore service <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" /></span>
+              </div>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-y border-white/10 bg-[#0E151E] py-20 lg:py-28">
+        <div className="container-app grid gap-12 lg:grid-cols-[.9fr_1.1fr] lg:items-center">
+          <div className="relative min-h-[500px] overflow-hidden rounded-3xl border border-white/10">
+            <img src="/images/city-night-aerial.jpg" alt="Aerial view representing commercial asset intelligence" className="absolute inset-0 h-full w-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+            <div className="absolute bottom-0 p-7">
+              <p className="text-xs font-black uppercase tracking-[.18em] text-accent">The DOM Difference</p>
+              <p className="mt-2 text-2xl font-black text-white">Most operators fly a drone. DOM runs an operation.</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="eyebrow mb-4">Operating Model</p>
+            <h2 className="text-4xl font-black tracking-tight text-white lg:text-5xl">The value is everything around the flight.</h2>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-400">Mission intake, airspace review, site risk, capture planning, flight records, processing, and final delivery all matter if the output needs to support real decisions.</p>
+            <div className="mt-8 space-y-5">
               {[
-                ["▦", "Mapping & Surveying", "Orthomosaics, 3D models, and topographic survey data with measurable accuracy.", "/images/city-night-aerial.jpg"],
-                ["⊡", "Infrastructure Inspection", "High-resolution capture of towers, rooftops, bridges, and pipelines — with findings reports.", "/images/construction-aerial.jpg"],
-                ["◍", "Data & Analytics", "Processed deliverables: GIS layers, point clouds, volumetrics, and annotated reports.", "/images/solar-aerial.jpg"],
-                ["▲", "Aerial Capture", "Cinema-grade aerial media for commercial, marketing, and stakeholder communication.", "/images/city-night-aerial.jpg"],
-                ["◈", "Thermal & Multispectral", "Radiometric thermal and multispectral imaging for energy, ag, and building envelope work.", "/images/solar-aerial.jpg"],
-                ["▣", "Mission Documentation", "Complete flight logs, compliance records, and reporting on every job — by default.", "/images/construction-aerial.jpg"],
-              ].map(([ic, t, d, img]) => (
-                <Card key={t} icon={ic} title={t} desc={d} image={img} />
+                ["Structured intake", "Scope the objective, site, timeline, constraints, and intended deliverable."],
+                ["Documented operations", "Airspace, pilot, aircraft, and mission records are organized around the engagement."],
+                ["Tracked deliverables", "Raw capture becomes usable project assets instead of an unorganized file dump."],
+                ["Repeatable workflows", "Recurring sites and programs can follow consistent capture and reporting standards."],
+              ].map(([title, copy]) => (
+                <div key={title} className="flex gap-4">
+                  <CheckCircle2 className="mt-1 h-5 w-5 shrink-0 text-accent" />
+                  <div><h3 className="font-black text-white">{title}</h3><p className="mt-1 text-sm leading-6 text-slate-400">{copy}</p></div>
+                </div>
               ))}
             </div>
           </div>
-        </section>
-
-        {/* ═══ INDUSTRIES ═══ */}
-        <section className="py-24" style={{ borderBottom: "1px solid var(--line-soft)" }}>
-          <div className="max-w-[1200px] mx-auto px-6">
-            <SectionHead anno="Industries Served" title="Built for teams operating critical assets." />
-            <div className="grid md:grid-cols-3 gap-4 mt-12">
-              {[
-                ["⚡", "Energy & Utilities", "Transmission lines, solar arrays, and wind asset inspection.", "/images/solar-aerial.jpg"],
-                ["▢", "Construction", "Site progress mapping, volumetrics, and stakeholder reporting.", "/images/construction-aerial.jpg"],
-                ["⌂", "Roofing & Restoration", "Fast, safe roof condition inspections for contractors and insurance work.", "/images/construction-aerial.jpg"],
-                ["◇", "Infrastructure", "Bridge, tower, and structural assessment without scaffolding or shutdowns.", "/images/city-night-aerial.jpg"],
-                ["✦", "Agriculture", "Multispectral crop health and irrigation analysis at field scale.", "/images/solar-aerial.jpg"],
-                ["⬡", "Public Sector", "Compliant operations structured for municipal and government requirements.", "/images/city-night-aerial.jpg"],
-              ].map(([ic, t, d, img]) => (
-                <Card key={t} icon={ic} title={t} desc={d} image={img} />
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ═══ THE DOM DIFFERENCE (platform thesis) ═══ */}
-        <section className="py-24" style={{ borderBottom: "1px solid var(--line-soft)" }}>
-          <div className="max-w-[1200px] mx-auto px-6">
-            <div className="grid md:grid-cols-2 gap-14 items-center">
-              <div>
-                <SectionHead anno="The DOM Difference" title="Most operators fly a drone. We run an operation." lead="Anyone can put an aircraft in the air. The value is in everything around the flight — intake, airspace review, documentation, and a delivery you can audit." />
-                <div className="grid gap-5 mt-8">
-                  {[
-                    ["01", "Structured intake & airspace review", "Every mission scoped, authorized, and risk-assessed before a rotor spins."],
-                    ["02", "Documented flight operations", "Logs, conditions, and compliance records captured on every job."],
-                    ["03", "Tracked deliverables", "From raw capture to final asset, with chain-of-custody you can verify."],
-                    ["04", "A client view, not a Dropbox link", "Status, jobs, and deliverables in one place — the platform we're building out."],
-                  ].map(([n, t, d]) => (
-                    <div key={n} className="flex gap-3.5">
-                      <span className="font-mono-ibm text-[13px] flex-none mt-0.5" style={{ color: "var(--signal)" }}>{n}</span>
-                      <div>
-                        <div className="font-saira font-semibold text-[15px]">{t}</div>
-                        <div className="text-sm mt-0.5" style={{ color: "var(--ink-dim)" }}>{d}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Console mock */}
-              <div className="rounded-[14px] overflow-hidden" style={{ border: "1px solid var(--line)", background: "var(--raised)" }}>
-                <div className="flex gap-1.5 px-4 py-3" style={{ borderBottom: "1px solid var(--line-soft)" }}>
-                  <i className="w-[9px] h-[9px] rounded-full block" style={{ background: "var(--line)" }} />
-                  <i className="w-[9px] h-[9px] rounded-full block" style={{ background: "var(--line)" }} />
-                  <i className="w-[9px] h-[9px] rounded-full block" style={{ background: "var(--line)" }} />
-                </div>
-                <div className="flex flex-wrap gap-1 px-4 pt-3 font-mono-ibm text-[11px]" style={{ color: "var(--ink-faint)" }}>
-                  {["Missions", "Clients", "Schedule", "Deliverables", "Status"].map((t, i) => (
-                    <span key={t} className="px-2.5 py-1.5 rounded-md" style={i === 0 ? { background: "rgba(244,90,30,.12)", color: "var(--signal)" } : {}}>
-                      {t}
-                    </span>
-                  ))}
-                </div>
-                <div className="p-4">
-                  {[
-                    ["Substation 7 — Thermal", "34.05N · 118.24W", "Scheduled", "sch"],
-                    ["Riverside Roof Survey", "33.95N · 117.39W", "In Review", "rev"],
-                    ["Industrial Park Ortho", "34.10N · 117.29W", "Delivered", "del"],
-                    ["Bridge Deck Inspection", "34.02N · 118.49W", "Scheduled", "sch"],
-                  ].map(([nm, loc, st, cls], i) => (
-                    <div key={i} className="grid grid-cols-[1fr_auto] gap-3 items-center py-3 text-[13px]" style={{ borderBottom: i < 3 ? "1px solid var(--line-soft)" : "none" }}>
-                      <div>
-                        <div className="font-medium">{nm}</div>
-                        <div className="font-mono-ibm text-[11px]" style={{ color: "var(--ink-faint)" }}>{loc}</div>
-                      </div>
-                      <span className="font-mono-ibm text-[10px] tracking-wide px-2.5 py-1 rounded-full uppercase" style={{
-                        background: cls === "rev" ? "rgba(22,163,74,.12)" : cls === "del" ? "rgba(124,58,237,.14)" : "rgba(244,90,30,.12)",
-                        color: cls === "rev" ? "var(--telemetry)" : cls === "del" ? "var(--airspace)" : "var(--signal)",
-                      }}>{st}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ═══ COMPLIANCE ═══ */}
-        <section className="py-24" style={{ borderBottom: "1px solid var(--line-soft)" }}>
-          <div className="max-w-[1200px] mx-auto px-6">
-            <div className="grid md:grid-cols-2 gap-14 items-center">
-              <div>
-                <SectionHead anno="FAA Part 107 Compliance" title="Flown inside the regulations. Every time." lead="Commercial drone work is regulated for a reason. Operations are conducted to FAA Part 107 standards, with airspace authorization, registered aircraft, and liability coverage as the baseline — not the upsell." />
-                <Link href="/faa-compliance" className="font-saira font-semibold text-[15px] tracking-wide px-6 py-3.5 rounded-[10px] inline-flex items-center gap-2 mt-7 transition-all hover:-translate-y-0.5" style={{ border: "1px solid var(--line)", color: "var(--ink)" }}>
-                  View Compliance Standards
-                </Link>
-              </div>
-              <div className="rounded-[14px] p-8" style={{ border: "1px solid var(--line)", background: "var(--surface)" }}>
-                <ul className="grid gap-3.5">
-                  {[
-                    "Operated by Remote Pilots in Command under Part 107",
-                    "LAANC airspace authorization on controlled-airspace flights",
-                    "Registered aircraft, maintained and logged",
-                    "Documented pre-flight risk assessment per mission",
-                    "Liability insurance coverage on every operation",
-                    "Waiver pathway for BVLOS & night operations",
-                  ].map((item) => (
-                    <li key={item} className="flex gap-3 text-sm items-start">
-                      <span className="flex-none" style={{ color: "var(--telemetry)" }}>✓</span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ═══ WORKFLOW ═══ */}
-        <section className="py-24" style={{ borderBottom: "1px solid var(--line-soft)" }}>
-          <div className="max-w-[1200px] mx-auto px-6">
-            <SectionHead anno="Mission Workflow" title="From request to delivered data." />
-            <div className="relative mt-12">
-              <div className="hidden md:block absolute top-[22px] left-0 right-0 h-px" style={{ background: "repeating-linear-gradient(90deg,var(--line) 0 8px,transparent 8px 16px)" }} />
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-5 relative">
-                {[
-                  ["01", "Mission Request", "Submit scope, location, and timeline through intake."],
-                  ["02", "Airspace & Risk", "Authorization, airspace class, and site risk confirmed."],
-                  ["03", "Flight Ops", "Mission executed with documented flight logs."],
-                  ["04", "Processing", "Raw capture turned into mapped, analyzed deliverables."],
-                  ["05", "Delivery", "Final assets & compliance docs handed to your team."],
-                ].map(([n, t, d]) => (
-                  <div key={n}>
-                    <div className="w-11 h-11 rounded-[11px] grid place-items-center font-mono-ibm font-semibold relative z-10" style={{ border: "1px solid var(--line)", background: "var(--surface)", color: "var(--signal)" }}>
-                      {n}
-                    </div>
-                    <h4 className="font-saira font-semibold text-[15px] mt-4">{t}</h4>
-                    <p className="text-[13px] mt-1.5" style={{ color: "var(--ink-dim)" }}>{d}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ═══ CTA ═══ */}
-        <section className="py-24">
-          <div className="max-w-[1200px] mx-auto px-6">
-            <div className="rounded-[18px] p-10 md:p-14 flex flex-col md:flex-row justify-between items-start md:items-center gap-8" style={{
-              border: "1px solid var(--line)",
-              background: "radial-gradient(90% 130% at 85% 10%, rgba(244,90,30,.10), transparent 55%), var(--raised)",
-            }}>
-              <div>
-                <span className="font-mono-ibm text-xs tracking-[.18em] uppercase inline-flex items-center gap-2.5" style={{ color: "var(--signal)" }}>
-                  <span className="w-[7px] h-[7px] border-[1.5px] rotate-45 inline-block" style={{ borderColor: "var(--signal)" }} />
-                  Request a Mission
-                </span>
-                <h2 className="font-saira font-bold mt-3.5 leading-tight" style={{ fontSize: "clamp(26px,3vw,36px)", maxWidth: "16ch" }}>
-                  Tell us the asset. We&apos;ll handle the airspace.
-                </h2>
-                <p className="mt-2.5 max-w-[42ch]" style={{ color: "var(--ink-dim)" }}>
-                  Send scope, location, and timeline. You&apos;ll get back capability, compliance status, and scheduling — fast.
-                </p>
-              </div>
-              <Link href="/request-mission" className="font-saira font-semibold text-[16px] tracking-wide px-7 py-4 rounded-[10px] inline-flex items-center gap-2 flex-none transition-transform hover:-translate-y-0.5" style={{ background: "var(--signal)", color: "var(--ground)" }}>
-                Start a Mission Request <span className="text-[17px]">→</span>
-              </Link>
-            </div>
-          </div>
-        </section>
-
-      </div>
-    </>
-  );
-}
-
-/* ── Reusable components ── */
-
-function SectionHead({ anno, title, lead }: { anno: string; title: string; lead?: string }) {
-  return (
-    <div style={{ maxWidth: 620 }}>
-      <span className="font-mono-ibm text-xs tracking-[.18em] uppercase inline-flex items-center gap-2.5" style={{ color: "var(--signal)" }}>
-        <span className="w-[7px] h-[7px] border-[1.5px] rotate-45 inline-block" style={{ borderColor: "var(--signal)" }} />
-        {anno}
-      </span>
-      <h2 className="font-saira font-bold mt-3.5 leading-tight" style={{ fontSize: "clamp(28px,3.2vw,40px)" }}>{title}</h2>
-      {lead && <p className="mt-4 text-[17px]" style={{ color: "var(--ink-dim)" }}>{lead}</p>}
-    </div>
-  );
-}
-
-function Card({ icon, title, desc, image }: { icon: string; title: string; desc: string; image?: string }) {
-  return (
-    <div className="rounded-[14px] overflow-hidden transition-all hover:-translate-y-0.5" style={{ border: "1px solid var(--line)", background: "var(--surface)" }}>
-      {image && (
-        <div className="relative h-36 w-full">
-          <img src={image} alt="" aria-hidden="true" className="absolute inset-0 w-full h-full object-cover" />
-          <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(245,247,250,.15) 0%, var(--surface) 96%)" }} />
         </div>
-      )}
-      <div className="p-6">
-        <div className="w-10 h-10 rounded-[10px] grid place-items-center text-[19px]" style={{ background: "rgba(244,90,30,.1)", color: "var(--signal)", border: "1px solid rgba(244,90,30,.22)" }}>
-          {icon}
+      </section>
+
+      <section className="container-app py-20 lg:py-28">
+        <div className="mb-12">
+          <p className="eyebrow mb-4">Mission Workflow</p>
+          <h2 className="text-4xl font-black tracking-tight text-white lg:text-5xl">From request to delivered data.</h2>
         </div>
-        <h3 className="font-saira font-semibold text-[18px] mt-4">{title}</h3>
-        <p className="text-sm mt-2" style={{ color: "var(--ink-dim)" }}>{desc}</p>
-      </div>
+        <div className="grid gap-4 md:grid-cols-5">
+          {workflow.map(([n, title, copy]) => (
+            <div key={n} className="rounded-2xl border border-white/10 bg-[#111923] p-6 transition hover:border-accent/50">
+              <span className="text-xs font-black tracking-[.18em] text-accent">{n}</span>
+              <h3 className="mt-4 text-lg font-black text-white">{title}</h3>
+              <p className="mt-3 text-sm leading-6 text-slate-400">{copy}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="relative overflow-hidden border-y border-white/10 py-20 lg:py-24">
+        <img src="/images/solar-aerial.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#07111c] via-[#07111c]/95 to-[#07111c]/70" />
+        <div className="container-app relative grid gap-10 lg:grid-cols-[1fr_auto] lg:items-center">
+          <div className="max-w-3xl">
+            <div className="mb-4 flex items-center gap-2 text-xs font-black uppercase tracking-[.2em] text-accent"><ShieldCheck className="h-4 w-4" /> FAA Part 107 Compliance</div>
+            <h2 className="text-4xl font-black tracking-tight text-white lg:text-5xl">Professional operations start before takeoff.</h2>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">DOM reviews airspace, operational limitations, mission risk, and documentation requirements before the flight is scheduled.</p>
+          </div>
+          <Link href="/faa-compliance" className="inline-flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-7 py-4 text-sm font-black text-white backdrop-blur transition hover:border-accent/70">View Compliance Standards <ArrowRight className="h-4 w-4" /></Link>
+        </div>
+      </section>
+
+      <section className="container-app py-20 lg:py-24">
+        <div className="rounded-3xl border border-accent/30 bg-[radial-gradient(circle_at_85%_15%,rgba(244,90,30,.18),transparent_35%),#111923] p-9 lg:p-14">
+          <div className="flex flex-col items-start justify-between gap-10 lg:flex-row lg:items-center">
+            <div className="max-w-3xl">
+              <p className="eyebrow mb-4">Request a Mission</p>
+              <h2 className="text-4xl font-black tracking-tight text-white lg:text-5xl">Tell us the asset. Tell us the objective.</h2>
+              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-400">Send the site, scope, timeline, and desired output. DOM will determine the appropriate operational and data workflow.</p>
+            </div>
+            <Link href="/request-mission" className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-accent px-7 py-4 text-sm font-black text-white transition hover:bg-accent-dim">Start a Mission Request <ArrowRight className="h-4 w-4" /></Link>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

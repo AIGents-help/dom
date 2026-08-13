@@ -1,81 +1,73 @@
 import Link from "next/link";
 
-const products = [
-  {
-    name: "Drone Operation Barrier Kit — 3 Pack",
-    price: "$149",
-    image: "/shop/drone-barrier-3-pack.svg",
-    href: "/shop/drone-operation-barriers#three-pack",
-    badge: "FIELD KIT",
-    copy: "Three high-visibility retractable posts with 6 ft DRONE OPERATION webbing on each unit.",
-  },
-  {
-    name: "Drone Operation Barrier Kit — 4 Pack",
-    price: "$199",
-    image: "/shop/drone-barrier-4-pack.svg",
-    href: "/shop/drone-operation-barriers#four-pack",
-    badge: "BEST VALUE",
-    copy: "Four-post perimeter kit for launch points, pilot stations, client viewing areas, and temporary work zones.",
-  },
+const merch = [
+  { name: "DOM T-Shirts", type: "Apparel", icon: "T", copy: "Branded everyday shirts for pilots, crews, supporters, and events." },
+  { name: "DOM Polos", type: "Professional Apparel", icon: "P", copy: "A cleaner client-facing option for site visits, meetings, and trade events." },
+  { name: "DOM Hats", type: "Headwear", icon: "H", copy: "Low-profile branded caps for field crews and everyday wear." },
+  { name: "DOM Hoodies", type: "Apparel", icon: "D", copy: "Cold-weather branded gear for field operations and off-site wear." },
+  { name: "DOM Sticker & Decal Packs", type: "Accessories", icon: "S", copy: "Equipment-case, laptop, trailer, and hard-surface DOM branding." },
+  { name: "DOM Patches", type: "Accessories", icon: "◈", copy: "Velcro-ready and sew-on branding for bags, jackets, and crew gear." },
 ];
 
 export default function ShopPage() {
   return (
-    <div className="bg-[#f5f7fa] text-[#172033]">
-      <section className="relative overflow-hidden bg-[#0b1118] text-white">
-        <img src="/shop/drone-barrier-hero.svg" alt="DOM Drone Operation retractable barrier system" className="absolute inset-0 h-full w-full object-cover opacity-70" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#0b1118] via-[#0b1118]/80 to-transparent" />
-        <div className="container-app relative py-20 md:py-28">
-          <div className="max-w-2xl">
-            <p className="mb-4 text-sm font-bold uppercase tracking-[.2em] text-[#f26a1b]">DOM Shop</p>
-            <h1 className="text-4xl font-extrabold leading-tight md:text-6xl">Professional gear for real drone operations.</h1>
-            <p className="mt-5 max-w-xl text-lg text-slate-300">Simple field equipment selected for commercial drone crews. We are starting with one product that solves an obvious problem: creating a visible, professional operating perimeter.</p>
-            <Link href="/shop/drone-operation-barriers" className="mt-8 inline-flex rounded-lg bg-[#f26a1b] px-6 py-3.5 font-bold text-white transition hover:bg-[#d9570c]">Shop Drone Operation Barriers →</Link>
+    <div className="bg-[#0b1118] text-white">
+      <section className="border-b border-white/10">
+        <div className="container-app grid gap-10 py-16 md:grid-cols-[1.1fr_.9fr] md:items-center md:py-20">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[.2em] text-[#f26a1b]">DOM Shop</p>
+            <h1 className="mt-3 text-4xl font-extrabold leading-tight md:text-6xl">Wear the operation.</h1>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">The DOM Shop is for branded merchandise — shirts, hats, hoodies, stickers, patches, and other company gear. Professional field equipment lives separately under Safety Equipment.</p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <a href="#merch" className="rounded-lg bg-[#f26a1b] px-6 py-3.5 font-bold text-white transition hover:bg-[#d9570c]">Browse DOM Merchandise</a>
+              <Link href="/safety-equipment" className="rounded-lg border border-white/20 px-6 py-3.5 font-bold text-white transition hover:border-[#f26a1b]">Safety Equipment →</Link>
+            </div>
+          </div>
+          <div className="rounded-3xl border border-white/10 bg-[#111923] p-8 md:p-10">
+            <div className="flex min-h-[360px] flex-col items-center justify-center rounded-2xl border border-[#f26a1b]/30 bg-gradient-to-br from-[#101820] to-[#070b10] text-center">
+              <img src="/brand/dom-lockup-horizontal.png?v=3" alt="DOM — Drone Operation Management" className="w-[70%] max-w-md" />
+              <p className="mt-8 text-sm font-bold uppercase tracking-[.22em] text-[#f26a1b]">Official DOM Merchandise</p>
+              <p className="mt-3 max-w-sm px-6 text-sm leading-6 text-slate-400">Field identity, crew apparel, stickers, patches, and branded gear.</p>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="container-app py-16 md:py-20">
-        <div className="mb-10 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <section id="merch" className="container-app py-16 md:py-20">
+        <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[.16em] text-[#f26a1b]">Drone Operations Equipment</p>
-            <h2 className="mt-2 text-3xl font-extrabold md:text-4xl">Barrier systems</h2>
+            <p className="text-sm font-bold uppercase tracking-[.18em] text-[#f26a1b]">Merchandise</p>
+            <h2 className="mt-2 text-3xl font-extrabold md:text-4xl">DOM branded gear.</h2>
           </div>
-          <p className="max-w-xl text-sm text-[#5f6b7a]">High-visibility orange retractable posts with simple DRONE OPERATION webbing so the same equipment can work across mapping, inspection, construction, event, public-safety, and training environments.</p>
+          <p className="max-w-xl text-sm leading-6 text-slate-400">Merchandise is being finalized. These categories are intentionally separated from operational Safety Equipment so customers always know what they are buying.</p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2">
-          {products.map((product) => (
-            <Link key={product.name} href={product.href} className="group overflow-hidden rounded-2xl border border-[#d9e0e8] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
-              <div className="relative aspect-[9/6] overflow-hidden bg-[#f7f8fa]">
-                <img src={product.image} alt={product.name} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]" />
-                <span className="absolute left-5 top-5 rounded-full bg-[#172033] px-3 py-1 text-xs font-bold tracking-wider text-white">{product.badge}</span>
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {merch.map((item) => (
+            <article key={item.name} className="overflow-hidden rounded-2xl border border-white/10 bg-[#111923]">
+              <div className="flex aspect-[9/5.5] items-center justify-center bg-white p-8">
+                <div className="flex h-32 w-32 items-center justify-center rounded-full border-4 border-[#f26a1b] text-5xl font-black text-[#172033]">{item.icon}</div>
               </div>
-              <div className="p-6 md:p-7">
-                <div className="flex items-start justify-between gap-5">
-                  <div><h3 className="text-xl font-extrabold">{product.name}</h3><p className="mt-2 text-sm leading-6 text-[#5f6b7a]">{product.copy}</p></div>
-                  <div className="text-2xl font-extrabold text-[#f26a1b]">{product.price}</div>
-                </div>
-                <div className="mt-6 font-bold text-[#172033]">View product →</div>
+              <div className="p-6">
+                <p className="text-xs font-bold uppercase tracking-[.16em] text-[#f26a1b]">{item.type}</p>
+                <h3 className="mt-2 text-xl font-extrabold">{item.name}</h3>
+                <p className="mt-3 text-sm leading-6 text-slate-400">{item.copy}</p>
+                <div className="mt-5 inline-flex rounded-full border border-white/15 px-3 py-1 text-xs font-bold uppercase tracking-wider text-slate-300">Coming Soon</div>
               </div>
-            </Link>
+            </article>
           ))}
         </div>
       </section>
 
-      <section className="border-y border-[#d9e0e8] bg-white">
-        <div className="container-app grid gap-8 py-12 md:grid-cols-3">
-          <div><div className="text-sm font-bold uppercase tracking-wider text-[#f26a1b]">Simple</div><h3 className="mt-2 text-xl font-extrabold">One clear purpose</h3><p className="mt-2 text-sm text-[#5f6b7a]">Create a visible perimeter around a pilot, launch point, command station, or temporary work area.</p></div>
-          <div><div className="text-sm font-bold uppercase tracking-wider text-[#f26a1b]">Professional</div><h3 className="mt-2 text-xl font-extrabold">Looks intentional on site</h3><p className="mt-2 text-sm text-[#5f6b7a]">A cleaner field presentation than cones, caution tape, or improvised barriers.</p></div>
-          <div><div className="text-sm font-bold uppercase tracking-wider text-[#f26a1b]">Scalable</div><h3 className="mt-2 text-xl font-extrabold">Corporate & fleet orders</h3><p className="mt-2 text-sm text-[#5f6b7a]">Need a dozen or more? DOM can quote multi-crew and fleet quantities.</p></div>
+      <section className="border-y border-white/10 bg-[#0e151e]">
+        <div className="container-app grid gap-8 py-12 md:grid-cols-2 md:items-center">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[.18em] text-[#f26a1b]">Looking for field equipment?</p>
+            <h2 className="mt-3 text-3xl font-extrabold">Drone Operation barriers are under Safety Equipment.</h2>
+            <p className="mt-3 max-w-xl text-slate-400">Barrier kits, professional operating-perimeter equipment, and future field-safety products are kept in their own operational category.</p>
+          </div>
+          <div className="md:text-right"><Link href="/safety-equipment" className="inline-flex rounded-lg bg-[#f26a1b] px-6 py-3.5 font-bold text-white transition hover:bg-[#d9570c]">Go to Safety Equipment →</Link></div>
         </div>
-      </section>
-
-      <section className="container-app py-16 text-center">
-        <p className="text-sm font-bold uppercase tracking-[.16em] text-[#f26a1b]">Corporate Orders</p>
-        <h2 className="mt-3 text-3xl font-extrabold">Outfitting multiple drone crews?</h2>
-        <p className="mx-auto mt-3 max-w-2xl text-[#5f6b7a]">For 12+ units, multi-location teams, or future custom webbing requests, contact DOM directly for quantity pricing.</p>
-        <a href="mailto:ops@droneopsman.com?subject=Corporate%20Drone%20Barrier%20Order" className="mt-7 inline-flex rounded-lg bg-[#172033] px-6 py-3.5 font-bold text-white transition hover:bg-[#0b1118]">Contact Corporate Sales</a>
       </section>
     </div>
   );

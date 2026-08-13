@@ -29,9 +29,14 @@ const organizationJsonLd = {
   alternateName: domKnowledge.organization.alternateName,
   url: domKnowledge.organization.url,
   description: domKnowledge.organization.description,
+  areaServed: domKnowledge.serviceAreas.map((area) => ({
+    "@type": "AdministrativeArea",
+    name: area.name,
+  })),
   knowsAbout: [
     ...domKnowledge.industries,
     ...domKnowledge.deliverables,
+    ...domKnowledge.equipment.flatMap((item) => [item.name, ...item.uses]),
     ...domKnowledge.glossary.map(([term]) => term),
   ],
   hasOfferCatalog: {
@@ -41,9 +46,11 @@ const organizationJsonLd = {
       "@type": "Offer",
       itemOffered: {
         "@type": "Service",
+        "@id": `https://droneopsman.com/knowledge#${service.slug}`,
         name: service.name,
         description: service.description,
         provider: { "@id": "https://droneopsman.com/#organization" },
+        areaServed: domKnowledge.serviceAreas.map((area) => area.name),
         url: `https://droneopsman.com/knowledge#${service.slug}`,
       },
     })),

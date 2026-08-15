@@ -69,6 +69,10 @@ export default function PilotCreateMissionWizard({
   // Scope
   const [services, setServices] = useState<{ id: string; label: string }[]>([]);
   const [serviceType, setServiceType] = useState("roof_inspection_commercial");
+  const [customMissionTitle, setCustomMissionTitle] = useState("");
+  const [customMissionScope, setCustomMissionScope] = useState("");
+  const [customDeliverables, setCustomDeliverables] = useState("");
+  const [customBaseDollars, setCustomBaseDollars] = useState("");
   const [complexity, setComplexity] = useState("simple");
   const [urgency, setUrgency] = useState("standard");
   const [deliverableTier, setDeliverableTier] = useState("standard");
@@ -85,7 +89,11 @@ export default function PilotCreateMissionWizard({
     try {
       const res = await fetch("/api/quote", { headers: { Authorization: `Bearer ${accessToken}` } });
       const data = await res.json();
-      if (data.services) setServices(data.services.filter((s: any) => s.id !== "custom"));
+      if (data.services) {
+        setServices(data.services.map((s: any) =>
+          s.id === "custom" ? { ...s, label: "Create Custom Mission" } : s
+        ));
+      }
     } catch {
       // non-fatal — dropdown just shows the default option
     }
@@ -135,6 +143,7 @@ export default function PilotCreateMissionWizard({
         body: JSON.stringify({
           serviceType, lat, lng, distanceMiles,
           siteComplexity: complexity, urgency, deliverableTier,
+          customBaseCents: serviceType === "custom" ? Math.round(Number(customBaseDollars) * 100) : undefined,
         }),
       });
       const data = await res.json();
@@ -146,7 +155,7 @@ export default function PilotCreateMissionWizard({
     } finally {
       setQuoting(false);
     }
-  }, [lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier]);
+  }, [lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier, customBaseDollars]);
 
   const submit = useCallback(async () => {
     if (lat == null || lng == null) return;
@@ -160,6 +169,10 @@ export default function PilotCreateMissionWizard({
           clientName, clientEmail, clientCompany, clientPhone,
           location: address, latitude: lat, longitude: lng,
           serviceType, distanceMiles, siteComplexity: complexity, urgency, deliverableTier,
+          customMissionTitle: serviceType === "custom" ? customMissionTitle : undefined,
+          customMissionScope: serviceType === "custom" ? customMissionScope : undefined,
+          customDeliverables: serviceType === "custom" ? customDeliverables : undefined,
+          customBaseCents: serviceType === "custom" ? Math.round(Number(customBaseDollars) * 100) : undefined,
         }),
       });
       const data = await res.json();
@@ -177,7 +190,7 @@ export default function PilotCreateMissionWizard({
     } finally {
       setSubmitting(false);
     }
-  }, [accessToken, clientName, clientEmail, clientCompany, clientPhone, address, lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier, onCreated]);
+  }, [accessToken, clientName, clientEmail, clientCompany, clientPhone, address, lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier, customMissionTitle, customMissionScope, customDeliverables, customBaseDollars, onCreated]);
 
   if (created) {
     return (
@@ -290,12 +303,39 @@ export default function PilotCreateMissionWizard({
           <div style={{ display: "grid", gap: 12 }}>
             <div>
               <label style={labelStyle}>Service type</label>
-              <select value={serviceType} onChange={(e) => setServiceType(e.target.value)} style={inputStyle}>
+              <select value={serviceType} onChange={(e) => { setServiceType(e.target.value); setQuote(null); }} style={inputStyle}>
                 {services.length ? services.map((s) => <option key={s.id} value={s.id}>{s.label}</option>) : (
-                  <option value="roof_inspection_commercial">Roof Inspection (Commercial)</option>
+                  <>
+                    <option value="roof_inspection_commercial">Roof Inspection (Commercial)</option>
+                    <option value="custom">Create Custom Mission</option>
+                  </>
                 )}
               </select>
             </div>
+            {serviceType === "custom" && (
+              <div style={{ padding: 14, border: `1px solid ${V.line}`, borderRadius: 10, background: V.raised }}>
+                <div className="font-saira" style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Custom mission details</div>
+                <div style={{ display: "grid", gap: 12 }}>
+                  <div>
+                    <label style={labelStyle}>Mission title *</label>
+                    <input style={inputStyle} value={customMissionTitle} onChange={(e) => setCustomMissionTitle(e.target.value)} placeholder="Example: Indoor warehouse inventory scan" />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Scope of work *</label>
+                    <textarea style={{ ...inputStyle, minHeight: 90, resize: "vertical" }} value={customMissionScope} onChange={(e) => setCustomMissionScope(e.target.value)} placeholder="Describe exactly what will be flown, captured, inspected, or measured." />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Required deliverables *</label>
+                    <textarea style={{ ...inputStyle, minHeight: 70, resize: "vertical" }} value={customDeliverables} onChange={(e) => setCustomDeliverables(e.target.value)} placeholder="List the files, report, imagery, model, or other client outputs." />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Custom base price ($) *</label>
+                    <input type="number" min="1" step="0.01" style={inputStyle} value={customBaseDollars} onChange={(e) => setCustomBaseDollars(e.target.value)} placeholder="500.00" />
+                    <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 5 }}>Complexity, timeline, deliverables, travel, and airspace modifiers will be applied to this base.</p>
+                  </div>
+                </div>
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <label style={labelStyle}>Complexity</label>
@@ -329,7 +369,11 @@ export default function PilotCreateMissionWizard({
           </div>
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
             <button onClick={() => setStep("location")} style={btnGhost}>← Back</button>
-            <button onClick={generateQuote} disabled={quoting} style={{ ...btnPrimary, flex: 1 }}>
+            <button
+              onClick={generateQuote}
+              disabled={quoting || (serviceType === "custom" && (!customMissionTitle.trim() || !customMissionScope.trim() || !customDeliverables.trim() || Number(customBaseDollars) <= 0))}
+              style={{ ...btnPrimary, flex: 1 }}
+            >
               {quoting ? "Calculating…" : "Get quote →"}
             </button>
           </div>

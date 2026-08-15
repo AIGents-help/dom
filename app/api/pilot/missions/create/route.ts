@@ -59,10 +59,21 @@ export async function POST(req: NextRequest) {
       siteComplexity,
       urgency,
       deliverableTier,
+      customMissionTitle,
+      customMissionScope,
+      customDeliverables,
+      customBaseCents,
     } = body;
 
     if (!clientName || !clientEmail || latitude == null || longitude == null || !serviceType) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    if (serviceType === "custom" && (
+      !customMissionTitle?.trim() || !customMissionScope?.trim() ||
+      !customDeliverables?.trim() || !Number.isFinite(customBaseCents) || customBaseCents <= 0
+    )) {
+      return NextResponse.json({ error: "Custom missions require a title, scope, deliverables, and base price." }, { status: 400 });
     }
 
     const airspaceResult = await classifyAirspace(latitude, longitude);
@@ -73,6 +84,7 @@ export async function POST(req: NextRequest) {
       siteComplexity: siteComplexity ?? "simple",
       urgency: urgency ?? "standard",
       deliverableTier: deliverableTier ?? "standard",
+      customBaseCents: serviceType === "custom" ? customBaseCents : undefined,
     };
     const quote = calculateQuote(quoteInput);
 
@@ -91,7 +103,9 @@ export async function POST(req: NextRequest) {
       p_longitude: longitude,
       p_service_type: serviceType,
       p_airspace_class: airspaceResult.airspace_class,
-      p_scope: clientPhone ? `Phone: ${clientPhone}` : null,
+      p_scope: serviceType === "custom"
+        ? `${customMissionTitle.trim()}\n\nScope:\n${customMissionScope.trim()}\n\nDeliverables:\n${customDeliverables.trim()}${clientPhone ? `\n\nClient phone: ${clientPhone}` : ""}`
+        : clientPhone ? `Phone: ${clientPhone}` : null,
       p_quote: {
         basePriceCents: quote.basePriceCents,
         locationMod: quote.modifiers.location.factor,

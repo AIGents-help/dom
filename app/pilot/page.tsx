@@ -81,6 +81,7 @@ export default function PilotDashboard() {
   const [userId, setUserId] = useState<string | null>(null);
   const [missionLogAssignment, setMissionLogAssignment] = useState<Assignment | null>(null);
   const [expandedSop, setExpandedSop] = useState<string | null>(null);
+  const [sopMissionServiceType, setSopMissionServiceType] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -402,7 +403,9 @@ export default function PilotDashboard() {
                     {sopsFor(job.service_type).length > 0 && (
                       <button
                         onClick={() => {
-                          setExpandedSop(sopsFor(job.service_type)[0].id);
+                          const missionSops = sopsFor(job.service_type);
+                          setSopMissionServiceType(job.service_type);
+                          setExpandedSop(missionSops[0].id);
                           setTab("sops");
                         }}
                         style={btnGhost}
@@ -426,8 +429,23 @@ export default function PilotDashboard() {
 
       {tab === "sops" && (
         <div style={{ display: "grid", gap: 10 }}>
-          {sops.length === 0 && <p style={{ color: V.inkDim }}>No SOPs published yet.</p>}
-          {sops.map((s) => {
+          {sopMissionServiceType && (
+            <div style={{ ...panelStyle, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+              <div>
+                <div className="font-saira" style={{ fontWeight: 600 }}>Mission documents</div>
+                <div style={{ color: V.inkDim, fontSize: 12, marginTop: 3 }}>
+                  Showing only SOPs and supporting documents for {sopMissionServiceType.replace(/_/g, " ")}.
+                </div>
+              </div>
+              <button onClick={() => { setSopMissionServiceType(null); setExpandedSop(null); }} style={btnGhost}>View SOP library</button>
+            </div>
+          )}
+          {(sopMissionServiceType ? sopsFor(sopMissionServiceType) : sops).length === 0 && (
+            <p style={{ color: V.inkDim }}>
+              {sopMissionServiceType ? "No mission-specific documents have been assigned yet." : "No SOPs published yet."}
+            </p>
+          )}
+          {(sopMissionServiceType ? sopsFor(sopMissionServiceType) : sops).map((s) => {
             const open = expandedSop === s.id;
             return (
               <div key={s.id} style={panelStyle}>

@@ -158,6 +158,59 @@ export function isStaleProcessingJob(
 }
 
 // ---------------------------------------------------------------------------
+// Deliverable display de-duplication -- a worker retry (see
+// recoverStaleJobs.ts) can register a second deliverable row for the same
+// logical output before mapping_processing_job_id-based idempotency was
+// added (or for any row that predates that column). This never touches the
+// database; it only decides what the "All outputs" list renders. Two rows
+// are the same underlying output if they share a type and the same
+// filename once the uploader's `${Date.now()}-` uniqueness prefix (see
+// uploadOutputs.ts) is stripped off. Among duplicates, a QC-passed row
+// always wins (an admin already reviewed that specific file); otherwise
+// the most recently created row wins.
+// ---------------------------------------------------------------------------
+
+export interface DeduplicableDeliverable {
+  id: string;
+  type: string | null;
+  storage_url: string | null;
+  qc_passed: boolean | null;
+  created_at: string;
+}
+
+function deliverableOutputKey(d: DeduplicableDeliverable): string {
+  const filename = d.storage_url?.split("/").pop() ?? null;
+  const stableFilename = filename ? filename.replace(/^\d+-/, "") : `no-file:${d.id}`;
+  return `${d.type ?? ""}::${stableFilename}`;
+}
+
+// Whether a deliverable row has an underlying file to download at all,
+// independent of which storage backend it lives in -- lets the UI disable
+// the Download action up front (Step 4: "File unavailable") instead of
+// firing a request that the API would reject anyway.
+export function deliverableHasFile(d: { storage_provider?: string | null; storage_url: string | null; external_file_id?: string | null }): boolean {
+  const provider = d.storage_provider ?? "supabase";
+  return provider === "google_drive" ? !!d.external_file_id : !!d.storage_url;
+}
+
+export function dedupeDeliverables<T extends DeduplicableDeliverable>(deliverables: T[]): T[] {
+  const byKey = new Map<string, T>();
+  for (const d of deliverables) {
+    const key = deliverableOutputKey(d);
+    const existing = byKey.get(key);
+    if (!existing) {
+      byKey.set(key, d);
+      continue;
+    }
+    const dWins =
+      (d.qc_passed && !existing.qc_passed) ||
+      (!!d.qc_passed === !!existing.qc_passed && new Date(d.created_at).getTime() > new Date(existing.created_at).getTime());
+    if (dWins) byKey.set(key, d);
+  }
+  return [...byKey.values()].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+// ---------------------------------------------------------------------------
 // Formatting helpers
 // ---------------------------------------------------------------------------
 

@@ -114,7 +114,7 @@ export default function MappingProjectWorkspace({
           <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".08em", color: V.inkFaint, textTransform: "uppercase", marginBottom: 10 }}>
             Results
           </div>
-          <MappingResults deliverables={deliverables} />
+          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={project.id} />
           <p style={{ color: V.inkFaint, fontSize: 12, marginTop: 12 }}>
             Publishing to the customer happens through DOM's existing QC and delivery workflow — outputs appear here as soon as
             admin marks them QC-passed.

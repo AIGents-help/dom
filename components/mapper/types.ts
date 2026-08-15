@@ -21,6 +21,8 @@ export interface MappingDeliverable {
   name: string;
   type: string | null;
   storage_url: string | null;
+  storage_provider?: string | null;
+  external_file_id?: string | null;
   qc_passed: boolean | null;
   delivered_at: string | null;
   created_at: string;

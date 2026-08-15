@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
-  canUploadImages, canQueueProcessing, isStaleProcessingJob, formatBytes, formatProgress,
+  canUploadImages, canQueueProcessing, isStaleProcessingJob, formatBytes, formatProgress, dedupeDeliverables,
   DEFAULT_STALE_THRESHOLD_MS, MAPPING_PROJECT_STATUS_OPTIONS, PROCESSING_JOB_STATUS_OPTIONS,
-  type MappingProjectStatus,
+  type MappingProjectStatus, type DeduplicableDeliverable,
 } from "./mapperPipeline";
 
 describe("status vocab", () => {
@@ -87,5 +87,37 @@ describe("formatProgress", () => {
     expect(formatProgress(45.6)).toBe("46%");
     expect(formatProgress(150)).toBe("100%");
     expect(formatProgress(-10)).toBe("0%");
+  });
+});
+
+describe("dedupeDeliverables", () => {
+  function d(overrides: Partial<DeduplicableDeliverable> & { id: string }): DeduplicableDeliverable {
+    return { type: "3d_model", storage_url: null, qc_passed: false, created_at: "2026-08-01T00:00:00Z", ...overrides };
+  }
+
+  it("collapses retry duplicates (same type + filename, different Date.now() prefix) to the newest", () => {
+    const older = d({ id: "a", storage_url: "job1/mapper/111-odm_textured_model_geo.glb", created_at: "2026-08-07T16:16:56Z" });
+    const newer = d({ id: "b", storage_url: "job1/mapper/222-odm_textured_model_geo.glb", created_at: "2026-08-14T15:41:58Z" });
+    expect(dedupeDeliverables([older, newer]).map((x) => x.id)).toEqual(["b"]);
+  });
+
+  it("prefers a QC-passed duplicate even if it's older", () => {
+    const passed = d({ id: "old-passed", storage_url: "job1/mapper/111-out.glb", created_at: "2026-08-01T00:00:00Z", qc_passed: true });
+    const unpassed = d({ id: "new-unpassed", storage_url: "job1/mapper/222-out.glb", created_at: "2026-08-14T00:00:00Z", qc_passed: false });
+    expect(dedupeDeliverables([unpassed, passed]).map((x) => x.id)).toEqual(["old-passed"]);
+  });
+
+  it("keeps distinct types and distinct filenames of the same type separate", () => {
+    const model = d({ id: "model", type: "3d_model", storage_url: "job1/mapper/1-model.glb" });
+    const cloud = d({ id: "cloud", type: "point_cloud", storage_url: "job1/mapper/1-cloud.laz" });
+    const otherModel = d({ id: "other-model", type: "3d_model", storage_url: "job1/mapper/1-alt_model.glb" });
+    const result = dedupeDeliverables([model, cloud, otherModel]);
+    expect(result.map((x) => x.id).sort()).toEqual(["cloud", "model", "other-model"]);
+  });
+
+  it("never collapses rows with no storage_url (keyed by id instead)", () => {
+    const a = d({ id: "a", storage_url: null });
+    const b = d({ id: "b", storage_url: null });
+    expect(dedupeDeliverables([a, b]).map((x) => x.id).sort()).toEqual(["a", "b"]);
   });
 });

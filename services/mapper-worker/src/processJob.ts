@@ -7,7 +7,7 @@ import { extractAndStoreMetadata } from "./extractMetadata";
 import { initTask, uploadImagesToTask, commitTask, getTaskInfo, downloadAllOutputs, NODEODM_STATUS } from "./nodeodm";
 import { extractAllZip, locateOutputs } from "./extractOutputs";
 import { uploadOutput } from "./uploadOutputs";
-import { registerDeliverable } from "./registerDeliverables";
+import { registerDeliverable, isOutputAlreadyRegistered } from "./registerDeliverables";
 import { startHeartbeat, updateProgress } from "./heartbeat";
 import { logEvent } from "./logEvent";
 import { env } from "./env";
@@ -113,8 +113,13 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     const skipped: string[] = [];
     for (const output of outputs) {
       try {
+        if (await isOutputAlreadyRegistered(job.id, output.type)) {
+          console.log(`[processJob] Job ${job.id}: output "${output.type}" already registered on a prior attempt, skipping re-upload.`);
+          registered.push(output.type);
+          continue;
+        }
         const storagePath = await uploadOutput(project.job_id, output);
-        await registerDeliverable(project.job_id, project.name, output, storagePath);
+        await registerDeliverable(project.job_id, project.name, output, storagePath, job.id);
         registered.push(output.type);
       } catch (outputErr) {
         const outputMessage = outputErr instanceof Error ? outputErr.message : String(outputErr);

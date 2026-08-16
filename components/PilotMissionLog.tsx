@@ -6,6 +6,7 @@ import { V } from "@/lib/theme";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 import { assessMissionEquipment, missionEquipmentGuidance, missionWeatherUrl } from "@/lib/missionEquipmentGuidance";
 import PilotFieldWorkflow from "@/components/PilotFieldWorkflow";
+import PilotReadinessBanner from "@/components/PilotReadinessBanner";
 import MissionReviewPanel from "@/components/MissionReviewPanel";
 
 // Pilot > Mission Log — per-assignment documents + deliverables, mirroring
@@ -218,6 +219,7 @@ export default function PilotMissionLog({
         <p style={{ color: V.inkDim, fontSize: 13 }}>Loading…</p>
       ) : (
         <>
+          <PilotReadinessBanner assignmentId={assignmentId} />
           <PilotFieldWorkflow assignmentId={assignmentId} />
           <div style={{ ...panelStyle, borderColor: V.signal }}>
             <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>Mission Operations</div>

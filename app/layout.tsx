@@ -4,12 +4,16 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import CookieConsent from "@/components/CookieConsent";
 import { domKnowledge } from "@/lib/knowledge";
+import PwaRegistrar from "@/components/PwaRegistrar";
+import InstallAppBanner from "@/components/InstallAppBanner";
 
 export const metadata: Metadata = {
   title: "Drone Operation Management | Commercial Drone Operations & Aerial Intelligence",
   description:
     "Drone Operation Management delivers commercial drone operations, aerial intelligence, and mission documentation for enterprise, infrastructure, energy, construction, and public sector clients. FAA Part 107 certified.",
   metadataBase: new URL("https://droneopsman.com"),
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "DOM OS", statusBarStyle: "black-translucent" },
   alternates: { canonical: "/" },
   openGraph: {
     title: "Drone Operation Management",
@@ -74,6 +78,8 @@ export default function RootLayout({
         <main id="main-content" className="flex-1" tabIndex={-1}>{children}</main>
         <Footer />
         <CookieConsent />
+        <PwaRegistrar />
+        <InstallAppBanner />
       </body>
     </html>
   );

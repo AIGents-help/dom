@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+.dom-install-banner{position:fixed;z-index:1000;right:16px;bottom:16px;display:flex;align-items:center;gap:10px;max-width:390px;padding:12px;border:1px solid #D8DEE8;border-radius:14px;background:#fff;box-shadow:0 14px 40px rgba(15,23,42,.2);color:#0f172a}.dom-install-banner img{width:40px;height:40px;border-radius:10px}.dom-install-banner div{display:grid;flex:1}.dom-install-banner strong{font:700 13px Saira,sans-serif}.dom-install-banner span{font-size:11px;color:#64748b}.dom-install-banner button{padding:7px 10px;border:0;border-radius:8px;background:#F45A1E;color:#fff;font-weight:700}.dom-install-banner .dismiss{padding:4px;background:transparent;color:#64748b;font-size:20px}
+@media(max-width:640px){.dom-install-banner{left:10px;right:10px;bottom:10px}.section{padding-left:14px!important;padding-right:14px!important}}
+
 /* Leads shares the same light operational language as Mission listings. */
 .leads-mission-theme .bg-surface,.leads-mission-theme .bg-surface2 { background-color:#fff!important; }
 .leads-mission-theme .text-ink { color:#0f172a!important; }

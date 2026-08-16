@@ -18,6 +18,7 @@ import { V } from "@/lib/theme";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 import MissionMapThumbnail from "@/components/MissionMapThumbnail";
 import PilotCRM from "@/components/PilotCRM";
+import PilotSupportCenter from "@/components/PilotSupportCenter";
 
 interface Profile {
   id: string; full_name: string; email: string; phone: string | null; status: string;
@@ -484,6 +485,7 @@ export default function PilotDashboard() {
 
       {tab === "mapping" && accessToken && <MappingTab accessToken={accessToken} />}
       {tab === "crm" && <PilotCRM />}
+      {tab === "support" && <PilotSupportCenter />}
 
       {tab === "sops" && (
         <div style={{ display: "grid", gap: 10 }}>

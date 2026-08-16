@@ -23,6 +23,7 @@ const NAV = [
   { href: "/admin/dashboard#notes", label: "Notes", icon: "≡", child: true },
   { href: "/admin/dashboard#status", label: "Status Tracking", icon: "⌁", child: true },
   { href: "/admin/relationships", label: "CRM Protection", icon: "◇" },
+  { href: "/admin/support", label: "Pilot Support", icon: "✚" },
   { href: "/admin/operations", label: "Exception Center", icon: "⚠" },
   { href: "/admin/programs", label: "Programs & Analytics", icon: "↻" },
   { href: "/admin/contractors", label: "Contractors", icon: "◎" },

@@ -275,10 +275,10 @@ export default function PilotDashboard() {
   const totalEarned = payouts.filter((p) => ["captured", "paid_out"].includes(p.status)).reduce((s, p) => s + p.contractor_amount_cents, 0);
 
   return (
-    <Shell>
-      <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: V.ground, color: V.ink, fontFamily: "Inter, system-ui, sans-serif" }}>
       <PilotSidebar tab={tab} setTab={setTab} onSignOut={signOut} />
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <main style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
         <div>
           <h1 className="font-saira" style={{ fontSize: 26, fontWeight: 700 }}>{profile.full_name}</h1>
@@ -583,8 +583,8 @@ export default function PilotDashboard() {
         </div>
       )}
       </div>
-      </div>
-    </Shell>
+      </main>
+    </div>
   );
 }
 

@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 
-// Collapsible left nav for the pilot dashboard's tabs. Unlike AdminSidebar
-// this isn't route-based — /pilot is a single page that swaps sections by
-// client state, so this takes the active tab + setter as props instead of
-// using next/navigation.
+// Pilot counterpart to AdminSidebar. It intentionally uses the same full-
+// height rail geometry, spacing, collapse behavior, colors, and footer so
+// moving between DOM Admin and DOM Pilot feels like one operating system.
+// /pilot is tab-based, so active state is supplied by the parent.
 
 // Navy nav shell with light text + blue active state (DOM light theme).
 const V = { surface: "#172033", line: "rgba(255,255,255,0.08)", ink: "#FFFFFF", inkDim: "#AEB7C4", inkFaint: "#8A95A7", signal: "#FFFFFF" };
@@ -64,38 +64,35 @@ export default function PilotSidebar({
   return (
     <aside
       style={{
-        width: collapsed ? 60 : 200,
+        width: collapsed ? 64 : 220,
         flexShrink: 0,
+        position: "sticky",
+        top: 0,
+        height: "100vh",
         background: V.surface,
-        border: `1px solid ${V.line}`,
-        borderRadius: 14,
+        borderRight: `1px solid ${V.line}`,
         display: "flex",
         flexDirection: "column",
-        height: "fit-content",
-        position: "sticky",
-        top: 24,
         transition: "width .15s ease",
         overflow: "hidden",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", padding: "10px 10px 0" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", padding: "18px 16px" }}>
         {!collapsed && (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <img src="/brand/dom-icon-mark.png?v=3" alt="" style={{ height: 18, width: "auto" }} />
-            <span className="font-saira" style={{ fontWeight: 700, fontSize: 14, color: V.ink }}>DOM Pilot</span>
+            <img src="/brand/dom-icon-mark.png?v=3" alt="" style={{ height: 20, width: "auto" }} />
+            <span className="font-saira" style={{ fontWeight: 700, fontSize: 16, color: V.ink }}>DOM Pilot</span>
           </div>
         )}
         <button
           onClick={toggle}
           aria-label="Toggle sidebar"
-          style={{ background: "transparent", border: `1px solid ${V.line}`, color: V.inkDim, borderRadius: 6, width: 26, height: 26, cursor: "pointer", flexShrink: 0 }}
+          style={{ background: "transparent", border: `1px solid ${V.line}`, color: V.inkDim, borderRadius: 6, width: 28, height: 28, cursor: "pointer", flexShrink: 0 }}
         >
           {collapsed ? "»" : "«"}
         </button>
       </div>
-      {!collapsed && <div style={{ height: 1, background: V.line, margin: "10px 10px 0" }} />}
-
-      <nav style={{ display: "flex", flexDirection: "column", gap: 2, padding: "0 8px 8px" }}>
+      <nav style={{ display: "flex", flexDirection: "column", gap: 2, padding: 8, flex: 1 }}>
         {ITEMS.map((item) => {
           const active = tab === item.id;
           return (
@@ -104,7 +101,7 @@ export default function PilotSidebar({
               onClick={() => setTab(item.id)}
               title={collapsed ? item.label : undefined}
               style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "10px 10px", borderRadius: 8,
+                display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8,
                 border: "none", cursor: "pointer", textAlign: "left",
                 color: active ? V.signal : V.inkDim,
                 background: active ? "rgba(244,90,30,.22)" : "transparent",
@@ -112,17 +109,17 @@ export default function PilotSidebar({
                 justifyContent: collapsed ? "center" : "flex-start",
               }}
             >
-              <span style={{ fontSize: 14 }}>{item.icon}</span>
+              <span style={{ fontSize: 15 }}>{item.icon}</span>
               {!collapsed && item.label}
             </button>
           );
         })}
       </nav>
 
-      <div style={{ padding: 8, borderTop: `1px solid ${V.line}`, marginTop: 4 }}>
+      <div style={{ padding: 12, borderTop: `1px solid ${V.line}` }}>
         <button
           onClick={onSignOut}
-          style={{ width: "100%", background: "transparent", border: "none", color: V.inkFaint, fontSize: 12, cursor: "pointer", padding: "8px 10px", textAlign: collapsed ? "center" : "left" }}
+          style={{ width: "100%", background: "transparent", border: "none", color: V.inkFaint, fontSize: 12, cursor: "pointer", textAlign: collapsed ? "center" : "left" }}
         >
           {collapsed ? "⏻" : "Sign out"}
         </button>

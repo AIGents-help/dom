@@ -26,6 +26,14 @@ interface Profile {
   home_address: string | null;
   equipment: string | null;
   rating: number | null;
+  insurance_verified: boolean;
+  insurance_requested: boolean;
+  insurance_provider: string | null;
+  insurance_policy_number: string | null;
+  insurance_expires_on: string | null;
+  insurance_liability_cents: number | null;
+  insurance_coi_path: string | null;
+  dom_gig_insurance_eligible: boolean;
 }
 
 export default function PilotProfileEditor({ profile, onSaved }: { profile: Profile; onSaved: () => void }) {
@@ -83,6 +91,7 @@ export default function PilotProfileEditor({ profile, onSaved }: { profile: Prof
           <Field label="Equipment" value={profile.equipment ?? "Not listed"} />
           <Field label="Rating" value={profile.rating ? `${profile.rating}/5.0` : "No rating yet"} />
         </div>
+        <InsurancePanel profile={profile} onSaved={onSaved} />
       </div>
     );
   }
@@ -129,8 +138,28 @@ export default function PilotProfileEditor({ profile, onSaved }: { profile: Prof
         <button onClick={() => setEditing(false)} style={btnGhost} disabled={saving}>Cancel</button>
         <button onClick={save} style={btnPrimary} disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
       </div>
+      <InsurancePanel profile={profile} onSaved={onSaved} />
     </div>
   );
+}
+
+function InsurancePanel({ profile, onSaved }: { profile: Profile; onSaved: () => void }) {
+  const [provider, setProvider] = useState(profile.insurance_provider ?? "SkyWatch.AI");
+  const [policyNumber, setPolicyNumber] = useState(profile.insurance_policy_number ?? "");
+  const [expiresOn, setExpiresOn] = useState(profile.insurance_expires_on ?? "");
+  const [liability, setLiability] = useState(profile.insurance_liability_cents ? String(profile.insurance_liability_cents / 100) : "1000000");
+  const [coi, setCoi] = useState<File | null>(null); const [saving, setSaving] = useState(false); const [message, setMessage] = useState<string | null>(null);
+  const expired = !!profile.insurance_expires_on && new Date(`${profile.insurance_expires_on}T23:59:59`).getTime() <= Date.now();
+  async function submit() { setSaving(true); setMessage(null); const sb = getSupabaseBrowser(); const { data } = await sb.auth.getSession(); const body = new FormData(); body.set("provider", provider); body.set("policyNumber", policyNumber); body.set("expiresOn", expiresOn); body.set("liabilityDollars", liability); if (coi) body.set("coi", coi); const res = await fetch("/api/pilot/insurance/profile", { method: "POST", headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}` }, body }); const out = await res.json(); setMessage(res.ok ? out.message : out.error); setSaving(false); if (res.ok) onSaved(); }
+  return <section style={{ marginTop: 22, padding: 16, borderRadius: 12, border: `1px solid ${profile.insurance_verified && !expired ? V.telemetry : V.warn}`, background: profile.insurance_verified && !expired ? "rgba(22,163,74,.06)" : "rgba(245,158,11,.06)" }}>
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><div><div style={labelStyle}>Insurance verification</div><strong style={{ color: profile.insurance_verified && !expired ? V.telemetry : V.warn }}>{profile.insurance_verified && !expired ? "Verified and current" : profile.insurance_requested ? "Pending DOM review" : "Not verified"}</strong></div>{profile.dom_gig_insurance_eligible && <span style={{ color: V.telemetry, fontSize: 11, fontWeight: 700 }}>DOM GIG PROGRAM ELIGIBLE</span>}</div>
+    <p style={{ color: V.inkDim, fontSize: 12, marginTop: 7 }}>Upload a current certificate of insurance. DOM verifies the policy; pilots cannot self-approve coverage.</p>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10, marginTop: 12 }}><input style={inputStyle} placeholder="Insurance provider" value={provider} onChange={e => setProvider(e.target.value)} /><input style={inputStyle} placeholder="Policy number" value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} /><input style={inputStyle} type="date" value={expiresOn} onChange={e => setExpiresOn(e.target.value)} /><input style={inputStyle} type="number" min="1" placeholder="Liability limit ($)" value={liability} onChange={e => setLiability(e.target.value)} /></div>
+    <label style={{ ...btnGhost, display: "inline-block", marginTop: 10, fontSize: 12 }}>Choose COI (PDF/JPG/PNG)<input type="file" accept=".pdf,image/jpeg,image/png" style={{ display: "none" }} onChange={e => setCoi(e.target.files?.[0] ?? null)} /></label>{coi && <span style={{ color: V.inkDim, fontSize: 11, marginLeft: 8 }}>{coi.name}</span>}
+    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginTop: 10 }}><button onClick={submit} disabled={saving || !provider || !policyNumber || !expiresOn || !liability} style={btnPrimary}>{saving ? "Submitting…" : "Submit for verification"}</button><a href="https://www.skywatch.ai/drone-insurance" target="_blank" rel="noreferrer" style={{ color: V.signal, fontSize: 12, fontWeight: 700 }}>Get coverage from SkyWatch.AI ↗</a></div>
+    {message && <p style={{ color: message.includes("submitted") ? V.telemetry : V.danger, fontSize: 12, marginTop: 8 }}>{message}</p>}
+    <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 9 }}>If DOM assigns the job and you are approved for the DOM gig-insurance program, DOM may bind job-specific coverage. Eligibility alone does not unlock a mission.</p>
+  </section>;
 }
 
 function Field({ label, value }: { label: string; value: string }) {

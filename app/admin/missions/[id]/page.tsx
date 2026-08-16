@@ -94,7 +94,11 @@ interface Assignment {
   contractor_payout_cents: number | null;
   dom_commission_cents: number | null;
   commission_bps_applied: number | null;
-  contractor?: { full_name: string } | null;
+  insurance_source: string | null;
+  mission_insurance_verified: boolean;
+  mission_insurance_reference: string | null;
+  mission_insurance_expires_at: string | null;
+  contractor?: { full_name: string; dom_gig_insurance_eligible: boolean } | null;
 }
 
 interface Payment {
@@ -300,7 +304,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
     if (jobRow) {
       const { data: assigns } = await sb
         .from("mission_assignments")
-        .select("id, contractor_id, status, offered_at, accepted_at, mission_price_cents, contractor_payout_cents, dom_commission_cents, commission_bps_applied, contractor:contractors(full_name)")
+        .select("id, contractor_id, status, offered_at, accepted_at, mission_price_cents, contractor_payout_cents, dom_commission_cents, commission_bps_applied, insurance_source, mission_insurance_verified, mission_insurance_reference, mission_insurance_expires_at, contractor:contractors(full_name,dom_gig_insurance_eligible)")
         .eq("job_id", jobRow.id)
         .order("offered_at", { ascending: false });
       setAssignments((assigns as any) ?? []);
@@ -496,6 +500,14 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
     } finally {
       setRequestingPayment(null);
     }
+  }, [load]);
+
+  const verifyGigInsurance = useCallback(async (assignmentId: string) => {
+    const reference = window.prompt("Enter the DOM gig-policy number or binder reference:"); if (!reference?.trim()) return;
+    const expires = window.prompt("Enter coverage expiration date/time (for example 2026-08-24T18:00):"); if (!expires) return;
+    const expiration = new Date(expires); if (Number.isNaN(expiration.getTime()) || expiration.getTime() <= Date.now()) { setError("Enter a valid future coverage expiration."); return; }
+    const sb = getSupabaseBrowser(); const { error } = await sb.from("mission_assignments").update({ insurance_source: "dom_gig", mission_insurance_verified: true, mission_insurance_reference: reference.trim(), mission_insurance_expires_at: expiration.toISOString() }).eq("id", assignmentId);
+    if (error) setError(error.message); else await load();
   }, [load]);
 
   const offerToContractor = useCallback(async () => {
@@ -927,6 +939,10 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                           ⚠ Completed with no payment collected — no transfer attempted.
                         </p>
                       )}
+                      <div style={{ marginTop: 8, padding: 9, borderRadius: 8, border: `1px solid ${a.mission_insurance_verified ? V.telemetry : V.line}`, background: a.mission_insurance_verified ? "rgba(22,163,74,.07)" : V.surface }}>
+                        <span style={{ color: a.mission_insurance_verified ? V.telemetry : V.inkDim, fontSize: 11, fontWeight: 700 }}>{a.mission_insurance_verified ? `✓ DOM gig insurance verified${a.mission_insurance_reference ? ` · ${a.mission_insurance_reference}` : ""}` : "Mission-specific DOM insurance not bound"}</span>
+                        {!a.mission_insurance_verified && a.contractor?.dom_gig_insurance_eligible && <button onClick={() => verifyGigInsurance(a.id)} style={{ ...btnGhost, padding: "5px 9px", fontSize: 11, marginLeft: 10 }}>Bind / verify DOM gig coverage</button>}
+                      </div>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
                         {canRequestPayment && (
                           <button

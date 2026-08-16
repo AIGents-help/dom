@@ -1,6 +1,7 @@
 export const WORKFLOW_ITEMS = [
   ["planning","scope_reviewed","Review client scope and deliverables"],
   ["planning","uav_assigned","Assign the mission UAV"],
+  ["planning","insurance_verified","Mandatory insurance verification"],
   ["planning","schedule_confirmed","Confirm performance date and backup window"],
   ["planning","airspace_reviewed","Review airspace, TFRs, NOTAMs, and authorization"],
   ["planning","weather_reviewed","Review forecast, winds, gusts, visibility, and precipitation"],

@@ -21,6 +21,8 @@ interface Profile {
   id: string; full_name: string; email: string; phone: string | null; status: string;
   part107_number: string | null; part107_verified: boolean;
   insurance_verified: boolean; insurance_requested: boolean; stripe_payouts_enabled: boolean;
+  insurance_provider: string | null; insurance_policy_number: string | null; insurance_expires_on: string | null;
+  insurance_liability_cents: number | null; insurance_coi_path: string | null; dom_gig_insurance_eligible: boolean;
   stripe_connect_account_id: string | null;
   service_area: string | null; home_address: string | null; equipment: string | null;
   missions_completed: number; rating: number | null;

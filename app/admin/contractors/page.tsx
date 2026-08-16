@@ -16,6 +16,12 @@ type Contractor = {
   part107_verified: boolean;
   insurance_verified: boolean;
   insurance_requested: boolean;
+  insurance_provider: string | null;
+  insurance_policy_number: string | null;
+  insurance_expires_on: string | null;
+  insurance_liability_cents: number | null;
+  insurance_coi_path: string | null;
+  dom_gig_insurance_eligible: boolean;
   stripe_connect_account_id: string | null;
   stripe_payouts_enabled: boolean;
   service_area: string | null;
@@ -88,11 +94,19 @@ export default function AdminContractorsPage() {
     })();
   }, [router, load]);
 
-  async function toggle(id: string, field: "part107_verified" | "insurance_verified", value: boolean) {
+  async function toggle(id: string, field: "part107_verified" | "insurance_verified" | "dom_gig_insurance_eligible", value: boolean) {
+    if (field === "insurance_verified" && value) {
+      const contractor = rows.find((row) => row.id === id);
+      if (!contractor?.insurance_coi_path || !contractor.insurance_policy_number || !contractor.insurance_expires_on || new Date(`${contractor.insurance_expires_on}T23:59:59`).getTime() <= Date.now()) {
+        window.alert("A current policy number, future expiration date, and uploaded COI are required before verification.");
+        return;
+      }
+    }
     // optimistic
     setRows((r) => r.map((c) => (c.id === id ? { ...c, [field]: value } : c)));
     const supabaseBrowser = getSupabaseBrowser();
-    const { error } = await supabaseBrowser.from("contractors").update({ [field]: value }).eq("id", id);
+    const patch = field === "insurance_verified" && value ? { [field]: value, insurance_requested: false } : { [field]: value };
+    const { error } = await supabaseBrowser.from("contractors").update(patch).eq("id", id);
     if (error) load(); // revert from source of truth on failure
   }
 
@@ -187,6 +201,9 @@ export default function AdminContractorsPage() {
                   <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: "#8A95A7", marginTop: 4 }}>
                     107#: {c.part107_number ?? "—"} · {c.missions_completed} mission{c.missions_completed === 1 ? "" : "s"} completed
                   </div>
+                  <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: c.insurance_verified ? "#16A34A" : "#E5701F", marginTop: 4 }}>
+                    Insurance: {c.insurance_provider ?? "—"} · {c.insurance_policy_number ?? "no policy"} · {c.insurance_expires_on ? `expires ${new Date(`${c.insurance_expires_on}T12:00:00`).toLocaleDateString()}` : "no expiration"}{c.insurance_liability_cents ? ` · $${(c.insurance_liability_cents / 100).toLocaleString()} liability` : ""}{c.insurance_coi_path ? " · COI UPLOADED" : ""}
+                  </div>
                   {!c.part107_verified && c.membership_deadline && (
                     <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: c.resource_access_locked ? "#8A95A7" : daysUntil(c.membership_deadline) <= 7 ? "#E5701F" : "#5F6B7A", marginTop: 4 }}>
                       {(c.cert_timeline_bucket ?? "—").replace(/_/g, " ")} · deadline {new Date(c.membership_deadline).toLocaleDateString()}
@@ -213,6 +230,7 @@ export default function AdminContractorsPage() {
               <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
                 <Toggle label="Part 107" on={c.part107_verified} onClick={() => toggle(c.id, "part107_verified", !c.part107_verified)} />
                 <Toggle label="Insurance" on={c.insurance_verified} onClick={() => toggle(c.id, "insurance_verified", !c.insurance_verified)} />
+                <Toggle label="DOM Gig Insurance Program" on={c.dom_gig_insurance_eligible} onClick={() => toggle(c.id, "dom_gig_insurance_eligible", !c.dom_gig_insurance_eligible)} />
                 {c.insurance_requested && !c.insurance_verified && (
                   <span style={{ ...badge, background: "rgba(124,58,237,.14)", color: "#7C3AED", alignSelf: "center" }}>
                     INSURANCE REQUESTED

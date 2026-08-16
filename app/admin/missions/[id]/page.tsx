@@ -204,13 +204,13 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Could not update mission");
       setEditingMission(false);
-      await load();
+      window.location.reload();
     } catch (e: any) {
       setError(e.message);
     } finally {
       setSavingMission(false);
     }
-  }, [id, missionDraft, load]);
+  }, [id, missionDraft]);
 
   const cancelMission = useCallback(async () => {
     if (!window.confirm("Cancel this mission? The record will be retained, and the pilot assignment will be cancelled when legally safe.")) return;
@@ -240,13 +240,13 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Could not cancel mission");
       setEditingMission(false);
-      await load();
+      window.location.reload();
     } catch (e: any) {
       setError(e.message);
     } finally {
       setSavingMission(false);
     }
-  }, [id, mission, job, load]);
+  }, [id, mission, job]);
 
   const deleteMission = useCallback(async () => {
     if (!window.confirm("Permanently delete this mission? This cannot be undone. Missions with payments or completed records will be refused.")) return;

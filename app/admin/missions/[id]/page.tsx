@@ -14,7 +14,7 @@ import MissionReviewPanel from "@/components/MissionReviewPanel";
 
 const PIPELINE = [
   "requested", "reviewing", "scoped", "quoted", "approved",
-  "assigned", "in_progress", "delivered", "closed",
+  "assigned", "scheduled", "in_progress", "delivered", "closed",
 ] as const;
 
 const PIPELINE_DEFINITIONS: Record<(typeof PIPELINE)[number], string> = {
@@ -24,6 +24,7 @@ const PIPELINE_DEFINITIONS: Record<(typeof PIPELINE)[number], string> = {
   quoted: "Pricing has been prepared and presented; the mission is waiting for client approval.",
   approved: "The client approved the scope and price. DOM can schedule and assign the work.",
   assigned: "A pilot has been selected or accepted the mission and is responsible for execution.",
+  scheduled: "A performance date is confirmed. Readiness warnings remain visible until required preparations are complete.",
   in_progress: "Planning, fieldwork, flight operations, processing, or deliverable production is underway.",
   delivered: "The approved deliverables have been provided to the client and await final closure.",
   closed: "The mission is complete, records are retained, and no further operational action is expected.",

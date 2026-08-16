@@ -45,6 +45,8 @@ interface Assignment {
   operational_notes: string | null;
   site_access_notes: string | null; cautions_awareness: string | null; client_communications: string | null;
   assigned_uav: string | null;
+  mission_insurance_verified: boolean;
+  mission_checklist_items: Array<{ id: string; required: boolean; completed: boolean }>;
   job: { id: string; title: string; service_type: string; location: string; scheduled_for: string | null; status: string; mission_request_id: string; delivery_responsibility: string; mission_request: { requester_name: string | null; requester_email: string | null; company: string | null; scope: string | null; airspace_class: string | null } | null } | null;
 }
 interface Payout { id: string; contractor_amount_cents: number; status: string; created_at: string; }
@@ -425,6 +427,8 @@ export default function PilotDashboard() {
           {sortedAssignments.map((a) => {
             const job = Array.isArray(a.job) ? a.job[0] : a.job;
             const sc = STATUS_COLORS[a.status] ?? STATUS_COLORS.offered;
+            const incompleteRequired = a.mission_checklist_items?.filter((item) => item.required && !item.completed).length ?? 0;
+            const readinessIncomplete = !!job?.scheduled_for && (!a.assigned_uav || !a.mission_insurance_verified || incompleteRequired > 0);
             return (
               <div key={a.id} style={{ ...panelStyle, borderColor: sc.border, borderLeftWidth: 6, background: `linear-gradient(90deg, ${sc.bg}, ${V.surface} 48%)` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -439,6 +443,8 @@ export default function PilotDashboard() {
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <span className="font-mono-ibm" style={{ fontSize: 10, padding: "4px 9px", borderRadius: 20, background: sc.bg, color: sc.text, letterSpacing: ".06em", textTransform: "uppercase" }}>{a.status.replace("_", " ")}</span>
+                    {job?.scheduled_for && <div style={{ color: V.telemetry, fontSize: 10, fontWeight: 700, marginTop: 6 }}>SCHEDULED</div>}
+                    {readinessIncomplete && <div title="The date is set, but required readiness items remain incomplete" style={{ color: V.danger, fontSize: 10, fontWeight: 700, marginTop: 4 }}>⛔ READINESS INCOMPLETE</div>}
                     {a.contractor_payout_cents && <div className="font-mono-ibm" style={{ fontSize: 16, color: V.telemetry, marginTop: 8, fontWeight: 500 }}>${(a.contractor_payout_cents / 100).toFixed(2)}</div>}
                   </div>
                 </div>

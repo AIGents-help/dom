@@ -17,7 +17,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id } = await params;
     const body = await req.json();
     const admin = getSupabaseAdmin();
-    const allowedStatuses = ["requested", "reviewing", "scoped", "quoted", "approved", "assigned", "in_progress", "delivered", "closed", "cancelled"];
+    const allowedStatuses = ["requested", "reviewing", "scoped", "quoted", "approved", "assigned", "scheduled", "in_progress", "delivered", "closed", "cancelled"];
     const { data: currentMission } = await admin.from("mission_requests").select("client_id,client_profile_sync_enabled").eq("id",id).maybeSingle();
     if(!currentMission)return NextResponse.json({error:"Mission not found"},{status:404});
 

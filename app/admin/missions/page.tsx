@@ -18,6 +18,7 @@ interface Mission {
   status: string;
   quoted_amount_cents: number | null;
   created_at: string;
+  jobs: Array<{ scheduled_for: string | null; assignments: Array<{ assigned_uav: string | null; mission_insurance_verified: boolean; mission_checklist_items: Array<{ required: boolean; completed: boolean }> }> }>;
 }
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -28,6 +29,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
   approved: { bg: "rgba(22,163,74,.07)", text: "#15803D", border: "#16A34A" },
   claimed: { bg: "rgba(249,115,22,.08)", text: "#C2410C", border: "#F97316" },
   assigned: { bg: "rgba(124,58,237,.07)", text: "#6D28D9", border: "#7C3AED" },
+  scheduled: { bg: "rgba(13,148,136,.08)", text: "#0F766E", border: "#0D9488" },
   in_progress: { bg: "rgba(37,99,235,.07)", text: "#1D4ED8", border: "#2563EB" },
   delivered: { bg: "rgba(22,163,74,.08)", text: "#15803D", border: "#16A34A" },
   closed: { bg: "rgba(95,107,122,.07)", text: "#475569", border: "#64748B" },
@@ -36,7 +38,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
 
 const LEGEND = [
   ["New / review", "#E5701F"], ["Scoped / quoted", "#0EA5E9"], ["Approved / delivered", "#16A34A"],
-  ["Assigned", "#7C3AED"], ["In progress", "#2563EB"], ["Closed", "#64748B"], ["Cancelled", "#DC2626"],
+  ["Assigned", "#7C3AED"], ["Scheduled", "#0D9488"], ["In progress", "#2563EB"], ["Closed", "#64748B"], ["Cancelled", "#DC2626"],
 ] as const;
 
 export default function MissionsPage() {
@@ -50,7 +52,7 @@ export default function MissionsPage() {
     const sb = getSupabaseBrowser();
     let query = sb
       .from("mission_requests")
-      .select("id, requester_name, company, service_type, location, status, quoted_amount_cents, created_at")
+      .select("id, requester_name, company, service_type, location, status, quoted_amount_cents, created_at, jobs(scheduled_for,assignments(assigned_uav,mission_insurance_verified,mission_checklist_items(required,completed)))")
       .order("created_at", { ascending: false });
 
     if (filter !== "all") {
@@ -95,7 +97,7 @@ export default function MissionsPage() {
       {/* Filters */}
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {["all", "requested", "reviewing", "scoped", "quoted", "approved", "claimed", "assigned", "in_progress", "delivered", "closed", "cancelled"].map((f) => (
+        {["all", "requested", "reviewing", "scoped", "quoted", "approved", "claimed", "assigned", "scheduled", "in_progress", "delivered", "closed", "cancelled"].map((f) => (
           <button key={f} onClick={() => setFilter(f)} className="font-mono-ibm" style={{
             fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer",
             border: `1px solid ${f === filter ? V.signal : V.line}`,
@@ -129,6 +131,9 @@ export default function MissionsPage() {
       <div style={{ display: "grid", gap: 10 }}>
         {filtered.map((m) => {
           const sc = STATUS_COLORS[m.status] ?? STATUS_COLORS.requested;
+          const assignment = m.jobs?.[0]?.assignments?.[0];
+          const incompleteRequired = assignment?.mission_checklist_items?.filter((item) => item.required && !item.completed).length ?? 0;
+          const readinessIncomplete = m.status === "scheduled" && (!assignment?.assigned_uav || !assignment?.mission_insurance_verified || incompleteRequired > 0);
           return (
             <div key={m.id} style={{ ...panel, cursor: "pointer", transition: "box-shadow .15s, transform .15s", borderColor: sc.border, borderLeftWidth: 6, background: `linear-gradient(90deg, ${sc.bg}, ${V.surface} 48%)` }}
               onClick={() => router.push(`/admin/missions/${m.id}`)}
@@ -157,6 +162,7 @@ export default function MissionsPage() {
                   }}>
                     {m.status.replace("_", " ")}
                   </span>
+                  {readinessIncomplete && <div title="Scheduled, but required readiness items remain incomplete" style={{ color: V.danger, fontSize: 11, fontWeight: 700, marginTop: 6 }}>⛔ READINESS INCOMPLETE</div>}
                   {m.quoted_amount_cents && (
                     <div className="font-mono-ibm" style={{ fontSize: 14, color: V.telemetry, marginTop: 6 }}>
                       ${(m.quoted_amount_cents / 100).toFixed(2)}

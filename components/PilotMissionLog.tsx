@@ -160,12 +160,6 @@ export default function PilotMissionLog({
     if (data) window.open(data.signedUrl, "_blank");
   }, []);
 
-  const markQcPassed = useCallback(async (id: string) => {
-    const sb = getSupabaseBrowser();
-    await sb.from("deliverables").update({ qc_passed: true, delivered_at: new Date().toISOString() }).eq("id", id);
-    await load();
-  }, [load]);
-
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -299,7 +293,7 @@ export default function PilotMissionLog({
                         {d.qc_passed ? "QC passed" : "pending QC"}
                       </span>
                       {d.storage_url && <button onClick={() => downloadDeliverable(d.storage_url!)} style={{ ...btnGhost, padding: "5px 10px", fontSize: 12 }}>Download</button>}
-                      {!d.qc_passed && <button onClick={() => markQcPassed(d.id)} style={{ ...btnPrimary, padding: "5px 10px", fontSize: 12 }}>Mark QC Passed</button>}
+                      {!d.qc_passed && <span style={{ color: V.inkFaint, fontSize: 11 }}>Awaiting DOM review</span>}
                     </div>
                   </div>
                 </div>

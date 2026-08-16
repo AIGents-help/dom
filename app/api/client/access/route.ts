@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
     id, title, service_type, location, scheduled_for, status, created_at,
     mission_request:mission_requests(id, status, scope, quoted_amount_cents),
     assignments:mission_assignments(id, status, assigned_uav, contractor:contractors(full_name, slug)),
-    deliverables(id, name, type, qc_passed, client_status, delivered_at),
+    deliverables(id, name, type, qc_passed, client_status, client_feedback, client_reviewed_at, delivered_at),
     payments(id, amount_total_cents, status, created_at)
   `).eq("client_id", client.id).order("created_at", { ascending: false });
   const missionIds = (jobs ?? []).map((job: any) => (Array.isArray(job.mission_request) ? job.mission_request[0] : job.mission_request)?.id).filter(Boolean);

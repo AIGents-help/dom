@@ -54,8 +54,11 @@ export async function GET(req: NextRequest) {
       .from("mission_assignments")
       .select(`
         id, status, mission_price_cents, contractor_payout_cents, dom_commission_cents,
-        offered_at, accepted_at, submitted_at,
-        job:jobs ( id, title, service_type, location, scheduled_for, status, mission_request_id, delivery_responsibility )
+        offered_at, accepted_at, submitted_at, operational_notes, site_access_notes, cautions_awareness, client_communications,
+        job:jobs (
+          id, title, service_type, location, scheduled_for, status, mission_request_id, delivery_responsibility,
+          mission_request:mission_requests ( requester_name, requester_email, company, scope, airspace_class )
+        )
       `)
       .eq("contractor_id", contractor.id)
       .order("created_at", { ascending: false });

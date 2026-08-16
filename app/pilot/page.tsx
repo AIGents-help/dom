@@ -37,7 +37,9 @@ interface Assignment {
   id: string; status: string; mission_price_cents: number | null;
   contractor_payout_cents: number | null; offered_at: string;
   accepted_at: string | null; submitted_at: string | null;
-  job: { id: string; title: string; service_type: string; location: string; scheduled_for: string | null; status: string; mission_request_id: string; delivery_responsibility: string } | null;
+  operational_notes: string | null;
+  site_access_notes: string | null; cautions_awareness: string | null; client_communications: string | null;
+  job: { id: string; title: string; service_type: string; location: string; scheduled_for: string | null; status: string; mission_request_id: string; delivery_responsibility: string; mission_request: { requester_name: string | null; requester_email: string | null; company: string | null; scope: string | null; airspace_class: string | null } | null } | null;
 }
 interface Payout { id: string; contractor_amount_cents: number; status: string; created_at: string; }
 interface SOP { id: string; slug: string; title: string; mission_type: string; category: string; version: number; body_md: string; }
@@ -355,13 +357,29 @@ export default function PilotDashboard() {
       {tab === "missions" && missionLogAssignment && (() => {
         const j = Array.isArray(missionLogAssignment.job) ? missionLogAssignment.job[0] : missionLogAssignment.job;
         if (!j) return null;
+        const mr = Array.isArray(j.mission_request) ? j.mission_request[0] : j.mission_request;
         return (
           <PilotMissionLog
+            assignmentId={missionLogAssignment.id}
+            assignmentStatus={missionLogAssignment.status}
             jobId={j.id}
             missionRequestId={j.mission_request_id}
             missionTitle={j.title}
+            missionLocation={j.location}
+            serviceType={j.service_type}
+            clientName={mr?.requester_name ?? null}
+            clientEmail={mr?.requester_email ?? null}
+            clientCompany={mr?.company ?? null}
+            clientRequests={mr?.scope ?? null}
+            airspaceClass={mr?.airspace_class ?? null}
+            scheduledFor={j.scheduled_for}
+            operationalNotes={missionLogAssignment.operational_notes}
+            siteAccessNotes={missionLogAssignment.site_access_notes}
+            cautionsAwareness={missionLogAssignment.cautions_awareness}
+            clientCommunications={missionLogAssignment.client_communications}
             deliveryResponsibility={j.delivery_responsibility}
             onClose={() => setMissionLogAssignment(null)}
+            onSaved={load}
           />
         );
       })()}
@@ -423,7 +441,7 @@ export default function PilotDashboard() {
                 {a.status !== "offered" && a.status !== "declined" && job && (
                   <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
                     <button onClick={() => setMissionLogAssignment(a)} style={btnGhost}>
-                      Mission Log →
+                      Open Mission →
                     </button>
                     {sopsFor(job.service_type).length > 0 && (
                       <button

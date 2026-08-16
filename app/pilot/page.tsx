@@ -39,6 +39,7 @@ interface Assignment {
   accepted_at: string | null; submitted_at: string | null;
   operational_notes: string | null;
   site_access_notes: string | null; cautions_awareness: string | null; client_communications: string | null;
+  assigned_uav: string | null;
   job: { id: string; title: string; service_type: string; location: string; scheduled_for: string | null; status: string; mission_request_id: string; delivery_responsibility: string; mission_request: { requester_name: string | null; requester_email: string | null; company: string | null; scope: string | null; airspace_class: string | null } | null } | null;
 }
 interface Payout { id: string; contractor_amount_cents: number; status: string; created_at: string; }
@@ -127,19 +128,21 @@ export default function PilotDashboard() {
     setActingOn(assignmentId);
     setError(null);
     try {
-      const sb = getSupabaseBrowser();
-      const { error: rpcError } = await sb.rpc(
-        action === "accept" ? "accept_mission_assignment" : "decline_mission_assignment",
-        action === "accept" ? { p_assignment_id: assignmentId } : { p_assignment_id: assignmentId, p_reason: null }
-      );
-      if (rpcError) throw rpcError;
+      if (!accessToken) throw new Error("Not authenticated");
+      const res = await fetch(`/api/pilot/missions/${assignmentId}/respond`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ action }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to respond to assignment");
       await load();
     } catch (e: any) {
       setError(e.message ?? "Failed to respond to assignment");
     } finally {
       setActingOn(null);
     }
-  }, [load]);
+  }, [accessToken, load]);
 
   async function signOut() {
     await getSupabaseBrowser().auth.signOut();
@@ -377,6 +380,8 @@ export default function PilotDashboard() {
             siteAccessNotes={missionLogAssignment.site_access_notes}
             cautionsAwareness={missionLogAssignment.cautions_awareness}
             clientCommunications={missionLogAssignment.client_communications}
+            assignedUav={missionLogAssignment.assigned_uav}
+            profileEquipment={profile.equipment}
             deliveryResponsibility={j.delivery_responsibility}
             onClose={() => setMissionLogAssignment(null)}
             onSaved={load}

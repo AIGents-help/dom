@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
+import { sendClientMissionUpdate } from "@/lib/resend/clientMissionUpdates";
+import { equipmentChoices } from "@/lib/missionEquipmentGuidance";
 
 const EDITABLE_STATUSES = new Set(["accepted", "in_progress", "submitted"]);
 
@@ -15,12 +17,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ as
 
     const { assignmentId } = await params;
     const admin = getSupabaseAdmin();
-    const { data: contractor } = await admin.from("contractors").select("id").eq("user_id", user.id).maybeSingle();
+    const { data: contractor } = await admin.from("contractors").select("id, equipment").eq("user_id", user.id).maybeSingle();
     if (!contractor) return NextResponse.json({ error: "Pilot profile not found" }, { status: 404 });
 
     const { data: assignment } = await admin
       .from("mission_assignments")
-      .select("id, job_id, contractor_id, status")
+      .select("id, job_id, contractor_id, status, job:jobs(scheduled_for)")
       .eq("id", assignmentId)
       .eq("contractor_id", contractor.id)
       .maybeSingle();
@@ -39,7 +41,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ as
     const siteAccessNotes = clean(body.siteAccessNotes);
     const cautionsAwareness = clean(body.cautionsAwareness);
     const clientCommunications = clean(body.clientCommunications);
+    const assignedUav = clean(body.assignedUav);
+    const availableAircraft = equipmentChoices(contractor.equipment);
+    if (assignedUav && !availableAircraft.includes(assignedUav)) {
+      return NextResponse.json({ error: "Select an aircraft listed in your Pilot Profile equipment." }, { status: 400 });
+    }
 
+    const previousJob: any = Array.isArray(assignment.job) ? assignment.job[0] : assignment.job;
+    const previousScheduledFor = previousJob?.scheduled_for ?? null;
     const [{ error: jobError }, { error: assignmentError }] = await Promise.all([
       admin.from("jobs").update({ scheduled_for: scheduledFor?.toISOString() ?? null }).eq("id", assignment.job_id),
       admin.from("mission_assignments").update({
@@ -47,11 +56,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ as
         site_access_notes: siteAccessNotes || null,
         cautions_awareness: cautionsAwareness || null,
         client_communications: clientCommunications || null,
+        assigned_uav: assignedUav || null,
       }).eq("id", assignment.id),
     ]);
     if (jobError || assignmentError) throw jobError ?? assignmentError;
 
-    return NextResponse.json({ ok: true, scheduledFor: scheduledFor?.toISOString() ?? null });
+    const nextScheduledFor = scheduledFor?.toISOString() ?? null;
+    if (nextScheduledFor && nextScheduledFor !== previousScheduledFor) {
+      try {
+        await sendClientMissionUpdate(assignmentId, {
+          type: "date_scheduled",
+          scheduledFor: nextScheduledFor,
+          rescheduled: !!previousScheduledFor,
+        });
+      } catch (emailError) {
+        console.error("client schedule email failed", emailError);
+      }
+    }
+
+    return NextResponse.json({ ok: true, scheduledFor: nextScheduledFor });
   } catch (error: any) {
     return NextResponse.json({ error: error.message ?? "Could not update mission" }, { status: 500 });
   }

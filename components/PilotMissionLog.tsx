@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
+import { equipmentChoices, missionEquipmentGuidance, missionWeatherUrl } from "@/lib/missionEquipmentGuidance";
 
 // Pilot > Mission Log — per-assignment documents + deliverables, mirroring
 // the admin Mission Briefing / Deliverables panels but driven by the
@@ -38,6 +39,8 @@ export default function PilotMissionLog({
   siteAccessNotes,
   cautionsAwareness,
   clientCommunications,
+  assignedUav,
+  profileEquipment,
   deliveryResponsibility,
   onClose,
   onSaved,
@@ -59,6 +62,8 @@ export default function PilotMissionLog({
   siteAccessNotes: string | null;
   cautionsAwareness: string | null;
   clientCommunications: string | null;
+  assignedUav: string | null;
+  profileEquipment: string | null;
   deliveryResponsibility: string;
   onClose: () => void;
   onSaved: () => void;
@@ -73,6 +78,10 @@ export default function PilotMissionLog({
   const [accessNotes, setAccessNotes] = useState(siteAccessNotes ?? "");
   const [cautions, setCautions] = useState(cautionsAwareness ?? "");
   const [communications, setCommunications] = useState(clientCommunications ?? "");
+  const aircraftChoices = equipmentChoices(profileEquipment);
+  const [aircraft, setAircraft] = useState(assignedUav ?? "");
+  const guidance = aircraft ? missionEquipmentGuidance(serviceType, aircraft) : [];
+  const forecastDaysAway = performanceDate ? Math.ceil((new Date(performanceDate).getTime() - Date.now()) / 86_400_000) : null;
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -103,6 +112,7 @@ export default function PilotMissionLog({
           siteAccessNotes: accessNotes,
           cautionsAwareness: cautions,
           clientCommunications: communications,
+          assignedUav: aircraft,
         }),
       });
       const body = await res.json();
@@ -113,7 +123,7 @@ export default function PilotMissionLog({
     } finally {
       setSavingOperations(false);
     }
-  }, [assignmentId, performanceDate, notes, accessNotes, cautions, communications, onSaved]);
+  }, [assignmentId, performanceDate, notes, accessNotes, cautions, communications, aircraft, onSaved]);
 
   const uploadDoc = useCallback(async (name: string, category: string, file: File) => {
     setError(null);
@@ -203,6 +213,38 @@ export default function PilotMissionLog({
                 <label style={{ color: V.inkDim, fontSize: 12 }}>Pilot operational notes</label>
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Access instructions, site contact coordination, equipment plan, weather considerations…" style={{ ...inputStyle, marginTop: 6, minHeight: 90, resize: "vertical" }} />
               </div>
+            </div>
+            <div style={{ marginTop: 14, padding: 14, borderRadius: 10, background: V.raised, border: `1px solid ${V.line}` }}>
+              <div className="font-saira" style={{ fontSize: 14, fontWeight: 700 }}>Assigned UAV & Mission Settings</div>
+              {aircraftChoices.length ? (
+                <>
+                  <label style={{ color: V.inkDim, fontSize: 12, display: "block", marginTop: 10 }}>Aircraft assigned to this mission</label>
+                  <select value={aircraft} onChange={(e) => setAircraft(e.target.value)} style={{ ...inputStyle, marginTop: 6, maxWidth: 420 }}>
+                    <option value="">Select an aircraft…</option>
+                    {aircraftChoices.map((item) => <option key={item} value={item}>{item}</option>)}
+                  </select>
+                </>
+              ) : (
+                <p style={{ color: V.warn, fontSize: 12, marginTop: 8 }}>No aircraft are listed in your Pilot Profile. Add your UAVs under Profile → Equipment, separated by commas or separate lines.</p>
+              )}
+              {guidance.length > 0 && (
+                <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
+                  {guidance.map((section) => (
+                    <div key={section.title} style={{ padding: 12, borderRadius: 8, background: V.surface, border: `1px solid ${V.line}` }}>
+                      <div style={{ color: V.signal, fontSize: 12, fontWeight: 700 }}>{section.title}</div>
+                      <ul style={{ margin: "8px 0 0 18px", color: V.inkDim, fontSize: 12, lineHeight: 1.55 }}>
+                        {section.items.map((item) => <li key={item} style={{ marginTop: 4 }}>{item}</li>)}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginTop: 14, padding: 12, borderRadius: 9, border: `1px solid ${V.line}`, background: "rgba(14,165,233,.05)" }}>
+              <a href={missionWeatherUrl(missionLocation, performanceDate ? new Date(performanceDate).toISOString() : scheduledFor)} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: "none" }}>Weather forecast for mission date ↗</a>
+              <a href="https://aviationweather.gov/" target="_blank" rel="noreferrer" style={{ color: V.signal, fontSize: 12, fontWeight: 600 }}>Aviation Weather Center ↗</a>
+              {!performanceDate && <span style={{ color: V.warn, fontSize: 11 }}>Schedule the mission to target the forecast date.</span>}
+              {forecastDaysAway != null && forecastDaysAway > 10 && <span style={{ color: V.warn, fontSize: 11 }}>Long-range outlook only—recheck inside 7–10 days and again before flight.</span>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14, marginTop: 14 }}>
               <MissionTextarea label="Site access & arrival" value={accessNotes} onChange={setAccessNotes} placeholder="Parking, gate codes, check-in, escorts, property access…" />

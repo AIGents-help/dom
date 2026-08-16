@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
       .from("mission_assignments")
       .select(`
         id, status, mission_price_cents, contractor_payout_cents, dom_commission_cents,
-        offered_at, accepted_at, submitted_at, operational_notes, site_access_notes, cautions_awareness, client_communications,
+        offered_at, accepted_at, submitted_at, operational_notes, site_access_notes, cautions_awareness, client_communications, assigned_uav,
         job:jobs (
           id, title, service_type, location, scheduled_for, status, mission_request_id, delivery_responsibility,
           mission_request:mission_requests ( requester_name, requester_email, company, scope, airspace_class )

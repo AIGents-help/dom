@@ -4,6 +4,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/authz";
 import { sendNotification } from "@/lib/resend/client";
 import { payoutInitiated } from "@/lib/resend/templates";
+import { sendClientMissionUpdate } from "@/lib/resend/clientMissionUpdates";
 import type Stripe from "stripe";
 
 // POST /api/admin/complete-mission  { assignmentId }
@@ -65,6 +66,9 @@ export async function POST(req: NextRequest) {
     // status = 'accepted' and would reject this as a retry). What happens
     // next (retry transfer / already paid out / nothing to transfer) is
     // fully determined by the payment row read below.
+
+    try { await sendClientMissionUpdate(assignmentId, { type: "mission_complete" }); }
+    catch (emailError) { console.error("client mission-complete email failed", emailError); }
 
     const { data: payment } = await admin
       .from("payments")

@@ -267,6 +267,40 @@ export function missionCompleted(params: {
   };
 }
 
+export function clientPilotAssigned(params: {
+  clientName: string;
+  missionTitle: string;
+  pilotName: string;
+}): TemplateResult {
+  return {
+    subject: `Pilot Assigned — ${params.missionTitle}`,
+    html: shell(
+      "A pilot has been assigned",
+      `<p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.clientName)}, ${escapeHtml(params.pilotName)} has accepted and is now assigned to your mission, ${escapeHtml(params.missionTitle)}.</p>
+       <p style="color:#444; line-height:1.5;">We’ll send another update when the performance date is scheduled.</p>`
+    ),
+  };
+}
+
+export function clientMissionScheduled(params: {
+  clientName: string;
+  missionTitle: string;
+  scheduledDate: string;
+  location?: string;
+  rescheduled?: boolean;
+}): TemplateResult {
+  const title = params.rescheduled ? "Your mission has been rescheduled" : "Your mission has been scheduled";
+  return {
+    subject: `${params.rescheduled ? "Mission Rescheduled" : "Mission Scheduled"} — ${params.missionTitle}`,
+    html: shell(
+      title,
+      `<p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.clientName)}, the performance date for ${escapeHtml(params.missionTitle)} is now ${escapeHtml(params.scheduledDate)}.</p>
+       ${params.location ? infoTable(infoRow("Location", params.location)) : ""}
+       <p style="color:#444; line-height:1.5;">We’ll notify you again when the mission is complete.</p>`
+    ),
+  };
+}
+
 export function missionRescheduled(params: {
   clientName: string;
   missionTitle: string;

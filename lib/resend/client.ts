@@ -61,6 +61,7 @@ interface SendNotificationParams {
   subject: string;
   html: string;
   metadata?: Record<string, unknown>;
+  idempotencyKey?: string;
 }
 
 interface SendNotificationResult {
@@ -95,12 +96,15 @@ export async function sendNotification(params: SendNotificationParams): Promise<
     console.error("notification_log insert failed:", logInsertError.message);
   }
 
-  const result = await resend.emails.send({
-    from: FROM_ADDRESS,
-    to: params.to,
-    subject: params.subject,
-    html: params.html,
-  });
+  const result = await resend.emails.send(
+    {
+      from: FROM_ADDRESS,
+      to: params.to,
+      subject: params.subject,
+      html: params.html,
+    },
+    params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : undefined
+  );
 
   if (result.error) {
     console.error(`Resend send failed (${params.emailType} -> ${params.to}):`, result.error.message);

@@ -15,8 +15,14 @@ const V = { surface: "#172033", line: "rgba(255,255,255,0.08)", ink: "#FFFFFF", 
 const NAV = [
   { href: "/admin/dashboard", label: "Dashboard", icon: "◧" },
   { href: "/admin/leads", label: "Leads", icon: "☍" },
-  { href: "/admin/relationships", label: "CRM Protection", icon: "◇" },
   { href: "/admin/missions", label: "Missions", icon: "▤" },
+  { href: "/admin/dashboard#missions", label: "Mission Requests", icon: "↗", child: true },
+  { href: "/admin/dashboard#jobs", label: "Jobs", icon: "▣", child: true },
+  { href: "/admin/dashboard#schedule", label: "Schedule", icon: "□", child: true },
+  { href: "/admin/dashboard#deliverables", label: "Deliverables", icon: "▱", child: true },
+  { href: "/admin/dashboard#notes", label: "Notes", icon: "≡", child: true },
+  { href: "/admin/dashboard#status", label: "Status Tracking", icon: "⌁", child: true },
+  { href: "/admin/relationships", label: "CRM Protection", icon: "◇" },
   { href: "/admin/operations", label: "Exception Center", icon: "⚠" },
   { href: "/admin/programs", label: "Programs & Analytics", icon: "↻" },
   { href: "/admin/contractors", label: "Contractors", icon: "◎" },
@@ -26,10 +32,15 @@ export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [hash, setHash] = useState("");
 
   useEffect(() => {
     const stored = window.localStorage.getItem("dom_admin_sidebar_collapsed");
     if (stored) setCollapsed(stored === "1");
+    const syncHash = () => setHash(window.location.hash);
+    syncHash();
+    window.addEventListener("hashchange", syncHash);
+    return () => window.removeEventListener("hashchange", syncHash);
   }, []);
 
   function toggle() {
@@ -80,17 +91,20 @@ export default function AdminSidebar() {
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 2, padding: 8, flex: 1 }}>
         {NAV.map((item) => {
-          const active = pathname === item.href || (pathname?.startsWith(item.href + "/") ?? false);
+          const [itemPath, itemHash = ""] = item.href.split("#");
+          const active = itemHash
+            ? pathname === itemPath && hash === `#${itemHash}`
+            : pathname === itemPath && !hash || (!itemHash && (pathname?.startsWith(itemPath + "/") ?? false));
           return (
             <Link
               key={item.href}
               href={item.href}
               title={collapsed ? item.label : undefined}
               style={{
-                display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8,
+                display: "flex", alignItems: "center", gap: 10, padding: item.child && !collapsed ? "7px 12px 7px 28px" : "10px 12px", borderRadius: 8,
                 textDecoration: "none", color: active ? V.signal : V.inkDim,
                 background: active ? "rgba(244,90,30,.22)" : "transparent",
-                fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13,
+                fontFamily: "Saira, sans-serif", fontWeight: item.child ? 500 : 600, fontSize: item.child ? 12 : 13,
                 justifyContent: collapsed ? "center" : "flex-start",
               }}
             >

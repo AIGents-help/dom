@@ -2,9 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Users, Send, Briefcase, Calendar, FileText, StickyNote, Activity, Building2,
-} from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { inputCls, labelCls, Pill, Section, Empty, ActionBtn, Table } from "@/components/adminUi";
 
@@ -31,15 +28,6 @@ type TabKey =
   | "deliverables"
   | "notes"
   | "status";
-
-const tabs: { key: TabKey; label: string; icon: typeof Users }[] = [
-  { key: "missions", label: "Mission Requests", icon: Send },
-  { key: "jobs", label: "Jobs", icon: Briefcase },
-  { key: "schedule", label: "Schedule", icon: Calendar },
-  { key: "deliverables", label: "Deliverables", icon: FileText },
-  { key: "notes", label: "Notes", icon: StickyNote },
-  { key: "status", label: "Status Tracking", icon: Activity },
-];
 
 // Lightweight lead shape — the dashboard only needs enough to drive the
 // New Leads / Follow-ups Due stat cards and the Notes-tab lead picker.
@@ -98,6 +86,16 @@ export default function AdminDashboardClient() {
   const [editingJob, setEditingJob] = useState<string | null>(null);
   const [jobDraft, setJobDraft] = useState({ status: "", scheduled_for: "" });
   const [savingJob, setSavingJob] = useState(false);
+
+  useEffect(() => {
+    const syncFromSidebar = () => {
+      const requested = window.location.hash.slice(1) as TabKey;
+      if (["missions", "jobs", "schedule", "deliverables", "notes", "status"].includes(requested)) setActive(requested);
+    };
+    syncFromSidebar();
+    window.addEventListener("hashchange", syncFromSidebar);
+    return () => window.removeEventListener("hashchange", syncFromSidebar);
+  }, []);
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -285,30 +283,7 @@ export default function AdminDashboardClient() {
   }
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[220px_1fr]">
-      <nav className="space-y-1">
-        <button
-          onClick={() => router.push("/admin/leads")}
-          className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium text-muted transition hover:bg-surface2 hover:text-ink"
-        >
-          <Users className="h-4 w-4" /> Leads
-        </button>
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setActive(t.key)}
-            className={`flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition ${
-              active === t.key
-                ? "bg-accent/10 text-accent"
-                : "text-muted hover:bg-surface2 hover:text-ink"
-            }`}
-          >
-            <t.icon className="h-4 w-4" /> {t.label}
-          </button>
-        ))}
-      </nav>
-
-      <div className="card p-6 lg:p-8">
+    <div className="card p-6 lg:p-8">
         {active === "missions" && (
           <Section
             title="Mission Requests"
@@ -503,7 +478,6 @@ export default function AdminDashboardClient() {
             </div>
           </Section>
         )}
-      </div>
     </div>
   );
 }

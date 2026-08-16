@@ -107,6 +107,16 @@ interface Deliverable {
 // deliverables.type has no DB constraint (verified live), so this app-level
 // list is the only place this vocabulary is defined.
 const DELIVERABLE_TYPES = ["orthomosaic", "3d_model", "dsm", "dtm", "point_cloud", "processing_report", "report", "raw_images", "video", "other"];
+const SERVICE_TYPES = [
+  ["roof_inspection_residential", "Roof Inspection (Residential)"],
+  ["roof_inspection_commercial", "Roof Inspection (Commercial)"],
+  ["construction_progress", "Construction Progress Mapping"],
+  ["thermal_inspection", "Thermal + Visual Inspection"],
+  ["ortho_survey", "Orthomosaic Survey"],
+  ["powerline_inspection", "Powerline / Utility Inspection"],
+  ["real_estate_media", "Real Estate Aerial Media"],
+  ["custom", "Custom Mission"],
+] as const;
 
 export default function MissionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -134,6 +144,114 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [newDeliverableType, setNewDeliverableType] = useState(DELIVERABLE_TYPES[0]);
   const [uploadingDeliverable, setUploadingDeliverable] = useState(false);
   const [togglingQc, setTogglingQc] = useState<string | null>(null);
+  const [editingMission, setEditingMission] = useState(false);
+  const [savingMission, setSavingMission] = useState(false);
+  const [deletingMission, setDeletingMission] = useState(false);
+  const [missionDraft, setMissionDraft] = useState({
+    title: "", requesterName: "", requesterEmail: "", company: "", serviceType: "custom",
+    location: "", scope: "", status: "requested", quotedAmount: "", scheduledFor: "",
+  });
+
+  const beginMissionEdit = useCallback(() => {
+    if (!mission) return;
+    setMissionDraft({
+      title: job?.title ?? mission.service_type?.replace(/_/g, " ") ?? "Mission",
+      requesterName: mission.requester_name ?? "",
+      requesterEmail: mission.requester_email ?? "",
+      company: mission.company ?? "",
+      serviceType: mission.service_type ?? "custom",
+      location: mission.location ?? "",
+      scope: mission.scope ?? "",
+      status: mission.status,
+      quotedAmount: mission.quoted_amount_cents != null ? (mission.quoted_amount_cents / 100).toFixed(2) : "",
+      scheduledFor: job?.scheduled_for ? new Date(job.scheduled_for).toISOString().slice(0, 16) : "",
+    });
+    setEditingMission(true);
+  }, [mission, job]);
+
+  const saveMission = useCallback(async (statusOverride?: string) => {
+    setSavingMission(true);
+    setError(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      if (!data.session) throw new Error("Not authenticated");
+      const status = statusOverride ?? missionDraft.status;
+      const res = await fetch(`/api/admin/missions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
+        body: JSON.stringify({
+          ...missionDraft,
+          status,
+          quotedAmountCents: missionDraft.quotedAmount ? Math.round(Number(missionDraft.quotedAmount) * 100) : null,
+          scheduledFor: missionDraft.scheduledFor ? new Date(missionDraft.scheduledFor).toISOString() : null,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Could not update mission");
+      setEditingMission(false);
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSavingMission(false);
+    }
+  }, [id, missionDraft, load]);
+
+  const cancelMission = useCallback(async () => {
+    if (!window.confirm("Cancel this mission? The record will be retained, and the pilot assignment will be cancelled when legally safe.")) return;
+    if (!mission) return;
+    setSavingMission(true);
+    setError(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      if (!data.session) throw new Error("Not authenticated");
+      const res = await fetch(`/api/admin/missions/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
+        body: JSON.stringify({
+          title: job?.title ?? mission.service_type?.replace(/_/g, " ") ?? "Mission",
+          requesterName: mission.requester_name,
+          requesterEmail: mission.requester_email,
+          company: mission.company,
+          serviceType: mission.service_type,
+          location: mission.location,
+          scope: mission.scope,
+          quotedAmountCents: mission.quoted_amount_cents,
+          scheduledFor: job?.scheduled_for,
+          status: "cancelled",
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Could not cancel mission");
+      setEditingMission(false);
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSavingMission(false);
+    }
+  }, [id, mission, job, load]);
+
+  const deleteMission = useCallback(async () => {
+    if (!window.confirm("Permanently delete this mission? This cannot be undone. Missions with payments or completed records will be refused.")) return;
+    if (!window.confirm("Final confirmation: permanently delete this mission and its unprotected working records?")) return;
+    setDeletingMission(true);
+    setError(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      if (!data.session) throw new Error("Not authenticated");
+      const res = await fetch(`/api/admin/missions/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${data.session.access_token}` } });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Could not delete mission");
+      router.push("/admin/missions");
+    } catch (e: any) {
+      setError(e.message);
+      setDeletingMission(false);
+    }
+  }, [id, router]);
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -513,7 +631,58 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                 ★ Client requested {requestedPilotName} by name from their public profile — consider honoring this when offering the mission.
               </p>
             )}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 16, paddingTop: 14, borderTop: `1px solid ${V.line}` }}>
+              <button onClick={beginMissionEdit} style={btnPrimary}>Edit Mission</button>
+              {mission.status !== "cancelled" && mission.status !== "closed" && (
+                <button onClick={cancelMission} disabled={savingMission} style={{ ...btnGhost, borderColor: V.warn, color: V.warn }}>
+                  {savingMission ? "Cancelling…" : "Cancel / Archive"}
+                </button>
+              )}
+              <button onClick={deleteMission} disabled={deletingMission} style={{ ...btnGhost, borderColor: V.danger, color: V.danger, marginLeft: "auto" }}>
+                {deletingMission ? "Deleting…" : "Delete Permanently"}
+              </button>
+            </div>
           </div>
+
+          {editingMission && (
+            <div style={{ ...panel, borderColor: V.signal }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                <Label>Edit Mission</Label>
+                <button onClick={() => setEditingMission(false)} style={btnGhost}>Close</button>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12, marginTop: 14 }}>
+                <EditField label="Mission title" value={missionDraft.title} onChange={(v) => setMissionDraft((d) => ({ ...d, title: v }))} />
+                <div>
+                  <label style={{ fontSize: 12, color: V.inkDim }}>Mission type</label>
+                  <select value={missionDraft.serviceType} onChange={(e) => setMissionDraft((d) => ({ ...d, serviceType: e.target.value }))} style={inputStyle}>
+                    {SERVICE_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </div>
+                <EditField label="Client name" value={missionDraft.requesterName} onChange={(v) => setMissionDraft((d) => ({ ...d, requesterName: v }))} />
+                <EditField label="Client email" type="email" value={missionDraft.requesterEmail} onChange={(v) => setMissionDraft((d) => ({ ...d, requesterEmail: v }))} />
+                <EditField label="Company" value={missionDraft.company} onChange={(v) => setMissionDraft((d) => ({ ...d, company: v }))} />
+                <EditField label="Location" value={missionDraft.location} onChange={(v) => setMissionDraft((d) => ({ ...d, location: v }))} />
+                <EditField label="Quoted total ($)" type="number" value={missionDraft.quotedAmount} onChange={(v) => setMissionDraft((d) => ({ ...d, quotedAmount: v }))} />
+                <EditField label="Scheduled date/time" type="datetime-local" value={missionDraft.scheduledFor} onChange={(v) => setMissionDraft((d) => ({ ...d, scheduledFor: v }))} />
+                <div>
+                  <label style={{ fontSize: 12, color: V.inkDim }}>Status</label>
+                  <select value={missionDraft.status} onChange={(e) => setMissionDraft((d) => ({ ...d, status: e.target.value }))} style={inputStyle}>
+                    {[...PIPELINE, "cancelled"].map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}
+                  </select>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <label style={{ fontSize: 12, color: V.inkDim }}>Scope and mission instructions</label>
+                  <textarea value={missionDraft.scope} onChange={(e) => setMissionDraft((d) => ({ ...d, scope: e.target.value }))} style={{ ...inputStyle, minHeight: 120, resize: "vertical" }} />
+                </div>
+              </div>
+              <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 10 }}>
+                Changing a quoted total updates the mission record. Existing payment and completed payout records are never rewritten.
+              </p>
+              <button onClick={() => saveMission()} disabled={savingMission} style={{ ...btnPrimary, marginTop: 14 }}>
+                {savingMission ? "Saving…" : "Save Mission Changes"}
+              </button>
+            </div>
+          )}
 
           <div style={panel}>
             <Label>Mission Pipeline</Label>
@@ -859,6 +1028,15 @@ function ModRow({ label, value, accent }: { label: string; value?: string; accen
     <div style={{ display: "flex", justifyContent: "space-between", color: accent ? V.signal : V.inkDim }}>
       <span>{label}</span>
       {value && <span className="font-mono-ibm" style={{ fontWeight: 500, color: accent ? V.signal : V.ink }}>{value}</span>}
+    </div>
+  );
+}
+
+function EditField({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+  return (
+    <div>
+      <label style={{ fontSize: 12, color: V.inkDim }}>{label}</label>
+      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
     </div>
   );
 }

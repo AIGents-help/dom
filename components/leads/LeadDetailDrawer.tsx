@@ -69,6 +69,7 @@ export default function LeadDetailDrawer({
   relationships, relationshipDraft, setRelationshipDraft, onAddRelationship, onDeleteRelationship,
   contactsOpen, setContactsOpen,
   onConvert,
+  onUploadLogo,
 }: {
   lead: Lead; ctx: LeadContext; allLeads: Lead[]; initialTab: DrawerTab; busy: boolean; onClose: () => void;
   editingLead: boolean; editDraft: { name: string; company: string; email: string; phone: string; address: string; source: string; message: string };
@@ -104,6 +105,7 @@ export default function LeadDetailDrawer({
   onAddRelationship: () => void; onDeleteRelationship: (id: string) => void;
   contactsOpen: boolean; setContactsOpen: (v: boolean | ((o: boolean) => boolean)) => void;
   onConvert: () => void;
+  onUploadLogo: (file:File) => void;
 }) {
   const [tab, setTab] = useState<DrawerTab>(initialTab);
   const status = lead.status;
@@ -122,9 +124,11 @@ export default function LeadDetailDrawer({
         aria-label={`Lead details for ${lead.company ?? lead.name ?? "lead"}`}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface2 p-4">
-          <div>
+          <div className="flex items-center gap-3">
+            <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-xl border border-border bg-white">{lead.logo_url?<img src={lead.logo_url} alt={`${lead.company??lead.name??"Company"} logo`} className="h-full w-full object-contain p-1"/>:<span className="font-bold text-accent">{(lead.company??lead.name??"?").slice(0,2).toUpperCase()}</span>}</div><div>
             <div className="text-sm font-semibold text-ink">{lead.company ?? lead.name ?? "Unnamed"}</div>
             <div className="text-xs text-muted">{lead.name ?? "No contact name"} · {lead.email ?? "—"}</div>
+            <label className="mt-1 inline-block cursor-pointer text-xs font-semibold text-accent">Upload logo<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={(e)=>{const f=e.target.files?.[0];if(f)onUploadLogo(f);e.currentTarget.value=""}}/></label></div>
           </div>
           <button onClick={onClose} className="rounded-lg border border-border px-2 py-1 text-xs text-muted hover:text-ink" aria-label="Close">
             ✕

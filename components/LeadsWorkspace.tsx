@@ -216,6 +216,8 @@ export default function LeadsWorkspace() {
     await load();
   }
 
+  async function uploadLeadLogo(lead:Lead,file:File){setBusy(lead.id);const sb=getSupabaseBrowser();const{data}=await sb.auth.getSession();const form=new FormData();form.set("logo",file);const res=await fetch(`/api/admin/leads/${lead.id}/logo`,{method:"POST",headers:{Authorization:`Bearer ${data.session?.access_token??""}`},body:form});const body=await res.json();setBusy(null);if(!res.ok){showToast(body.error??"Logo upload failed.","error");return}showToast("Profile logo updated.");await load()}
+
   async function setLeadBooleanField(lead: Lead, field: keyof Lead, value: boolean | null) {
     setBusy(lead.id);
     const sb = getSupabaseBrowser();
@@ -699,7 +701,7 @@ export default function LeadsWorkspace() {
   const openCtx = openLeadId ? contexts.find((c) => c.lead.id === openLeadId) ?? null : null;
 
   return (
-    <div className="card p-6 lg:p-8">
+    <div className="leads-mission-theme rounded-2xl border border-[#D8DEE8] bg-white p-6 text-[#0F172A] lg:p-8">
       <Section
         title="Leads"
         desc="Inbound prospects from the website and outreach. Click a lead to view full details, log contact, and take action."
@@ -844,7 +846,7 @@ export default function LeadsWorkspace() {
         {/* Filter bar — one compact row on desktop/laptop (lg:flex-nowrap),
             wraps cleanly on tablet, stacks compactly on mobile. */}
         <div className="mb-2 flex flex-wrap items-center gap-2 lg:flex-nowrap">
-          <input className={filterInputCls} placeholder="Search company, contact, email…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <input className={filterInputCls} placeholder="Search company, contact, industry, status, location…" value={search} onChange={(e) => setSearch(e.target.value)} />
           <select className={filterSelectCls} value={filterIndustry} onChange={(e) => setFilterIndustry(e.target.value)}>
             <option value="">All industries</option>
             {INDUSTRY_OPTIONS.map((i) => <option key={i.value} value={i.value}>{i.label}</option>)}
@@ -875,13 +877,13 @@ export default function LeadsWorkspace() {
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted">Sort by</span>
           <div className="flex overflow-hidden rounded-lg border border-border">
-            {(["company", "name", "priority"] as const).map((key) => (
+            {(["company", "name", "industry", "status", "priority", "newest"] as const).map((key) => (
               <button
                 key={key}
                 onClick={() => { if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc")); else { setSortKey(key); setSortDir("asc"); } }}
                 className={`px-3 py-1.5 text-xs font-medium transition ${sortKey === key ? "bg-accent/10 text-accent" : "bg-surface2 text-muted hover:text-ink"}`}
               >
-                {key === "company" ? "Company" : key === "name" ? "Contact" : "Priority"} {sortKey === key ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                {{company:"Company",name:"Contact",industry:"Industry",status:"Status",priority:"Priority",newest:"Newest"}[key]} {sortKey === key ? (sortDir === "asc" ? "↑" : "↓") : ""}
               </button>
             ))}
           </div>
@@ -988,6 +990,7 @@ export default function LeadsWorkspace() {
           contactsOpen={contactsOpen}
           setContactsOpen={setContactsOpen}
           onConvert={() => convertLead(openLead)}
+          onUploadLogo={(file) => uploadLeadLogo(openLead,file)}
         />
       )}
 

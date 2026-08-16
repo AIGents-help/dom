@@ -32,6 +32,8 @@ export interface Lead {
   outreach_paused_at: string | null;
   priority_override: "high" | "medium" | "low" | null;
   listing_color: string | null;
+  logo_url: string | null;
+  logo_path: string | null;
 }
 
 export interface LeadNextAction {
@@ -98,7 +100,7 @@ export function tierRank(lead: Pick<Lead, "tier">): number {
   return 99;
 }
 
-export type LeadSortKey = "company" | "name" | "priority";
+export type LeadSortKey = "company" | "name" | "industry" | "status" | "priority" | "newest";
 export type LeadSortDir = "asc" | "desc";
 
 // Comparator for the Leads workspace "Sort by" control. Predictable secondary
@@ -107,7 +109,7 @@ export type LeadSortDir = "asc" | "desc";
 //   - company:  company name A–Z
 //   - name:     contact name A–Z; leads with no contact always sort last
 //   - priority: Tier 1 → Tier 2 → Tier 3, then unassigned (always last)
-export function compareLeadsForSort(a: Pick<Lead, "company" | "name" | "tier">, b: Pick<Lead, "company" | "name" | "tier">, sortKey: LeadSortKey, sortDir: LeadSortDir): number {
+export function compareLeadsForSort(a: Pick<Lead, "company" | "name" | "tier" | "industry" | "status" | "created_at">, b: Pick<Lead, "company" | "name" | "tier" | "industry" | "status" | "created_at">, sortKey: LeadSortKey, sortDir: LeadSortDir): number {
   const dir = sortDir === "asc" ? 1 : -1;
   const companyA = a.company ?? "";
   const companyB = b.company ?? "";
@@ -132,6 +134,10 @@ export function compareLeadsForSort(a: Pick<Lead, "company" | "name" | "tier">, 
     const cmp = nameA.localeCompare(nameB, undefined, { sensitivity: "base" });
     return cmp !== 0 ? cmp * dir : tieByCompany;
   }
+
+  if(sortKey==="industry"){const cmp=(a.industry??"").localeCompare(b.industry??"",undefined,{sensitivity:"base"});return cmp!==0?cmp*dir:tieByCompany}
+  if(sortKey==="status"){const cmp=normalizeStatus(a.status).localeCompare(normalizeStatus(b.status),undefined,{sensitivity:"base"});return cmp!==0?cmp*dir:tieByCompany}
+  if(sortKey==="newest"){const cmp=new Date(b.created_at).getTime()-new Date(a.created_at).getTime();return cmp!==0?(sortDir==="asc"?cmp:-cmp):tieByCompany}
 
   // company
   return tieByCompany * dir;
@@ -396,10 +402,16 @@ export function matchesFilters(lead: Lead, filters: LeadFilters): boolean {
     (!filters.industry || lead.industry === filters.industry) &&
     (!filters.engagement || lead.engagement_model === filters.engagement) &&
     (!filters.ownership || lead.opportunity_ownership === filters.ownership) &&
-    (!q ||
+    (!q || (
       (lead.company ?? "").toLowerCase().includes(q) ||
       (lead.name ?? "").toLowerCase().includes(q) ||
-      (lead.email ?? "").toLowerCase().includes(q))
+      (lead.email ?? "").toLowerCase().includes(q)
+      || (lead.phone ?? "").toLowerCase().includes(q)
+      || (lead.industry ?? "").toLowerCase().includes(q)
+      || normalizeStatus(lead.status).toLowerCase().includes(q)
+      || (lead.service_opportunity ?? "").toLowerCase().includes(q)
+      || (lead.address ?? "").toLowerCase().includes(q))
+    )
   );
 }
 

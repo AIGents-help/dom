@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Leads shares the same light operational language as Mission listings. */
+.leads-mission-theme .bg-surface,.leads-mission-theme .bg-surface2 { background-color:#fff!important; }
+.leads-mission-theme .text-ink { color:#0f172a!important; }
+.leads-mission-theme .text-muted,.leads-mission-theme .text-slate-400,.leads-mission-theme .text-slate-500,.leads-mission-theme .text-slate-600 { color:#64748b!important; }
+.leads-mission-theme .border-border { border-color:#d8dee8!important; }
+.leads-mission-theme input:not([type="color"]):not([type="checkbox"]),.leads-mission-theme select,.leads-mission-theme textarea { background:#f8fafc!important;color:#0f172a!important;border-color:#d8dee8!important; }
+.leads-mission-theme input::placeholder,.leads-mission-theme textarea::placeholder { color:#94a3b8!important; }
+
 :root {
   --font-sans: "Inter", system-ui, sans-serif;
 }

@@ -69,6 +69,9 @@ export default function LeadCard({
   return (
     <div className="rounded-xl border p-4" style={{borderColor:recognitionColor??"#D8DEE8",borderLeftWidth:6,background:recognitionColor?`linear-gradient(90deg, ${recognitionColor}22, #FFFFFF 52%)`:"#FFFFFF"}}>
       <div className="flex flex-wrap items-start gap-3">
+        <button onClick={() => onOpen()} className="grid h-14 w-14 flex-none place-items-center overflow-hidden rounded-xl border border-[#D8DEE8] bg-white shadow-sm" aria-label={`Open ${lead.company??lead.name??"profile"}`}>
+          {lead.logo_url?<img src={lead.logo_url} alt={`${lead.company??lead.name??"Company"} logo`} className="h-full w-full object-contain p-1"/>:<span className="text-lg font-bold text-[#E5701F]">{(lead.company??lead.name??"?").slice(0,2).toUpperCase()}</span>}
+        </button>
         <button onClick={() => onOpen()} className="min-w-[180px] flex-1 text-left">
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-ink">{lead.company ?? lead.name ?? "Unnamed"}</span>

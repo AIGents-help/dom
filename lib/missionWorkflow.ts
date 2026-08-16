@@ -7,6 +7,7 @@ export const WORKFLOW_ITEMS = [
   ["planning","weather_reviewed","Review forecast, winds, gusts, visibility, and precipitation"],
   ["planning","site_access_confirmed","Confirm site access, parking, check-in, and contacts"],
   ["preflight","credentials_current","Confirm Part 107, insurance, and Remote ID readiness"],
+  ["preflight","site_safety_ppe","Confirm site PPE, high-visibility vest, cones, DOM barrier poles, signage, and perimeter controls"],
   ["preflight","aircraft_inspected","Inspect aircraft, props, payload, storage, firmware, and controller"],
   ["preflight","batteries_ready","Confirm charged flight/controller batteries and reserves"],
   ["preflight","rth_lost_link","Set RTH altitude and lost-link behavior for the site"],

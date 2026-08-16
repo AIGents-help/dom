@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
+import MissionMapThumbnail from "@/components/MissionMapThumbnail";
 
 // Admin > Missions — list all missions with status, airspace, and financials at a glance.
 
@@ -134,7 +135,9 @@ export default function MissionsPage() {
               onMouseOver={(e) => (e.currentTarget.style.boxShadow = `0 5px 18px ${sc.bg}`)}
               onMouseOut={(e) => (e.currentTarget.style.boxShadow = "none")}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <div>
+                <div style={{ display: "flex", gap: 13, alignItems: "center", minWidth: 0, flex: 1 }}>
+                  {m.location && <MissionMapThumbnail location={m.location} />}
+                  <div style={{ minWidth: 0 }}>
                   <div className="font-saira" style={{ fontWeight: 600, fontSize: 16 }}>
                     {m.company ?? m.requester_name ?? "Unnamed"}{" "}
                     <span style={{ color: V.inkDim, fontWeight: 400, fontSize: 14 }}>
@@ -145,6 +148,7 @@ export default function MissionsPage() {
                     {m.location?.slice(0, 60) ?? "No location"}
                   </div>
                   {m.location && <a href={googleMapsPlaceUrl(m.location)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ display: "inline-block", color: V.signal, fontSize: 11, fontWeight: 600, marginTop: 5 }}>Google Maps ↗</a>}
+                  </div>
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <span className="font-mono-ibm" style={{

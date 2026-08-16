@@ -16,6 +16,7 @@ import { sopMarkdownToHtml } from "@/lib/sopMarkdown";
 import MappingTab from "@/components/mapper/MappingTab";
 import { V } from "@/lib/theme";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
+import MissionMapThumbnail from "@/components/MissionMapThumbnail";
 
 interface Profile {
   id: string; full_name: string; email: string; phone: string | null; status: string;
@@ -425,11 +426,14 @@ export default function PilotDashboard() {
             return (
               <div key={a.id} style={{ ...panelStyle, borderColor: sc.border, borderLeftWidth: 6, background: `linear-gradient(90deg, ${sc.bg}, ${V.surface} 48%)` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                  <div>
+                  <div style={{ display: "flex", gap: 13, alignItems: "center", minWidth: 0, flex: 1 }}>
+                    {job?.location && <MissionMapThumbnail location={job.location} />}
+                    <div style={{ minWidth: 0 }}>
                     <div className="font-saira" style={{ fontWeight: 600, fontSize: 16 }}>{job?.title ?? "Mission"} <span style={{ color: V.inkDim, fontWeight: 400, fontSize: 13 }}>— {(job?.service_type ?? "").replace(/_/g, " ")}</span></div>
                     <div style={{ color: V.inkFaint, fontSize: 13, marginTop: 3 }}>{job?.location ?? "—"}</div>
                     {job?.location && <a href={googleMapsPlaceUrl(job.location)} target="_blank" rel="noreferrer" style={{ display: "inline-block", color: V.signal, fontSize: 11, fontWeight: 600, marginTop: 5 }}>Google Maps ↗</a>}
                     {job?.scheduled_for && <div className="font-mono-ibm" style={{ fontSize: 11, color: V.inkFaint, marginTop: 4 }}>Scheduled: {new Date(job.scheduled_for).toLocaleDateString()}</div>}
+                    </div>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <span className="font-mono-ibm" style={{ fontSize: 10, padding: "4px 9px", borderRadius: 20, background: sc.bg, color: sc.text, letterSpacing: ".06em", textTransform: "uppercase" }}>{a.status.replace("_", " ")}</span>

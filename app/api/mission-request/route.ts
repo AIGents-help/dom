@@ -30,7 +30,10 @@ export async function POST(req: NextRequest) {
     const longitude = body.longitude;
     let airspaceClass = body.airspace_class;
     const timeline = body.timeline;
-    const scope = [body.details ?? body.scope, contactPhone ? `Phone: ${contactPhone}` : null]
+    const travelNote = body.distanceMiles != null
+      ? `Travel: ${body.distanceMiles} one-way miles (${body.travelDistanceSource === "dom_assumed_default" ? "DOM assumed default" : body.travelDistanceSource === "pilot_google_maps_verified" ? "pilot verified in Google Maps" : "estimate"})`
+      : null;
+    const scope = [body.details ?? body.scope, contactPhone ? `Phone: ${contactPhone}` : null, travelNote]
       .filter(Boolean)
       .join("\n\n") || undefined;
 

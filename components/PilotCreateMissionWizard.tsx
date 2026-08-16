@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { V } from "@/lib/theme";
+import { googleMapsDirectionsUrl, googleMapsPlaceUrl } from "@/lib/googleMaps";
 
 // Pilot > Create Mission — self-service wizard for approved pilots (only
 // rendered when contractors.can_create_missions is true). Modeled on
@@ -65,6 +66,8 @@ export default function PilotCreateMissionWizard({
   const [lng, setLng] = useState<number | null>(null);
   const [airspace, setAirspace] = useState<AirspaceData | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
+  const [travelOrigin, setTravelOrigin] = useState("");
+  const [distanceVerified, setDistanceVerified] = useState(false);
 
   // Scope
   const [services, setServices] = useState<{ id: string; label: string }[]>([]);
@@ -83,6 +86,10 @@ export default function PilotCreateMissionWizard({
   const [quoting, setQuoting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<CreatedQuote | null>(null);
+
+  useEffect(() => {
+    setTravelOrigin(window.localStorage.getItem("dom_pilot_travel_origin") ?? "");
+  }, []);
 
   const loadServices = useCallback(async () => {
     if (services.length) return;
@@ -116,6 +123,7 @@ export default function PilotCreateMissionWizard({
       setLat(lt);
       setLng(ln);
       setAddress(geoData[0].display_name);
+      setDistanceVerified(false);
 
       const airRes = await fetch(`/api/airspace?lat=${lt}&lng=${ln}`);
       const airData = await airRes.json();
@@ -144,6 +152,7 @@ export default function PilotCreateMissionWizard({
           serviceType, lat, lng, distanceMiles,
           siteComplexity: complexity, urgency, deliverableTier,
           customBaseCents: serviceType === "custom" ? Math.round(Number(customBaseDollars) * 100) : undefined,
+          travelDistanceSource: "pilot_google_maps_verified",
         }),
       });
       const data = await res.json();
@@ -173,6 +182,7 @@ export default function PilotCreateMissionWizard({
           customMissionScope: serviceType === "custom" ? customMissionScope : undefined,
           customDeliverables: serviceType === "custom" ? customDeliverables : undefined,
           customBaseCents: serviceType === "custom" ? Math.round(Number(customBaseDollars) * 100) : undefined,
+          travelDistanceSource: "pilot_google_maps_verified",
         }),
       });
       const data = await res.json();
@@ -215,6 +225,7 @@ export default function PilotCreateMissionWizard({
             setStep("client");
             setClientName(""); setClientEmail(""); setClientCompany(""); setClientPhone("");
             setAddress(""); setLat(null); setLng(null); setAirspace(null);
+            setDistanceVerified(false);
             setQuote(null);
           }}
           style={{ ...btnGhost, marginTop: 16 }}
@@ -271,7 +282,7 @@ export default function PilotCreateMissionWizard({
             <input
               style={{ ...inputStyle, marginTop: 0, flex: 1 }}
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={(e) => { setAddress(e.target.value); setAirspace(null); setDistanceVerified(false); }}
               onKeyDown={(e) => e.key === "Enter" && lookupLocation()}
               placeholder="123 Main St, City, State"
             />
@@ -287,10 +298,33 @@ export default function PilotCreateMissionWizard({
             </div>
           )}
 
+          {airspace && (
+            <div style={{ marginTop: 14, padding: 14, borderRadius: 10, border: `1px solid ${V.line}`, background: "rgba(14,165,233,.05)" }}>
+              <div className="font-saira" style={{ fontSize: 14, fontWeight: 600 }}>Verify pilot travel</div>
+              <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>Use your actual starting point. DOM stores the verified mileage—not your private origin address.</p>
+              <label style={{ ...labelStyle, display: "block", marginTop: 10 }}>Your starting address or dispatch point</label>
+              <input style={inputStyle} value={travelOrigin} onChange={(e) => { setTravelOrigin(e.target.value); setDistanceVerified(false); }} placeholder="Your private start address" />
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                <a href={googleMapsPlaceUrl(address)} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: "none" }}>View job site in Google Maps ↗</a>
+                {travelOrigin.trim() && <a href={googleMapsDirectionsUrl(travelOrigin, address)} target="_blank" rel="noreferrer" onClick={() => window.localStorage.setItem("dom_pilot_travel_origin", travelOrigin.trim())} style={{ ...btnPrimary, textDecoration: "none" }}>Open driving route ↗</a>}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(160px, 240px) 1fr", gap: 12, alignItems: "end", marginTop: 12 }}>
+                <div>
+                  <label style={labelStyle}>Verified one-way miles *</label>
+                  <input type="number" min="0.1" step="0.1" value={distanceMiles} onChange={(e) => { setDistanceMiles(Number(e.target.value)); setDistanceVerified(false); }} style={inputStyle} />
+                </div>
+                <label style={{ display: "flex", gap: 8, alignItems: "center", color: V.inkDim, fontSize: 12, paddingBottom: 10 }}>
+                  <input type="checkbox" checked={distanceVerified} onChange={(e) => setDistanceVerified(e.target.checked)} disabled={!travelOrigin.trim() || distanceMiles <= 0} />
+                  I verified this driving distance in Google Maps.
+                </label>
+              </div>
+            </div>
+          )}
+
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
             <button onClick={() => setStep("client")} style={btnGhost}>← Back</button>
             {airspace && (
-              <button onClick={() => setStep("scope")} style={{ ...btnPrimary, flex: 1 }}>
+              <button onClick={() => setStep("scope")} disabled={!distanceVerified} style={{ ...btnPrimary, flex: 1, opacity: distanceVerified ? 1 : .5 }}>
                 Continue to scope →
               </button>
             )}
@@ -362,8 +396,8 @@ export default function PilotCreateMissionWizard({
                 </select>
               </div>
               <div>
-                <label style={labelStyle}>Distance (miles)</label>
-                <input type="number" value={distanceMiles} onChange={(e) => setDistanceMiles(Number(e.target.value))} style={inputStyle} />
+                <label style={labelStyle}>Verified one-way travel</label>
+                <div style={{ ...inputStyle, background: V.raised }}>{distanceMiles.toFixed(1)} miles · Google Maps verified</div>
               </div>
             </div>
           </div>

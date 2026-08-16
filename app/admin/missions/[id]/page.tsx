@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { use } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
+import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 
 // Admin > Mission detail — view a mission's quote/airspace, advance its status
 // through the mission lifecycle, and offer it to a contractor.
@@ -622,6 +623,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                 <p style={{ color: V.inkDim, fontSize: 14, marginTop: 4 }}>
                   {(mission.service_type ?? "").replace(/_/g, " ")} · {mission.location ?? "No location"}
                 </p>
+                {mission.location && <a href={googleMapsPlaceUrl(mission.location)} target="_blank" rel="noreferrer" style={{ display: "inline-block", color: V.signal, fontSize: 12, fontWeight: 600, marginTop: 6 }}>View mission site in Google Maps ↗</a>}
               </div>
               <span className="font-mono-ibm" style={{
                 fontSize: 11, letterSpacing: ".06em", padding: "5px 11px", borderRadius: 20,

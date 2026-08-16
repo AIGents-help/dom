@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
+import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 
 // Admin > Create Mission — the interactive intake wizard.
 // Step 1: Location → auto airspace classification
@@ -173,6 +174,11 @@ export default function CreateMissionPage() {
           timeline: urgency,
           airspace_class: airspace?.airspace_class,
           quote,
+          distanceMiles,
+          siteComplexity: complexity,
+          urgency,
+          deliverableTier,
+          travelDistanceSource: "dom_assumed_default",
         }),
       });
       if (!res.ok) {
@@ -185,7 +191,7 @@ export default function CreateMissionPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [clientName, clientEmail, clientCompany, address, lat, lng, serviceType, scopeNotes, urgency, airspace, quote, router]);
+  }, [clientName, clientEmail, clientCompany, address, lat, lng, serviceType, scopeNotes, urgency, airspace, quote, distanceMiles, complexity, deliverableTier, router]);
 
   if (!authed) return null;
 
@@ -229,9 +235,7 @@ export default function CreateMissionPage() {
               </button>
             </div>
             {lat != null && (
-              <p className="font-mono-ibm" style={{ fontSize: 11, color: V.inkFaint, marginTop: 8 }}>
-                {lat.toFixed(5)}°N · {Math.abs(lng!).toFixed(5)}°W
-              </p>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}><p className="font-mono-ibm" style={{ fontSize: 11, color: V.inkFaint }}>{lat.toFixed(5)}°N · {Math.abs(lng!).toFixed(5)}°W</p><a href={googleMapsPlaceUrl(address)} target="_blank" rel="noreferrer" style={{ color: V.signal, fontSize: 12, fontWeight: 600 }}>View in Google Maps ↗</a></div>
             )}
           </div>
 
@@ -292,6 +296,7 @@ export default function CreateMissionPage() {
             <div>
               <Label>Distance to site (miles)</Label>
               <input type="number" value={distanceMiles} onChange={(e) => setDistanceMiles(Number(e.target.value))} style={inputStyle} />
+              <p style={{ color: V.warn, fontSize: 11, marginTop: 5 }}>DOM default: 15 assumed one-way miles. Adjust if the operating origin is known.</p>
             </div>
           </div>
 

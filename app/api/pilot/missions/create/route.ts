@@ -63,10 +63,15 @@ export async function POST(req: NextRequest) {
       customMissionScope,
       customDeliverables,
       customBaseCents,
+      travelDistanceSource,
     } = body;
 
     if (!clientName || !clientEmail || latitude == null || longitude == null || !serviceType) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    if (travelDistanceSource !== "pilot_google_maps_verified" || !Number.isFinite(distanceMiles) || distanceMiles <= 0) {
+      return NextResponse.json({ error: "Pilot-created missions require a verified one-way Google Maps driving distance." }, { status: 400 });
     }
 
     if (serviceType === "custom" && (
@@ -104,8 +109,8 @@ export async function POST(req: NextRequest) {
       p_service_type: serviceType,
       p_airspace_class: airspaceResult.airspace_class,
       p_scope: serviceType === "custom"
-        ? `${customMissionTitle.trim()}\n\nScope:\n${customMissionScope.trim()}\n\nDeliverables:\n${customDeliverables.trim()}${clientPhone ? `\n\nClient phone: ${clientPhone}` : ""}`
-        : clientPhone ? `Phone: ${clientPhone}` : null,
+        ? `${customMissionTitle.trim()}\n\nScope:\n${customMissionScope.trim()}\n\nDeliverables:\n${customDeliverables.trim()}${clientPhone ? `\n\nClient phone: ${clientPhone}` : ""}\n\nTravel: ${distanceMiles} one-way driving miles (${travelDistanceSource === "pilot_google_maps_verified" ? "pilot verified in Google Maps" : "unverified"})`
+        : `${clientPhone ? `Phone: ${clientPhone}\n\n` : ""}Travel: ${distanceMiles} one-way driving miles (${travelDistanceSource === "pilot_google_maps_verified" ? "pilot verified in Google Maps" : "unverified"})`,
       p_quote: {
         basePriceCents: quote.basePriceCents,
         locationMod: quote.modifiers.location.factor,
@@ -116,6 +121,8 @@ export async function POST(req: NextRequest) {
         combinedMultiplier: quote.combinedMultiplier,
         totalCents: quote.totalCents,
         warnings: quote.warnings,
+        travelDistanceMiles: distanceMiles,
+        travelDistanceSource,
       },
     });
 

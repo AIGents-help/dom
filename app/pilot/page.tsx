@@ -15,6 +15,7 @@ import SopViewer from "@/components/SopViewer";
 import { sopMarkdownToHtml } from "@/lib/sopMarkdown";
 import MappingTab from "@/components/mapper/MappingTab";
 import { V } from "@/lib/theme";
+import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 
 interface Profile {
   id: string; full_name: string; email: string; phone: string | null; status: string;
@@ -400,6 +401,7 @@ export default function PilotDashboard() {
                   <div>
                     <div className="font-saira" style={{ fontWeight: 600, fontSize: 16 }}>{job?.title ?? "Mission"} <span style={{ color: V.inkDim, fontWeight: 400, fontSize: 13 }}>— {(job?.service_type ?? "").replace(/_/g, " ")}</span></div>
                     <div style={{ color: V.inkFaint, fontSize: 13, marginTop: 3 }}>{job?.location ?? "—"}</div>
+                    {job?.location && <a href={googleMapsPlaceUrl(job.location)} target="_blank" rel="noreferrer" style={{ display: "inline-block", color: V.signal, fontSize: 11, fontWeight: 600, marginTop: 5 }}>Google Maps ↗</a>}
                     {job?.scheduled_for && <div className="font-mono-ibm" style={{ fontSize: 11, color: V.inkFaint, marginTop: 4 }}>Scheduled: {new Date(job.scheduled_for).toLocaleDateString()}</div>}
                   </div>
                   <div style={{ textAlign: "right" }}>

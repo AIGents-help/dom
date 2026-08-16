@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
+import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 
 // Admin > Missions — list all missions with status, airspace, and financials at a glance.
 
@@ -143,6 +144,7 @@ export default function MissionsPage() {
                   <div style={{ color: V.inkFaint, fontSize: 13, marginTop: 3 }}>
                     {m.location?.slice(0, 60) ?? "No location"}
                   </div>
+                  {m.location && <a href={googleMapsPlaceUrl(m.location)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ display: "inline-block", color: V.signal, fontSize: 11, fontWeight: 600, marginTop: 5 }}>Google Maps ↗</a>}
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <span className="font-mono-ibm" style={{

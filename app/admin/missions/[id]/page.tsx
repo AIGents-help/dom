@@ -6,6 +6,7 @@ import { use } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
 import { googleMapsDirectionsUrl, googleMapsPlaceUrl } from "@/lib/googleMaps";
+import MissionFinancialControl from "@/components/MissionFinancialControl";
 
 // Admin > Mission detail — view a mission's quote/airspace, advance its status
 // through the mission lifecycle, and offer it to a contractor.
@@ -763,6 +764,8 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
               </div>
             </div>
           )}
+
+          <MissionFinancialControl missionId={mission.id} quotedTotalCents={mission.quoted_amount_cents} />
 
           {error && (
             <div style={{ ...panel, borderColor: "#DC2626" }}>

@@ -40,7 +40,7 @@ export default function SafetyProductDetail({ count, name, price, productKey, ba
               "6 ft retractable webbing per post",
               "DRONE OPERATION printed webbing",
               "High-visibility orange finish",
-              "Portable weighted-base design",
+              "Portable stable-base design",
               "Fast setup and teardown",
             ].map((item) => (
               <div key={item} className="rounded-xl border border-white/10 bg-[#111923] p-4 text-sm font-semibold text-slate-200">

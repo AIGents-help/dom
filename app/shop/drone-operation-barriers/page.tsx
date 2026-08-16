@@ -6,7 +6,7 @@ const features = [
   "6 ft retractable webbing per post",
   "High-visibility orange finish",
   "DRONE OPERATION printed webbing",
-  "Portable weighted-base design",
+  "Portable stable-base design",
   "Fast setup and teardown",
   "Useful across commercial drone scenarios",
 ];

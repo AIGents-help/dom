@@ -5,6 +5,7 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 import { equipmentChoices, missionEquipmentGuidance, missionWeatherUrl } from "@/lib/missionEquipmentGuidance";
+import PilotFieldWorkflow from "@/components/PilotFieldWorkflow";
 
 // Pilot > Mission Log — per-assignment documents + deliverables, mirroring
 // the admin Mission Briefing / Deliverables panels but driven by the
@@ -188,6 +189,7 @@ export default function PilotMissionLog({
         <p style={{ color: V.inkDim, fontSize: 13 }}>Loading…</p>
       ) : (
         <>
+          <PilotFieldWorkflow assignmentId={assignmentId} />
           <div style={{ ...panelStyle, borderColor: V.signal }}>
             <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>Mission Operations</div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>

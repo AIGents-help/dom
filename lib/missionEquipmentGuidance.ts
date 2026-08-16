@@ -4,6 +4,27 @@ export function equipmentChoices(equipment: string | null | undefined): string[]
   return Array.from(new Set((equipment ?? "").split(/[\n,;|]+/).map((item) => item.trim()).filter(Boolean)));
 }
 
+export type EquipmentCompatibility = { aircraft: string; compatible: boolean; confidence: "verified" | "review"; reason: string };
+
+export function assessMissionEquipment(serviceType: string, equipment: string | null | undefined): EquipmentCompatibility[] {
+  const mission = serviceType.toLowerCase();
+  const requiresThermal = /thermal|infrared|solar|heat/.test(mission);
+  const requiresMapping = /mapping|survey|orthomosaic|construction_progress/.test(mission);
+  const requiresInspection = /inspection|roof|powerline|utility|infrastructure/.test(mission);
+  return equipmentChoices(equipment).map((aircraft) => {
+    const name = aircraft.toLowerCase();
+    const thermal = /matrice\s*4t|mavic\s*3t|m30t|m300|m350|h20t|thermal/.test(name);
+    const mapping = /matrice\s*4e|mavic\s*3e|phantom\s*4\s*rtk|m300|m350|p1|l1|l2|zenmuse/.test(name);
+    const inspection = /matrice|mavic\s*3[et]|m30|phantom\s*4|autel\s*(evo|max)|anafi/.test(name);
+    const media = /dji|matrice|mavic|phantom|autel|anafi|inspire/.test(name) && !/neo|avata|fpv/.test(name);
+    if (requiresThermal) return { aircraft, compatible: thermal, confidence: "verified", reason: thermal ? "Thermal-capable platform detected for this mission." : "This mission requires a thermal payload/platform." };
+    if (requiresMapping) return { aircraft, compatible: mapping, confidence: "verified", reason: mapping ? "Mapping/enterprise capture capability detected." : "No verified mapping/RTK or supported survey payload was detected." };
+    if (requiresInspection) return { aircraft, compatible: inspection, confidence: "verified", reason: inspection ? "Inspection-capable platform detected." : "No verified inspection platform capability was detected." };
+    if (media) return { aircraft, compatible: true, confidence: "verified", reason: "Camera platform is suitable for standard aerial media tasks, subject to the approved scope." };
+    return { aircraft, compatible: false, confidence: "review", reason: "Capability could not be verified from the equipment name. Add the exact manufacturer and model in Pilot Profile." };
+  });
+}
+
 export function missionEquipmentGuidance(serviceType: string, aircraft: string): GuidanceSection[] {
   const mission = serviceType.toLowerCase();
   const uav = aircraft.toLowerCase();

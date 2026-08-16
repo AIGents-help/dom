@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
 import { sendClientMissionUpdate } from "@/lib/resend/clientMissionUpdates";
-import { equipmentChoices } from "@/lib/missionEquipmentGuidance";
+import { assessMissionEquipment, equipmentChoices } from "@/lib/missionEquipmentGuidance";
 
 const EDITABLE_STATUSES = new Set(["accepted", "in_progress", "submitted"]);
 
@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ as
 
     const { data: assignment } = await admin
       .from("mission_assignments")
-      .select("id, job_id, contractor_id, status, job:jobs(scheduled_for)")
+      .select("id, job_id, contractor_id, status, job:jobs(scheduled_for, service_type)")
       .eq("id", assignmentId)
       .eq("contractor_id", contractor.id)
       .maybeSingle();
@@ -48,6 +48,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ as
     }
 
     const previousJob: any = Array.isArray(assignment.job) ? assignment.job[0] : assignment.job;
+    const compatibility = assessMissionEquipment(previousJob?.service_type ?? "", contractor.equipment).find((item) => item.aircraft === assignedUav);
+    if (assignedUav && !compatibility?.compatible) {
+      return NextResponse.json({ error: "The selected aircraft is not verified as capable of this mission. Update your equipment profile or return the mission to DOM." }, { status: 400 });
+    }
     const previousScheduledFor = previousJob?.scheduled_for ?? null;
     const [{ error: jobError }, { error: assignmentError }] = await Promise.all([
       admin.from("jobs").update({ scheduled_for: scheduledFor?.toISOString() ?? null }).eq("id", assignment.job_id),

@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
-import { equipmentChoices, missionEquipmentGuidance, missionWeatherUrl } from "@/lib/missionEquipmentGuidance";
+import { assessMissionEquipment, missionEquipmentGuidance, missionWeatherUrl } from "@/lib/missionEquipmentGuidance";
 import PilotFieldWorkflow from "@/components/PilotFieldWorkflow";
 
 // Pilot > Mission Log — per-assignment documents + deliverables, mirroring
@@ -21,6 +21,7 @@ const inputStyle: React.CSSProperties = { width: "100%", padding: "9px 11px", bo
 
 interface DocRow { id: string; category: string; name: string; file_url: string | null; is_required: boolean; is_completed: boolean; }
 interface DeliverableRow { id: string; name: string; type: string | null; storage_url: string | null; qc_passed: boolean | null; }
+interface ForecastResult { available: boolean; reason?: string; location?: string; rating?: "favorable" | "caution" | "unfavorable"; summary?: string; forecast?: { highF: number; lowF: number; precipitationProbability: number; maxWindMph: number; maxGustMph: number }; source?: string; }
 
 export default function PilotMissionLog({
   assignmentId,
@@ -44,6 +45,7 @@ export default function PilotMissionLog({
   profileEquipment,
   deliveryResponsibility,
   onClose,
+  onGoToProfile,
   onSaved,
 }: {
   assignmentId: string;
@@ -67,6 +69,7 @@ export default function PilotMissionLog({
   profileEquipment: string | null;
   deliveryResponsibility: string;
   onClose: () => void;
+  onGoToProfile: () => void;
   onSaved: () => void;
 }) {
   const [docs, setDocs] = useState<DocRow[]>([]);
@@ -79,10 +82,14 @@ export default function PilotMissionLog({
   const [accessNotes, setAccessNotes] = useState(siteAccessNotes ?? "");
   const [cautions, setCautions] = useState(cautionsAwareness ?? "");
   const [communications, setCommunications] = useState(clientCommunications ?? "");
-  const aircraftChoices = equipmentChoices(profileEquipment);
+  const equipmentAssessments = assessMissionEquipment(serviceType, profileEquipment);
+  const compatibleAircraft = equipmentAssessments.filter((item) => item.compatible);
   const [aircraft, setAircraft] = useState(assignedUav ?? "");
+  const selectedAssessment = equipmentAssessments.find((item) => item.aircraft === aircraft);
   const guidance = aircraft ? missionEquipmentGuidance(serviceType, aircraft) : [];
   const forecastDaysAway = performanceDate ? Math.ceil((new Date(performanceDate).getTime() - Date.now()) / 86_400_000) : null;
+  const [forecast, setForecast] = useState<ForecastResult | null>(null);
+  const [forecastLoading, setForecastLoading] = useState(false);
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -96,6 +103,33 @@ export default function PilotMissionLog({
   }, [jobId, missionRequestId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (!performanceDate || !missionLocation) { setForecast(null); return; }
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setForecastLoading(true);
+      try {
+        const date = performanceDate.slice(0, 10);
+        const res = await fetch(`/api/weather/mission?location=${encodeURIComponent(missionLocation)}&date=${date}`, { signal: controller.signal });
+        setForecast(await res.json());
+      } catch (weatherError) {
+        if ((weatherError as Error).name !== "AbortError") setForecast({ available: false, reason: "Forecast could not be loaded." });
+      } finally { setForecastLoading(false); }
+    }, 350);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [performanceDate, missionLocation]);
+
+  const forfeitMission = useCallback(async () => {
+    if (!window.confirm("Return this mission to DOM because no compatible aircraft is available?")) return;
+    setError(null);
+    const sb = getSupabaseBrowser();
+    const { data } = await sb.auth.getSession();
+    const res = await fetch(`/api/pilot/missions/${assignmentId}/respond`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` }, body: JSON.stringify({ action: "decline" }) });
+    const body = await res.json();
+    if (!res.ok) { setError(body.error ?? "DOM could not be notified"); return; }
+    onSaved(); onClose();
+  }, [assignmentId, onClose, onSaved]);
 
   const saveOperations = useCallback(async () => {
     setSavingOperations(true);
@@ -204,6 +238,9 @@ export default function PilotMissionLog({
               <div>
                 <label style={{ color: V.inkDim, fontSize: 12 }}>Scheduled performance date and time</label>
                 <input type="datetime-local" value={performanceDate} onChange={(e) => setPerformanceDate(e.target.value)} style={{ ...inputStyle, marginTop: 6 }} />
+                {performanceDate && <div aria-live="polite" style={{ marginTop: 8, padding: 10, borderRadius: 8, border: `1px solid ${forecast?.rating === "unfavorable" ? V.danger : forecast?.rating === "caution" ? V.warn : forecast?.available ? V.telemetry : V.line}`, background: forecast?.rating === "unfavorable" ? "rgba(220,38,38,.08)" : forecast?.rating === "caution" ? "rgba(245,158,11,.08)" : forecast?.available ? "rgba(22,163,74,.08)" : V.raised }}>
+                  {forecastLoading ? <span style={{ color: V.inkDim, fontSize: 11 }}>Checking forecast…</span> : forecast?.available ? <><strong style={{ color: forecast.rating === "unfavorable" ? V.danger : forecast.rating === "caution" ? V.warn : V.telemetry, fontSize: 12 }}>{forecast.rating === "unfavorable" ? "⚠ Consider reassignment" : forecast.rating === "caution" ? "△ Weather caution" : "✓ Forecast looks favorable"}</strong><div style={{ color: V.inkDim, fontSize: 11, marginTop: 4 }}>{forecast.summary}</div><div style={{ color: V.ink, fontSize: 11, marginTop: 5 }}>{forecast.forecast?.lowF}–{forecast.forecast?.highF}°F · Rain {forecast.forecast?.precipitationProbability}% · Wind {forecast.forecast?.maxWindMph} mph · Gusts {forecast.forecast?.maxGustMph} mph</div>{forecast.rating === "unfavorable" && <button type="button" onClick={() => setPerformanceDate("")} style={{ ...btnGhost, padding: "5px 9px", fontSize: 11, marginTop: 7 }}>Clear date and choose another</button>}</> : <span style={{ color: V.warn, fontSize: 11 }}>{forecast?.reason}</span>}
+                </div>}
               </div>
               <div>
                 <label style={{ color: V.inkDim, fontSize: 12 }}>Pilot operational notes</label>
@@ -212,16 +249,17 @@ export default function PilotMissionLog({
             </div>
             <div style={{ marginTop: 14, padding: 14, borderRadius: 10, background: V.raised, border: `1px solid ${V.line}` }}>
               <div className="font-saira" style={{ fontSize: 14, fontWeight: 700 }}>Assigned UAV & Mission Settings</div>
-              {aircraftChoices.length ? (
+              {compatibleAircraft.length ? (
                 <>
-                  <label style={{ color: V.inkDim, fontSize: 12, display: "block", marginTop: 10 }}>Aircraft assigned to this mission</label>
+                  <label style={{ color: V.inkDim, fontSize: 12, display: "block", marginTop: 10 }}>Compatible aircraft from your Pilot Profile</label>
                   <select value={aircraft} onChange={(e) => setAircraft(e.target.value)} style={{ ...inputStyle, marginTop: 6, maxWidth: 420 }}>
                     <option value="">Select an aircraft…</option>
-                    {aircraftChoices.map((item) => <option key={item} value={item}>{item}</option>)}
+                    {compatibleAircraft.map((item) => <option key={item.aircraft} value={item.aircraft}>{item.aircraft}</option>)}
                   </select>
+                  {aircraft && selectedAssessment?.compatible && <div aria-live="polite" style={{ marginTop: 9, padding: 10, borderRadius: 8, border: `1px solid ${V.telemetry}`, background: "rgba(22,163,74,.08)" }}><strong style={{ color: V.telemetry, fontSize: 12 }}>✓ Equipment confirmed for this mission</strong><div style={{ color: V.inkDim, fontSize: 11, marginTop: 3 }}>{selectedAssessment.reason} Final go/no-go remains subject to payload configuration, site conditions, and manufacturer limits.</div></div>}
                 </>
               ) : (
-                <p style={{ color: V.warn, fontSize: 12, marginTop: 8 }}>No aircraft are listed in your Pilot Profile. Add your UAVs under Profile → Equipment, separated by commas or separate lines.</p>
+                <div style={{ marginTop: 10, padding: 12, borderRadius: 9, border: `1px solid ${V.danger}`, background: "rgba(220,38,38,.08)" }}><strong style={{ color: V.danger, fontSize: 12 }}>No compatible aircraft found</strong><p style={{ color: V.inkDim, fontSize: 11, marginTop: 5 }}>Update Pilot Profile → Equipment with the exact manufacturer and model if you own a suitable unit. Otherwise, return this mission to DOM so it can be reassigned.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 9 }}><button type="button" onClick={onGoToProfile} style={{ ...btnGhost, padding: "6px 10px", fontSize: 11 }}>Update equipment profile</button><button type="button" onClick={forfeitMission} style={{ ...btnGhost, padding: "6px 10px", fontSize: 11, borderColor: V.danger, color: V.danger }}>Forfeit / reassign mission</button></div></div>
               )}
               {guidance.length > 0 && (
                 <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
@@ -250,7 +288,7 @@ export default function PilotMissionLog({
               </div>
             </div>
             <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 9 }}>Client scope, location, and pricing remain locked to the DOM-approved mission.</p>
-            <button onClick={saveOperations} disabled={savingOperations || !["accepted", "in_progress", "submitted"].includes(assignmentStatus)} style={{ ...btnPrimary, marginTop: 12, opacity: ["accepted", "in_progress", "submitted"].includes(assignmentStatus) ? 1 : .5 }}>
+            <button onClick={saveOperations} disabled={savingOperations || !selectedAssessment?.compatible || !["accepted", "in_progress", "submitted"].includes(assignmentStatus)} style={{ ...btnPrimary, marginTop: 12, opacity: selectedAssessment?.compatible && ["accepted", "in_progress", "submitted"].includes(assignmentStatus) ? 1 : .5 }}>
               {savingOperations ? "Saving…" : "Save Mission Updates"}
             </button>
           </div>

@@ -384,6 +384,7 @@ export default function PilotDashboard() {
             profileEquipment={profile.equipment}
             deliveryResponsibility={j.delivery_responsibility}
             onClose={() => setMissionLogAssignment(null)}
+            onGoToProfile={() => { setMissionLogAssignment(null); setTab("profile"); }}
             onSaved={load}
           />
         );

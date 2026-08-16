@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 // Navy nav shell with light text + blue active state (DOM light theme).
 const V = { surface: "#172033", line: "rgba(255,255,255,0.08)", ink: "#FFFFFF", inkDim: "#AEB7C4", inkFaint: "#8A95A7", signal: "#FFFFFF" };
 
-export type PilotTab = "missions" | "queue" | "create" | "mapping" | "publicprofile" | "resources" | "sops" | "payouts" | "profile";
+export type PilotTab = "missions" | "crm" | "queue" | "create" | "mapping" | "publicprofile" | "resources" | "sops" | "payouts" | "profile";
 
 // The open Mission Queue is built but stays dark (hidden from nav) until
 // escrow ships in a later PR — an open claim queue without payment
@@ -28,6 +28,7 @@ const MAPPER_ENABLED = process.env.NEXT_PUBLIC_MAPPER_ENABLED === "true";
 
 const ITEMS: { id: PilotTab; label: string; icon: string }[] = [
   { id: "missions", label: "Missions", icon: "▤" },
+  { id: "crm", label: "My CRM", icon: "☍" },
   ...(QUEUE_ENABLED ? [{ id: "queue" as PilotTab, label: "Queue", icon: "◫" }] : []),
   { id: "create", label: "Create Mission", icon: "✎" },
   ...(MAPPER_ENABLED ? [{ id: "mapping" as PilotTab, label: "Mapping", icon: "▦" }] : []),

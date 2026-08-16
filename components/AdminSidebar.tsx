@@ -15,6 +15,7 @@ const V = { surface: "#172033", line: "rgba(255,255,255,0.08)", ink: "#FFFFFF", 
 const NAV = [
   { href: "/admin/dashboard", label: "Dashboard", icon: "◧" },
   { href: "/admin/leads", label: "Leads", icon: "☍" },
+  { href: "/admin/relationships", label: "CRM Protection", icon: "◇" },
   { href: "/admin/missions", label: "Missions", icon: "▤" },
   { href: "/admin/operations", label: "Exception Center", icon: "⚠" },
   { href: "/admin/programs", label: "Programs & Analytics", icon: "↻" },

@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
+import { rateLimitResponse } from "@/lib/rateLimit";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const limited = rateLimitResponse(req);
+  if (limited) return limited;
   const authHeader = req.headers.get("authorization");
   if (!authHeader) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
@@ -38,10 +41,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await admin.from("mission_activity_events").insert({
       mission_request_id: job.mission_request_id,
       job_id: job.id,
+      actor_user_id: user.id,
+      actor_role: "client",
       event_type: status === "approved" ? "deliverable_approved" : "deliverable_revision_requested",
       summary: status === "approved" ? `Client approved ${deliverable.name}.` : `Client requested a revision to ${deliverable.name}.`,
       visibility: "shared",
-      metadata: feedback ? { feedback } : {},
+      details: feedback ? { feedback } : {},
     });
   }
 

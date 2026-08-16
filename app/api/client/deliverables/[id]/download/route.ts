@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
+import { rateLimitResponse } from "@/lib/rateLimit";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const limited = rateLimitResponse(req);
+  if (limited) return limited;
   const authHeader = req.headers.get("authorization");
   if (!authHeader) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   const supabase = getSupabaseAnonServer(authHeader);

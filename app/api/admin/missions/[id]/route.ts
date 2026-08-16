@@ -18,15 +18,21 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const body = await req.json();
     const admin = getSupabaseAdmin();
     const allowedStatuses = ["requested", "reviewing", "scoped", "quoted", "approved", "assigned", "in_progress", "delivered", "closed", "cancelled"];
+    const { data: currentMission } = await admin.from("mission_requests").select("client_id,client_profile_sync_enabled").eq("id",id).maybeSingle();
+    if(!currentMission)return NextResponse.json({error:"Mission not found"},{status:404});
 
     if (body.status && !allowedStatuses.includes(body.status)) {
       return NextResponse.json({ error: "Invalid mission status" }, { status: 400 });
     }
 
+    const syncEnabled=typeof body.clientProfileSyncEnabled==="boolean"?body.clientProfileSyncEnabled:currentMission.client_profile_sync_enabled;
+    let requesterName=body.requesterName?.trim()||null,requesterEmail=body.requesterEmail?.trim()||null,company=body.company?.trim()||null;
+    if(syncEnabled&&currentMission.client_id){const{data:client}=await admin.from("clients").select("contact_name,email,company_name").eq("id",currentMission.client_id).maybeSingle();if(client){requesterName=client.contact_name;requesterEmail=client.email;company=client.company_name}}
     const missionPatch = {
-      requester_name: body.requesterName?.trim() || null,
-      requester_email: body.requesterEmail?.trim() || null,
-      company: body.company?.trim() || null,
+      requester_name: requesterName,
+      requester_email: requesterEmail,
+      company,
+      client_profile_sync_enabled:!!currentMission.client_id&&syncEnabled,
       service_type: body.serviceType?.trim() || null,
       location: body.location?.trim() || null,
       scope: body.scope?.trim() || null,

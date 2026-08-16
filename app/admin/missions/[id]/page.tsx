@@ -49,6 +49,8 @@ interface MissionRequest {
   budget_range: string | null;
   requested_contractor_id: string | null;
   claimed_by_contractor_id: string | null;
+  client_id: string | null;
+  client_profile_sync_enabled: boolean;
   created_at: string;
 }
 
@@ -169,7 +171,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [deletingMission, setDeletingMission] = useState(false);
   const [missionDraft, setMissionDraft] = useState({
     title: "", requesterName: "", requesterEmail: "", company: "", serviceType: "custom",
-    location: "", scope: "", status: "requested", quotedAmount: "", scheduledFor: "",
+    location: "", scope: "", status: "requested", quotedAmount: "", scheduledFor: "", clientProfileSyncEnabled: false,
   });
 
   const beginMissionEdit = useCallback(() => {
@@ -185,6 +187,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       status: mission.status,
       quotedAmount: mission.quoted_amount_cents != null ? (mission.quoted_amount_cents / 100).toFixed(2) : "",
       scheduledFor: job?.scheduled_for ? new Date(job.scheduled_for).toISOString().slice(0, 16) : "",
+      clientProfileSyncEnabled: !!mission.client_id && mission.client_profile_sync_enabled,
     });
     setEditingMission(true);
   }, [mission, job]);
@@ -647,6 +650,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                 {mission.status.replace("_", " ")}
               </span>
             </div>
+            <div style={{marginTop:10,fontSize:11,fontWeight:700,color:mission.client_id?(mission.client_profile_sync_enabled?V.telemetry:V.warn):V.inkFaint}}>{mission.client_id?(mission.client_profile_sync_enabled?"✓ Using current client profile":"⚠ Mission-specific client override"):"Historical requester snapshot · no linked client"}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: V.lineSoft, borderRadius: 10, overflow: "hidden", marginTop: 16 }}>
               <Readout k="Requester" v={mission.requester_email ?? "—"} />
               <Readout k="Airspace" v={mission.airspace_class ? `Class ${mission.airspace_class}` : "—"} />
@@ -680,6 +684,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                 <button onClick={() => setEditingMission(false)} style={btnGhost}>Close</button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12, marginTop: 14 }}>
+                {mission.client_id&&<label style={{gridColumn:"1 / -1",display:"flex",gap:9,alignItems:"flex-start",padding:12,border:`1px solid ${missionDraft.clientProfileSyncEnabled?V.telemetry:V.warn}`,borderRadius:9,color:V.ink,fontSize:12}}><input type="checkbox" checked={missionDraft.clientProfileSyncEnabled} onChange={e=>setMissionDraft(d=>({...d,clientProfileSyncEnabled:e.target.checked}))}/><span><strong>Use current client profile</strong><small style={{display:"block",color:V.inkDim,marginTop:3}}>Keep this open mission synchronized with the linked client. Turn off only when this mission has a different requester or contact.</small></span></label>}
                 <EditField label="Mission title" value={missionDraft.title} onChange={(v) => setMissionDraft((d) => ({ ...d, title: v }))} />
                 <div>
                   <label style={{ fontSize: 12, color: V.inkDim }}>Mission type</label>
@@ -687,9 +692,9 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                     {SERVICE_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </div>
-                <EditField label="Client name" value={missionDraft.requesterName} onChange={(v) => setMissionDraft((d) => ({ ...d, requesterName: v }))} />
-                <EditField label="Client email" type="email" value={missionDraft.requesterEmail} onChange={(v) => setMissionDraft((d) => ({ ...d, requesterEmail: v }))} />
-                <EditField label="Company" value={missionDraft.company} onChange={(v) => setMissionDraft((d) => ({ ...d, company: v }))} />
+                <EditField label="Client name" value={missionDraft.requesterName} onChange={(v) => setMissionDraft((d) => ({ ...d, requesterName: v }))} disabled={missionDraft.clientProfileSyncEnabled} />
+                <EditField label="Client email" type="email" value={missionDraft.requesterEmail} onChange={(v) => setMissionDraft((d) => ({ ...d, requesterEmail: v }))} disabled={missionDraft.clientProfileSyncEnabled} />
+                <EditField label="Company" value={missionDraft.company} onChange={(v) => setMissionDraft((d) => ({ ...d, company: v }))} disabled={missionDraft.clientProfileSyncEnabled} />
                 <EditField label="Location" value={missionDraft.location} onChange={(v) => setMissionDraft((d) => ({ ...d, location: v }))} />
                 <EditField label="Quoted total ($)" type="number" value={missionDraft.quotedAmount} onChange={(v) => setMissionDraft((d) => ({ ...d, quotedAmount: v }))} />
                 <EditField label="Scheduled date/time" type="datetime-local" value={missionDraft.scheduledFor} onChange={(v) => setMissionDraft((d) => ({ ...d, scheduledFor: v }))} />
@@ -1099,11 +1104,11 @@ function ModRow({ label, value, accent }: { label: string; value?: string; accen
   );
 }
 
-function EditField({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+function EditField({ label, value, onChange, type = "text", disabled = false }: { label: string; value: string; onChange: (value: string) => void; type?: string; disabled?: boolean }) {
   return (
     <div>
       <label style={{ fontSize: 12, color: V.inkDim }}>{label}</label>
-      <input type={type} value={value} onChange={(e) => onChange(e.target.value)} style={inputStyle} />
+      <input type={type} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} style={{...inputStyle,opacity:disabled ? .55 : 1,cursor:disabled ? "not-allowed" : "text"}} />
     </div>
   );
 }

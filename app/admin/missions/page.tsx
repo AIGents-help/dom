@@ -18,25 +18,31 @@ interface Mission {
   created_at: string;
 }
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  requested: { bg: "rgba(229,112,31,.12)", text: "#E5701F" },
-  reviewing: { bg: "rgba(229,112,31,.12)", text: "#E5701F" },
-  scoped: { bg: "rgba(22,163,74,.12)", text: "#16A34A" },
-  quoted: { bg: "rgba(22,163,74,.12)", text: "#16A34A" },
-  approved: { bg: "rgba(22,163,74,.18)", text: "#16A34A" },
-  claimed: { bg: "rgba(229,112,31,.14)", text: "#E5701F" },
-  assigned: { bg: "rgba(124,58,237,.14)", text: "#7C3AED" },
-  in_progress: { bg: "rgba(124,58,237,.14)", text: "#7C3AED" },
-  delivered: { bg: "rgba(22,163,74,.18)", text: "#16A34A" },
-  closed: { bg: "rgba(95,107,122,.15)", text: "#5F6B7A" },
-  cancelled: { bg: "rgba(95,107,122,.15)", text: "#5F6B7A" },
+const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  requested: { bg: "rgba(229,112,31,.07)", text: "#B45309", border: "#E5701F" },
+  reviewing: { bg: "rgba(234,179,8,.08)", text: "#A16207", border: "#EAB308" },
+  scoped: { bg: "rgba(14,165,233,.07)", text: "#0369A1", border: "#0EA5E9" },
+  quoted: { bg: "rgba(6,182,212,.07)", text: "#0E7490", border: "#06B6D4" },
+  approved: { bg: "rgba(22,163,74,.07)", text: "#15803D", border: "#16A34A" },
+  claimed: { bg: "rgba(249,115,22,.08)", text: "#C2410C", border: "#F97316" },
+  assigned: { bg: "rgba(124,58,237,.07)", text: "#6D28D9", border: "#7C3AED" },
+  in_progress: { bg: "rgba(37,99,235,.07)", text: "#1D4ED8", border: "#2563EB" },
+  delivered: { bg: "rgba(22,163,74,.08)", text: "#15803D", border: "#16A34A" },
+  closed: { bg: "rgba(95,107,122,.07)", text: "#475569", border: "#64748B" },
+  cancelled: { bg: "rgba(220,38,38,.055)", text: "#B91C1C", border: "#DC2626" },
 };
+
+const LEGEND = [
+  ["New / review", "#E5701F"], ["Scoped / quoted", "#0EA5E9"], ["Approved / delivered", "#16A34A"],
+  ["Assigned", "#7C3AED"], ["In progress", "#2563EB"], ["Closed", "#64748B"], ["Cancelled", "#DC2626"],
+] as const;
 
 export default function MissionsPage() {
   const router = useRouter();
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState("newest");
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -63,7 +69,13 @@ export default function MissionsPage() {
     })();
   }, [router, load]);
 
-  const filtered = missions;
+  const filtered = [...missions].sort((a, b) => {
+    if (sortBy === "oldest") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+    if (sortBy === "value_high") return (b.quoted_amount_cents ?? 0) - (a.quoted_amount_cents ?? 0);
+    if (sortBy === "client") return (a.company ?? a.requester_name ?? "").localeCompare(b.company ?? b.requester_name ?? "");
+    if (sortBy === "status") return a.status.localeCompare(b.status);
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
   const activeCount = missions.filter((m) => !["closed", "cancelled"].includes(m.status)).length;
 
   return (
@@ -79,8 +91,9 @@ export default function MissionsPage() {
       </div>
 
       {/* Filters */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 18, flexWrap: "wrap" }}>
-        {["all", "requested", "scoped", "quoted", "approved", "claimed", "assigned", "in_progress", "delivered", "closed"].map((f) => (
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {["all", "requested", "reviewing", "scoped", "quoted", "approved", "claimed", "assigned", "in_progress", "delivered", "closed", "cancelled"].map((f) => (
           <button key={f} onClick={() => setFilter(f)} className="font-mono-ibm" style={{
             fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer",
             border: `1px solid ${f === filter ? V.signal : V.line}`,
@@ -90,6 +103,14 @@ export default function MissionsPage() {
             {f.replace("_", " ").toUpperCase()}
           </button>
         ))}
+        </div>
+        <label style={{ color: V.inkDim, fontSize: 12 }}>
+          Sort{" "}
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink }}>
+            <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
+            <option value="value_high">Highest quote</option><option value="client">Client A–Z</option><option value="status">Status A–Z</option>
+          </select>
+        </label>
       </div>
 
       {loading && <p style={{ color: V.inkDim }}>Loading missions…</p>}
@@ -107,10 +128,10 @@ export default function MissionsPage() {
         {filtered.map((m) => {
           const sc = STATUS_COLORS[m.status] ?? STATUS_COLORS.requested;
           return (
-            <div key={m.id} style={{ ...panel, cursor: "pointer", transition: "border-color .15s" }}
+            <div key={m.id} style={{ ...panel, cursor: "pointer", transition: "box-shadow .15s, transform .15s", borderColor: sc.border, borderLeftWidth: 6, background: `linear-gradient(90deg, ${sc.bg}, ${V.surface} 48%)` }}
               onClick={() => router.push(`/admin/missions/${m.id}`)}
-              onMouseOver={(e) => (e.currentTarget.style.borderColor = V.signal)}
-              onMouseOut={(e) => (e.currentTarget.style.borderColor = V.line)}>
+              onMouseOver={(e) => (e.currentTarget.style.boxShadow = `0 5px 18px ${sc.bg}`)}
+              onMouseOut={(e) => (e.currentTarget.style.boxShadow = "none")}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                 <div>
                   <div className="font-saira" style={{ fontWeight: 600, fontSize: 16 }}>
@@ -139,13 +160,19 @@ export default function MissionsPage() {
               </div>
               <div className="font-mono-ibm" style={{ fontSize: 11, color: V.inkFaint, marginTop: 8 }}>
                 {new Date(m.created_at).toLocaleDateString()} · {m.id.slice(0, 8)}
+                <span style={{ float: "right", color: V.signal, fontWeight: 600 }}>Open / Edit →</span>
               </div>
             </div>
           );
         })}
       </div>
+      {!loading && missions.length > 0 && <StatusLegend items={LEGEND} />}
     </Shell>
   );
+}
+
+function StatusLegend({ items }: { items: ReadonlyArray<readonly [string, string]> }) {
+  return <div style={{ ...panel, marginTop: 18, padding: 14 }}><div className="font-mono-ibm" style={{ fontSize: 10, color: V.inkFaint, letterSpacing: ".12em", textTransform: "uppercase", marginBottom: 9 }}>Mission status colors</div><div style={{ display: "flex", gap: "8px 16px", flexWrap: "wrap" }}>{items.map(([label, color]) => <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: V.inkDim, fontSize: 12 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: color }} />{label}</span>)}</div></div>;
 }
 
 function Shell({ children }: { children: React.ReactNode }) {

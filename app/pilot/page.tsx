@@ -47,16 +47,17 @@ interface QueueClaim {
 }
 type Tab = PilotTab;
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  offered: { bg: "rgba(229,112,31,.12)", text: "#E5701F" },
-  accepted: { bg: "rgba(22,163,74,.12)", text: "#16A34A" },
-  in_progress: { bg: "rgba(124,58,237,.14)", text: "#7C3AED" },
-  submitted: { bg: "rgba(22,163,74,.14)", text: "#16A34A" },
-  qc_passed: { bg: "rgba(22,163,74,.18)", text: "#16A34A" },
-  paid: { bg: "rgba(22,163,74,.2)", text: "#16A34A" },
-  declined: { bg: "rgba(95,107,122,.15)", text: "#5F6B7A" },
-  cancelled: { bg: "rgba(95,107,122,.15)", text: "#5F6B7A" },
+const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  offered: { bg: "rgba(229,112,31,.07)", text: "#B45309", border: "#E5701F" },
+  accepted: { bg: "rgba(14,165,233,.07)", text: "#0369A1", border: "#0EA5E9" },
+  in_progress: { bg: "rgba(37,99,235,.07)", text: "#1D4ED8", border: "#2563EB" },
+  submitted: { bg: "rgba(124,58,237,.07)", text: "#6D28D9", border: "#7C3AED" },
+  qc_passed: { bg: "rgba(22,163,74,.08)", text: "#15803D", border: "#16A34A" },
+  paid: { bg: "rgba(22,163,74,.1)", text: "#15803D", border: "#16A34A" },
+  declined: { bg: "rgba(95,107,122,.07)", text: "#475569", border: "#64748B" },
+  cancelled: { bg: "rgba(220,38,38,.055)", text: "#B91C1C", border: "#DC2626" },
 };
+const PILOT_LEGEND = [["Offered", "#E5701F"], ["Accepted", "#0EA5E9"], ["In progress", "#2563EB"], ["Submitted", "#7C3AED"], ["Completed / paid", "#16A34A"], ["Declined", "#64748B"], ["Cancelled", "#DC2626"]] as const;
 const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
@@ -82,6 +83,8 @@ export default function PilotDashboard() {
   const [missionLogAssignment, setMissionLogAssignment] = useState<Assignment | null>(null);
   const [expandedSop, setExpandedSop] = useState<string | null>(null);
   const [sopMissionServiceType, setSopMissionServiceType] = useState<string | null>(null);
+  const [missionSort, setMissionSort] = useState("action");
+  const [missionFilter, setMissionFilter] = useState("all");
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -255,6 +258,20 @@ export default function PilotDashboard() {
 
   const cleared = profile.part107_verified && profile.insurance_verified;
   const activeAssignments = assignments.filter((a) => !["paid", "cancelled"].includes(a.status));
+  const sortedAssignments = assignments.filter((a) => {
+    if (missionFilter === "action") return ["offered", "accepted", "in_progress", "submitted"].includes(a.status);
+    if (missionFilter === "complete") return ["qc_passed", "paid"].includes(a.status);
+    if (missionFilter === "inactive") return ["declined", "cancelled"].includes(a.status);
+    return true;
+  }).sort((a, b) => {
+    const aj = Array.isArray(a.job) ? a.job[0] : a.job;
+    const bj = Array.isArray(b.job) ? b.job[0] : b.job;
+    if (missionSort === "scheduled") return (aj?.scheduled_for ? new Date(aj.scheduled_for).getTime() : Number.MAX_SAFE_INTEGER) - (bj?.scheduled_for ? new Date(bj.scheduled_for).getTime() : Number.MAX_SAFE_INTEGER);
+    if (missionSort === "payout") return (b.contractor_payout_cents ?? 0) - (a.contractor_payout_cents ?? 0);
+    if (missionSort === "newest") return new Date(b.offered_at).getTime() - new Date(a.offered_at).getTime();
+    const priority: Record<string, number> = { offered: 0, accepted: 1, in_progress: 2, submitted: 3, qc_passed: 4, paid: 5, declined: 6, cancelled: 7 };
+    return (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
+  });
   const totalEarned = payouts.filter((p) => ["captured", "paid_out"].includes(p.status)).reduce((s, p) => s + p.contractor_amount_cents, 0);
 
   return (
@@ -349,6 +366,10 @@ export default function PilotDashboard() {
 
       {tab === "missions" && !missionLogAssignment && (
         <div style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, flexWrap: "wrap" }}>
+            <label style={{ color: V.inkDim, fontSize: 12 }}>Show{" "}<select value={missionFilter} onChange={(e) => setMissionFilter(e.target.value)} style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink }}><option value="all">All missions</option><option value="action">Active / action needed</option><option value="complete">Completed / paid</option><option value="inactive">Declined / cancelled</option></select></label>
+            <label style={{ color: V.inkDim, fontSize: 12 }}>Sort{" "}<select value={missionSort} onChange={(e) => setMissionSort(e.target.value)} style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink }}><option value="action">Action needed</option><option value="scheduled">Scheduled soonest</option><option value="newest">Newest offered</option><option value="payout">Highest payout</option></select></label>
+          </div>
           {requestsForMe.length > 0 && (
             <div style={{ ...panelStyle, borderColor: "rgba(22,163,74,.4)", background: "rgba(22,163,74,.05)" }}>
               <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.telemetry, textTransform: "uppercase" }}>
@@ -369,11 +390,12 @@ export default function PilotDashboard() {
             </div>
           )}
           {assignments.length === 0 && <div style={{ ...panelStyle, textAlign: "center", padding: 40 }}><p style={{ color: V.inkDim }}>No mission assignments yet.</p><p style={{ color: V.inkFaint, fontSize: 13, marginTop: 6 }}>{cleared ? "You're cleared — DOM will offer missions in your area." : "Complete credential verification to receive offers."}</p></div>}
-          {assignments.map((a) => {
+          {assignments.length > 0 && sortedAssignments.length === 0 && <div style={{ ...panelStyle, textAlign: "center", padding: 28 }}><p style={{ color: V.inkDim }}>No missions match this filter.</p></div>}
+          {sortedAssignments.map((a) => {
             const job = Array.isArray(a.job) ? a.job[0] : a.job;
             const sc = STATUS_COLORS[a.status] ?? STATUS_COLORS.offered;
             return (
-              <div key={a.id} style={panelStyle}>
+              <div key={a.id} style={{ ...panelStyle, borderColor: sc.border, borderLeftWidth: 6, background: `linear-gradient(90deg, ${sc.bg}, ${V.surface} 48%)` }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <div>
                     <div className="font-saira" style={{ fontWeight: 600, fontSize: 16 }}>{job?.title ?? "Mission"} <span style={{ color: V.inkDim, fontWeight: 400, fontSize: 13 }}>— {(job?.service_type ?? "").replace(/_/g, " ")}</span></div>
@@ -418,6 +440,7 @@ export default function PilotDashboard() {
               </div>
             );
           })}
+          {assignments.length > 0 && <PilotStatusLegend />}
         </div>
       )}
 
@@ -563,6 +586,10 @@ export default function PilotDashboard() {
       </div>
     </Shell>
   );
+}
+
+function PilotStatusLegend() {
+  return <div style={{ ...panelStyle, marginTop: 8, padding: 14 }}><div className="font-mono-ibm" style={{ fontSize: 10, color: V.inkFaint, letterSpacing: ".12em", textTransform: "uppercase", marginBottom: 9 }}>Mission status colors</div><div style={{ display: "flex", gap: "8px 16px", flexWrap: "wrap" }}>{PILOT_LEGEND.map(([label, color]) => <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: V.inkDim, fontSize: 12 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: color }} />{label}</span>)}</div></div>;
 }
 
 function Shell({ children }: { children: React.ReactNode }) {

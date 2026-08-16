@@ -14,6 +14,18 @@ const PIPELINE = [
   "assigned", "in_progress", "delivered", "closed",
 ] as const;
 
+const PIPELINE_DEFINITIONS: Record<(typeof PIPELINE)[number], string> = {
+  requested: "Mission received. Client needs and initial details have not yet been reviewed.",
+  reviewing: "DOM is validating the request, location, airspace, feasibility, and missing information.",
+  scoped: "The exact work, mission type, deliverables, constraints, and responsibilities are defined.",
+  quoted: "Pricing has been prepared and presented; the mission is waiting for client approval.",
+  approved: "The client approved the scope and price. DOM can schedule and assign the work.",
+  assigned: "A pilot has been selected or accepted the mission and is responsible for execution.",
+  in_progress: "Planning, fieldwork, flight operations, processing, or deliverable production is underway.",
+  delivered: "The approved deliverables have been provided to the client and await final closure.",
+  closed: "The mission is complete, records are retained, and no further operational action is expected.",
+};
+
 function nextPipelineStatus(current: string): string | null {
   const idx = PIPELINE.indexOf(current as (typeof PIPELINE)[number]);
   if (idx === -1 || idx === PIPELINE.length - 1) return null;
@@ -694,6 +706,8 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                 return (
                   <span
                     key={stage}
+                    title={PIPELINE_DEFINITIONS[stage]}
+                    aria-label={`${stage.replace(/_/g, " ")}: ${PIPELINE_DEFINITIONS[stage]}`}
                     className="font-mono-ibm"
                     style={{
                       fontSize: 10, letterSpacing: ".04em", padding: "5px 10px", borderRadius: 6,
@@ -701,6 +715,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                       background: isCurrent ? "rgba(244,90,30,.14)" : isDone ? "rgba(22,163,74,.10)" : "transparent",
                       color: isCurrent ? V.signal : isDone ? V.telemetry : V.inkFaint,
                       border: `1px solid ${isCurrent ? V.signal : V.line}`,
+                      cursor: "help",
                     }}
                   >
                     {stage.replace("_", " ")}

@@ -5,6 +5,7 @@ import { createNotionMissionRequest } from "@/lib/notion";
 import { classifyAirspace } from "@/lib/airspace";
 import { calculateQuote, type QuoteInput } from "@/lib/quoting";
 import { rateLimitResponse } from "@/lib/rateLimit";
+import { isAdminRequest } from "@/lib/authz";
 
 export async function POST(req: NextRequest) {
   const limited = rateLimitResponse(req);
@@ -114,6 +115,31 @@ export async function POST(req: NextRequest) {
         requestedContractorId = eligible?.id ?? null;
       }
 
+      let clientId:string|null=null;
+      const relationshipSelection=String(body.relationshipSelection??"");
+      const adminRequest=await isAdminRequest(req);
+      if(relationshipSelection.startsWith("client:")||relationshipSelection.startsWith("lead:")){
+        if(!adminRequest)return NextResponse.json({error:"Admin access required to select an existing relationship."},{status:403});
+        const [kind,id]=relationshipSelection.split(":");
+        if(kind==="client"){
+          const {data:client}=await supabaseAdmin.from("clients").select("id").eq("id",id).maybeSingle();
+          if(!client)return NextResponse.json({error:"Selected client was not found."},{status:404});
+          clientId=client.id;
+        }else{
+          const {data:lead}=await supabaseAdmin.from("leads").select("id,name,email,phone,company,industry").eq("id",id).maybeSingle();
+          if(!lead)return NextResponse.json({error:"Selected lead was not found."},{status:404});
+          const {data:linked}=await supabaseAdmin.from("clients").select("id").eq("lead_id",lead.id).maybeSingle();
+          if(linked)clientId=linked.id;else{const {data:created,error}=await supabaseAdmin.from("clients").insert({lead_id:lead.id,company_name:lead.company??lead.name??"Unnamed",contact_name:lead.name,email:lead.email,phone:lead.phone,industry:lead.industry}).select("id").single();if(error)throw error;clientId=created.id}
+          await supabaseAdmin.from("leads").update({status:"won"}).eq("id",lead.id);
+        }
+      }else{
+        let leadId:string|null=null;
+        if(contactEmail){const {data:existingLead}=await supabaseAdmin.from("leads").select("id").ilike("email",contactEmail.trim()).maybeSingle();leadId=existingLead?.id??null}
+        if(!leadId){const {data:newLead,error}=await supabaseAdmin.from("leads").insert({name:contactName,email:contactEmail,phone:contactPhone??null,company:company??contactName,status:"won",source:adminRequest?"admin_mission":"mission_request",industry:industry??null,message:scope??null}).select("id").single();if(error)throw error;leadId=newLead.id}else await supabaseAdmin.from("leads").update({status:"won"}).eq("id",leadId);
+        const {data:linked}=await supabaseAdmin.from("clients").select("id").eq("lead_id",leadId).maybeSingle();
+        if(linked)clientId=linked.id;else{const {data:emailClient}=contactEmail?await supabaseAdmin.from("clients").select("id,lead_id").ilike("email",contactEmail.trim()).maybeSingle():{data:null};if(emailClient){clientId=emailClient.id;if(!emailClient.lead_id)await supabaseAdmin.from("clients").update({lead_id:leadId}).eq("id",clientId)}else{const {data:newClient,error}=await supabaseAdmin.from("clients").insert({lead_id:leadId,company_name:company??contactName,contact_name:contactName,email:contactEmail,phone:contactPhone??null,industry:industry??null}).select("id").single();if(error)throw error;clientId=newClient.id}}
+      }
+
       const { data: inserted, error: insertError } = await supabaseAdmin
         .from("mission_requests")
         .insert({
@@ -131,6 +157,7 @@ export async function POST(req: NextRequest) {
           budget_range: budgetRange,
           quoted_amount_cents: quote?.totalCents ?? null,
           requested_contractor_id: requestedContractorId,
+          client_id: clientId,
         })
         .select("id")
         .single();

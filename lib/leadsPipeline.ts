@@ -31,6 +31,7 @@ export interface Lead {
   outreach_approved_at: string | null;
   outreach_paused_at: string | null;
   priority_override: "high" | "medium" | "low" | null;
+  listing_color: string | null;
 }
 
 export interface LeadNextAction {

@@ -38,6 +38,8 @@ interface QuoteData {
   warnings: string[];
 }
 
+interface RelationshipOption { id:string; kind:"client"|"lead"; label:string; name:string; email:string; company:string; }
+
 export default function CreateMissionPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("location");
@@ -68,6 +70,12 @@ export default function CreateMissionPage() {
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientCompany, setClientCompany] = useState("");
+  const [relationshipId,setRelationshipId]=useState("new");
+  const [relationships,setRelationships]=useState<RelationshipOption[]>([]);
+
+  useEffect(()=>{if(!authed)return;(async()=>{const sb=getSupabaseBrowser();const[{data:clients},{data:leads}]=await Promise.all([sb.from("clients").select("id,lead_id,company_name,contact_name,email").order("company_name"),sb.from("leads").select("id,company,name,email,status").order("company")]);const linked=new Set((clients??[]).map((c:any)=>c.lead_id).filter(Boolean));const options:RelationshipOption[]=[...(clients??[]).map((c:any)=>({id:c.id,kind:"client" as const,label:`${c.company_name} — Client`,name:c.contact_name??"",email:c.email??"",company:c.company_name??""})),...(leads??[]).filter((l:any)=>!linked.has(l.id)).map((l:any)=>({id:l.id,kind:"lead" as const,label:`${l.company??l.name??"Unnamed"} — Lead`,name:l.name??"",email:l.email??"",company:l.company??""}))];setRelationships(options)})()},[authed]);
+
+  function selectRelationship(value:string){setRelationshipId(value);if(value==="new"){setClientName("");setClientEmail("");setClientCompany("");return}const selected=relationships.find((r)=>`${r.kind}:${r.id}`===value);if(selected){setClientName(selected.name);setClientEmail(selected.email);setClientCompany(selected.company)}}
 
   // Scope
   const [serviceType, setServiceType] = useState("roof_inspection_commercial");
@@ -159,8 +167,9 @@ export default function CreateMissionPage() {
     try {
       const res = await fetch("/api/mission-request", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(accessToken?{Authorization:`Bearer ${accessToken}`}:{}) },
         body: JSON.stringify({
+          relationshipSelection: relationshipId,
           requester_name: clientName,
           requester_email: clientEmail,
           company: clientCompany,
@@ -191,7 +200,7 @@ export default function CreateMissionPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [clientName, clientEmail, clientCompany, address, lat, lng, serviceType, scopeNotes, urgency, airspace, quote, distanceMiles, complexity, deliverableTier, router]);
+  }, [relationshipId,clientName, clientEmail, clientCompany, address, lat, lng, serviceType, scopeNotes, urgency, airspace, quote, distanceMiles, complexity, deliverableTier, router,accessToken]);
 
   if (!authed) return null;
 
@@ -208,7 +217,12 @@ export default function CreateMissionPage() {
       {step === "location" && (
         <div style={{ display: "grid", gap: 18 }}>
           <div style={panel}>
-            <Label>Client Information</Label>
+            <Label>Requester / Owner</Label>
+            <select value={relationshipId} onChange={(e)=>selectRelationship(e.target.value)} style={{...inputStyle,marginTop:8}}>
+              <option value="new">＋ Add Client</option>
+              {relationships.map((r)=><option key={`${r.kind}:${r.id}`} value={`${r.kind}:${r.id}`}>{r.label}</option>)}
+            </select>
+            <p style={{color:V.inkDim,fontSize:11,marginTop:6}}>Selecting a lead automatically promotes and links that relationship as a client when the mission is created.</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 8 }}>
               <Input label="Contact name" value={clientName} onChange={setClientName} />
               <Input label="Company" value={clientCompany} onChange={setClientCompany} />

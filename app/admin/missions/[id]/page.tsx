@@ -7,6 +7,7 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
 import { googleMapsDirectionsUrl, googleMapsPlaceUrl } from "@/lib/googleMaps";
 import MissionFinancialControl from "@/components/MissionFinancialControl";
+import MissionReviewPanel from "@/components/MissionReviewPanel";
 
 // Admin > Mission detail — view a mission's quote/airspace, advance its status
 // through the mission lifecycle, and offer it to a contractor.
@@ -985,6 +986,8 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
               )}
             </div>
           )}
+
+          {job && <MissionReviewPanel endpoint={`/api/admin/missions/${id}/reviews`} enabled={["delivered","closed"].includes(job.status)} targets={[{type:"client",label:"Review Client",description:"Rate communication, payment reliability, site readiness, scope clarity, and long-term fit."},{type:"mission",label:"Review the Gig",description:"Rate margin quality, coordination burden, risk, scope accuracy, and whether DOM should pursue similar work."}]} />}
 
           {job && (
             <div style={panel}>

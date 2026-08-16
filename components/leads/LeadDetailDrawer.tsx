@@ -214,6 +214,7 @@ export default function LeadDetailDrawer({
                     </select>
                   </div>
                   <div><label className={labelCls}>Service opportunity</label><input className={inputCls} defaultValue={lead.service_opportunity ?? ""} disabled={busy} onBlur={(e) => onSetLeadField("service_opportunity", e.target.value)} /></div>
+                  <div><label className={labelCls}>Listing recognition color</label><div className="flex items-center gap-3"><input type="color" value={lead.listing_color ?? (lead.relationship_type === "drone_provider" ? "#FACC15" : "#E5701F")} disabled={busy} onChange={(e) => onSetLeadField("listing_color",e.target.value)} className="h-10 w-16 cursor-pointer rounded border border-border bg-surface p-1"/><button type="button" disabled={busy||!lead.listing_color} onClick={()=>onSetLeadField("listing_color","")} className="text-xs text-muted underline">Use automatic color</button></div></div>
                   <div className="flex items-end gap-4">
                     <label className="flex items-center gap-2 text-xs text-muted">
                       <input type="checkbox" checked={!!lead.ndaa_required} disabled={busy} onChange={(e) => onSetLeadBooleanField("ndaa_required", e.target.checked)} />

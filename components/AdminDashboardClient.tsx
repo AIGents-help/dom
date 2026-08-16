@@ -34,7 +34,6 @@ type TabKey =
 
 const tabs: { key: TabKey; label: string; icon: typeof Users }[] = [
   { key: "missions", label: "Mission Requests", icon: Send },
-  { key: "clients", label: "Clients", icon: Building2 },
   { key: "jobs", label: "Jobs", icon: Briefcase },
   { key: "schedule", label: "Schedule", icon: Calendar },
   { key: "deliverables", label: "Deliverables", icon: FileText },

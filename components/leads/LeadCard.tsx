@@ -35,6 +35,7 @@ export default function LeadCard({
   onConvert,
   onDoNotContact,
   onApproveForOutreach,
+  onListingColorChange,
 }: {
   ctx: LeadContext;
   today: string;
@@ -49,6 +50,7 @@ export default function LeadCard({
   onConvert: () => void;
   onDoNotContact: () => void;
   onApproveForOutreach: () => void;
+  onListingColorChange: (color: string) => void;
 }) {
   const { lead, openNextAction } = ctx;
   const status = normalizeStatus(lead.status);
@@ -63,8 +65,9 @@ export default function LeadCard({
   const isTerminal = TERMINAL_STATUSES.includes(status);
   const enrollGuard = canEnrollInOutreach(lead, ctx.smartlead);
 
+  const recognitionColor = lead.listing_color || (isDroneProvider ? "#FACC15" : null);
   return (
-    <div className={`rounded-lg border border-border p-4 ${isDroneProvider ? "bg-[#FFF4C2]" : "bg-surface"}`}>
+    <div className="rounded-xl border p-4" style={{borderColor:recognitionColor??"#D8DEE8",borderLeftWidth:6,background:recognitionColor?`linear-gradient(90deg, ${recognitionColor}22, #FFFFFF 52%)`:"#FFFFFF"}}>
       <div className="flex flex-wrap items-start gap-3">
         <button onClick={() => onOpen()} className="min-w-[180px] flex-1 text-left">
           <div className="flex items-center gap-2">
@@ -132,6 +135,7 @@ export default function LeadCard({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
+          <label title="Listing recognition color" className="flex items-center gap-1 rounded border border-border px-2 py-1 text-ink">Color<input type="color" value={lead.listing_color||(isDroneProvider?"#FACC15":"#E5701F")} onChange={(e)=>onListingColorChange(e.target.value)} className="h-4 w-5 cursor-pointer border-0 bg-transparent p-0"/></label>
           <a
             href={lead.email ? `mailto:${lead.email}` : undefined}
             aria-disabled={!lead.email}

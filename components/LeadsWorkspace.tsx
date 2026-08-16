@@ -913,6 +913,7 @@ export default function LeadsWorkspace() {
                 onConvert={() => convertLead(lead)}
                 onDoNotContact={() => markDoNotContact(lead)}
                 onApproveForOutreach={() => approveForOutreach(lead)}
+                onListingColorChange={(color) => setLeadField(lead,"listing_color",color)}
               />
             );
           })}

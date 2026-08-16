@@ -6,6 +6,7 @@ import { V } from "@/lib/theme";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 import { assessMissionEquipment, missionEquipmentGuidance, missionWeatherUrl } from "@/lib/missionEquipmentGuidance";
 import PilotFieldWorkflow from "@/components/PilotFieldWorkflow";
+import MissionReviewPanel from "@/components/MissionReviewPanel";
 
 // Pilot > Mission Log — per-assignment documents + deliverables, mirroring
 // the admin Mission Briefing / Deliverables panels but driven by the
@@ -333,6 +334,7 @@ export default function PilotMissionLog({
             </div>
             <UploadRow onUpload={uploadDeliverable} categories={["orthomosaic", "3d_model", "point_cloud", "report", "raw_images", "video", "other"]} />
           </div>
+          <MissionReviewPanel endpoint={`/api/pilot/missions/${assignmentId}/reviews`} enabled={["submitted","qc_passed","paid"].includes(assignmentStatus)} targets={[{type:"client",label:"Review Client",description:"Rate client communication, site readiness, access coordination, and professionalism."},{type:"mission",label:"Review the Gig",description:"Rate scope accuracy, site conditions, workload, pricing fairness, and whether you would accept similar work again."}]} />
         </>
       )}
     </div>

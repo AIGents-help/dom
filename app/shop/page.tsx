@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 const merch = [
-  { name: "DOM T-Shirts", type: "Apparel", image: "/shop/merch/dom-merch-tshirt-action.jpg", alt: "DOM branded black T-shirt worn during a drone field operation", copy: "Branded everyday shirts for pilots, crews, supporters, and events." },
-  { name: "DOM Performance Polos", type: "Professional Apparel", image: "/shop/merch/dom-merch-polo-action.jpg", alt: "DOM branded black performance polo at a professional drone command station", copy: "A clean client-facing option for site visits, meetings, and trade events." },
+  { name: "DOM T-Shirts", type: "Apparel", image: "/shop/merch/dom-merch-tshirt-v2.webp", alt: "DOM branded black crew-neck T-shirt worn during a commercial drone mapping operation", copy: "Branded everyday shirts for pilots, crews, supporters, and events." },
+  { name: "DOM Performance Polos", type: "Professional Apparel", image: "/shop/merch/dom-merch-polo-v2.webp", alt: "DOM embroidered black performance polo at a professional drone command station", copy: "A clean client-facing option for site visits, meetings, and trade events." },
   { name: "DOM Hats", type: "Headwear", image: "/shop/merch/dom-merch-hat-action.webp", alt: "DOM embroidered black performance cap on a drone equipment case", copy: "Low-profile branded caps for field crews and everyday wear." },
   { name: "DOM Hoodies", type: "Apparel", image: "/shop/merch/dom-merch-hoodie-action.webp", alt: "DOM branded black zip hoodie displayed beside a drone field trailer", copy: "Cold-weather branded gear for field operations and off-site wear." },
   { name: "DOM Sticker & Decal Packs", type: "Accessories", image: "/shop/merch/dom-merch-decals-action.webp", alt: "Assorted DOM die-cut stickers and decals for drone equipment", copy: "Equipment-case, laptop, trailer, and hard-surface DOM branding." },
@@ -26,14 +26,14 @@ export default function ShopPage() {
 
           <div className="grid grid-cols-2 gap-3 overflow-hidden rounded-3xl border border-white/10 bg-[#111923] p-3 shadow-2xl">
             <div className="relative min-h-[420px] overflow-hidden rounded-2xl">
-              <img src="/shop/merch/dom-merch-tshirt-action.jpg" alt="DOM branded T-shirt worn during a live drone field operation" className="absolute inset-0 h-full w-full object-cover" />
+              <img src="/shop/merch/dom-merch-tshirt-v2.webp" alt="DOM branded crew-neck T-shirt worn during a live drone field operation" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-5 pt-24">
                 <p className="text-xs font-black uppercase tracking-[.18em] text-[#f26a1b]">Field Apparel</p>
                 <p className="mt-1 text-xl font-black">DOM T-Shirt</p>
               </div>
             </div>
             <div className="relative min-h-[420px] overflow-hidden rounded-2xl">
-              <img src="/shop/merch/dom-merch-polo-action.jpg" alt="DOM branded polo worn at a professional drone command station" className="absolute inset-0 h-full w-full object-cover" />
+              <img src="/shop/merch/dom-merch-polo-v2.webp" alt="DOM branded performance polo worn at a professional drone command station" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-5 pt-24">
                 <p className="text-xs font-black uppercase tracking-[.18em] text-[#f26a1b]">Client Facing</p>
                 <p className="mt-1 text-xl font-black">DOM Performance Polo</p>

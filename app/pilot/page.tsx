@@ -22,7 +22,7 @@ interface Profile {
   part107_number: string | null; part107_verified: boolean;
   insurance_verified: boolean; insurance_requested: boolean; stripe_payouts_enabled: boolean;
   stripe_connect_account_id: string | null;
-  service_area: string | null; equipment: string | null;
+  service_area: string | null; home_address: string | null; equipment: string | null;
   missions_completed: number; rating: number | null;
   can_create_missions: boolean; subscription_active: boolean;
   slug: string | null; bio: string | null; tagline: string | null;
@@ -346,6 +346,7 @@ export default function PilotDashboard() {
             accessToken={accessToken}
             subscriptionActive={profile.subscription_active}
             canFinalize={profile.can_create_missions}
+            homeAddress={profile.home_address}
             onCreated={load}
           />
         </>

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { use } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
-import { googleMapsPlaceUrl } from "@/lib/googleMaps";
+import { googleMapsDirectionsUrl, googleMapsPlaceUrl } from "@/lib/googleMaps";
 
 // Admin > Mission detail — view a mission's quote/airspace, advance its status
 // through the mission lifecycle, and offer it to a contractor.
@@ -70,6 +70,7 @@ interface Contractor {
   full_name: string;
   status: string;
   service_area: string | null;
+  home_address: string | null;
   rating: number | null;
   missions_completed: number;
 }
@@ -328,7 +329,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       // unverified contractors from being paid.
       const { data: activeContractors } = await sb
         .from("contractors")
-        .select("id, full_name, status, service_area, rating, missions_completed")
+        .select("id, full_name, status, service_area, home_address, rating, missions_completed")
         .eq("status", "active")
         .eq("part107_verified", true)
         .eq("insurance_verified", true)
@@ -802,6 +803,33 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                       </option>
                     ))}
                   </select>
+                  {selectedContractor && (() => {
+                    const pilot = contractors.find((c) => c.id === selectedContractor);
+                    if (!pilot) return null;
+                    return (
+                      <div style={{ marginTop: 10, padding: 12, borderRadius: 8, border: `1px solid ${pilot.home_address ? V.line : V.warn}`, background: pilot.home_address ? V.raised : "rgba(245,158,11,.07)" }}>
+                        <div style={{ color: V.inkDim, fontSize: 12 }}>
+                          <strong style={{ color: V.ink }}>Assumed pilot start:</strong>{" "}
+                          {pilot.home_address ?? "No home / dispatch address saved in this pilot's profile."}
+                        </div>
+                        {pilot.home_address && mission.location && (
+                          <a
+                            href={googleMapsDirectionsUrl(pilot.home_address, mission.location)}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ display: "inline-block", color: V.signal, fontSize: 12, fontWeight: 600, marginTop: 7 }}
+                          >
+                            Verify home-to-mission route in Google Maps ↗
+                          </a>
+                        )}
+                        {!pilot.home_address && (
+                          <p style={{ color: V.warn, fontSize: 11, marginTop: 6 }}>
+                            Ask the pilot to add their private home address under Pilot Profile before final travel pricing.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <label style={{ fontSize: 12, color: V.inkDim, marginTop: 12, display: "block" }}>
                     Scheduled date (optional)
                   </label>

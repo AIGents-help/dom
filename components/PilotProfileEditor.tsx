@@ -5,7 +5,7 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
 
 // Pilot > Profile tab — editable basic info. These columns (full_name,
-// phone, service_area, equipment, part107_number) are all outside the
+// phone, service_area, equipment, part107_number, home_address) are all outside the
 // enforce_contractor_protected_fields trigger's guarded list, so a direct
 // RLS-permitted update via contractor_update_own is all that's needed —
 // no new API route, same pattern app/admin/contractors/page.tsx's toggle()
@@ -23,6 +23,7 @@ interface Profile {
   phone: string | null;
   part107_number: string | null;
   service_area: string | null;
+  home_address: string | null;
   equipment: string | null;
   rating: number | null;
 }
@@ -36,6 +37,7 @@ export default function PilotProfileEditor({ profile, onSaved }: { profile: Prof
     phone: profile.phone ?? "",
     part107_number: profile.part107_number ?? "",
     service_area: profile.service_area ?? "",
+    home_address: profile.home_address ?? "",
     equipment: profile.equipment ?? "",
   });
 
@@ -51,6 +53,7 @@ export default function PilotProfileEditor({ profile, onSaved }: { profile: Prof
           phone: form.phone.trim() || null,
           part107_number: form.part107_number.trim() || null,
           service_area: form.service_area.trim() || null,
+          home_address: form.home_address.trim() || null,
           equipment: form.equipment.trim() || null,
         })
         .eq("id", profile.id);
@@ -76,6 +79,7 @@ export default function PilotProfileEditor({ profile, onSaved }: { profile: Prof
           <Field label="Phone" value={profile.phone ?? "Not provided"} />
           <Field label="Part 107 #" value={profile.part107_number ?? "Not provided"} />
           <Field label="Service Area" value={profile.service_area ?? "Not set"} />
+          <Field label="Home / Dispatch Address (Private)" value={profile.home_address ?? "Not set"} />
           <Field label="Equipment" value={profile.equipment ?? "Not listed"} />
           <Field label="Rating" value={profile.rating ? `${profile.rating}/5.0` : "No rating yet"} />
         </div>
@@ -102,6 +106,19 @@ export default function PilotProfileEditor({ profile, onSaved }: { profile: Prof
         <div>
           <label style={labelStyle}>Service Area</label>
           <input style={inputStyle} value={form.service_area} onChange={(e) => setForm({ ...form, service_area: e.target.value })} />
+        </div>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <label style={labelStyle}>Home / Dispatch Address — Private</label>
+          <input
+            style={inputStyle}
+            value={form.home_address}
+            onChange={(e) => setForm({ ...form, home_address: e.target.value })}
+            placeholder="123 Main St, City, State ZIP"
+            autoComplete="street-address"
+          />
+          <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 5 }}>
+            Used as your default starting point for mission travel estimates. It is visible only to you and DOM admins and never appears on your public profile.
+          </p>
         </div>
         <div style={{ gridColumn: "1 / -1" }}>
           <label style={labelStyle}>Equipment</label>

@@ -168,6 +168,7 @@ export async function GET(req: NextRequest) {
         stripe_payouts_enabled: contractor.stripe_payouts_enabled,
         stripe_connect_account_id: contractor.stripe_connect_account_id,
         service_area: contractor.service_area,
+        home_address: contractor.home_address,
         equipment: contractor.equipment,
         missions_completed: contractor.missions_completed,
         rating: contractor.rating,

@@ -44,11 +44,13 @@ export default function PilotCreateMissionWizard({
   accessToken,
   subscriptionActive,
   canFinalize,
+  homeAddress,
   onCreated,
 }: {
   accessToken: string;
   subscriptionActive: boolean;
   canFinalize: boolean;
+  homeAddress: string | null;
   onCreated: () => void;
 }) {
   const [step, setStep] = useState<Step>("client");
@@ -88,8 +90,9 @@ export default function PilotCreateMissionWizard({
   const [created, setCreated] = useState<CreatedQuote | null>(null);
 
   useEffect(() => {
-    setTravelOrigin(window.localStorage.getItem("dom_pilot_travel_origin") ?? "");
-  }, []);
+    setTravelOrigin(homeAddress?.trim() ?? "");
+    setDistanceVerified(false);
+  }, [homeAddress]);
 
   const loadServices = useCallback(async () => {
     if (services.length) return;
@@ -301,12 +304,19 @@ export default function PilotCreateMissionWizard({
           {airspace && (
             <div style={{ marginTop: 14, padding: 14, borderRadius: 10, border: `1px solid ${V.line}`, background: "rgba(14,165,233,.05)" }}>
               <div className="font-saira" style={{ fontSize: 14, fontWeight: 600 }}>Verify pilot travel</div>
-              <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>Use your actual starting point. DOM stores the verified mileage—not your private origin address.</p>
-              <label style={{ ...labelStyle, display: "block", marginTop: 10 }}>Your starting address or dispatch point</label>
-              <input style={inputStyle} value={travelOrigin} onChange={(e) => { setTravelOrigin(e.target.value); setDistanceVerified(false); }} placeholder="Your private start address" />
+              <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>
+                Your private profile home address is the default. You can override it for this mission without changing your profile.
+              </p>
+              <label style={{ ...labelStyle, display: "block", marginTop: 10 }}>Starting address or dispatch point</label>
+              <input style={inputStyle} value={travelOrigin} onChange={(e) => { setTravelOrigin(e.target.value); setDistanceVerified(false); }} placeholder="Add a home address in your Profile, or enter a start point" />
+              {!homeAddress?.trim() && (
+                <p style={{ color: V.warn, fontSize: 11, marginTop: 5 }}>
+                  No home address is saved yet. Add one in Profile to prefill this field next time.
+                </p>
+              )}
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
                 <a href={googleMapsPlaceUrl(address)} target="_blank" rel="noreferrer" style={{ ...btnGhost, textDecoration: "none" }}>View job site in Google Maps ↗</a>
-                {travelOrigin.trim() && <a href={googleMapsDirectionsUrl(travelOrigin, address)} target="_blank" rel="noreferrer" onClick={() => window.localStorage.setItem("dom_pilot_travel_origin", travelOrigin.trim())} style={{ ...btnPrimary, textDecoration: "none" }}>Open driving route ↗</a>}
+                {travelOrigin.trim() && <a href={googleMapsDirectionsUrl(travelOrigin, address)} target="_blank" rel="noreferrer" style={{ ...btnPrimary, textDecoration: "none" }}>Open driving route ↗</a>}
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "minmax(160px, 240px) 1fr", gap: 12, alignItems: "end", marginTop: 12 }}>
                 <div>

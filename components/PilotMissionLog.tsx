@@ -285,7 +285,7 @@ export default function PilotMissionLog({
               </div>
             </div>
             <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 9 }}>Client scope, location, and pricing remain locked to the DOM-approved mission.</p>
-            <button onClick={saveOperations} disabled={savingOperations || !selectedAssessment?.compatible || !["accepted", "in_progress", "submitted"].includes(assignmentStatus)} style={{ ...btnPrimary, marginTop: 12, opacity: selectedAssessment?.compatible && ["accepted", "in_progress", "submitted"].includes(assignmentStatus) ? 1 : .5 }}>
+            <button onClick={saveOperations} disabled={savingOperations || !selectedAssessment?.compatible || !["accepted", "scheduled", "in_progress", "submitted"].includes(assignmentStatus)} style={{ ...btnPrimary, marginTop: 12, opacity: selectedAssessment?.compatible && ["accepted", "scheduled", "in_progress", "submitted"].includes(assignmentStatus) ? 1 : .5 }}>
               {savingOperations ? "Saving…" : "Save Mission Updates"}
             </button>
           </div>

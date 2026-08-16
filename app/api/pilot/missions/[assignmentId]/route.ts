@@ -4,7 +4,7 @@ import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
 import { sendClientMissionUpdate } from "@/lib/resend/clientMissionUpdates";
 import { assessMissionEquipment, equipmentChoices } from "@/lib/missionEquipmentGuidance";
 
-const EDITABLE_STATUSES = new Set(["accepted", "in_progress", "submitted"]);
+const EDITABLE_STATUSES = new Set(["accepted", "scheduled", "in_progress", "submitted"]);
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ assignmentId: string }> }) {
   try {

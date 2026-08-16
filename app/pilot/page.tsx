@@ -61,6 +61,7 @@ type Tab = PilotTab;
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
   offered: { bg: "rgba(229,112,31,.07)", text: "#B45309", border: "#E5701F" },
   accepted: { bg: "rgba(14,165,233,.07)", text: "#0369A1", border: "#0EA5E9" },
+  scheduled: { bg: "rgba(13,148,136,.08)", text: "#0F766E", border: "#0D9488" },
   in_progress: { bg: "rgba(37,99,235,.07)", text: "#1D4ED8", border: "#2563EB" },
   submitted: { bg: "rgba(124,58,237,.07)", text: "#6D28D9", border: "#7C3AED" },
   qc_passed: { bg: "rgba(22,163,74,.08)", text: "#15803D", border: "#16A34A" },
@@ -68,7 +69,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
   declined: { bg: "rgba(95,107,122,.07)", text: "#475569", border: "#64748B" },
   cancelled: { bg: "rgba(220,38,38,.055)", text: "#B91C1C", border: "#DC2626" },
 };
-const PILOT_LEGEND = [["Offered", "#E5701F"], ["Accepted", "#0EA5E9"], ["In progress", "#2563EB"], ["Submitted", "#7C3AED"], ["Completed / paid", "#16A34A"], ["Declined", "#64748B"], ["Cancelled", "#DC2626"]] as const;
+const PILOT_LEGEND = [["Offered", "#E5701F"], ["Accepted", "#0EA5E9"], ["Scheduled", "#0D9488"], ["In progress", "#2563EB"], ["Submitted", "#7C3AED"], ["Completed / paid", "#16A34A"], ["Declined", "#64748B"], ["Cancelled", "#DC2626"]] as const;
 const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
@@ -272,7 +273,7 @@ export default function PilotDashboard() {
   const cleared = profile.part107_verified && profile.insurance_verified;
   const activeAssignments = assignments.filter((a) => !["paid", "cancelled"].includes(a.status));
   const sortedAssignments = assignments.filter((a) => {
-    if (missionFilter === "action") return ["offered", "accepted", "in_progress", "submitted"].includes(a.status);
+    if (missionFilter === "action") return ["offered", "accepted", "scheduled", "in_progress", "submitted"].includes(a.status);
     if (missionFilter === "complete") return ["qc_passed", "paid"].includes(a.status);
     if (missionFilter === "inactive") return ["declined", "cancelled"].includes(a.status);
     return true;
@@ -282,7 +283,7 @@ export default function PilotDashboard() {
     if (missionSort === "scheduled") return (aj?.scheduled_for ? new Date(aj.scheduled_for).getTime() : Number.MAX_SAFE_INTEGER) - (bj?.scheduled_for ? new Date(bj.scheduled_for).getTime() : Number.MAX_SAFE_INTEGER);
     if (missionSort === "payout") return (b.contractor_payout_cents ?? 0) - (a.contractor_payout_cents ?? 0);
     if (missionSort === "newest") return new Date(b.offered_at).getTime() - new Date(a.offered_at).getTime();
-    const priority: Record<string, number> = { offered: 0, accepted: 1, in_progress: 2, submitted: 3, qc_passed: 4, paid: 5, declined: 6, cancelled: 7 };
+    const priority: Record<string, number> = { offered: 0, accepted: 1, scheduled: 2, in_progress: 3, submitted: 4, qc_passed: 5, paid: 6, declined: 7, cancelled: 8 };
     return (priority[a.status] ?? 9) - (priority[b.status] ?? 9);
   });
   const totalEarned = payouts.filter((p) => ["captured", "paid_out"].includes(p.status)).reduce((s, p) => s + p.contractor_amount_cents, 0);
@@ -443,7 +444,6 @@ export default function PilotDashboard() {
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <span className="font-mono-ibm" style={{ fontSize: 10, padding: "4px 9px", borderRadius: 20, background: sc.bg, color: sc.text, letterSpacing: ".06em", textTransform: "uppercase" }}>{a.status.replace("_", " ")}</span>
-                    {job?.scheduled_for && <div style={{ color: V.telemetry, fontSize: 10, fontWeight: 700, marginTop: 6 }}>SCHEDULED</div>}
                     {readinessIncomplete && <div title="The date is set, but required readiness items remain incomplete" style={{ color: V.danger, fontSize: 10, fontWeight: 700, marginTop: 4 }}>⛔ READINESS INCOMPLETE</div>}
                     {a.contractor_payout_cents && <div className="font-mono-ibm" style={{ fontSize: 16, color: V.telemetry, marginTop: 8, fontWeight: 500 }}>${(a.contractor_payout_cents / 100).toFixed(2)}</div>}
                   </div>

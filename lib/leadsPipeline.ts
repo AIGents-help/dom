@@ -228,7 +228,7 @@ export const STATUS_OPTIONS = [
   { value: "follow_up", label: "Follow-up", color: "border-orange-500 bg-orange-500/10 text-orange-700" },
   { value: "qualified", label: "Qualified", color: "border-teal-500 bg-teal-500/10 text-teal-700" },
   { value: "proposal", label: "Proposal", color: "border-purple-500 bg-purple-500/10 text-purple-700" },
-  { value: "won", label: "Won", color: "border-green-500 bg-green-500/10 text-green-700" },
+  { value: "won", label: "Client / Active", color: "border-green-500 bg-green-500/10 text-green-700" },
   { value: "no_response", label: "No Response", color: "border-slate-600 bg-slate-600/10 text-slate-600" },
   { value: "lost", label: "Lost", color: "border-rose-500 bg-rose-500/10 text-rose-700" },
   { value: "do_not_contact", label: "Do Not Contact", color: "border-red-600 bg-red-600/10 text-red-700" },

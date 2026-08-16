@@ -477,7 +477,7 @@ export default function LeadsWorkspace() {
     if (!leadForm.engagement_model) { showToast("Engagement model is required.", "error"); return; }
     if (!leadForm.opportunity_ownership) { showToast("Opportunity ownership is required.", "error"); return; }
     if (!leadForm.status) { showToast("Status is required.", "error"); return; }
-    if (!leadForm.next_action.trim()) { showToast("Next action is required.", "error"); return; }
+    if (leadForm.status !== "won" && !leadForm.next_action.trim()) { showToast("Next action is required unless this is already an active client.", "error"); return; }
     if (addLeadDuplicates.length > 0) {
       const proceed = window.confirm(
         `This looks like it might be a duplicate of ${addLeadDuplicates.map((m) => m.lead.company ?? m.lead.name).join(", ")}. Add it anyway?`
@@ -497,16 +497,24 @@ export default function LeadsWorkspace() {
     }).select("id").single();
     if (error || !inserted) { showToast(error?.message ?? "Couldn't save lead.", "error"); setBusy(null); return; }
 
-    await sb.from("lead_next_actions").insert({
-      lead_id: inserted.id, action_type: leadForm.next_action, status: "open",
-      due_at: leadForm.next_follow_up_at || null,
-    });
+    if (leadForm.status === "won") {
+      const { error: clientError } = await sb.from("clients").insert({
+        lead_id: inserted.id, company_name: leadForm.company, contact_name: leadForm.name,
+        email: leadForm.email || null, phone: leadForm.phone || null, industry: leadForm.industry || null,
+      });
+      if (clientError) { await sb.from("leads").delete().eq("id", inserted.id); showToast(clientError.message, "error"); setBusy(null); return; }
+    } else if (leadForm.next_action.trim()) {
+      await sb.from("lead_next_actions").insert({
+        lead_id: inserted.id, action_type: leadForm.next_action, status: "open",
+        due_at: leadForm.next_follow_up_at || null,
+      });
+    }
 
     setBusy(null);
     setLeadForm(emptyLeadForm);
     setShowAddLead(false);
     setShowMoreFields(false);
-    showToast("Lead added.");
+    showToast(leadForm.status === "won" ? "Active client added." : "Lead added.");
     await load();
   }
 
@@ -791,7 +799,7 @@ export default function LeadsWorkspace() {
                 </select>
               </div>
               <div className="sm:col-span-2 lg:col-span-3">
-                <label className={labelCls}>Next action *</label>
+                <label className={labelCls}>Next action {leadForm.status === "won" ? "(optional for active clients)" : "*"}</label>
                 <input className={inputCls} placeholder='e.g. "Call Tuesday", "Send quote", "Wait for reply"' value={leadForm.next_action} onChange={(e) => setLeadForm((f) => ({ ...f, next_action: e.target.value }))} />
               </div>
             </div>

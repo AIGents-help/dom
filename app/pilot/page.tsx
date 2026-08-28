@@ -14,6 +14,8 @@ import VerificationDeadlineBanner from "@/components/VerificationDeadlineBanner"
 import SopViewer from "@/components/SopViewer";
 import { sopMarkdownToHtml } from "@/lib/sopMarkdown";
 import MappingTab from "@/components/mapper/MappingTab";
+import PilotAssetsTab from "@/components/PilotAssetsTab";
+import MissionAssetPicker from "@/components/MissionAssetPicker";
 import { V } from "@/lib/theme";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 import MissionMapThumbnail from "@/components/MissionMapThumbnail";
@@ -459,7 +461,7 @@ export default function PilotDashboard() {
                   </div>
                 )}
                 {a.status !== "offered" && a.status !== "declined" && job && (
-                  <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap", alignItems: "flex-start" }}>
                     <button onClick={() => setMissionLogAssignment(a)} style={btnGhost}>
                       Open Mission →
                     </button>
@@ -475,6 +477,9 @@ export default function PilotDashboard() {
                       >
                         View SOP →
                       </button>
+                    )}
+                    {(a.status === "accepted" || a.status === "in_progress") && accessToken && (
+                      <MissionAssetPicker accessToken={accessToken} assignmentId={a.id} />
                     )}
                   </div>
                 )}
@@ -492,6 +497,8 @@ export default function PilotDashboard() {
       {tab === "mapping" && accessToken && <MappingTab accessToken={accessToken} />}
       {tab === "crm" && <PilotCRM />}
       {tab === "support" && <PilotSupportCenter />}
+
+      {tab === "assets" && accessToken && <PilotAssetsTab accessToken={accessToken} />}
 
       {tab === "sops" && (
         <div style={{ display: "grid", gap: 10 }}>

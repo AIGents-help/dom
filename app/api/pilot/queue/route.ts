@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
 import { fuzzyGrid } from "@/lib/fuzzyLocation";
+import { computeEligibility } from "@/lib/pilotAssetsPipeline";
+import { getContractorActiveCapabilities, getServiceTypeRequirements } from "@/lib/pilotAssetsServer";
 
 // GET /api/pilot/queue
 // Open mission queue — any verified pilot can browse approved-but-unclaimed
@@ -68,16 +70,37 @@ export async function GET(req: NextRequest) {
       if (!payoutByMission.has(q.mission_request_id)) payoutByMission.set(q.mission_request_id, q.contractor_cents);
     }
 
-    const queue = (missions ?? []).map((m) => ({
-      id: m.id,
-      service_type: m.service_type,
-      status: m.status,
-      created_at: m.created_at,
-      scheduled_date: m.scheduled_date,
-      airspace_class: m.airspace_class,
-      area: fuzzyGrid(m.latitude, m.longitude),
-      payout_cents: payoutByMission.get(m.id) ?? null,
-    }));
+    // Equipment-based eligibility (issue #15) — same computeEligibility()
+    // pure function the claim route uses to actually enforce this, so
+    // display and enforcement can never silently disagree. This is
+    // display/filtering only; the browser is never trusted to decide
+    // eligibility for the actual claim (see /api/pilot/queue/[id]/claim).
+    const [activeCapabilities, { data: allRequirements }] = await Promise.all([
+      getContractorActiveCapabilities(admin, contractor.id),
+      admin.from("mission_capability_requirements").select("service_type, capability, required"),
+    ]);
+    const requirementsByServiceType = new Map<string, { capability: string; required: boolean }[]>();
+    for (const r of allRequirements ?? []) {
+      const list = requirementsByServiceType.get(r.service_type) ?? [];
+      list.push({ capability: r.capability, required: r.required });
+      requirementsByServiceType.set(r.service_type, list);
+    }
+
+    const queue = (missions ?? []).map((m) => {
+      const requirements = requirementsByServiceType.get(m.service_type) ?? [];
+      const eligibility = computeEligibility(requirements, activeCapabilities);
+      return {
+        id: m.id,
+        service_type: m.service_type,
+        status: m.status,
+        created_at: m.created_at,
+        scheduled_date: m.scheduled_date,
+        airspace_class: m.airspace_class,
+        area: fuzzyGrid(m.latitude, m.longitude),
+        payout_cents: payoutByMission.get(m.id) ?? null,
+        eligibility,
+      };
+    });
 
     return NextResponse.json({ queue });
   } catch (e: any) {

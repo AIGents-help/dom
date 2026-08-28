@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import PilotAssetSearchPanel from "@/components/admin/PilotAssetSearchPanel";
 
 // Admin > Contractors. Gated by Supabase Auth + admin allowlist (RLS enforces it server-side).
 // Lets you flip the Part 107 / insurance verification gates that /api/checkout enforces.
@@ -156,6 +157,8 @@ export default function AdminContractorsPage() {
         <h1 style={{ fontFamily: "Saira, sans-serif", fontSize: 26 }}>Contractors</h1>
         <span style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 12, color: "#8A95A7" }}>{rows.length} total</span>
       </div>
+
+      <PilotAssetSearchPanel />
 
       {rows.length > 0 && (() => {
         const unverified = rows.filter((c) => !c.part107_verified && c.membership_deadline);

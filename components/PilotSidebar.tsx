@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
 // Navy nav shell with light text + blue active state (DOM light theme).
 const V = { surface: "#172033", line: "rgba(255,255,255,0.08)", ink: "#FFFFFF", inkDim: "#AEB7C4", inkFaint: "#8A95A7", signal: "#FFFFFF" };
 
-export type PilotTab = "missions" | "crm" | "support" | "queue" | "create" | "mapping" | "publicprofile" | "resources" | "sops" | "payouts" | "profile";
+export type PilotTab = "missions" | "crm" | "support" | "queue" | "create" | "mapping" | "assets" | "publicprofile" | "resources" | "sops" | "payouts" | "profile";
 
 // The open Mission Queue is built but stays dark (hidden from nav) until
 // escrow ships in a later PR — an open claim queue without payment
@@ -26,6 +26,12 @@ const QUEUE_ENABLED = process.env.NEXT_PUBLIC_MISSION_QUEUE_ENABLED === "true";
 // once that's set up.
 const MAPPER_ENABLED = process.env.NEXT_PUBLIC_MAPPER_ENABLED === "true";
 
+// Pilot Asset Inventory (issue #15) — same "ship dark, flip flag" pattern.
+// Structured asset/equipment records feed queue eligibility matching, so
+// this stays out of the nav until pilots are ready to start filling in
+// their inventory. Flip NEXT_PUBLIC_PILOT_ASSETS_ENABLED=true to turn it on.
+const ASSETS_ENABLED = process.env.NEXT_PUBLIC_PILOT_ASSETS_ENABLED === "true";
+
 const ITEMS: { id: PilotTab; label: string; icon: string }[] = [
   { id: "missions", label: "Missions", icon: "▤" },
   { id: "crm", label: "My CRM", icon: "☍" },
@@ -33,6 +39,7 @@ const ITEMS: { id: PilotTab; label: string; icon: string }[] = [
   ...(QUEUE_ENABLED ? [{ id: "queue" as PilotTab, label: "Queue", icon: "◫" }] : []),
   { id: "create", label: "Create Mission", icon: "✎" },
   ...(MAPPER_ENABLED ? [{ id: "mapping" as PilotTab, label: "Mapping", icon: "▦" }] : []),
+  ...(ASSETS_ENABLED ? [{ id: "assets" as PilotTab, label: "Assets", icon: "✈" }] : []),
   { id: "publicprofile", label: "Public Profile", icon: "◈" },
   { id: "resources", label: "Resources", icon: "⬡" },
   { id: "sops", label: "SOPs", icon: "☰" },

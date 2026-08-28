@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import PublicQuoteWizard from "@/components/PublicQuoteWizard";
+import { toPublicAsset, ASSET_TYPES, CAPABILITY_LABELS, type PublicPilotAsset } from "@/lib/pilotAssetsPipeline";
 
 // Public pilot profile — /pilots/[slug]. Server Component (not client) since
 // this is public marketing content and benefits from SEO metadata, unlike
@@ -65,6 +66,20 @@ export default async function PilotProfilePage({ params }: Props) {
     .eq("contractor_id", pilot.id)
     .order("sort_order");
 
+  // Public asset/capability projection — toPublicAsset() is the one
+  // function that decides what leaves the private set (never serials,
+  // registration numbers, Remote ID, acquisition dates, or notes), applied
+  // here identically to how the pilot dashboard's own preview would.
+  const { data: rawAssets } = await admin
+    .from("pilot_assets")
+    .select("id, asset_type, display_name, manufacturer, model, public_description, status, public_visible, archived_at, pilot_asset_capabilities(capability)")
+    .eq("contractor_id", pilot.id)
+    .eq("public_visible", true)
+    .is("archived_at", null);
+  const publicAssets: PublicPilotAsset[] = (rawAssets ?? [])
+    .map((a) => toPublicAsset(a, (a.pilot_asset_capabilities ?? []).map((c: { capability: string }) => c.capability)))
+    .filter((a): a is PublicPilotAsset => a !== null);
+
   const firstName = pilot.full_name.split(" ")[0];
 
   return (
@@ -111,6 +126,33 @@ export default async function PilotProfilePage({ params }: Props) {
                 Visit website →
               </a>
             )}
+          </div>
+        </section>
+      )}
+
+      {publicAssets.length > 0 && (
+        <section className="section border-t border-border">
+          <div className="container-app">
+            <p className="eyebrow mb-6">Equipment</p>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {publicAssets.map((a) => (
+                <div key={a.id} className="card p-5">
+                  <p className="font-semibold text-ink">
+                    {a.display_name || [a.manufacturer, a.model].filter(Boolean).join(" ") || ASSET_TYPES.find((t) => t.value === a.asset_type)?.label}
+                  </p>
+                  {a.public_description && <p className="body-muted mt-2 text-sm">{a.public_description}</p>}
+                  {a.capabilities.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {a.capabilities.map((c) => (
+                        <span key={c} className="rounded-full border border-border px-2.5 py-1 text-xs text-ink">
+                          {CAPABILITY_LABELS[c] ?? c}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         </section>
       )}

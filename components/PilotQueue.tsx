@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { V } from "@/lib/theme";
+import { eligibilityReason, type EligibilityResult } from "@/lib/pilotAssetsPipeline";
 
 // Pilot > Queue — the open mission marketplace. Combines /api/pilot/queue
 // (approved, unclaimed missions anyone verified can request) with the
@@ -20,8 +20,15 @@ interface QueueItem {
   id: string; service_type: string | null; status: string; created_at: string;
   scheduled_date: string | null; airspace_class: string | null;
   area?: QueueArea | null; payout_cents?: number | null;
+  eligibility?: EligibilityResult | null;
 }
 type SortKey = "status" | "location" | "payout";
+
+const FIT_STYLE: Record<string, { label: string; color: string; bg: string }> = {
+  eligible: { label: "Eligible", color: V.telemetry, bg: "rgba(22,163,74,.12)" },
+  partial: { label: "Partial fit", color: V.warn, bg: "rgba(229,112,31,.12)" },
+  not_equipped: { label: "Not equipped", color: V.danger, bg: "rgba(220,38,38,.12)" },
+};
 
 export default function PilotQueue({
   accessToken,
@@ -37,6 +44,7 @@ export default function PilotQueue({
   const [error, setError] = useState<string | null>(null);
   const [claiming, setClaiming] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("status");
+  const [eligibleOnly, setEligibleOnly] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -61,10 +69,16 @@ export default function PilotQueue({
   async function claim(id: string) {
     setClaiming(id);
     setError(null);
-    const sb = getSupabaseBrowser();
-    const { error: rpcError } = await sb.rpc("pilot_request_mission", { p_mission_request_id: id });
-    if (rpcError) {
-      setError(rpcError.message);
+    // Routed through the server (never a direct RPC call from the browser)
+    // so equipment eligibility is actually enforced, not just displayed —
+    // see app/api/pilot/queue/[id]/claim/route.ts.
+    const res = await fetch(`/api/pilot/queue/${id}/claim`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error ?? "Could not request this mission.");
       setClaiming(null);
       return;
     }
@@ -83,16 +97,23 @@ export default function PilotQueue({
     ...myClaims.map((m) => ({ ...m, mine: true })),
   ];
 
-  const sorted = [...combined].sort((a, b) => {
-    if (sortKey === "status") return a.mine === b.mine ? 0 : a.mine ? 1 : -1;
-    if (sortKey === "payout") return (b.payout_cents ?? 0) - (a.payout_cents ?? 0);
-    if (sortKey === "location") {
-      const la = a.area ? `${a.area.lat_grid},${a.area.lng_grid}` : "";
-      const lb = b.area ? `${b.area.lat_grid},${b.area.lng_grid}` : "";
-      return la.localeCompare(lb);
-    }
-    return 0;
-  });
+  const sorted = useMemo(
+    () =>
+      [...combined]
+        .filter((m) => !eligibleOnly || m.mine || !m.eligibility || m.eligibility.eligible)
+        .sort((a, b) => {
+          if (sortKey === "status") return a.mine === b.mine ? 0 : a.mine ? 1 : -1;
+          if (sortKey === "payout") return (b.payout_cents ?? 0) - (a.payout_cents ?? 0);
+          if (sortKey === "location") {
+            const la = a.area ? `${a.area.lat_grid},${a.area.lng_grid}` : "";
+            const lb = b.area ? `${b.area.lat_grid},${b.area.lng_grid}` : "";
+            return la.localeCompare(lb);
+          }
+          return 0;
+        }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [combined, sortKey, eligibleOnly]
+  );
 
   return (
     <div>
@@ -101,7 +122,22 @@ export default function PilotQueue({
           Browse open missions and request the ones you want. A request doesn't assign it —
           admin reviews and confirms before it's yours.
         </p>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {([{ v: false, label: "Show all missions" }, { v: true, label: "Show missions I can perform" }] as const).map((opt) => (
+            <button
+              key={String(opt.v)}
+              onClick={() => setEligibleOnly(opt.v)}
+              className="font-mono-ibm"
+              style={{
+                fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer", textTransform: "uppercase",
+                border: `1px solid ${eligibleOnly === opt.v ? V.signal : V.line}`,
+                background: eligibleOnly === opt.v ? "rgba(244,90,30,.12)" : "transparent",
+                color: eligibleOnly === opt.v ? V.signal : V.inkFaint,
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
           {(["status", "location", "payout"] as SortKey[]).map((k) => (
             <button
               key={k}
@@ -140,6 +176,21 @@ export default function PilotQueue({
                   {m.area ? `~${m.area.lat_grid}, ${m.area.lng_grid}` : "Area TBD"} · {m.airspace_class ?? "Airspace TBD"}
                   {m.scheduled_date && ` · ${new Date(m.scheduled_date).toLocaleDateString()}`}
                 </div>
+                {m.eligibility && m.eligibility.fit !== "eligible" && !m.mine && (
+                  <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                    <span
+                      className="font-mono-ibm"
+                      style={{
+                        fontSize: 10, padding: "3px 8px", borderRadius: 20, letterSpacing: ".05em", textTransform: "uppercase",
+                        background: FIT_STYLE[m.eligibility.fit]?.bg ?? "transparent",
+                        color: FIT_STYLE[m.eligibility.fit]?.color ?? V.inkFaint,
+                      }}
+                    >
+                      {FIT_STYLE[m.eligibility.fit]?.label ?? m.eligibility.fit}
+                    </span>
+                    <span style={{ fontSize: 12, color: V.inkFaint }}>{eligibilityReason(m.eligibility)}</span>
+                  </div>
+                )}
               </div>
               <div style={{ textAlign: "right" }}>
                 {m.payout_cents != null && (
@@ -152,8 +203,13 @@ export default function PilotQueue({
                     Awaiting review
                   </span>
                 ) : (
-                  <button onClick={() => claim(m.id)} disabled={claiming === m.id} style={{ ...btnPrimary, marginTop: 8 }}>
-                    {claiming === m.id ? "…" : "Request →"}
+                  <button
+                    onClick={() => claim(m.id)}
+                    disabled={claiming === m.id || m.eligibility?.fit === "not_equipped"}
+                    title={m.eligibility?.fit === "not_equipped" ? eligibilityReason(m.eligibility) ?? undefined : undefined}
+                    style={{ ...btnPrimary, marginTop: 8, opacity: m.eligibility?.fit === "not_equipped" ? 0.5 : 1, cursor: m.eligibility?.fit === "not_equipped" ? "not-allowed" : "pointer" }}
+                  >
+                    {claiming === m.id ? "…" : m.eligibility?.fit === "not_equipped" ? "Not equipped" : "Request →"}
                   </button>
                 )}
               </div>

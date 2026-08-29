@@ -74,36 +74,87 @@ missing.
 
 Everything in `src/googleDrive.ts` is wired up and shipped, but it stays
 off (falls back to the original Supabase-only path) until you do this
-one-time, interactive setup in the Google Cloud / Drive consoles — nothing
-here can be done from code or CLI on your behalf:
+one-time, interactive setup — nothing here can be done from code or CLI on
+your behalf.
+
+**Why OAuth, not a service account:** a bare Google service account has no
+Drive storage quota of its own (confirmed against Google's current Drive
+API docs) — it cannot own files on a personal Google One account, only on
+files it's been explicitly granted access to (a Shared Drive, which is a
+Google Workspace feature). Since DOM's Drive archive lives on the owner's
+own personal Google account, this integration authenticates as that human
+account via OAuth 2.0 instead. A Workspace service account + Shared Drive
+is still supported as an optional fallback (`GOOGLE_DRIVE_CLIENT_EMAIL`/
+`GOOGLE_DRIVE_PRIVATE_KEY`/`GOOGLE_DRIVE_SHARED_DRIVE_ID`, only used if the
+OAuth vars below are unset) for a future enterprise setup.
+
+### 1. Create a Google Cloud OAuth client (one time)
 
 1. In [Google Cloud Console](https://console.cloud.google.com/), create (or
-   reuse) a project, enable the **Google Drive API** for it, then create a
-   **Service Account** (IAM & Admin → Service Accounts → Create).
-2. On that service account, create a **JSON key** and download it. Copy its
-   `client_email` into `GOOGLE_DRIVE_CLIENT_EMAIL` and its `private_key`
-   into `GOOGLE_DRIVE_PRIVATE_KEY` (both in `.env.local` here, and the same
-   two vars in the main app's `.env.local`/Vercel project settings — the app
-   needs read access to stream downloads, the worker needs write access to
-   upload).
-3. In Google Drive, create a **Shared Drive** (recommended — a service
-   account has no storage quota of its own on a regular "My Drive", so a
-   plain shared folder can silently fail on upload) named e.g. "DOM Drone
-   Operations Archive", and add the service account's email as a **Member**
-   with **Content Manager** access.
-4. Copy that Shared Drive's id (the part of its URL after
-   `/drive/folders/`) into both `GOOGLE_DRIVE_ROOT_PARENT_ID` and
-   `GOOGLE_DRIVE_SHARED_DRIVE_ID`.
-5. Restart the worker (and redeploy the app, if `GOOGLE_DRIVE_CLIENT_EMAIL`/
-   `GOOGLE_DRIVE_PRIVATE_KEY` changed there too). The next processing job
-   creates `DOM Drone Operations/Customers/<Customer>/<Job - Date>/01_Raw_Images/`
-   etc. under that Shared Drive automatically and reuses the same folders on
-   every subsequent job/retry (cached on `mapping_projects.drive_folder_ids`).
+   reuse) a project, then enable the **Google Drive API** for it
+   (APIs & Services → Library → search "Google Drive API" → Enable).
+2. Go to **APIs & Services → OAuth consent screen**. Choose **External**
+   user type (this is fine even for single-owner use), fill in the required
+   fields, and add your own Google account under **Test users** — this
+   keeps the app in "Testing" mode, which is sufficient here and avoids
+   Google's app-verification review.
+3. Go to **APIs & Services → Credentials → Create Credentials → OAuth
+   client ID**. Application type: **Desktop app** (this type allows
+   `http://localhost` redirect URIs with no pre-registration, which is
+   what the local authorization script below needs). Name it something
+   like "DOM Mapper Drive Archive".
+4. Copy the generated **Client ID** and **Client Secret** into
+   `GOOGLE_DRIVE_CLIENT_ID` / `GOOGLE_DRIVE_CLIENT_SECRET` in `.env.local`
+   here (and the same two vars in the main app's `.env.local`/Vercel
+   project settings — the app's download proxy needs them too).
 
-If any of `GOOGLE_DRIVE_CLIENT_EMAIL` / `GOOGLE_DRIVE_PRIVATE_KEY` /
-`GOOGLE_DRIVE_ROOT_PARENT_ID` is unset, `isDriveConfigured()` returns false
-and processing jobs upload to `mission-deliverables` exactly as before this
-feature — nothing breaks either way.
+### 2. Run the one-time authorization script
+
+```
+cd services/mapper-worker
+npm run authorize:drive
+```
+
+This prints a Google sign-in URL (and tries to open it in your default
+browser automatically). Sign in with **the Google account DOM's Drive
+archive should live in** and approve access. The script receives the
+authorization code on a temporary local server
+(`http://127.0.0.1:53682/oauth2callback` — configurable via
+`GOOGLE_DRIVE_AUTHORIZE_PORT` if that port's in use), exchanges it for a
+refresh token, and prints it. The script never writes any file itself —
+copy the printed value into `GOOGLE_DRIVE_REFRESH_TOKEN` in `.env.local`
+here **and** in the main app's env, yourself.
+
+### 3. Set the root folder and restart
+
+`GOOGLE_DRIVE_ROOT_PARENT_ID` is the id of the folder (in the now-
+authorized account's own Drive) that `DOM Drone Operations` gets created/
+reused directly inside. Use the literal value `root` to mean the very top
+of that account's My Drive, or paste a specific folder's id from its
+Google Drive URL (`.../folders/<this part>`) if you'd rather nest it
+somewhere.
+
+Restart the worker (and redeploy the app, since it needs the same three
+OAuth vars too). The next processing job creates
+`DOM Drone Operations/Customers/<Customer>/<Job - Date>/01_Raw_Images/` etc.
+under that account's Drive automatically, owned by that account (so it
+counts against its Google One storage as intended) and reuses the same
+folders on every subsequent job/retry (cached on
+`mapping_projects.drive_folder_ids`).
+
+If any of `GOOGLE_DRIVE_CLIENT_ID` / `GOOGLE_DRIVE_CLIENT_SECRET` /
+`GOOGLE_DRIVE_REFRESH_TOKEN` / `GOOGLE_DRIVE_ROOT_PARENT_ID` is unset (and
+the service-account fallback vars are also unset), `isDriveConfigured()`
+returns false and processing jobs upload to `mission-deliverables` exactly
+as before this feature — nothing breaks either way.
+
+**Security:** the refresh token is a long-lived credential for that Google
+account's Drive access — treat it like a password. It only ever lives in
+`.env.local` / your deployment platform's secret store, is read only by
+server-side code (`services/mapper-worker/src/env.ts`, and the main app's
+API routes — never a `NEXT_PUBLIC_*` var, never sent to the browser), and
+is never written to any file by the authorization script or committed to
+the repo.
 
 ## Point cloud viewer conversion (optional — required for the Potree viewer)
 

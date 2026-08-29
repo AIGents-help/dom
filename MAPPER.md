@@ -87,15 +87,68 @@ completed | failed | cancelled`.
 
 ## Storage
 
-- `mapping-uploads` (new, private) — raw source imagery only.
-- `mission-deliverables` (existing, private) — finished outputs. No second
-  finished-output system.
+- `mapping-uploads` (new, private) — raw source imagery staging. Pilots
+  upload here first (TUS, see below); the worker then archives to Drive
+  when Drive is configured (see "Google Drive archive layer").
+- `mission-deliverables` (existing, private) — finished outputs when Drive
+  isn't configured. No second finished-output system.
+- `mapper-potree` (new, private) — Potree 2.x octree derivatives
+  (metadata.json/octree.bin/hierarchy.bin) of a point_cloud deliverable's
+  master LAZ. Always Supabase Storage regardless of where the master LAZ
+  itself lives, because the point cloud viewer's many small, repeated,
+  Range-requested reads need a real signed-URL-with-Range backend, not a
+  per-request proxy — see that bucket's migration comment.
 - Uploads are direct-to-storage via Supabase's officially documented
   resumable (TUS) protocol (`tus-js-client`), never through a Vercel
   function body. Chunk size is fixed at 6MB per Supabase's own requirement.
 - Downloads (both raw imagery in the worker, and finished outputs in the
-  pilot UI) use signed URLs / the service-role client — no public bucket
-  anywhere in this feature.
+  pilot UI) use signed URLs / the service-role client for Supabase-backed
+  files, or the authorized streaming proxy for Drive-backed files (see
+  below) — no public bucket and no public Drive file anywhere in this
+  feature.
+
+### Google Drive archive layer
+
+Optional, opt-in heavy-data archive: raw imagery, orthomosaic masters,
+point cloud master LAZ, 3D models, DSM/DTM, and reports move to Google
+Drive when configured; Supabase then keeps only metadata, queue state, and
+small deliverable rows. Unconfigured (the default) means every mapper
+deliverable stays on Supabase Storage exactly as this feature originally
+shipped — nothing breaks either way.
+
+Auth is OAuth 2.0 on behalf of the DOM owner's own Google account (not a
+service account) — Google's service accounts have no Drive storage quota
+of their own, so they can't own files on a personal Google One account.
+See `services/mapper-worker/README.md`'s "Google Drive setup" for the
+one-time Google Cloud Console + `npm run authorize:drive` steps
+(`GOOGLE_DRIVE_CLIENT_ID`/`GOOGLE_DRIVE_CLIENT_SECRET`/
+`GOOGLE_DRIVE_REFRESH_TOKEN`/`GOOGLE_DRIVE_ROOT_PARENT_ID`). A Workspace
+service account + Shared Drive remains available as an optional future
+enterprise auth mode.
+
+The worker auto-creates/reuses this folder tree per mapping project
+(`services/mapper-worker/src/googleDrive.ts`'s `resolveProjectFolders()`,
+cached on `mapping_projects.drive_folder_ids` so retries never duplicate
+folders):
+
+```
+DOM Drone Operations/
+  Customers/
+    <Customer Name>/
+      <Job Name - Date>/
+        01_Raw_Images/
+        02_Orthomosaic/
+        03_Point_Cloud/
+        04_3D_Model/
+        05_Elevation/
+        06_Reports/
+```
+
+Drive-backed files are private (never made public); the pilot UI's
+download button resolves a short-lived signed proxy URL server-side
+(`app/api/pilot/mapping/projects/[id]/deliverables/[deliverableId]/download/file`),
+which streams the bytes through an authenticated route rather than
+exposing any Drive credential to the browser.
 
 ## Processing queue
 
@@ -148,15 +201,27 @@ find is simply skipped (logged), not a hard failure.
 
 ## Known limitations / next checkpoint
 
-- **Viewers are structure-only.** `OrthomosaicViewer`/`Model3DViewer`/`PointCloudViewer`
-  have real props/data contracts (a signed URL, a name) but no real
-  map/3D/point-cloud rendering yet (no MapLibre/three.js/Potree dependency
-  added this pass, deliberately — see the architecture decision).
-- **No GCP or measurement UI yet**, though `mapping_gcps` and
-  `mapping_measurements` tables + RLS exist and are ready for it.
-- **No ODM processing-options picker in the UI** — projects queue with
-  NodeODM's defaults; `mapping_processing_jobs.options` is ready to carry
-  per-project overrides once that UI exists.
+- **Point cloud viewer needs PotreeConverter installed on the worker
+  machine.** `PointCloudViewer` is a real potree-core/three.js viewer, but
+  the worker's conversion step (`convertPointCloud.ts`) is skipped and
+  logged (not a hard failure) if the `PotreeConverter` binary isn't present
+  — the point_cloud deliverable stays LAZ-only (still downloadable) until
+  it's installed and a job reprocesses.
+- **Orthomosaic COG tiling needs GDAL installed on the worker machine.**
+  Same skip-and-log behavior (`buildCogOrthomosaic.ts`) if
+  `gdal_translate`/`gdaladdo` aren't present — the viewer still works
+  against the original GeoTIFF, just without fast partial-resolution
+  loading for very large files.
+- **No GCP UI yet**, though `mapping_gcps` table + RLS exists and is ready
+  for it. Distance/area measurements (issue: turn DOM Mapper into a usable
+  mapping application) are implemented against `mapping_measurements`.
+- **Orthomosaic measurement math trusts the client's CRS classification.**
+  The server always computes the value from the submitted geometry (never
+  accepts a submitted number), but which formula applies (geographic
+  haversine vs. projected/UTM Euclidean) is decided client-side from the
+  loaded GeoTIFF's own bounding box, since the server doesn't independently
+  re-parse the file. Acceptable for a pilot reference/QA tool, not a
+  payment- or safety-determining value.
 - **Email-drift-style limitation**: output type detection depends on ODM's
   conventional directory layout; a NodeODM/ODM version with a substantially
   different output structure could produce zero recognized outputs for one

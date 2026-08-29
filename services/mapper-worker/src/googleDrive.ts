@@ -7,25 +7,53 @@ import { supabaseAdmin } from "./supabaseClient";
 // masters, point clouds, 3D models, DSM/DTM, reports). Supabase keeps only
 // metadata + the small-object paths this worker already writes elsewhere
 // (mapping_projects/mapping_processing_jobs/deliverables rows). Entirely
-// opt-in: if the service account env vars aren't set, isDriveConfigured()
-// is false and every caller in processJob.ts falls back to the original
+// opt-in: if neither auth mode below is configured, isDriveConfigured() is
+// false and every caller in processJob.ts falls back to the original
 // Supabase-only path unchanged.
+//
+// Auth: OAuth 2.0 on behalf of the DOM owner's own Google account is the
+// required/primary mode — a bare service account has NO Drive storage
+// quota of its own (verified against Google's current Drive API docs), so
+// it cannot own files on a personal Google One account the way this
+// feature needs. The refresh token is produced once, interactively, by
+// scripts/authorizeGoogleDrive.ts (see README) -- never checked into the
+// repo, never sent to the browser. A Workspace service account + Shared
+// Drive is kept as an optional fallback auth mode for a future enterprise
+// setup, used only if the OAuth vars are absent.
+export type DriveAuthMode = "oauth_user" | "service_account" | "unconfigured";
+
+export function driveAuthMode(): DriveAuthMode {
+  if (env.googleDriveClientId && env.googleDriveClientSecret && env.googleDriveRefreshToken) return "oauth_user";
+  if (env.googleDriveClientEmail && env.googleDrivePrivateKey) return "service_account";
+  return "unconfigured";
+}
 
 export function isDriveConfigured(): boolean {
-  return !!(env.googleDriveClientEmail && env.googleDrivePrivateKey && env.googleDriveRootParentId);
+  return driveAuthMode() !== "unconfigured" && !!env.googleDriveRootParentId;
 }
 
 let cachedDrive: drive_v3.Drive | null = null;
 
 function getDrive(): drive_v3.Drive {
   if (cachedDrive) return cachedDrive;
-  const auth = new google.auth.JWT({
-    email: env.googleDriveClientEmail,
-    key: env.googleDrivePrivateKey,
-    scopes: ["https://www.googleapis.com/auth/drive"],
-  });
-  cachedDrive = google.drive({ version: "v3", auth });
-  return cachedDrive;
+
+  const mode = driveAuthMode();
+  if (mode === "oauth_user") {
+    const auth = new google.auth.OAuth2(env.googleDriveClientId, env.googleDriveClientSecret);
+    auth.setCredentials({ refresh_token: env.googleDriveRefreshToken });
+    cachedDrive = google.drive({ version: "v3", auth });
+    return cachedDrive;
+  }
+  if (mode === "service_account") {
+    const auth = new google.auth.JWT({
+      email: env.googleDriveClientEmail,
+      key: env.googleDrivePrivateKey,
+      scopes: ["https://www.googleapis.com/auth/drive"],
+    });
+    cachedDrive = google.drive({ version: "v3", auth });
+    return cachedDrive;
+  }
+  throw new Error("Google Drive is not configured — set GOOGLE_DRIVE_CLIENT_ID/GOOGLE_DRIVE_CLIENT_SECRET/GOOGLE_DRIVE_REFRESH_TOKEN (see README).");
 }
 
 function escapeQueryValue(value: string): string {

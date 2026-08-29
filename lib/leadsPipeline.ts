@@ -288,7 +288,7 @@ export type SavedViewKey =
   | "sequence_finished" | "proposals" | "bounced" | "unsubscribed";
 
 export const SAVED_VIEWS: { key: SavedViewKey; label: string }[] = [
-  { key: "all", label: "All Leads" },
+  { key: "all", label: "All CRM Files" },
   { key: "contact_today", label: "Contact Today" },
   { key: "needs_response", label: "Needs Response" },
   { key: "overdue", label: "Overdue" },

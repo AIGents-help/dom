@@ -692,7 +692,7 @@ export default function LeadsWorkspace() {
       .sort((a, b) => compareLeadsForSort(a.lead, b.lead, sortKey, sortDir));
   }, [contexts, activeView, filterOpportunityType, filterDjiOnly, search, filterStatus, filterIndustry, filterEngagement, filterOwnership, sortKey, sortDir, today]);
 
-  if (loading) return <p className="text-muted">Loading leads…</p>;
+  if (loading) return <p className="text-muted">Loading CRM files…</p>;
 
   const anyFilterActive = !!(filterStatus || filterIndustry || filterEngagement || filterOwnership || search || filterOpportunityType || filterDjiOnly);
 
@@ -711,9 +711,9 @@ export default function LeadsWorkspace() {
   return (
     <div className="leads-mission-theme rounded-2xl border border-[#D8DEE8] bg-white p-6 text-[#0F172A] lg:p-8">
       <Section
-        title="Leads"
-        desc="Inbound prospects from the website and outreach. Click a lead to view full details, log contact, and take action."
-        action={<ActionBtn onClick={() => setShowAddLead((s) => !s)}>{showAddLead ? "Cancel" : "+ Add Lead"}</ActionBtn>}
+        title="CRM Files"
+        desc="Prospects and clients share one continuous customer record. Open a file to manage details, documents, contact history, and next actions."
+        action={<ActionBtn onClick={() => setShowAddLead((s) => !s)}>{showAddLead ? "Cancel" : "+ Add CRM File"}</ActionBtn>}
       >
         <SummaryStrip contexts={contexts} today={today} activeView={activeView} onSelectView={setActiveView} />
 

@@ -214,7 +214,7 @@ export default function AdminDashboardClient() {
 
   const today = new Date().toISOString().slice(0, 10);
   const statusBoard: { label: string; count: number; tone: string; onClick: () => void }[] = [
-    { label: "Cold Leads", count: leads.filter((l) => l.status === "cold").length, tone: "bg-blue-500/10 text-blue-400", onClick: () => router.push("/admin/leads") },
+    { label: "Cold Prospects", count: leads.filter((l) => l.status === "cold").length, tone: "bg-blue-500/10 text-blue-400", onClick: () => router.push("/admin/leads") },
     {
       label: "Follow-ups Due",
       count: leads.filter((l) => l.next_follow_up_at && l.next_follow_up_at <= today && !["customer", "lost"].includes(l.status)).length,

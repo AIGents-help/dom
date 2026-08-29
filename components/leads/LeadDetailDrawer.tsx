@@ -12,8 +12,9 @@ import {
 } from "@/lib/leadsPipeline";
 import PriorityBadge from "./PriorityBadge";
 import DuplicateWarning from "./DuplicateWarning";
+import CustomerDocumentsPanel from "./CustomerDocumentsPanel";
 
-export type DrawerTab = "overview" | "next_action" | "activity" | "outreach" | "notes" | "convert";
+export type DrawerTab = "overview" | "documents" | "next_action" | "activity" | "outreach" | "notes" | "convert";
 
 interface NoteRow { id: string; entity_type: string; entity_id: string; author: string | null; body: string; created_at: string; }
 interface LeadContactRow { id: string; lead_id: string; name: string | null; email: string | null; phone: string | null; title: string | null; is_primary: boolean; created_at: string; }
@@ -46,6 +47,7 @@ function SectionDisclosure({ id, title, accent, open, onToggle }: { id: string; 
 
 const TABS: { key: DrawerTab; label: string }[] = [
   { key: "overview", label: "Overview" },
+  { key: "documents", label: "Documents" },
   { key: "next_action", label: "Next Action" },
   { key: "activity", label: "Activity" },
   { key: "outreach", label: "Outreach" },
@@ -148,6 +150,7 @@ export default function LeadDetailDrawer({
         </div>
 
         <div className="p-4">
+          {tab === "documents" && <CustomerDocumentsPanel leadId={lead.id} busy={busy} />}
           {tab === "overview" && (
             <div className="space-y-4 text-sm text-ink">
               <div className="flex items-center justify-between">

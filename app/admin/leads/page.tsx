@@ -3,7 +3,7 @@ import Link from "next/link";
 import LeadsWorkspace from "@/components/LeadsWorkspace";
 
 export const metadata = {
-  title: "Leads | Drone Operation Management",
+  title: "CRM Files | Drone Operation Management",
 };
 
 export default function AdminLeadsPage() {
@@ -15,9 +15,9 @@ export default function AdminLeadsPage() {
             ← Back to Dashboard
           </Link>
           <p className="eyebrow mb-2">Operations Console</p>
-          <h1 className="heading-lg">Leads</h1>
+          <h1 className="heading-lg">CRM Files</h1>
           <p className="body-muted mt-2">
-            Full prospect management — categorize by tier and vertical, track contact history, log notes, and follow the Smartlead outreach trail, all in one place.
+            One customer file from first prospect contact through active client work, with documents, history, notes, and outreach in one place.
           </p>
         </div>
         <Suspense fallback={<p className="text-slate-400">Loading leads…</p>}>

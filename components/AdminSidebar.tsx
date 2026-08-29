@@ -14,7 +14,7 @@ const V = { surface: "#172033", line: "rgba(255,255,255,0.08)", ink: "#FFFFFF", 
 
 const NAV = [
   { href: "/admin/dashboard", label: "Dashboard", icon: "◧" },
-  { href: "/admin/leads", label: "Leads", icon: "☍" },
+  { href: "/admin/leads", label: "CRM Files", icon: "☍" },
   { href: "/admin/missions", label: "Missions", icon: "▤" },
   { href: "/admin/dashboard#missions", label: "Mission Requests", icon: "↗", child: true },
   { href: "/admin/dashboard#jobs", label: "Jobs", icon: "▣", child: true },
@@ -22,22 +22,27 @@ const NAV = [
   { href: "/admin/dashboard#deliverables", label: "Deliverables", icon: "▱", child: true },
   { href: "/admin/dashboard#notes", label: "Notes", icon: "≡", child: true },
   { href: "/admin/dashboard#status", label: "Status Tracking", icon: "⌁", child: true },
+  { href: "/admin/contractors", label: "Contractors", icon: "◎" },
+];
+
+const NOTIFICATION_NAV = [
   { href: "/admin/relationships", label: "CRM Protection", icon: "◇" },
   { href: "/admin/support", label: "Pilot Support", icon: "✚" },
   { href: "/admin/operations", label: "Exception Center", icon: "⚠" },
   { href: "/admin/programs", label: "Programs & Analytics", icon: "↻" },
-  { href: "/admin/contractors", label: "Contractors", icon: "◎" },
 ];
 
 export default function AdminSidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [hash, setHash] = useState("");
 
   useEffect(() => {
     const stored = window.localStorage.getItem("dom_admin_sidebar_collapsed");
     if (stored) setCollapsed(stored === "1");
+    setNotificationsOpen(NOTIFICATION_NAV.some((item) => window.location.pathname.startsWith(item.href)));
     const syncHash = () => setHash(window.location.hash);
     syncHash();
     window.addEventListener("hashchange", syncHash);
@@ -110,6 +115,41 @@ export default function AdminSidebar() {
               }}
             >
               <span style={{ fontSize: 15 }}>{item.icon}</span>
+              {!collapsed && item.label}
+            </Link>
+          );
+        })}
+        <button
+          type="button"
+          onClick={() => setNotificationsOpen((open) => !open)}
+          aria-expanded={notificationsOpen}
+          title={collapsed ? "Notifications" : undefined}
+          style={{
+            display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8,
+            border: "none", background: "transparent", color: V.inkDim, cursor: "pointer",
+            fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13,
+            justifyContent: collapsed ? "center" : "flex-start", width: "100%",
+          }}
+        >
+          <span style={{ fontSize: 15 }}>●</span>
+          {!collapsed && <><span style={{ flex: 1, textAlign: "left" }}>Notifications</span><span>{notificationsOpen ? "⌃" : "⌄"}</span></>}
+        </button>
+        {notificationsOpen && NOTIFICATION_NAV.map((item) => {
+          const active = pathname === item.href || (pathname?.startsWith(item.href + "/") ?? false);
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              title={collapsed ? item.label : undefined}
+              style={{
+                display: "flex", alignItems: "center", gap: 10, padding: collapsed ? "9px 12px" : "7px 12px 7px 28px", borderRadius: 8,
+                textDecoration: "none", color: active ? V.signal : V.inkDim,
+                background: active ? "rgba(244,90,30,.22)" : "transparent",
+                fontFamily: "Saira, sans-serif", fontWeight: 500, fontSize: 12,
+                justifyContent: collapsed ? "center" : "flex-start",
+              }}
+            >
+              <span style={{ fontSize: 14 }}>{item.icon}</span>
               {!collapsed && item.label}
             </Link>
           );

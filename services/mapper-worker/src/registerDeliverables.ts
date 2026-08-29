@@ -22,12 +22,26 @@ const TYPE_LABEL: Record<ExtractedOutput["type"], string> = {
 // type would insert a duplicate row. `deliverables_processing_job_type_uidx`
 // (see the matching migration) is the actual guarantee; `ignoreDuplicates`
 // makes the retry's insert a silent no-op instead of an error.
+export interface DeliverableLocation {
+  provider: "supabase" | "google_drive";
+  storagePath?: string; // set when provider === "supabase"
+  externalFileId?: string; // set when provider === "google_drive"
+}
+
+export interface PotreeLocation {
+  provider: "supabase";
+  metadata: string;
+  octree: string;
+  hierarchy: string;
+}
+
 export async function registerDeliverable(
   jobId: string,
   projectName: string,
   output: ExtractedOutput,
-  storagePath: string,
-  processingJobId: string
+  location: DeliverableLocation,
+  processingJobId: string,
+  potree?: PotreeLocation
 ): Promise<void> {
   const { error } = await supabaseAdmin
     .from("deliverables")
@@ -36,9 +50,11 @@ export async function registerDeliverable(
         job_id: jobId,
         name: `${projectName} — ${TYPE_LABEL[output.type]}`,
         type: output.type,
-        storage_url: storagePath,
-        storage_provider: "supabase",
+        storage_url: location.provider === "supabase" ? location.storagePath : null,
+        storage_provider: location.provider,
+        external_file_id: location.provider === "google_drive" ? location.externalFileId : null,
         mapping_processing_job_id: processingJobId,
+        ...(potree ? { potree } : {}),
       },
       { onConflict: "mapping_processing_job_id,type", ignoreDuplicates: true }
     );

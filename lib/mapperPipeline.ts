@@ -56,6 +56,7 @@ export interface MappingProcessingJob {
   processor: string;
   processor_version: string | null;
   options: Record<string, unknown> | null;
+  profile: string | null;
   progress: number;
   current_stage: string | null;
   error_message: string | null;
@@ -225,4 +226,107 @@ export function formatBytes(bytes: number): string {
 export function formatProgress(progress: number): string {
   const clamped = Math.max(0, Math.min(100, progress));
   return `${Math.round(clamped)}%`;
+}
+
+// ---------------------------------------------------------------------------
+// Human-readable processing stages
+// ---------------------------------------------------------------------------
+
+export const PROCESSING_STAGES = [
+  "Preparing Images",
+  "Reading Metadata",
+  "Uploading to Processor",
+  "Feature Matching",
+  "Camera Alignment",
+  "Building Point Cloud",
+  "Generating Surface",
+  "Building 3D Model",
+  "Generating Orthomosaic",
+  "Preparing Deliverables",
+  "Complete",
+] as const;
+export type ProcessingStage = (typeof PROCESSING_STAGES)[number];
+
+// NodeODM's GET /task/{uuid}/info exposes one aggregate 0-100 `progress`
+// value, no named substage (verified — see MAPPER.md's NodeODM integration
+// notes). This buckets that aggregate into ODM's real pipeline order so the
+// UI can show a stage name instead of a bare percentage while a task is
+// running in NodeODM. It's a documented heuristic approximation, not
+// something NodeODM reports directly — see "Map real NodeODM state where
+// possible" in the project brief.
+const ODM_STAGE_BREAKPOINTS: { upTo: number; stage: ProcessingStage }[] = [
+  { upTo: 20, stage: "Feature Matching" },
+  { upTo: 40, stage: "Camera Alignment" },
+  { upTo: 60, stage: "Building Point Cloud" },
+  { upTo: 75, stage: "Generating Surface" },
+  { upTo: 85, stage: "Building 3D Model" },
+  { upTo: 100, stage: "Generating Orthomosaic" },
+];
+
+export function odmProgressToStage(odmProgress: number): ProcessingStage {
+  const clamped = Math.max(0, Math.min(100, odmProgress));
+  return ODM_STAGE_BREAKPOINTS.find((b) => clamped <= b.upTo)?.stage ?? "Generating Orthomosaic";
+}
+
+// ---------------------------------------------------------------------------
+// Processing profiles — translate a pilot-facing choice into explicit ODM
+// options (NodeODM's [{name,value}] format — see services/mapper-worker/
+// src/nodeodm.ts's initTask). Every option name below is a real, documented
+// ODM/NodeODM option (pc-quality, mesh-octree-depth, orthophoto-resolution,
+// fast-orthophoto, skip-3dmodel, dsm, dtm), not invented.
+// ---------------------------------------------------------------------------
+
+export interface OdmOption {
+  name: string;
+  value: string | number | boolean;
+}
+
+export const PROCESSING_PROFILES = [
+  {
+    value: "quick_test",
+    label: "Quick Test",
+    description: "Fastest turnaround, lowest detail — for pipeline/connectivity checks, not delivery.",
+    options: [
+      { name: "fast-orthophoto", value: true },
+      { name: "skip-3dmodel", value: true },
+      { name: "pc-quality", value: "low" },
+    ],
+  },
+  {
+    value: "standard",
+    label: "Standard Map",
+    description: "Balanced quality and speed for routine orthomosaic and point cloud deliverables.",
+    options: [
+      { name: "pc-quality", value: "medium" },
+      { name: "mesh-octree-depth", value: 11 },
+    ],
+  },
+  {
+    value: "high_detail",
+    label: "High Detail",
+    description: "Higher-resolution reconstruction for close inspection work. Slower.",
+    options: [
+      { name: "pc-quality", value: "high" },
+      { name: "mesh-octree-depth", value: 12 },
+      { name: "orthophoto-resolution", value: 2 },
+    ],
+  },
+  {
+    value: "survey",
+    label: "Survey",
+    description: "Maximum accuracy for measurement/survey-grade deliverables, including DSM/DTM.",
+    options: [
+      { name: "pc-quality", value: "ultra" },
+      { name: "mesh-octree-depth", value: 13 },
+      { name: "orthophoto-resolution", value: 1 },
+      { name: "dsm", value: true },
+      { name: "dtm", value: true },
+    ],
+  },
+] as const satisfies readonly { value: string; label: string; description: string; options: OdmOption[] }[];
+
+export type ProcessingProfileValue = (typeof PROCESSING_PROFILES)[number]["value"];
+
+export function resolveProcessingProfileOptions(profile: string): OdmOption[] {
+  return PROCESSING_PROFILES.find((p) => p.value === profile)?.options ?? [];
 }

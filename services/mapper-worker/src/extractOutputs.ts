@@ -18,9 +18,16 @@ export interface ExtractedOutput {
   filename: string;
 }
 
+// Extension order matters for "3d_model": listed most- to least-preferred.
+// The DOM Mapper 3D viewer (components/mapper/Model3DViewer.tsx) is a
+// three.js GLTFLoader, so when ODM's texturing step produces both a .obj
+// and a .glb/.gltf for the same run (it can, depending on version/options),
+// picking the raw .obj would make the browser parse a much larger,
+// untextured-material-map format for no reason — .glb/.gltf is strictly
+// preferred when present. See locateOutputs()'s candidate sort below.
 const OUTPUT_HINTS: { type: ExtractedOutput["type"]; dirHint: string; extensions: string[] }[] = [
   { type: "orthomosaic", dirHint: "odm_orthophoto", extensions: [".tif", ".tiff"] },
-  { type: "3d_model", dirHint: "odm_texturing", extensions: [".obj", ".glb", ".gltf"] },
+  { type: "3d_model", dirHint: "odm_texturing", extensions: [".glb", ".gltf", ".obj"] },
   { type: "dsm", dirHint: "odm_dem", extensions: [".tif", ".tiff"] }, // filtered further by "dsm" in filename below
   { type: "dtm", dirHint: "odm_dem", extensions: [".tif", ".tiff"] }, // filtered further by "dtm" in filename below
   { type: "point_cloud", dirHint: "odm_georeferencing", extensions: [".laz", ".las", ".ply"] },
@@ -41,6 +48,12 @@ export function extractAllZip(zipPath: string, destDir: string): void {
   zip.extractAllTo(destDir, true);
 }
 
+function extensionRank(file: string, extensions: string[]): number {
+  const lower = file.toLowerCase();
+  const rank = extensions.findIndex((ext) => lower.endsWith(ext));
+  return rank === -1 ? extensions.length : rank;
+}
+
 export function locateOutputs(extractedDir: string): ExtractedOutput[] {
   if (!existsSync(extractedDir)) return [];
   const allFiles = walk(extractedDir);
@@ -57,7 +70,13 @@ export function locateOutputs(extractedDir: string): ExtractedOutput[] {
       return true;
     });
     if (candidates.length > 0) {
-      found.push({ type: hint.type, localPath: candidates[0], filename: candidates[0].split(/[\\/]/).pop()! });
+      // Prefer candidates by hint.extensions order (not filesystem walk
+      // order, which is arbitrary) — this is what makes .glb win over .obj
+      // for "3d_model" when a run produced both.
+      const best = candidates
+        .slice()
+        .sort((a, b) => extensionRank(a, hint.extensions) - extensionRank(b, hint.extensions))[0];
+      found.push({ type: hint.type, localPath: best, filename: best.split(/[\\/]/).pop()! });
     }
   }
 

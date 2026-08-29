@@ -72,9 +72,26 @@ export default function MappingResults({
         </p>
       ) : (
         <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
-          {orthomosaic && <OrthomosaicViewer signedUrl={signedUrls[orthomosaic.id] ?? null} name={orthomosaic.name} />}
+          {orthomosaic && (
+            <OrthomosaicViewer
+              signedUrl={signedUrls[orthomosaic.id] ?? null}
+              name={orthomosaic.name}
+              projectId={projectId}
+              deliverableId={orthomosaic.id}
+              accessToken={accessToken}
+            />
+          )}
           {model3d && <Model3DViewer signedUrl={signedUrls[model3d.id] ?? null} name={model3d.name} />}
-          {pointCloud && <PointCloudViewer signedUrl={signedUrls[pointCloud.id] ?? null} name={pointCloud.name} />}
+          {pointCloud && (
+            <PointCloudViewer
+              signedUrl={signedUrls[pointCloud.id] ?? null}
+              name={pointCloud.name}
+              projectId={projectId}
+              deliverableId={pointCloud.id}
+              accessToken={accessToken}
+              hasPotree={!!pointCloud.potree}
+            />
+          )}
         </div>
       )}
 

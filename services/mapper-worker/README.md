@@ -70,6 +70,65 @@ refuses to start if any required env var (`SUPABASE_URL`,
 `SUPABASE_SERVICE_ROLE_KEY`, `MAPPER_WORKER_ID`, `MAPPER_WORK_DIR`) is
 missing.
 
+## Google Drive setup (optional — required for the Drive archive layer)
+
+Everything in `src/googleDrive.ts` is wired up and shipped, but it stays
+off (falls back to the original Supabase-only path) until you do this
+one-time, interactive setup in the Google Cloud / Drive consoles — nothing
+here can be done from code or CLI on your behalf:
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create (or
+   reuse) a project, enable the **Google Drive API** for it, then create a
+   **Service Account** (IAM & Admin → Service Accounts → Create).
+2. On that service account, create a **JSON key** and download it. Copy its
+   `client_email` into `GOOGLE_DRIVE_CLIENT_EMAIL` and its `private_key`
+   into `GOOGLE_DRIVE_PRIVATE_KEY` (both in `.env.local` here, and the same
+   two vars in the main app's `.env.local`/Vercel project settings — the app
+   needs read access to stream downloads, the worker needs write access to
+   upload).
+3. In Google Drive, create a **Shared Drive** (recommended — a service
+   account has no storage quota of its own on a regular "My Drive", so a
+   plain shared folder can silently fail on upload) named e.g. "DOM Drone
+   Operations Archive", and add the service account's email as a **Member**
+   with **Content Manager** access.
+4. Copy that Shared Drive's id (the part of its URL after
+   `/drive/folders/`) into both `GOOGLE_DRIVE_ROOT_PARENT_ID` and
+   `GOOGLE_DRIVE_SHARED_DRIVE_ID`.
+5. Restart the worker (and redeploy the app, if `GOOGLE_DRIVE_CLIENT_EMAIL`/
+   `GOOGLE_DRIVE_PRIVATE_KEY` changed there too). The next processing job
+   creates `DOM Drone Operations/Customers/<Customer>/<Job - Date>/01_Raw_Images/`
+   etc. under that Shared Drive automatically and reuses the same folders on
+   every subsequent job/retry (cached on `mapping_projects.drive_folder_ids`).
+
+If any of `GOOGLE_DRIVE_CLIENT_EMAIL` / `GOOGLE_DRIVE_PRIVATE_KEY` /
+`GOOGLE_DRIVE_ROOT_PARENT_ID` is unset, `isDriveConfigured()` returns false
+and processing jobs upload to `mission-deliverables` exactly as before this
+feature — nothing breaks either way.
+
+## Point cloud viewer conversion (optional — required for the Potree viewer)
+
+`src/convertPointCloud.ts` shells out to
+[PotreeConverter](https://github.com/potree/PotreeConverter) 2.x to turn
+each point_cloud output's LAZ into the compact 3-file 2.x octree format
+(`metadata.json`/`octree.bin`/`hierarchy.bin`), uploaded to the private
+`mapper-potree` Supabase Storage bucket (always Supabase regardless of
+where the master LAZ itself ends up, so the viewer gets Range-request-
+capable signed URLs — see the bucket's migration comment). Install
+PotreeConverter on this machine and either put it on `PATH` as
+`PotreeConverter` or set `POTREE_CONVERTER_PATH` to its full path. Missing
+means this step is skipped (logged) and the point_cloud deliverable stays
+LAZ-only — not a hard failure, and doesn't block any other output.
+
+## Orthomosaic COG tiling (optional — required for fast pan/zoom on large orthomosaics)
+
+If `gdal_translate`/`gdaladdo` are available (`GDAL_TRANSLATE_PATH`/
+`GDAL_ADDO_PATH`, default `gdal_translate`/`gdaladdo` on `PATH`), the
+orthomosaic output is re-encoded as a tiled Cloud-Optimized GeoTIFF with
+overviews before upload, so the browser viewer can fetch only the
+resolution/tiles it needs instead of the whole file. Missing means the
+original GeoTIFF is uploaded as-is (still fully downloadable, just without
+fast partial-resolution loading in the viewer for very large files).
+
 ## Running
 
 - `npm start` — run once, polling every `MAPPER_POLL_INTERVAL_MS` (default 10s) for queued work.
@@ -92,8 +151,12 @@ parallel — the atomic claim function is what makes that safe.
 - EXIF extraction (`src/extractMetadata.ts`) uses whatever `exifr` can read
   from each image — images without embedded GPS/camera metadata will have
   those `mapping_images` columns stay null, which is expected, not a bug.
-- Processing options (the NodeODM `options` array passed on
-  `mapping_processing_jobs.options`) are currently whatever the caller sets
-  when queuing — the pilot UI doesn't yet expose a way to pick ODM options
-  (e.g. fast-orthophoto, resolution); it queues with an empty array,
-  meaning NodeODM's own defaults apply.
+- Processing options (the NodeODM `options` array on
+  `mapping_processing_jobs.options`) are now set by the pilot's processing
+  profile choice (Quick Test/Standard/High Detail/Survey — see
+  `PROCESSING_PROFILES` in the main app's `lib/mapperPipeline.ts` and
+  `MappingProcessingStatus.tsx`), translated server-side at queue time.
+- Google Drive archiving, Potree conversion, and orthomosaic COG tiling are
+  all real but opt-in — each is skipped (logged, not a hard failure) until
+  its respective binary/credentials are configured on this machine. See the
+  three setup sections above.

@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     admin.from("mapping_events").select("*").eq("mapping_project_id", id).order("created_at", { ascending: false }).limit(50),
     admin
       .from("deliverables")
-      .select("id, name, type, storage_url, storage_provider, external_file_id, qc_passed, delivered_at, created_at")
+      .select("id, name, type, storage_url, storage_provider, external_file_id, potree, qc_passed, delivered_at, created_at")
       .eq("job_id", project.job_id)
       .order("created_at", { ascending: false }),
   ]);

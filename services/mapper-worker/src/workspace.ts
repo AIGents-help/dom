@@ -8,6 +8,7 @@ export interface JobWorkspace {
   root: string;
   imagesDir: string;
   outputDir: string;
+  potreeDir: string;
   cleanup: () => void;
 }
 
@@ -20,13 +21,16 @@ export function createJobWorkspace(jobId: string): JobWorkspace {
   const root = mkdtempSync(join(env.workDir, `job-${jobId}-`));
   const imagesDir = join(root, "images");
   const outputDir = join(root, "output");
+  const potreeDir = join(root, "potree");
   mkdirSync(imagesDir, { recursive: true });
   mkdirSync(outputDir, { recursive: true });
+  mkdirSync(potreeDir, { recursive: true });
 
   return {
     root,
     imagesDir,
     outputDir,
+    potreeDir,
     cleanup: () => {
       try {
         rmSync(root, { recursive: true, force: true });

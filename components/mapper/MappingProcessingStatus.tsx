@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { V, panelStyle, btnPrimary, statusPillStyle } from "./theme";
-import { canQueueProcessing, formatProgress, PROCESSING_JOB_STATUS_OPTIONS } from "@/lib/mapperPipeline";
-import type { MappingProject, MappingProcessingJob } from "./types";
+import { V, panelStyle, btnPrimary, statusPillStyle, inputStyle, labelStyle } from "./theme";
+import { canQueueProcessing, formatProgress, PROCESSING_JOB_STATUS_OPTIONS, PROCESSING_PROFILES } from "@/lib/mapperPipeline";
+import type { MappingProject, MappingProcessingJob, ProcessingProfileValue } from "./types";
 
 const JOB_STATUS_COLOR: Record<string, string> = {
   queued: "#E5701F", claimed: "#16A34A", processing: "#16A34A",
@@ -23,6 +23,7 @@ export default function MappingProcessingStatus({
 }) {
   const [queuing, setQueuing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<ProcessingProfileValue>("standard");
 
   const guard = canQueueProcessing(project);
 
@@ -31,7 +32,8 @@ export default function MappingProcessingStatus({
     setError(null);
     const res = await fetch(`/api/pilot/mapping/projects/${project.id}/queue`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}` },
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ profile }),
     });
     const body = await res.json().catch(() => ({}));
     setQueuing(false);
@@ -64,9 +66,25 @@ export default function MappingProcessingStatus({
       {error && <p style={{ color: V.signal, fontSize: 13, marginBottom: 12 }}>{error}</p>}
 
       {guard.ok ? (
-        <button onClick={queueProcessing} disabled={queuing} style={btnPrimary}>
-          {queuing ? "Queuing…" : project.status === "failed" ? "Retry Processing" : "Queue Processing"}
-        </button>
+        <div>
+          <label style={labelStyle} htmlFor="mapper-processing-profile">Processing profile</label>
+          <select
+            id="mapper-processing-profile"
+            value={profile}
+            onChange={(e) => setProfile(e.target.value as ProcessingProfileValue)}
+            style={{ ...inputStyle, marginBottom: 10, maxWidth: 320 }}
+          >
+            {PROCESSING_PROFILES.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+          <p style={{ color: V.inkFaint, fontSize: 12, marginBottom: 12, maxWidth: 420 }}>
+            {PROCESSING_PROFILES.find((p) => p.value === profile)?.description}
+          </p>
+          <button onClick={queueProcessing} disabled={queuing} style={btnPrimary}>
+            {queuing ? "Queuing…" : project.status === "failed" ? "Retry Processing" : "Queue Processing"}
+          </button>
+        </div>
       ) : (
         !["processing", "queued", "completed"].includes(project.status) && (
           <p style={{ color: V.inkFaint, fontSize: 12 }}>{guard.reason}</p>
@@ -81,6 +99,11 @@ export default function MappingProcessingStatus({
               {PROCESSING_JOB_STATUS_OPTIONS.find((s) => s.value === latestJob.status)?.label ?? latestJob.status}
             </span>
             <span style={{ color: V.inkFaint }}>Attempt {latestJob.attempts + 1}</span>
+            {latestJob.profile && (
+              <span style={{ color: V.inkFaint }}>
+                Profile: {PROCESSING_PROFILES.find((p) => p.value === latestJob.profile)?.label ?? latestJob.profile}
+              </span>
+            )}
             {latestJob.worker_id && <span style={{ color: V.inkFaint }}>Worker: {latestJob.worker_id}</span>}
             {latestJob.current_stage && <span style={{ color: V.inkDim }}>{latestJob.current_stage}</span>}
           </div>

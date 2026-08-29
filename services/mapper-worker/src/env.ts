@@ -38,6 +38,21 @@ export const env = {
   workerId: required("MAPPER_WORKER_ID"),
   workDir: required("MAPPER_WORK_DIR"),
   pollIntervalMs: parseInt(process.env.MAPPER_POLL_INTERVAL_MS || "10000", 10),
+  // Google Drive archive layer — all optional. Unset means isDriveConfigured()
+  // is false and the worker stays on the original Supabase-only path.
+  googleDriveClientEmail: process.env.GOOGLE_DRIVE_CLIENT_EMAIL || "",
+  googleDrivePrivateKey: (process.env.GOOGLE_DRIVE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+  googleDriveRootParentId: process.env.GOOGLE_DRIVE_ROOT_PARENT_ID || "",
+  googleDriveSharedDriveId: process.env.GOOGLE_DRIVE_SHARED_DRIVE_ID || "",
+  // PotreeConverter 2.x binary — optional. Unset (or not found on PATH)
+  // means the point-cloud-to-octree conversion step is skipped and logged,
+  // not a hard failure (see convertPointCloud.ts).
+  potreeConverterPath: process.env.POTREE_CONVERTER_PATH || "PotreeConverter",
+  // gdal_translate/gdaladdo — optional. Unset means the orthomosaic COG
+  // tiling step is skipped and logged (see buildCogOrthomosaic.ts); the
+  // original GeoTIFF is still uploaded and downloadable either way.
+  gdalTranslatePath: process.env.GDAL_TRANSLATE_PATH || "gdal_translate",
+  gdalAddoPath: process.env.GDAL_ADDO_PATH || "gdaladdo",
 };
 
 export function nodeOdmBaseUrl(): string {

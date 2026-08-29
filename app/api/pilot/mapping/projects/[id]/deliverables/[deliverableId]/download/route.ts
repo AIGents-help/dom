@@ -33,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .maybeSingle();
   if (!deliverable) return NextResponse.json({ error: "Deliverable not found." }, { status: 404 });
 
-  const result = await getDeliverableDownloadUrl(deliverable);
+  const result = await getDeliverableDownloadUrl(deliverable, id);
   if (!result.ok) {
     console.error(`[pilot/mapping/deliverables/download] deliverable ${deliverableId}: ${result.log}`);
     return NextResponse.json({ error: result.message }, { status: result.status });

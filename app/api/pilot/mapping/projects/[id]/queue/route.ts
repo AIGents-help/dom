@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveContractor } from "@/lib/pilotAuth";
-import { canQueueProcessing } from "@/lib/mapperPipeline";
+import { canQueueProcessing, PROCESSING_PROFILES, resolveProcessingProfileOptions } from "@/lib/mapperPipeline";
 
 // POST /api/pilot/mapping/projects/[id]/queue
 // Inserts a mapping_processing_jobs row (status 'queued') and flips the
@@ -26,10 +26,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const guard = canQueueProcessing(project);
   if (!guard.ok) return NextResponse.json({ error: guard.reason }, { status: 409 });
 
+  const body = await req.json().catch(() => ({}));
+  const requestedProfile = typeof body?.profile === "string" ? body.profile : "standard";
+  const profile = PROCESSING_PROFILES.some((p) => p.value === requestedProfile) ? requestedProfile : "standard";
+  const options = resolveProcessingProfileOptions(profile);
+
   const { error: jobError } = await admin.from("mapping_processing_jobs").insert({
     mapping_project_id: project.id,
     status: "queued",
     processor: "nodeodm",
+    profile,
+    options,
   });
   if (jobError) return NextResponse.json({ error: jobError.message }, { status: 500 });
 

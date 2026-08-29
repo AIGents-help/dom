@@ -4,7 +4,7 @@
 
 export type {
   MappingProject, MappingImage, MappingProcessingJob,
-  MappingProjectStatus, ProcessingJobStatus,
+  MappingProjectStatus, ProcessingJobStatus, ProcessingProfileValue,
 } from "@/lib/mapperPipeline";
 
 export interface EligibleJob {
@@ -16,6 +16,13 @@ export interface EligibleJob {
   status: string;
 }
 
+export interface PotreeLocation {
+  provider: "supabase";
+  metadata: string;
+  octree: string;
+  hierarchy: string;
+}
+
 export interface MappingDeliverable {
   id: string;
   name: string;
@@ -23,6 +30,7 @@ export interface MappingDeliverable {
   storage_url: string | null;
   storage_provider?: string | null;
   external_file_id?: string | null;
+  potree?: PotreeLocation | null;
   qc_passed: boolean | null;
   delivered_at: string | null;
   created_at: string;

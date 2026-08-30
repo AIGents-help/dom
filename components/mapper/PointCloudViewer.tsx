@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Potree, PointSizeType, type PointCloudOctree } from "potree-core";
 import { V, panelStyle, btnGhost } from "./theme";
+import { createWebGLRenderer } from "./webgl";
 
 // Real Potree 2.x point cloud viewer. The master LAZ (see "Download Master
 // LAZ" below) is never loaded in the browser directly -- the worker's
@@ -123,9 +124,12 @@ export default function PointCloudViewer({
       const host = canvasHostRef.current;
       if (!host) throw new Error("Viewer container not ready.");
 
+      const rendererResult = createWebGLRenderer(THREE.WebGLRenderer, { antialias: true });
+      if (!rendererResult.ok) throw new Error(rendererResult.message);
+
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(60, host.clientWidth / host.clientHeight, 0.1, 100_000);
-      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      const renderer = rendererResult.renderer;
       renderer.setSize(host.clientWidth, host.clientHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       host.innerHTML = "";

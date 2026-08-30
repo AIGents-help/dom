@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { V, panelStyle, btnGhost } from "./theme";
+import { createWebGLRenderer } from "./webgl";
 
 // Real three.js glTF/GLB viewer for the worker's odm_textured_model_geo.glb
 // output. Works from any signed URL (Supabase or the Drive download proxy —
@@ -53,9 +54,16 @@ export default function Model3DViewer({ signedUrl, name }: { signedUrl: string |
     setState("loading");
     setError(null);
 
+    const rendererResult = createWebGLRenderer(THREE.WebGLRenderer, { antialias: true });
+    if (!rendererResult.ok) {
+      setError(rendererResult.message);
+      setState("error");
+      return;
+    }
+
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(60, host.clientWidth / host.clientHeight, 0.01, 10_000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = rendererResult.renderer;
     renderer.setSize(host.clientWidth, host.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     host.innerHTML = "";

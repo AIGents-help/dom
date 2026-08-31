@@ -479,7 +479,7 @@ export default function PilotDashboard() {
                       </button>
                     )}
                     {(a.status === "accepted" || a.status === "in_progress") && accessToken && (
-                      <MissionAssetPicker accessToken={accessToken} assignmentId={a.id} />
+                      <MissionAssetPicker accessToken={accessToken} assignmentId={a.id} onSaved={load} />
                     )}
                   </div>
                 )}

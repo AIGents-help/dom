@@ -47,6 +47,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     getServiceTypeRequirements(admin, mission.service_type),
   ]);
   const eligibility = computeEligibility(requirements, activeCapabilities);
+  if (requirements.length === 0) {
+    return NextResponse.json({ error: "Mission equipment requirements are not configured. DOM must review this mission before it can be claimed." }, { status: 409 });
+  }
   if (!eligibility.eligible) {
     return NextResponse.json({ error: eligibilityReason(eligibility) ?? "You're not equipped for this mission.", eligibility }, { status: 403 });
   }

@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   const admin = getSupabaseAdmin();
 
-  let assetQuery = admin.from("pilot_assets").select("id, contractor_id, asset_type, manufacturer, model, display_name, status, archived_at, pilot_asset_capabilities(capability)");
+  let assetQuery = admin.from("pilot_assets").select("id, contractor_id, asset_type, manufacturer, model, display_name, status, archived_at, capabilities_verified, pilot_asset_capabilities(capability)");
   if (manufacturer) assetQuery = assetQuery.ilike("manufacturer", `%${manufacturer}%`);
   if (model) assetQuery = assetQuery.ilike("model", `%${model}%`);
   if (assetStatus) assetQuery = assetQuery.eq("status", assetStatus);
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
   if (assetError) return NextResponse.json({ error: assetError.message }, { status: 500 });
 
   const matchingAssets = (assets ?? []).filter((a) => {
+    if (a.archived_at) return false;
     if (!capability) return true;
     return (a.pilot_asset_capabilities ?? []).some((c: { capability: string }) => c.capability === capability);
   });
@@ -70,6 +71,7 @@ export async function GET(req: NextRequest) {
       display_name: a.display_name,
       status: a.status,
       archived: !!a.archived_at,
+      capabilities_verified: a.capabilities_verified,
       capabilities: (a.pilot_asset_capabilities ?? []).map((cap: { capability: string }) => cap.capability),
     })),
   }));

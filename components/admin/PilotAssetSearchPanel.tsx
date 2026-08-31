@@ -11,7 +11,7 @@ import { CAPABILITIES, CAPABILITY_LABELS } from "@/lib/pilotAssetsPipeline";
 // with thermal in this service area" / "show pilots capable of RTK
 // mapping" against /api/admin/pilot-assets/search.
 
-interface MatchingAsset { id: string; asset_type: string; manufacturer: string | null; model: string | null; display_name: string | null; status: string; archived: boolean; capabilities: string[] }
+interface MatchingAsset { id: string; asset_type: string; manufacturer: string | null; model: string | null; display_name: string | null; status: string; archived: boolean; capabilities_verified: boolean; capabilities: string[] }
 interface PilotResult { id: string; full_name: string; email: string | null; service_area: string | null; status: string; part107_verified: boolean; insurance_verified: boolean; matching_assets: MatchingAsset[] }
 
 const rowCard: React.CSSProperties = { border: "1px solid #D9E0E8", borderRadius: 12, background: "#FFFFFF", padding: 14 };
@@ -26,6 +26,20 @@ export default function PilotAssetSearchPanel() {
   const [results, setResults] = useState<PilotResult[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function setVerified(assetId: string, verified: boolean) {
+    const supabaseBrowser = getSupabaseBrowser();
+    const { data: session } = await supabaseBrowser.auth.getSession();
+    if (!session.session) return setError("Session expired — reload the page.");
+    const res = await fetch(`/api/admin/pilot-assets/${assetId}/verify`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.session.access_token}` },
+      body: JSON.stringify({ verified }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) return setError(body.error ?? "Could not update verification.");
+    setResults((rows) => rows?.map((p) => ({ ...p, matching_assets: p.matching_assets.map((a) => a.id === assetId ? { ...a, capabilities_verified: verified } : a) })) ?? null);
+  }
 
   async function search() {
     setLoading(true);
@@ -100,6 +114,10 @@ export default function PilotAssetSearchPanel() {
                   <span key={a.id} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 20, background: "#F5F7FA", color: "#5F6B7A" }}>
                     {a.display_name || [a.manufacturer, a.model].filter(Boolean).join(" ") || a.asset_type}
                     {a.capabilities.length > 0 && ` — ${a.capabilities.map((c) => CAPABILITY_LABELS[c] ?? c).join(", ")}`}
+                    {` · ${a.capabilities_verified ? "verified" : "unverified"}`}
+                    <button onClick={() => setVerified(a.id, !a.capabilities_verified)} style={{ marginLeft: 6, border: 0, background: "transparent", color: "#F45A1E", cursor: "pointer", fontWeight: 600 }}>
+                      {a.capabilities_verified ? "Revoke" : "Verify"}
+                    </button>
                   </span>
                 ))}
               </div>

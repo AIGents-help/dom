@@ -89,6 +89,8 @@ export interface PilotAsset {
   archived_at: string | null;
   created_at: string;
   updated_at: string;
+  capabilities_verified: boolean;
+  capabilities_verified_at: string | null;
 }
 
 export interface PublicPilotAsset {
@@ -160,6 +162,15 @@ export function computeEligibility(requirements: CapabilityRequirement[], active
   const missingOptional = requirements.filter((r) => !r.required && !activeCapabilities.has(r.capability)).map((r) => r.capability);
   const fit: EligibilityFit = missingRequired.length > 0 ? "not_equipped" : missingOptional.length > 0 ? "partial" : "eligible";
   return { fit, eligible: fit !== "not_equipped", missingRequired, missingOptional };
+}
+
+// A missing configuration is not the same as a mission with no equipment
+// requirements. Operational matching fails closed until DOM configures it.
+export function computeConfiguredEligibility(requirements: CapabilityRequirement[], activeCapabilities: Set<string>): EligibilityResult {
+  if (requirements.length === 0) {
+    return { fit: "not_equipped", eligible: false, missingRequired: ["requirements_not_configured"], missingOptional: [] };
+  }
+  return computeEligibility(requirements, activeCapabilities);
 }
 
 export function eligibilityReason(result: EligibilityResult): string | null {

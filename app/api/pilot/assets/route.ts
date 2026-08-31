@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "A valid asset_type is required." }, { status: 400 });
   }
   const status = typeof body.status === "string" && VALID_STATUSES.has(body.status) ? body.status : "active";
-  const capabilities: string[] = Array.isArray(body.capabilities) ? body.capabilities.filter((c: unknown) => typeof c === "string" && VALID_CAPABILITIES.has(c)) : [];
+  const capabilities: string[] = Array.isArray(body.capabilities) ? [...new Set<string>(body.capabilities.filter((c: unknown): c is string => typeof c === "string" && VALID_CAPABILITIES.has(c)))] : [];
 
   const admin = getSupabaseAdmin();
   const { data: asset, error } = await admin
@@ -68,7 +68,10 @@ export async function POST(req: NextRequest) {
 
   if (capabilities.length > 0) {
     const { error: capError } = await admin.from("pilot_asset_capabilities").insert(capabilities.map((capability) => ({ asset_id: asset.id, capability })));
-    if (capError) return NextResponse.json({ error: capError.message }, { status: 500 });
+    if (capError) {
+      await admin.from("pilot_assets").delete().eq("id", asset.id).eq("contractor_id", auth.contractor.id);
+      return NextResponse.json({ error: capError.message }, { status: 500 });
+    }
   }
 
   return NextResponse.json({ asset: { ...asset, capabilities } }, { status: 201 });

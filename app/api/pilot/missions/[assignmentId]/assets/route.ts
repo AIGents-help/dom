@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveContractor } from "@/lib/pilotAuth";
 import { isAssetActive } from "@/lib/pilotAssetsPipeline";
+import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
 
 // GET  /api/pilot/missions/[assignmentId]/assets — the pilot's active
 //      assets, annotated with whether each is currently selected for this
@@ -49,17 +50,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
   const body = await req.json().catch(() => ({}));
   const requestedIds: string[] = Array.isArray(body.assetIds) ? body.assetIds.filter((id: unknown) => typeof id === "string") : [];
 
-  const { data: owned } = await admin.from("pilot_assets").select("id, status, archived_at").eq("contractor_id", auth.contractor.id).in("id", requestedIds.length ? requestedIds : ["00000000-0000-0000-0000-000000000000"]);
-  const validIds = new Set((owned ?? []).filter((a) => isAssetActive(a)).map((a) => a.id));
-  const assetIds = requestedIds.filter((id) => validIds.has(id));
-
-  const { error: delError } = await admin.from("mission_asset_assignments").delete().eq("mission_assignment_id", assignmentId);
-  if (delError) return NextResponse.json({ error: delError.message }, { status: 500 });
-
-  if (assetIds.length > 0) {
-    const { error: insError } = await admin.from("mission_asset_assignments").insert(assetIds.map((asset_id) => ({ mission_assignment_id: assignmentId, asset_id, role: "aircraft" })));
-    if (insError) return NextResponse.json({ error: insError.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true, assetIds });
+  const authHeader = req.headers.get("authorization");
+  if (!authHeader) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  const userClient = getSupabaseAnonServer(authHeader);
+  const { data: assetIds, error } = await userClient.rpc("pilot_replace_mission_assets", {
+    p_mission_assignment_id: assignmentId,
+    p_asset_ids: [...new Set(requestedIds)],
+  });
+  if (error) return NextResponse.json({ error: error.message }, { status: 409 });
+  return NextResponse.json({ ok: true, assetIds: assetIds ?? [] });
 }

@@ -33,14 +33,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: contractors } = await admin
     .from("contractors")
-    .select("id, full_name, email, service_area, status, part107_verified, insurance_verified, pilot_assets(status, archived_at, pilot_asset_capabilities(capability))")
-    .eq("status", "active");
+    .select("id, full_name, email, service_area, status, part107_verified, insurance_verified, pilot_assets(status, archived_at, capabilities_verified, pilot_asset_capabilities(capability))")
+    .eq("status", "active")
+    .eq("part107_verified", true)
+    .eq("insurance_verified", true);
 
-  const pilots = (contractors ?? [])
+  const pilots = requirements.length === 0 ? [] : (contractors ?? [])
     .map((c) => {
       const active = new Set<string>();
-      for (const asset of (c.pilot_assets ?? []) as { status: string; archived_at: string | null; pilot_asset_capabilities: { capability: string }[] }[]) {
-        if (asset.status !== "active" || asset.archived_at) continue;
+      for (const asset of (c.pilot_assets ?? []) as { status: string; archived_at: string | null; capabilities_verified: boolean; pilot_asset_capabilities: { capability: string }[] }[]) {
+        if (asset.status !== "active" || asset.archived_at || !asset.capabilities_verified) continue;
         for (const cap of asset.pilot_asset_capabilities ?? []) active.add(cap.capability);
       }
       const eligibility = computeEligibility(requirements, active);
@@ -57,5 +59,5 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .filter((p) => p.eligibility.eligible)
     .sort((a, b) => (a.eligibility.fit === b.eligibility.fit ? 0 : a.eligibility.fit === "eligible" ? -1 : 1));
 
-  return NextResponse.json({ requirements, pilots });
+  return NextResponse.json({ requirements, pilots, configured: requirements.length > 0 });
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  computeEligibility, eligibilityReason, toPublicAsset, isAssetActive, activeCapabilitySet,
+  computeEligibility, computeConfiguredEligibility, eligibilityReason, toPublicAsset, isAssetActive, activeCapabilitySet,
   ASSET_TYPES, CAPABILITIES, PILOT_ASSET_PRIVATE_FIELDS,
   type CapabilityRequirement, type PilotAsset,
 } from "./pilotAssetsPipeline";
@@ -67,6 +67,21 @@ describe("computeEligibility", () => {
   it("is eligible with no requirements at all (e.g. custom missions)", () => {
     const result = computeEligibility([], new Set());
     expect(result.fit).toBe("eligible");
+  });
+});
+
+describe("computeConfiguredEligibility", () => {
+  it("fails closed when a mission type has no requirement configuration", () => {
+    expect(computeConfiguredEligibility([], new Set(["rgb_imagery", "thermal"]))).toEqual({
+      fit: "not_equipped",
+      eligible: false,
+      missingRequired: ["requirements_not_configured"],
+      missingOptional: [],
+    });
+  });
+
+  it("delegates configured missions to normal capability matching", () => {
+    expect(computeConfiguredEligibility([{ capability: "thermal", required: true }], new Set(["thermal"])).eligible).toBe(true);
   });
 });
 

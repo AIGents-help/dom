@@ -10,7 +10,7 @@ import { V, btnGhost, btnPrimary } from "@/lib/theme";
 
 interface PickableAsset { id: string; display_name: string | null; manufacturer: string | null; model: string | null; asset_type: string; selected: boolean }
 
-export default function MissionAssetPicker({ accessToken, assignmentId }: { accessToken: string; assignmentId: string }) {
+export default function MissionAssetPicker({ accessToken, assignmentId, onSaved }: { accessToken: string; assignmentId: string; onSaved?: () => void | Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [assets, setAssets] = useState<PickableAsset[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -63,6 +63,7 @@ export default function MissionAssetPicker({ accessToken, assignmentId }: { acce
     }
     setSavedCount(selectedIds.size);
     setOpen(false);
+    await onSaved?.();
   }
 
   return (

@@ -7,10 +7,11 @@ const VALID_STATUSES: Set<string> = new Set(ASSET_STATUS_OPTIONS.map((s) => s.va
 const VALID_CAPABILITIES: Set<string> = new Set(CAPABILITIES.map((c) => c.value));
 
 const EDITABLE_FIELDS = [
-  "manufacturer", "model", "display_name", "serial_number", "registration_number",
+  "asset_type", "manufacturer", "model", "display_name", "serial_number", "registration_number",
   "remote_id", "firmware_version", "acquired_at", "status", "public_visible",
   "public_description", "notes",
 ] as const;
+const VALID_ASSET_TYPES = new Set(["uav", "controller", "camera_payload", "rtk_gnss", "lidar_payload", "thermal_payload", "battery", "generator", "vehicle", "safety_equipment", "lighting", "computer", "connectivity", "other"]);
 
 // PATCH /api/pilot/assets/[id] — edit fields and/or archive
 // (`{ archived: true }` sets archived_at; `{ archived: false }` clears it).
@@ -36,6 +37,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (updates.status !== undefined && !VALID_STATUSES.has(updates.status as string)) {
     return NextResponse.json({ error: "Invalid status." }, { status: 400 });
   }
+  if (updates.asset_type !== undefined && !VALID_ASSET_TYPES.has(updates.asset_type as string)) {
+    return NextResponse.json({ error: "Invalid asset type." }, { status: 400 });
+  }
   if (typeof body.archived === "boolean") {
     updates.archived_at = body.archived ? new Date().toISOString() : null;
   }
@@ -46,12 +50,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   if (Array.isArray(body.capabilities)) {
-    const capabilities: string[] = body.capabilities.filter((c: unknown) => typeof c === "string" && VALID_CAPABILITIES.has(c));
-    const { error: delError } = await admin.from("pilot_asset_capabilities").delete().eq("asset_id", id);
-    if (delError) return NextResponse.json({ error: delError.message }, { status: 500 });
-    if (capabilities.length > 0) {
-      const { error: insError } = await admin.from("pilot_asset_capabilities").insert(capabilities.map((capability) => ({ asset_id: id, capability })));
-      if (insError) return NextResponse.json({ error: insError.message }, { status: 500 });
+    const capabilities: string[] = [...new Set<string>(body.capabilities.filter((c: unknown): c is string => typeof c === "string" && VALID_CAPABILITIES.has(c)))];
+    const { data: previous } = await admin.from("pilot_asset_capabilities").select("capability").eq("asset_id", id);
+    const previousCapabilities = (previous ?? []).map((row) => row.capability).sort();
+    const capabilitiesChanged = previousCapabilities.join("\u0000") !== [...capabilities].sort().join("\u0000");
+    if (capabilitiesChanged) {
+      const { error: delError } = await admin.from("pilot_asset_capabilities").delete().eq("asset_id", id);
+      if (delError) return NextResponse.json({ error: delError.message }, { status: 500 });
+      if (capabilities.length > 0) {
+        const { error: insError } = await admin.from("pilot_asset_capabilities").insert(capabilities.map((capability) => ({ asset_id: id, capability })));
+        if (insError) {
+          const oldCapabilities = (previous ?? []).map((row) => ({ asset_id: id, capability: row.capability }));
+          if (oldCapabilities.length) await admin.from("pilot_asset_capabilities").insert(oldCapabilities);
+          return NextResponse.json({ error: insError.message }, { status: 500 });
+        }
+      }
+      await admin.from("pilot_assets").update({ capabilities_verified: false, capabilities_verified_at: null }).eq("id", id).eq("contractor_id", auth.contractor.id);
     }
   }
 

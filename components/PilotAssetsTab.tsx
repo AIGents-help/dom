@@ -30,6 +30,7 @@ interface Asset {
   notes: string | null;
   archived_at: string | null;
   capabilities: string[];
+  capabilities_verified: boolean;
 }
 
 const EMPTY_FORM = {
@@ -223,6 +224,9 @@ export default function PilotAssetsTab({ accessToken }: { accessToken: string })
                   </span>
                   <span style={{ fontSize: 11, color: a.public_visible ? V.telemetry : V.inkFaint }}>
                     {a.public_visible ? "Public profile: ON" : "Public profile: OFF"}
+                  </span>
+                  <span style={{ fontSize: 11, color: a.capabilities_verified ? V.telemetry : V.warn }}>
+                    {a.capabilities_verified ? "Capabilities: DOM verified" : "Capabilities: awaiting DOM verification"}
                   </span>
                   <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                     {!a.archived_at && <button onClick={() => startEdit(a)} style={{ ...btnGhost, padding: "5px 10px", fontSize: 12 }}>Edit</button>}

@@ -24,6 +24,7 @@ export default function EligiblePilotsPanel({ missionId, onSelect }: { missionId
   const [pilots, setPilots] = useState<EligiblePilot[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [configured, setConfigured] = useState(true);
 
   async function find() {
     setLoading(true);
@@ -45,6 +46,7 @@ export default function EligiblePilotsPanel({ missionId, onSelect }: { missionId
       return;
     }
     setPilots(body.pilots ?? []);
+    setConfigured(body.configured !== false);
   }
 
   return (
@@ -59,7 +61,8 @@ export default function EligiblePilotsPanel({ missionId, onSelect }: { missionId
       {error && <p style={{ color: "#DC2626", fontSize: 12, marginTop: 6 }}>{error}</p>}
       {pilots && (
         <div style={{ marginTop: 8, display: "grid", gap: 6 }}>
-          {pilots.length === 0 && <p style={{ color: "#8A95A7", fontSize: 12 }}>No active pilot currently has the required equipment for this mission.</p>}
+          {!configured && <p style={{ color: "#DC2626", fontSize: 12 }}>Equipment requirements are not configured for this mission type. Configure them before staffing.</p>}
+          {configured && pilots.length === 0 && <p style={{ color: "#8A95A7", fontSize: 12 }}>No active, verified pilot currently has the required equipment for this mission.</p>}
           {pilots.map((p) => (
             <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", borderRadius: 7, background: "#F5F7FA", fontSize: 12 }}>
               <span>

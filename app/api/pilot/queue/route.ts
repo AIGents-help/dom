@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
 import { fuzzyGrid } from "@/lib/fuzzyLocation";
-import { computeEligibility } from "@/lib/pilotAssetsPipeline";
+import { computeConfiguredEligibility } from "@/lib/pilotAssetsPipeline";
 import { getContractorActiveCapabilities, getServiceTypeRequirements } from "@/lib/pilotAssetsServer";
 
 // GET /api/pilot/queue
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
 
     const queue = (missions ?? []).map((m) => {
       const requirements = requirementsByServiceType.get(m.service_type) ?? [];
-      const eligibility = computeEligibility(requirements, activeCapabilities);
+      const eligibility = computeConfiguredEligibility(requirements, activeCapabilities);
       return {
         id: m.id,
         service_type: m.service_type,

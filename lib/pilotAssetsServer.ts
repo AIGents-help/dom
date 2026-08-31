@@ -10,12 +10,12 @@ import { isAssetActive, type CapabilityRequirement } from "@/lib/pilotAssetsPipe
 export async function getContractorActiveCapabilities(admin: SupabaseClient, contractorId: string): Promise<Set<string>> {
   const { data: assets } = await admin
     .from("pilot_assets")
-    .select("status, archived_at, pilot_asset_capabilities(capability)")
+    .select("status, archived_at, capabilities_verified, pilot_asset_capabilities(capability)")
     .eq("contractor_id", contractorId);
 
   const set = new Set<string>();
   for (const asset of assets ?? []) {
-    if (!isAssetActive(asset)) continue;
+    if (!isAssetActive(asset) || !asset.capabilities_verified) continue;
     for (const row of (asset.pilot_asset_capabilities ?? []) as { capability: string }[]) set.add(row.capability);
   }
   return set;

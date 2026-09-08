@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import BarrierProductVisual from "@/components/shop/BarrierProductVisual";
 
 const products = [
@@ -40,6 +41,20 @@ export default function SafetyEquipmentPage() {
         </div>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <Link href="/safety-equipment/portable-landing-pad" className="group overflow-hidden rounded-2xl border border-white/10 bg-[#111923] transition hover:-translate-y-1 hover:border-[#f26a1b] hover:shadow-2xl">
+            <div className="relative bg-white p-3">
+              <Image src="/shop/safety/portable-landing-pad.jpeg" alt="Orange portable drone landing pad" width={1560} height={1560} className="aspect-[9/6] w-full object-contain" />
+              <span className="absolute left-5 top-5 rounded-full bg-[#f26a1b] px-3 py-1 text-xs font-bold tracking-wider text-white">LANDING ZONE</span>
+            </div>
+            <div className="p-6">
+              <div className="flex items-start justify-between gap-4">
+                <h3 className="text-xl font-extrabold">Portable Drone Landing Pad</h3>
+                <span className="whitespace-nowrap text-2xl font-extrabold text-[#f26a1b]">$15 each</span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-400">High-visibility, foldable landing surface for cleaner, more clearly designated takeoffs and landings.</p>
+              <div className="mt-5 font-bold text-[#f26a1b]">View product →</div>
+            </div>
+          </Link>
           {products.map((product) => (
             <Link key={product.count} href={product.href} className="group overflow-hidden rounded-2xl border border-white/10 bg-[#111923] transition hover:-translate-y-1 hover:border-[#f26a1b] hover:shadow-2xl">
               <div className="relative bg-white p-3">

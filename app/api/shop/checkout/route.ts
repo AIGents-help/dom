@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 
 const PRODUCTS = {
+  "portable-landing-pad": {
+    name: "Portable Drone Landing Pad",
+    unitAmount: 1500,
+    description: "High-visibility foldable landing pad for drone takeoffs and landings.",
+  },
   "barrier-1": {
     name: "Drone Operation Retractable Barrier — Single",
     unitAmount: 6900,

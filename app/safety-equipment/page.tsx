@@ -51,7 +51,7 @@ export default function SafetyEquipmentPage() {
                   <h3 className="text-xl font-extrabold">{product.name}</h3>
                   <span className="text-2xl font-extrabold text-[#f26a1b]">{product.price}</span>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-slate-400">Exactly {product.count} retractable {product.count === 1 ? "post" : "posts"}. High-visibility orange finish and 6 ft webbing per unit.</p>
+                <p className="mt-3 text-sm leading-6 text-slate-400">Exactly {product.count} retractable {product.count === 1 ? "post" : "posts"}. Black or high-visibility orange finish with 6 ft orange webbing per unit.</p>
                 <div className="mt-5 font-bold text-[#f26a1b]">View product →</div>
               </div>
             </Link>

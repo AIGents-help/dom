@@ -1,10 +1,38 @@
+import Image from "next/image";
+
 type Props = {
   count: 1 | 3 | 4 | 6 | 12 | 24;
   label?: string;
   className?: string;
+  variant?: "default" | "pilot" | "drone";
 };
 
-export default function BarrierProductVisual({ count, label, className = "" }: Props) {
+const productImages: Partial<Record<Props["count"], string>> = {
+  1: "/shop/barriers/dom-single-barrier.webp",
+  3: "/shop/barriers/dom-3-post-field-kit.webp",
+  4: "/shop/barriers/dom-4-post-pilot-protection.webp",
+  12: "/shop/barriers/dom-12-post-jobsite-kit.webp",
+  24: "/shop/barriers/dom-24-post-corporate-kit.webp",
+};
+
+export default function BarrierProductVisual({ count, label, className = "", variant = "default" }: Props) {
+  const imageSrc = count === 4 && variant === "drone"
+    ? "/shop/barriers/dom-4-post-large-drone-zone.webp"
+    : productImages[count];
+
+  if (imageSrc) {
+    return (
+      <Image
+        src={imageSrc}
+        alt={label ?? `${count}-post Drone Operation barrier kit in use`}
+        width={1200}
+        height={1200}
+        sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
+        className={`object-cover ${className}`}
+      />
+    );
+  }
+
   const cols = count <= 4 ? count : count === 6 ? 3 : count === 12 ? 4 : 6;
   const rows = Math.ceil(count / cols);
   const width = 900;

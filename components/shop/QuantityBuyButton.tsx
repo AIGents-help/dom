@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 
-export default function QuantityBuyButton({ productKey, unitPrice }: { productKey: string; unitPrice: number }) {
+export default function QuantityBuyButton({ productKey, unitPrice, options }: { productKey: string; unitPrice: number; options?: string[] }) {
   const [quantity, setQuantity] = useState(1);
+  const [option, setOption] = useState(options?.[0] ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,7 +15,7 @@ export default function QuantityBuyButton({ productKey, unitPrice }: { productKe
       const response = await fetch("/api/shop/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productKey, quantity }),
+        body: JSON.stringify({ productKey, quantity, size: option || undefined }),
       });
       const result = await response.json();
       if (!response.ok || !result.url) throw new Error(result.error || "Unable to start checkout");
@@ -28,6 +29,14 @@ export default function QuantityBuyButton({ productKey, unitPrice }: { productKe
   return (
     <div className="mt-8">
       <div className="flex flex-wrap items-end gap-3">
+        {options && (
+          <label className="grid gap-2 text-sm font-bold text-slate-200">
+            Size
+            <select value={option} onChange={(event) => setOption(event.target.value)} className="h-12 rounded-lg border border-white/20 bg-[#111923] px-4 text-base text-white">
+              {options.map((value) => <option key={value} value={value}>{value}</option>)}
+            </select>
+          </label>
+        )}
         <label className="grid gap-2 text-sm font-bold text-slate-200">
           Quantity
           <select

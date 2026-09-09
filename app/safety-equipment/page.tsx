@@ -19,9 +19,9 @@ export default function SafetyEquipmentPage() {
           <div>
             <p className="text-sm font-bold uppercase tracking-[.2em] text-[#f26a1b]">DOM Safety Equipment</p>
             <h1 className="mt-3 text-4xl font-extrabold leading-tight md:text-6xl">Professional ground safety. Professional operations.</h1>
-            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">Purpose-built field equipment for commercial drone crews. The first DOM product is a high-visibility retractable barrier with simple <strong className="text-white">DRONE OPERATION</strong> webbing so it works across many operating environments.</p>
+            <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">Purpose-built field equipment for commercial drone crews—from high-visibility <strong className="text-white">DRONE OPERATION</strong> barriers and safety vests to portable landing zones.</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href="#barriers" className="rounded-lg bg-[#f26a1b] px-6 py-3.5 font-bold text-white transition hover:bg-[#d9570c]">Shop Barrier Systems</Link>
+              <Link href="#field-gear" className="rounded-lg bg-[#f26a1b] px-6 py-3.5 font-bold text-white transition hover:bg-[#d9570c]">Shop Safety Equipment</Link>
               <Link href="/shop" className="rounded-lg border border-white/20 px-6 py-3.5 font-bold text-white transition hover:border-[#f26a1b]">DOM Merchandise →</Link>
             </div>
           </div>
@@ -31,16 +31,30 @@ export default function SafetyEquipmentPage() {
         </div>
       </section>
 
-      <section id="barriers" className="container-app py-16 md:py-20">
+      <section id="field-gear" className="container-app py-16 md:py-20">
         <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[.18em] text-[#f26a1b]">Barriers & Perimeters</p>
-            <h2 className="mt-2 text-3xl font-extrabold md:text-4xl">Choose the exact kit for your operation.</h2>
+            <p className="text-sm font-bold uppercase tracking-[.18em] text-[#f26a1b]">Field Safety Equipment</p>
+            <h2 className="mt-2 text-3xl font-extrabold md:text-4xl">Equip a safer drone operation.</h2>
           </div>
           <p className="max-w-xl text-sm leading-6 text-slate-400">Every listing below shows the exact number of posts included. Each post has 6 ft retractable DRONE OPERATION webbing.</p>
         </div>
 
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          <Link href="/safety-equipment/drone-operation-safety-vest" className="group overflow-hidden rounded-2xl border border-white/10 bg-[#111923] transition hover:-translate-y-1 hover:border-[#f26a1b] hover:shadow-2xl">
+            <div className="relative bg-white p-3">
+              <Image src="/shop/safety/drone-operation-vest-front.jpeg" alt="Orange Drone Operation high-visibility safety vest" width={720} height={1280} className="aspect-[9/6] w-full object-contain" />
+              <span className="absolute left-5 top-5 rounded-full bg-[#f26a1b] px-3 py-1 text-xs font-bold tracking-wider text-white">CREW SAFETY</span>
+            </div>
+            <div className="p-6">
+              <div className="flex items-start justify-between gap-4">
+                <h3 className="text-xl font-extrabold">Drone Operation Safety Vest</h3>
+                <span className="whitespace-nowrap text-2xl font-extrabold text-[#f26a1b]">$15 each</span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-400">Orange high-visibility vest with reflective striping, DOM mark, and DRONE OPERATION printed across the back. Sizes S–XL.</p>
+              <div className="mt-5 font-bold text-[#f26a1b]">Choose size →</div>
+            </div>
+          </Link>
           <Link href="/safety-equipment/portable-landing-pad" className="group overflow-hidden rounded-2xl border border-white/10 bg-[#111923] transition hover:-translate-y-1 hover:border-[#f26a1b] hover:shadow-2xl">
             <div className="relative bg-white p-3">
               <Image src="/shop/safety/portable-landing-pad.jpeg" alt="Orange portable drone landing pad" width={1560} height={1560} className="aspect-[9/6] w-full object-contain" />

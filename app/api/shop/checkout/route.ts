@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 
 const PRODUCTS = {
+  "drone-operation-safety-vest": {
+    name: "Drone Operation Safety Vest",
+    unitAmount: 1500,
+    description: "Orange high-visibility safety vest with reflective striping and DRONE OPERATION identification.",
+  },
   "portable-landing-pad": {
     name: "Portable Drone Landing Pad",
     unitAmount: 1500,
@@ -43,12 +48,16 @@ type ProductKey = keyof typeof PRODUCTS;
 
 export async function POST(req: NextRequest) {
   try {
-    const { productKey, quantity = 1 } = await req.json();
+    const { productKey, quantity = 1, size } = await req.json();
     const product = PRODUCTS[productKey as ProductKey];
     const qty = Number(quantity);
 
     if (!product) return NextResponse.json({ error: "Unknown product" }, { status: 400 });
     if (!Number.isInteger(qty) || qty < 1 || qty > 20) return NextResponse.json({ error: "Invalid quantity" }, { status: 400 });
+    const vestSize = productKey === "drone-operation-safety-vest" ? String(size ?? "") : "";
+    if (productKey === "drone-operation-safety-vest" && !["S", "M", "L", "XL"].includes(vestSize)) {
+      return NextResponse.json({ error: "Select a valid vest size" }, { status: 400 });
+    }
 
     const stripe = getStripe();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -60,14 +69,14 @@ export async function POST(req: NextRequest) {
         price_data: {
           currency: "usd",
           unit_amount: product.unitAmount,
-          product_data: { name: product.name, description: product.description },
+          product_data: { name: vestSize ? `${product.name} — Size ${vestSize}` : product.name, description: product.description },
         },
       }],
       billing_address_collection: "required",
       shipping_address_collection: { allowed_countries: ["US"] },
       phone_number_collection: { enabled: true },
       allow_promotion_codes: true,
-      metadata: { order_type: "dom_safety_equipment", product_key: productKey },
+      metadata: { order_type: "dom_safety_equipment", product_key: productKey, ...(vestSize ? { size: vestSize } : {}) },
       success_url: `${siteUrl}/shop/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${siteUrl}/shop/drone-operation-barriers?checkout=cancelled`,
     });

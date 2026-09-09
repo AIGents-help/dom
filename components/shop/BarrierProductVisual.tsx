@@ -28,7 +28,7 @@ export default function BarrierProductVisual({ count, label, className = "", var
         width={1200}
         height={1200}
         sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
-        className={`object-cover ${className}`}
+        className={`${count === 1 ? "object-contain" : "object-cover"} ${className}`}
       />
     );
   }

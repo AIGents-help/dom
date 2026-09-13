@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
+import { useNow } from "@/lib/useNow";
 
 // Pilot > Profile tab — editable basic info. These columns (full_name,
 // phone, service_area, equipment, part107_number, home_address) are all outside the
@@ -144,12 +145,13 @@ export default function PilotProfileEditor({ profile, onSaved }: { profile: Prof
 }
 
 function InsurancePanel({ profile, onSaved }: { profile: Profile; onSaved: () => void }) {
+  const now = useNow();
   const [provider, setProvider] = useState(profile.insurance_provider ?? "SkyWatch.AI");
   const [policyNumber, setPolicyNumber] = useState(profile.insurance_policy_number ?? "");
   const [expiresOn, setExpiresOn] = useState(profile.insurance_expires_on ?? "");
   const [liability, setLiability] = useState(profile.insurance_liability_cents ? String(profile.insurance_liability_cents / 100) : "1000000");
   const [coi, setCoi] = useState<File | null>(null); const [saving, setSaving] = useState(false); const [message, setMessage] = useState<string | null>(null);
-  const expired = !!profile.insurance_expires_on && new Date(`${profile.insurance_expires_on}T23:59:59`).getTime() <= Date.now();
+  const expired = !!profile.insurance_expires_on && new Date(`${profile.insurance_expires_on}T23:59:59`).getTime() <= now;
   async function submit() { setSaving(true); setMessage(null); const sb = getSupabaseBrowser(); const { data } = await sb.auth.getSession(); const body = new FormData(); body.set("provider", provider); body.set("policyNumber", policyNumber); body.set("expiresOn", expiresOn); body.set("liabilityDollars", liability); if (coi) body.set("coi", coi); const res = await fetch("/api/pilot/insurance/profile", { method: "POST", headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}` }, body }); const out = await res.json(); setMessage(res.ok ? out.message : out.error); setSaving(false); if (res.ok) onSaved(); }
   return <section style={{ marginTop: 22, padding: 16, borderRadius: 12, border: `1px solid ${profile.insurance_verified && !expired ? V.telemetry : V.warn}`, background: profile.insurance_verified && !expired ? "rgba(22,163,74,.06)" : "rgba(245,158,11,.06)" }}>
     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><div><div style={labelStyle}>Insurance verification</div><strong style={{ color: profile.insurance_verified && !expired ? V.telemetry : V.warn }}>{profile.insurance_verified && !expired ? "Verified and current" : profile.insurance_requested ? "Pending DOM review" : "Not verified"}</strong></div>{profile.dom_gig_insurance_eligible && <span style={{ color: V.telemetry, fontSize: 11, fontWeight: 700 }}>DOM GIG PROGRAM ELIGIBLE</span>}</div>

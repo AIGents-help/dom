@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import PilotAssetSearchPanel from "@/components/admin/PilotAssetSearchPanel";
 
+function insurancePolicyIsCurrent(expiresOn: string) {
+  return new Date(`${expiresOn}T23:59:59`).getTime() > Date.now();
+}
+
 // Admin > Contractors. Gated by Supabase Auth + admin allowlist (RLS enforces it server-side).
 // Lets you flip the Part 107 / insurance verification gates that /api/checkout enforces.
 type Contractor = {
@@ -98,7 +102,7 @@ export default function AdminContractorsPage() {
   async function toggle(id: string, field: "part107_verified" | "insurance_verified" | "dom_gig_insurance_eligible", value: boolean) {
     if (field === "insurance_verified" && value) {
       const contractor = rows.find((row) => row.id === id);
-      if (!contractor?.insurance_coi_path || !contractor.insurance_policy_number || !contractor.insurance_expires_on || new Date(`${contractor.insurance_expires_on}T23:59:59`).getTime() <= Date.now()) {
+      if (!contractor?.insurance_coi_path || !contractor.insurance_policy_number || !contractor.insurance_expires_on || !insurancePolicyIsCurrent(contractor.insurance_expires_on)) {
         window.alert("A current policy number, future expiration date, and uploaded COI are required before verification.");
         return;
       }

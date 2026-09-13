@@ -1,0 +1,40 @@
+name: Verify DOM
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: verify-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            services/mapper-worker/package-lock.json
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Install mapper-worker dependencies
+        run: npm ci --prefix services/mapper-worker
+
+      - name: Run complete verification
+        run: npm run verify

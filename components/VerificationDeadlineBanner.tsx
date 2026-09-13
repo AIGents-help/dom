@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { V } from "@/lib/theme";
+import { useNow } from "@/lib/useNow";
 
 // Persistent countdown for unverified pilots on the free-access clock.
 // Verified pilots (part107_verified) never see this regardless of deadline
@@ -25,10 +26,11 @@ export default function VerificationDeadlineBanner({
   onGoToProfile,
 }: Props) {
   const [upgrading, setUpgrading] = useState(false);
+  const now = useNow();
 
   if (part107Verified || !membershipDeadline || resourceAccessActive) return null;
 
-  const daysRemaining = Math.ceil((new Date(membershipDeadline).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  const daysRemaining = Math.ceil((new Date(membershipDeadline).getTime() - now) / (24 * 60 * 60 * 1000));
 
   async function startUpgrade() {
     setUpgrading(true);

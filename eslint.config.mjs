@@ -9,7 +9,7 @@ export default defineConfig([
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": "warn",
-      "react-hooks/purity": "warn",
+      "react-hooks/purity": "error",
       "react-hooks/set-state-in-effect": "warn",
       "react/no-unescaped-entities": "warn",
     },

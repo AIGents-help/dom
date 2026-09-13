@@ -5,6 +5,7 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 import { assessMissionEquipment, missionEquipmentGuidance, missionWeatherUrl } from "@/lib/missionEquipmentGuidance";
+import { useNow } from "@/lib/useNow";
 import PilotFieldWorkflow from "@/components/PilotFieldWorkflow";
 import PilotReadinessBanner from "@/components/PilotReadinessBanner";
 import MissionReviewPanel from "@/components/MissionReviewPanel";
@@ -74,6 +75,7 @@ export default function PilotMissionLog({
   onGoToProfile: () => void;
   onSaved: () => void;
 }) {
+  const now = useNow();
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [deliverables, setDeliverables] = useState<DeliverableRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,7 +91,7 @@ export default function PilotMissionLog({
   const [aircraft, setAircraft] = useState(assignedUav ?? "");
   const selectedAssessment = equipmentAssessments.find((item) => item.aircraft === aircraft);
   const guidance = aircraft ? missionEquipmentGuidance(serviceType, aircraft) : [];
-  const forecastDaysAway = performanceDate ? Math.ceil((new Date(performanceDate).getTime() - Date.now()) / 86_400_000) : null;
+  const forecastDaysAway = performanceDate ? Math.ceil((new Date(performanceDate).getTime() - now) / 86_400_000) : null;
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [forecastLoading, setForecastLoading] = useState(false);
 

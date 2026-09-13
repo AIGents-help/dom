@@ -8,6 +8,14 @@ export const resend = new Resend(resendApiKey);
 const FROM_ADDRESS = process.env.RESEND_FROM_EMAIL || "Drone Operation Management <ops@droneopsman.com>";
 const NOTIFY_ADDRESS = process.env.NOTIFY_EMAIL || "ops@droneopsman.com";
 
+export async function sendContactMessageEmails(payload: { name:string; email:string; phone?:string; company?:string; category:string; subject:string; message:string }) {
+  const label = payload.category.replaceAll("_", " ");
+  const internal = await resend.emails.send({ from:FROM_ADDRESS, to:NOTIFY_ADDRESS, replyTo:payload.email, subject:`DOM Message — ${payload.subject}`, html:`<h2>New DOM message</h2><p><strong>Type:</strong> ${escapeHtml(label)}</p><p><strong>Name:</strong> ${escapeHtml(payload.name)}</p><p><strong>Email:</strong> ${escapeHtml(payload.email)}</p><p><strong>Phone:</strong> ${payload.phone?escapeHtml(payload.phone):"N/A"}</p><p><strong>Company:</strong> ${payload.company?escapeHtml(payload.company):"N/A"}</p><p><strong>Subject:</strong> ${escapeHtml(payload.subject)}</p><p style="white-space:pre-wrap"><strong>Message:</strong><br>${escapeHtml(payload.message)}</p>` });
+  if(internal.error) console.error("Resend contact notification failed:",internal.error.message);
+  const confirmation = await resend.emails.send({ from:FROM_ADDRESS, to:payload.email, subject:"Your Message Was Received — Drone Operation Management", html:`<p>Hi ${escapeHtml(payload.name)},</p><p>Thank you for contacting Drone Operation Management. Your message has been received and is now in our operations inbox.</p><p><strong>${escapeHtml(payload.subject)}</strong></p><p>We will respond as soon as possible. If you need drone services, you can also submit a structured mission request at DroneOpsMan.com.</p><p>— Drone Operation Management</p>` });
+  if(confirmation.error) console.error("Resend contact confirmation failed:",confirmation.error.message);
+}
+
 // Loosely-typed mirror of QuoteBreakdown — the caller may pass either the
 // full internal shape (admin-created missions, which persist commission
 // data) or a partial one, so every field is optional and modifiers isn't

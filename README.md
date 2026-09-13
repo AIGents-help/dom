@@ -5,9 +5,10 @@ Premium commercial drone operations platform for **DroneOpsMan.com**.
 ## Stack
 - Next.js 15 (App Router) + TypeScript
 - Tailwind CSS (dark enterprise theme, blue/cyan accents)
-- Supabase-ready data layer (`lib/supabase.ts`)
-- Resend-ready transactional email (`lib/resend.ts`)
-- Notion-ready CRM sync (`lib/notion.ts`)
+- Supabase data, authentication, row-level security, and private storage
+- Resend transactional email and Stripe payment workflows
+- Optional Notion and Smartlead CRM integrations
+- Independent NodeODM mapper worker with optional Google Drive archiving
 - Vercel deployment ready
 
 ## Pages
@@ -15,10 +16,14 @@ Premium commercial drone operations platform for **DroneOpsMan.com**.
 - `/services` — Services
 - `/industries` — Industries
 - `/request-mission` — Request a Mission (form → API route → Supabase + Resend + Notion)
+- `/contact` — General inquiries, partnerships, feedback, and thank-you messages
 - `/about` — About
 - `/faa-compliance` — FAA Compliance
 - `/admin/login` — Admin Login
 - `/admin/dashboard` — Admin Dashboard (Leads, Mission Requests, Clients, Jobs, Schedule, Deliverables, Notes, Status Tracking)
+- `/admin/messages` — Admin Inbox for non-mission messages
+- `/pilot` — Pilot operations dashboard
+- `/client` — Client mission and deliverable portal
 
 ## Local development
 
@@ -32,9 +37,9 @@ npm run dev
 
 ### Supabase
 1. Create a Supabase project.
-2. Run the SQL schema documented at the bottom of `lib/supabase.ts` (leads, mission_requests, clients, jobs, deliverables, notes tables).
+2. Apply the SQL migrations in `supabase/migrations` in timestamp order.
 3. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_ROLE_KEY` to your environment.
-4. Wire the Admin Dashboard tabs (`components/AdminDashboardClient.tsx`) to live Supabase queries — they currently render sample data.
+4. Create the administrator in Supabase Auth and add the same email to `public.admin_users`.
 
 ### Resend
 1. Verify your sending domain in Resend.
@@ -46,8 +51,8 @@ npm run dev
 2. Share both databases with the integration.
 3. Add `NOTION_API_KEY`, `NOTION_MISSIONS_DB_ID`, `NOTION_LEADS_DB_ID`.
 
-### Admin Auth
-The included `/admin/login` flow uses a simple env-based credential check (`ADMIN_EMAIL` / `ADMIN_PASSWORD`) for demo purposes. For production, replace `app/api/admin/login/route.ts` with Supabase Auth and protect `/admin/dashboard` with middleware-based session checks.
+### Authentication
+Admin, pilot, and client access use Supabase Auth. Admin API access additionally requires membership in the `admin_users` allowlist.
 
 ## Deploying to Vercel
 

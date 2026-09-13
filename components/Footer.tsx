@@ -20,6 +20,7 @@ export default function Footer() {
         <div>
           <h4 className="mb-4 text-sm font-semibold text-ink">Company</h4>
           <ul className="space-y-3 text-sm text-muted">
+            <li><Link href="/contact" className="font-semibold text-accent hover:text-white">Send a Message</Link></li>
             <li><Link href="/about" className="hover:text-accent">About</Link></li>
             <li><Link href="/services" className="hover:text-accent">Services</Link></li>
             <li><Link href="/industries" className="hover:text-accent">Industries</Link></li>

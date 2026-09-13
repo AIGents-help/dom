@@ -26,6 +26,7 @@ const NAV = [
 ];
 
 const NOTIFICATION_NAV = [
+  { href: "/admin/messages", label: "Admin Inbox", icon: "✉" },
   { href: "/admin/relationships", label: "CRM Protection", icon: "◇" },
   { href: "/admin/support", label: "Pilot Support", icon: "✚" },
   { href: "/admin/operations", label: "Exception Center", icon: "⚠" },

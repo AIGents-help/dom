@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    const notifyEmail = process.env.NOTIFY_EMAIL || process.env.ADMIN_EMAIL || "ops@droneopsman.com";
+    const notifyEmail = process.env.NOTIFY_EMAIL || "ops@droneopsman.com";
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://www.droneopsman.com";
 
     const { subject, html } = missionClaimed({

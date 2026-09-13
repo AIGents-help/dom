@@ -19,6 +19,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/knowledge/service-areas",
     "/faa-compliance",
     "/request-mission",
+    "/contact",
     "/get-a-quote",
   ];
 

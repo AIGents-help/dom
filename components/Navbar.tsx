@@ -13,6 +13,7 @@ const links = [
   { href: "/safety-equipment", label: "Safety Equipment" },
   { href: "/shop", label: "Shop" },
   { href: "/about", label: "About" },
+  { href: "/contact", label: "Contact" },
 ];
 
 export default function Navbar() {

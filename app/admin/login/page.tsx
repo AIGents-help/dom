@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
-// Real admin login — replaces the placeholder /api/admin/login the README flagged.
 // Auth is handled by Supabase Auth (email + password). Access is gated by the
 // admin_users allowlist, so only authorized emails get past the login screen.
 export default function AdminLoginPage() {

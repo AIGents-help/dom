@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { CERT_TIMELINE_CONFIG, type CertTimelineBucket } from "@/lib/certTimeline";
 
@@ -17,6 +18,7 @@ import { CERT_TIMELINE_CONFIG, type CertTimelineBucket } from "@/lib/certTimelin
 //   friction that would hurt signup conversion for the exact people this
 //   tier exists to capture.
 export default function FlyForDomApplyForm() {
+  const router = useRouter();
   const [form, setForm] = useState({
     full_name: "",
     email: "",
@@ -73,7 +75,7 @@ export default function FlyForDomApplyForm() {
       if (!applyRes.ok) throw new Error(apply.error ?? "Application failed.");
 
       if (!alreadyCertified) {
-        window.location.href = "/pilot";
+        router.push("/pilot");
         return;
       }
 

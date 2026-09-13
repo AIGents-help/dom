@@ -92,14 +92,13 @@ export default function PilotQueue({
     setClaiming(null);
   }
 
-  const combined = [
-    ...open.map((m) => ({ ...m, mine: false })),
-    ...myClaims.map((m) => ({ ...m, mine: true })),
-  ];
-
   const sorted = useMemo(
-    () =>
-      [...combined]
+    () => {
+      const combined = [
+        ...open.map((m) => ({ ...m, mine: false })),
+        ...myClaims.map((m) => ({ ...m, mine: true })),
+      ];
+      return combined
         .filter((m) => !eligibleOnly || m.mine || !m.eligibility || m.eligibility.eligible)
         .sort((a, b) => {
           if (sortKey === "status") return a.mine === b.mine ? 0 : a.mine ? 1 : -1;
@@ -110,9 +109,9 @@ export default function PilotQueue({
             return la.localeCompare(lb);
           }
           return 0;
-        }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [combined, sortKey, eligibleOnly]
+        });
+    },
+    [open, myClaims, sortKey, eligibleOnly]
   );
 
   return (

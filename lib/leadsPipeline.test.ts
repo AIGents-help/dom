@@ -17,6 +17,7 @@ function makeLead(overrides: Partial<Lead> = {}): Lead {
     total_project_value: null, expected_dom_revenue: null, prime_contractor: null, end_client: null,
     source_url: null, verification_notes: null, next_action: null, smartlead_campaign_id: null,
     smartlead_lead_id: null, outreach_approved_at: null, outreach_paused_at: null, priority_override: null,
+    listing_color: null, logo_url: null, logo_path: null,
     ...overrides,
   };
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 // Stripe redirects here after payment. Webhook does the real reconciliation;
 // this just confirms to the client.
 export default function PaySuccessPage() {
@@ -11,9 +13,9 @@ export default function PaySuccessPage() {
         <p style={{ color: "#5F6B7A", marginTop: 10 }}>
           Thanks — your mission is confirmed. DOM will be in touch with scheduling and deliverable timing.
         </p>
-        <a href="/" style={{ display: "inline-block", marginTop: 22, color: "#F45A1E", fontFamily: "Saira, sans-serif", fontWeight: 600 }}>
+        <Link href="/" style={{ display: "inline-block", marginTop: 22, color: "#F45A1E", fontFamily: "Saira, sans-serif", fontWeight: 600 }}>
           Return to DOM →
-        </a>
+        </Link>
       </div>
     </div>
   );

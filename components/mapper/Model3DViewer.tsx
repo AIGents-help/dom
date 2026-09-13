@@ -124,7 +124,6 @@ export default function Model3DViewer({ signedUrl, name }: { signedUrl: string |
       renderer.dispose();
       host.innerHTML = "";
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [signedUrl]);
 
   useEffect(() => {

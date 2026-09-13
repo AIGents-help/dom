@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test": "vitest run",
     "import:leads": "tsx scripts/import-dom-leads.ts"
   },
@@ -19,10 +19,10 @@
     "geotiff": "^3.0.5",
     "googleapis": "^176.0.0",
     "lucide-react": "^0.453.0",
-    "next": "15.5.20",
+    "next": "^16.3.5",
     "potree-core": "^2.0.15",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "resend": "^4.0.0",
     "stripe": "^22.3.0",
     "svix": "^1.96.1",
@@ -31,18 +31,25 @@
   },
   "devDependencies": {
     "@types/node": "^22.7.5",
-    "@types/react": "^18.3.11",
-    "@types/react-dom": "^18.3.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@types/three": "^0.185.4",
     "autoprefixer": "^10.4.20",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "15.4.6",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.3.5",
+    "exceljs": "^4.4.0",
     "playwright": "^1.61.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "tsx": "^4.23.1",
     "typescript": "^5.6.3",
-    "vitest": "^4.1.10",
-    "xlsx": "^0.18.5"
+    "vitest": "^4.1.10"
+  },
+  "overrides": {
+    "baseline-browser-mapping": "2.11.0",
+    "nanoid": "3.3.19",
+    "qs": "6.16.0",
+    "sharp": "0.35.4",
+    "uuid": "11.1.1"
   }
 }

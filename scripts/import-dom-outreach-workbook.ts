@@ -20,7 +20,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 
 const REPO_ROOT = resolve(__dirname, "..");
 
@@ -105,19 +105,27 @@ type RowResult =
   | { kind: "duplicate_in_file"; bucket: Bucket }
   | { kind: "validation_failure"; bucket: Bucket; reason: string };
 
-function sheetRows(wb: XLSX.WorkBook, name: string): Record<string, string>[] {
-  const sheet = wb.Sheets[name];
-  if (!sheet) return [];
-  const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
-  if (rows.length === 0) return [];
-  const headers = rows[0].map((h) => String(h).trim());
-  return rows.slice(1)
-    .filter((r) => r.some((c) => String(c).trim() !== ""))
-    .map((r) => {
-      const rec: Record<string, string> = {};
-      headers.forEach((h, i) => { rec[h] = String(r[i] ?? "").trim(); });
-      return rec;
-    });
+function sheetRows(wb: ExcelJS.Workbook, name: string): Record<string, string>[] {
+  const sheet = wb.getWorksheet(name);
+  if (!sheet || sheet.rowCount === 0) return [];
+
+  const columnCount = sheet.actualColumnCount;
+  const headers = Array.from(
+    { length: columnCount },
+    (_, index) => sheet.getRow(1).getCell(index + 1).text.trim(),
+  );
+  const records: Record<string, string>[] = [];
+
+  for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
+    const values = headers.map((_, index) => sheet.getRow(rowNumber).getCell(index + 1).text.trim());
+    if (values.every((value) => value === "")) continue;
+
+    const record: Record<string, string> = {};
+    headers.forEach((header, index) => { record[header] = values[index]; });
+    records.push(record);
+  }
+
+  return records;
 }
 
 async function main() {
@@ -142,10 +150,12 @@ async function main() {
   }
   const supabase = createClient(supabaseUrl, serviceKey);
 
-  const wb = XLSX.readFile(filePath);
-  console.log(`Sheets found: ${wb.SheetNames.join(", ")}`);
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.readFile(filePath);
+  const sheetNames = wb.worksheets.map((sheet) => sheet.name);
+  console.log(`Sheets found: ${sheetNames.join(", ")}`);
   console.log(`Mode: ${commit ? "COMMIT (writing to Supabase)" : "DRY RUN (no writes)"}`);
-  for (const name of wb.SheetNames) {
+  for (const name of sheetNames) {
     if (!PROSPECT_SHEETS.has(name)) {
       console.log(`Skipping sheet "${name}": ${SKIPPED_SHEETS_REASON[name] ?? "not recognized as prospect data."}`);
     }

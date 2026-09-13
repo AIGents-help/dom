@@ -1,4 +1,35 @@
-import{NextRequest,NextResponse}from"next/server";import{getSupabaseAdmin}from"@/lib/supabaseAdmin";import{isAdminRequest}from"@/lib/authz";
-async function auth(req:NextRequest){if(!(await isAdminRequest(req)))return null;const token=req.headers.get("authorization")?.replace("Bearer ","")??"",admin=getSupabaseAdmin();const{data:{user}}=await admin.auth.getUser(token);return user?{admin,email:user.email??null}:null}
-export async function GET(req:NextRequest){const c=await auth(req);if(!c)return NextResponse.json({error:"Admin access required"},{status:403});const{data,error}=await c.admin.from("admin_messages").select("*").order("created_at",{ascending:false});return error?NextResponse.json({error:error.message},{status:500}):NextResponse.json({messages:data??[]})}
-export async function PATCH(req:NextRequest){const c=await auth(req);if(!c)return NextResponse.json({error:"Admin access required"},{status:403});const b=await req.json(),allowed=new Set(["unread","read","in_progress","replied","closed","archived"]);if(!b.id||!allowed.has(b.status))return NextResponse.json({error:"Invalid message update"},{status:400});const now=new Date().toISOString(),patch:any={status:b.status,read_by:c.email,updated_at:now};if(b.adminNotes!==undefined)patch.admin_note=String(b.adminNotes).trim().slice(0,5000)||null;if(b.status==="read")patch.read_at=now;if(b.status==="replied")patch.replied_at=now;if(b.status==="closed")patch.closed_at=now;const{error}=await c.admin.from("admin_messages").update(patch).eq("id",b.id);return error?NextResponse.json({error:error.message},{status:500}):NextResponse.json({success:true})}
+import { NextRequest, NextResponse } from "next/server";
+import { adminMessageTimestamps, parseAdminMessageUpdate } from "@/lib/adminMessage";
+import { isAdminRequest } from "@/lib/authz";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+
+async function authenticate(req: NextRequest) {
+  if (!(await isAdminRequest(req))) return null;
+  const token = req.headers.get("authorization")?.replace("Bearer ", "") ?? "";
+  const admin = getSupabaseAdmin();
+  const { data: { user } } = await admin.auth.getUser(token);
+  return user ? { admin, email: user.email ?? null } : null;
+}
+
+export async function GET(req: NextRequest) {
+  const context = await authenticate(req);
+  if (!context) return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  const { data, error } = await context.admin.from("admin_messages").select("*").order("created_at", { ascending: false }).limit(500);
+  return error ? NextResponse.json({ error: error.message }, { status: 500 }) : NextResponse.json({ messages: data ?? [] });
+}
+
+export async function PATCH(req: NextRequest) {
+  const context = await authenticate(req);
+  if (!context) return NextResponse.json({ error: "Admin access required" }, { status: 403 });
+  let body: unknown;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body." }, { status: 400 }); }
+  const parsed = parseAdminMessageUpdate(body);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const now = new Date().toISOString();
+  const patch: Record<string, string | null> = { status: parsed.value.status, read_by: context.email, updated_at: now, ...adminMessageTimestamps(parsed.value.status, now) };
+  if (parsed.value.adminNote !== undefined) patch.admin_note = parsed.value.adminNote;
+  const { data, error } = await context.admin.from("admin_messages").update(patch).eq("id", parsed.value.id).select("id").maybeSingle();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: "Message not found." }, { status: 404 });
+  return NextResponse.json({ success: true });
+}

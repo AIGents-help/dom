@@ -1,3 +1,24 @@
-import{NextRequest,NextResponse}from"next/server";import{getSupabaseAdmin}from"@/lib/supabaseAdmin";import{rateLimitResponse}from"@/lib/rateLimit";import{sendContactMessageEmails}from"@/lib/resend";
-const categories=new Set(["general_inquiry","partnership_opportunity","thank_you_feedback","website_feedback","billing","other"]);
-export async function POST(req:NextRequest){const limited=rateLimitResponse(req);if(limited)return limited;try{const b=await req.json();if(b.website)return NextResponse.json({success:true});const name=String(b.name??"").trim().slice(0,120),email=String(b.email??"").trim().toLowerCase().slice(0,320),phone=String(b.phone??"").trim().slice(0,60)||null,company=String(b.company??"").trim().slice(0,160)||null,category=String(b.category??"general_inquiry"),subject=String(b.subject??"").trim().slice(0,180),message=String(b.message??"").trim().slice(0,10000);if(!name||!email||!email.includes("@")||!subject||!message||!categories.has(category))return NextResponse.json({error:"Please complete all required fields."},{status:400});const{error}=await getSupabaseAdmin().from("admin_messages").insert({source:"website_contact",sender_name:name,sender_email:email,sender_phone:phone,company,category,subject,message,status:"unread"});if(error)throw error;if(process.env.RESEND_API_KEY)await sendContactMessageEmails({name,email,phone:phone??undefined,company:company??undefined,category,subject,message});return NextResponse.json({success:true})}catch(e){console.error("contact message error",e);return NextResponse.json({error:"Your message could not be sent. Please try again."},{status:500})}}
+import { NextRequest, NextResponse } from "next/server";
+import { isContactHoneypotFilled, parseContactMessage } from "@/lib/contactMessage";
+import { rateLimitResponse } from "@/lib/rateLimit";
+import { sendContactMessageEmails } from "@/lib/resend";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+
+export async function POST(req: NextRequest) {
+  const limited = rateLimitResponse(req); if (limited) return limited;
+  let body: unknown;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "Invalid request body." }, { status: 400 }); }
+  if (isContactHoneypotFilled(body)) return NextResponse.json({ success: true });
+  const parsed = parseContactMessage(body);
+  if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
+  const message = parsed.value;
+  try {
+    const { error } = await getSupabaseAdmin().from("admin_messages").insert({ source: "website_contact", sender_name: message.name, sender_email: message.email, sender_phone: message.phone, company: message.company, category: message.category, subject: message.subject, message: message.message, status: "unread" });
+    if (error) throw error;
+    if (process.env.RESEND_API_KEY) await sendContactMessageEmails({ ...message, phone: message.phone ?? undefined, company: message.company ?? undefined });
+    return NextResponse.json({ success: true }, { status: 201 });
+  } catch (error) {
+    console.error("contact message error", error);
+    return NextResponse.json({ error: "Your message could not be sent. Please try again." }, { status: 500 });
+  }
+}

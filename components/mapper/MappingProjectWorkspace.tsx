@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { V, panelStyle, btnGhost, statusPillStyle } from "./theme";
+import { V, btnGhost, statusPillStyle } from "./theme";
 import { MAPPING_PROJECT_STATUS_LABELS, formatBytes, canUploadImages } from "@/lib/mapperPipeline";
 import MappingImageUploader from "./MappingImageUploader";
 import MappingProcessingStatus from "./MappingProcessingStatus";

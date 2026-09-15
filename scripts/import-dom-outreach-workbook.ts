@@ -33,8 +33,6 @@ const VALID_ENGAGEMENT_MODELS = new Set([
   "direct_project", "subcontracted_project", "joint_project",
   "staff_augmentation", "white_label_service", "referral_only", "unknown",
 ]);
-const VALID_OWNERSHIP = new Set(["dom_owned", "partner_owned", "shared", "unknown"]);
-
 const PROSPECT_SHEETS = new Set(["Verified Leads", "Research Queue"]);
 const SKIPPED_SHEETS_REASON: Record<string, string> = {
   "Campaign Copy": "Email template copy, not prospect data.",

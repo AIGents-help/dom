@@ -69,6 +69,8 @@ function quoteWarningsBlock(quote: QuoteEmailData): string {
 // and /api/airspace, so this can never leak DOM's margin.
 function quoteSummaryForClient(quote: QuoteEmailData): string {
   const { commissionCents, contractorPayoutCents, ...q } = quote;
+  void commissionCents;
+  void contractorPayoutCents;
   const total = q.totalCents != null ? formatCents(q.totalCents) : null;
   return `
     <div style="border:1px solid #e2e2e2; border-radius:10px; padding:20px; margin:20px 0;">

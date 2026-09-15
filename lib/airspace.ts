@@ -72,14 +72,14 @@ async function classifyViaAirHub(
     }
 
     const data = await res.json();
-    return parseAirHubResponse(data, lat, lng);
+    return parseAirHubResponse(data);
   } catch (err) {
     console.error("AirHub API call failed, falling back to estimation:", err);
     return classifyViaEstimation(lat, lng);
   }
 }
 
-function parseAirHubResponse(data: any, lat: number, lng: number): AirspaceResult {
+function parseAirHubResponse(data: any): AirspaceResult {
   // AirHub returns advisory layers — extract the relevant ones.
   // This parsing adapts to their response schema; update if their API evolves.
   const advisories = data?.advisories ?? data?.data ?? [];

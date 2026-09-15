@@ -3,7 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
 import { fuzzyGrid } from "@/lib/fuzzyLocation";
 import { computeConfiguredEligibility } from "@/lib/pilotAssetsPipeline";
-import { getContractorActiveCapabilities, getServiceTypeRequirements } from "@/lib/pilotAssetsServer";
+import { getContractorActiveCapabilities } from "@/lib/pilotAssetsServer";
 
 // GET /api/pilot/queue
 // Open mission queue — any verified pilot can browse approved-but-unclaimed

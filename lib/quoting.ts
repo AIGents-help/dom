@@ -115,6 +115,9 @@ export type PublicQuoteBreakdown = Omit<
 // reveal the exact margin and contractor payout split.
 export function toPublicQuote(q: QuoteBreakdown): PublicQuoteBreakdown {
   const { commissionCents, contractorPayoutCents, commissionRate, ...rest } = q;
+  void commissionCents;
+  void contractorPayoutCents;
+  void commissionRate;
   return rest;
 }
 

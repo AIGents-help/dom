@@ -8,7 +8,7 @@ export default defineConfig([
   {
     rules: {
       "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": "warn",
+      "@typescript-eslint/no-unused-vars": "error",
       "@next/next/no-img-element": "error",
       "react-hooks/purity": "error",
       "react-hooks/set-state-in-effect": "warn",

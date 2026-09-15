@@ -36,7 +36,7 @@ import { createWebGLRenderer } from "./webgl";
 class SignedUrlRequestManager {
   constructor(private urls: { metadataUrl: string; octreeUrl: string; hierarchyUrl: string }) {}
 
-  async getUrl(_url: string): Promise<string> {
+  async getUrl(): Promise<string> {
     return this.urls.metadataUrl;
   }
 

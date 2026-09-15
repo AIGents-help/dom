@@ -28,7 +28,7 @@ export default function MissionRequestForm() {
 
       setSuccess(true);
       form.reset();
-    } catch (err) {
+    } catch {
       setError("Something went wrong submitting your request. Please try again or email ops@droneopsman.com.");
     } finally {
       setLoading(false);

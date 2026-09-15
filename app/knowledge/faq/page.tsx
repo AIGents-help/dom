@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, HelpCircle } from "lucide-react";
 import { domKnowledge } from "@/lib/knowledge";
 
@@ -24,7 +25,7 @@ export default function FaqPage() {
     <div className="bg-background text-ink">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }} />
       <section className="relative min-h-[460px] overflow-hidden border-b border-white/10">
-        <img src="/images/city-night-aerial.jpg" alt="Aerial operations knowledge and planning context" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/images/city-night-aerial.jpg" alt="Aerial operations knowledge and planning context" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#07111c]/96 via-[#07111c]/82 to-[#07111c]/35" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
         <div className="container-app relative flex min-h-[460px] items-end py-16 lg:items-center">

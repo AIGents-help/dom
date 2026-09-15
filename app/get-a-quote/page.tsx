@@ -1,4 +1,5 @@
 import PublicQuoteWizard from "@/components/PublicQuoteWizard";
+import Image from "next/image";
 import { ShieldCheck, Clock, FileCheck, ArrowRight, MapPin } from "lucide-react";
 
 const signals = [
@@ -11,7 +12,7 @@ export default function GetAQuotePage() {
   return (
     <div className="bg-background text-ink">
       <section className="relative min-h-[500px] overflow-hidden border-b border-white/10">
-        <img src="/images/construction-aerial.jpg" alt="Aerial site used for commercial drone mission planning" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/images/construction-aerial.jpg" alt="Aerial site used for commercial drone mission planning" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#07111c]/95 via-[#07111c]/78 to-[#07111c]/30" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
         <div className="container-app relative flex min-h-[500px] items-end py-16 lg:items-center lg:py-24">

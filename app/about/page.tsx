@@ -1,4 +1,5 @@
 import { Target, Eye, ShieldCheck, Users } from "lucide-react";
+import Image from "next/image";
 
 const values = [
   { icon: ShieldCheck, title: "Safety First", desc: "Every mission begins with a documented risk assessment and airspace review." },
@@ -11,7 +12,7 @@ export default function AboutPage() {
   return (
     <div className="bg-[#090f16] text-white">
       <section className="relative min-h-[560px] overflow-hidden border-b border-white/10">
-        <img src="/images/city-night-aerial.jpg" alt="Aerial city operations at night" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/images/city-night-aerial.jpg" alt="Aerial city operations at night" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#090f16]/95 via-[#090f16]/78 to-[#090f16]/30" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#090f16] via-transparent to-transparent" />
         <div className="container-app relative flex min-h-[560px] items-end py-20 lg:items-center">
@@ -31,7 +32,7 @@ export default function AboutPage() {
           <p className="mt-5 text-lg leading-8 text-slate-400">That means the value of a DOM mission is not simply what the drone sees. It is the quality of the workflow around the flight and the usefulness of what the client receives afterward.</p>
         </div>
         <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#111923] p-3 shadow-2xl">
-          <img src="/images/construction-aerial.jpg" alt="Commercial site captured from the air" className="aspect-[4/3] w-full rounded-2xl object-cover" />
+          <Image src="/images/construction-aerial.jpg" alt="Commercial site captured from the air" width={1200} height={1501} sizes="(max-width: 1024px) 100vw, 48vw" className="aspect-[4/3] w-full rounded-2xl object-cover" />
         </div>
       </section>
 
@@ -61,7 +62,7 @@ export default function AboutPage() {
           </div>
         </div>
         <div className="relative overflow-hidden rounded-3xl border border-white/10 min-h-[480px]">
-          <img src="/images/drone-operation-safety.png" alt="Professional drone field operation" className="absolute inset-0 h-full w-full object-cover" />
+          <Image src="/images/drone-operation-safety.png" alt="Professional drone field operation" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-transparent" />
           <div className="absolute inset-x-0 bottom-0 p-8 lg:p-10">
             <p className="text-sm font-black uppercase tracking-[.18em] text-[#f26a1b]">Professional Operations</p>

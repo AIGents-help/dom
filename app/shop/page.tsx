@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 const merch = [
   { name: "DOM T-Shirts", type: "Apparel", image: "/shop/merch/dom-merch-tshirt-v2.webp", alt: "DOM branded black crew-neck T-shirt worn during a commercial drone mapping operation", copy: "Branded everyday shirts for pilots, crews, supporters, and events." },
@@ -26,14 +27,14 @@ export default function ShopPage() {
 
           <div className="grid grid-cols-2 gap-3 overflow-hidden rounded-3xl border border-white/10 bg-[#111923] p-3 shadow-2xl">
             <div className="relative min-h-[420px] overflow-hidden rounded-2xl">
-              <img src="/shop/merch/dom-merch-tshirt-v2.webp" alt="DOM branded crew-neck T-shirt worn during a live drone field operation" className="absolute inset-0 h-full w-full object-cover" />
+            <Image src="/shop/merch/dom-merch-tshirt-v2.webp" alt="DOM branded crew-neck T-shirt worn during a live drone field operation" fill priority sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-5 pt-24">
                 <p className="text-xs font-black uppercase tracking-[.18em] text-[#f26a1b]">Field Apparel</p>
                 <p className="mt-1 text-xl font-black">DOM T-Shirt</p>
               </div>
             </div>
             <div className="relative min-h-[420px] overflow-hidden rounded-2xl">
-              <img src="/shop/merch/dom-merch-polo-v2.webp" alt="DOM branded performance polo worn at a professional drone command station" className="absolute inset-0 h-full w-full object-cover" />
+            <Image src="/shop/merch/dom-merch-polo-v2.webp" alt="DOM branded performance polo worn at a professional drone command station" fill priority sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover" />
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black via-black/70 to-transparent p-5 pt-24">
                 <p className="text-xs font-black uppercase tracking-[.18em] text-[#f26a1b]">Client Facing</p>
                 <p className="mt-1 text-xl font-black">DOM Performance Polo</p>
@@ -56,10 +57,12 @@ export default function ShopPage() {
           {merch.map((item) => (
             <article key={item.name} className="overflow-hidden rounded-2xl border border-white/10 bg-[#111923] transition hover:-translate-y-1 hover:border-[#f26a1b]/70 hover:shadow-2xl">
               <div className="relative aspect-[4/3] overflow-hidden bg-[#0b1118]">
-                <img
+                <Image
                   src={item.image}
                   alt={item.alt}
-                  className="h-full w-full object-cover object-center transition duration-300 hover:scale-[1.03]"
+                  fill
+                  sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
+                  className="object-cover object-center transition duration-300 hover:scale-[1.03]"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
               </div>

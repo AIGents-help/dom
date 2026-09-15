@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 
 // Pilot counterpart to AdminSidebar. It intentionally uses the same full-
 // height rail geometry, spacing, collapse behavior, colors, and footer so
@@ -83,7 +84,7 @@ export default function PilotSidebar({
       <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", padding: "18px 16px" }}>
         {!collapsed && (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <img src="/brand/dom-icon-mark.png?v=3" alt="" style={{ height: 20, width: "auto" }} />
+            <Image src="/brand/dom-icon-mark.png" alt="" width={20} height={20} />
             <span className="font-saira" style={{ fontWeight: 700, fontSize: 16, color: V.ink }}>DOM Pilot</span>
           </div>
         )}

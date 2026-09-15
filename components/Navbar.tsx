@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
@@ -26,7 +27,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 border-b border-white/10 bg-navy/95 shadow-sm backdrop-blur-md">
       <div className="container-app flex h-18 items-center justify-between py-4">
         <Link href="/" className="flex items-center">
-          <img src="/brand/dom-lockup-horizontal.png?v=3" alt="DOM — Drone Operation Management" className="h-9 w-auto" />
+          <Image src="/brand/dom-lockup-horizontal.png" alt="DOM — Drone Operation Management" width={122} height={36} priority />
         </Link>
 
         <nav className="hidden items-center gap-6 lg:flex">

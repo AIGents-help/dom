@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
 
@@ -55,7 +56,7 @@ export default function PilotLoginPage() {
         </Link>
         <div style={{ padding: 32, border: `1px solid ${V.line}`, borderRadius: 16, background: V.surface }}>
         <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
-          <img src="/brand/dom-lockup-horizontal.png?v=3" alt="DOM — Drone Operation Management" style={{ height: 26, width: "auto" }} />
+          <Image src="/brand/dom-lockup-horizontal.png" alt="DOM — Drone Operation Management" width={88} height={26} />
         </div>
         <h1 className="font-saira" style={{ fontSize: 22, color: V.ink, marginTop: 12 }}>Pilot Portal</h1>
         <p style={{ color: V.inkDim, fontSize: 13, marginBottom: 22 }}>

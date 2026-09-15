@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { inputCls, labelCls, Pill, ActionBtn } from "@/components/adminUi";
+import { passthroughImageLoader } from "@/lib/passthroughImageLoader";
 import {
   type Lead, type LeadContext, type LeadNextAction, type StatusValue,
   STATUS_OPTIONS, TIER_OPTIONS, TIER_LABELS, VERTICAL_OPTIONS, CONTACT_METHOD_OPTIONS,
@@ -127,7 +129,7 @@ export default function LeadDetailDrawer({
       >
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-surface2 p-4">
           <div className="flex items-center gap-3">
-            <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-xl border border-border bg-white">{lead.logo_url?<img src={lead.logo_url} alt={`${lead.company??lead.name??"Company"} logo`} className="h-full w-full object-contain p-1"/>:<span className="font-bold text-accent">{(lead.company??lead.name??"?").slice(0,2).toUpperCase()}</span>}</div><div>
+            <div className="grid h-14 w-14 place-items-center overflow-hidden rounded-xl border border-border bg-white">{lead.logo_url?<Image src={lead.logo_url} alt={`${lead.company??lead.name??"Company"} logo`} width={56} height={56} unoptimized loader={passthroughImageLoader} className="h-full w-full object-contain p-1"/>:<span className="font-bold text-accent">{(lead.company??lead.name??"?").slice(0,2).toUpperCase()}</span>}</div><div>
             <div className="text-sm font-semibold text-ink">{lead.company ?? lead.name ?? "Unnamed"}</div>
             <div className="text-xs text-muted">{lead.name ?? "No contact name"} · {lead.email ?? "—"}</div>
             <label className="mt-1 inline-block cursor-pointer text-xs font-semibold text-accent">Upload logo<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={(e)=>{const f=e.target.files?.[0];if(f)onUploadLogo(f);e.currentTarget.value=""}}/></label></div>

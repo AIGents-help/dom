@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { CheckCircle2, FileBadge, ShieldCheck, Radio, AlertTriangle, ArrowRight, Moon, Users } from "lucide-react";
 
 const standards = [
@@ -18,7 +19,7 @@ export default function FaaCompliancePage() {
   return (
     <div className="bg-background text-ink">
       <section className="relative min-h-[560px] overflow-hidden border-b border-white/10">
-        <img src="/images/drone-operation-safety.png" alt="Commercial drone operation with professional safety controls" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/images/drone-operation-safety.png" alt="Commercial drone operation with professional safety controls" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#07111c]/95 via-[#07111c]/82 to-[#07111c]/35" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
         <div className="container-app relative flex min-h-[560px] items-end py-16 lg:items-center lg:py-24">

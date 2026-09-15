@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, Cpu, Map, Boxes, Eye, Camera } from "lucide-react";
 import { domKnowledge } from "@/lib/knowledge";
 
@@ -21,7 +22,7 @@ export default function EquipmentPage() {
   return (
     <div className="bg-background text-ink">
       <section className="relative min-h-[500px] overflow-hidden border-b border-white/10">
-        <img src="/images/construction-aerial.jpg" alt="Enterprise drone aircraft supporting commercial mapping work" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/images/construction-aerial.jpg" alt="Enterprise drone aircraft supporting commercial mapping work" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#07111c]/95 via-[#07111c]/80 to-[#07111c]/35" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
         <div className="container-app relative flex min-h-[500px] items-end py-16 lg:items-center">
@@ -50,7 +51,7 @@ export default function EquipmentPage() {
               <article key={item.slug} id={item.slug} className="overflow-hidden rounded-3xl border border-white/10 bg-[#111923] shadow-2xl scroll-mt-24">
                 <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(equipmentJsonLd) }} />
                 <div className="grid lg:grid-cols-[.95fr_1.05fr]">
-                  <div className="relative min-h-[360px]"><img src="/images/construction-aerial.jpg" alt="Enterprise drone used in a mapping workflow" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#111923]/50 lg:bg-gradient-to-l" /></div>
+                  <div className="relative min-h-[360px]"><Image src="/images/construction-aerial.jpg" alt="Enterprise drone used in a mapping workflow" fill sizes="(max-width: 1024px) 100vw, 48vw" className="object-cover" /><div className="absolute inset-0 bg-gradient-to-r from-transparent to-[#111923]/50 lg:bg-gradient-to-l" /></div>
                   <div className="p-8 lg:p-12">
                     <p className="eyebrow mb-4">{item.category}</p>
                     <h2 className="text-4xl font-black text-white">{item.name}</h2>

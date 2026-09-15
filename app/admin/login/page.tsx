@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 // Auth is handled by Supabase Auth (email + password). Access is gated by the
@@ -66,7 +67,7 @@ export default function AdminLoginPage() {
             fontFamily: "Inter, system-ui, sans-serif",
           }}
         >
-        <img src="/brand/dom-lockup-horizontal.png?v=3" alt="DOM — Drone Operation Management" style={{ height: 24, width: "auto", marginBottom: 14 }} />
+        <Image src="/brand/dom-lockup-horizontal.png" alt="DOM — Drone Operation Management" width={81} height={24} style={{ marginBottom: 14 }} />
         <h1 style={{ fontFamily: "Saira, sans-serif", fontSize: 22, marginBottom: 4 }}>
           DOM Admin
         </h1>

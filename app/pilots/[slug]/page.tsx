@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import Image from "next/image";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import PublicQuoteWizard from "@/components/PublicQuoteWizard";
 import { toPublicAsset, ASSET_TYPES, CAPABILITY_LABELS, type PublicPilotAsset } from "@/lib/pilotAssetsPipeline";
+import { passthroughImageLoader } from "@/lib/passthroughImageLoader";
 
 // Public pilot profile — /pilots/[slug]. Server Component (not client) since
 // this is public marketing content and benefits from SEO metadata, unlike
@@ -89,8 +91,7 @@ export default async function PilotProfilePage({ params }: Props) {
         <div className="container-app relative py-24">
           <div className="flex flex-col items-center gap-6 text-center sm:flex-row sm:text-left">
             {pilot.photo_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={pilot.photo_url} alt={pilot.full_name} className="h-28 w-28 flex-none rounded-2xl object-cover" />
+              <Image src={pilot.photo_url} alt={pilot.full_name} width={112} height={112} unoptimized loader={passthroughImageLoader} className="h-28 w-28 flex-none rounded-2xl object-cover" />
             )}
             <div>
               <p className="eyebrow mb-2">DOM Certified Pilot</p>
@@ -163,9 +164,8 @@ export default async function PilotProfilePage({ params }: Props) {
             <p className="eyebrow mb-6">Portfolio</p>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {portfolio.map((img) => (
-                <div key={img.id} className="card overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.image_url} alt={img.caption ?? ""} className="h-56 w-full object-cover" />
+                <div key={img.id} className="card relative h-56 overflow-hidden">
+                  <Image src={img.image_url} alt={img.caption ?? ""} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" unoptimized loader={passthroughImageLoader} className="object-cover" />
                 </div>
               ))}
             </div>

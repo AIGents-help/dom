@@ -1,4 +1,5 @@
 import MissionRequestForm from "@/components/MissionRequestForm";
+import Image from "next/image";
 import { ShieldCheck, Clock, FileCheck, ArrowRight } from "lucide-react";
 
 const signals = [
@@ -11,7 +12,7 @@ export default function RequestMissionPage() {
   return (
     <div className="bg-background text-ink">
       <section className="relative min-h-[520px] overflow-hidden border-b border-white/10">
-        <img src="/images/drone-operation-safety.png" alt="Professional drone operation being prepared for launch" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/images/drone-operation-safety.png" alt="Professional drone operation being prepared for launch" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#07111c]/95 via-[#07111c]/78 to-[#07111c]/30" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
         <div className="container-app relative flex min-h-[520px] items-end py-16 lg:items-center lg:py-24">

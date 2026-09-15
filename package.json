@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "lint:ci": "eslint . --max-warnings 266",
+    "lint:ci": "eslint . --max-warnings 222",
     "test": "vitest run",
     "typecheck:worker": "npm --prefix services/mapper-worker run typecheck",
     "verify": "npm test && npm run lint:ci && npm run build && npm run typecheck:worker && npm audit && npm audit --prefix services/mapper-worker",

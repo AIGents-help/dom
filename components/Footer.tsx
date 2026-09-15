@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 export default function Footer() {
@@ -12,7 +13,7 @@ export default function Footer() {
       <div className="container-app grid gap-10 py-16 lg:grid-cols-4">
         <div>
           <div className="mb-4 flex items-center">
-            <img src="/brand/dom-lockup-horizontal.png?v=3" alt="DOM — Drone Operation Management" className="h-7 w-auto" />
+            <Image src="/brand/dom-lockup-horizontal.png" alt="DOM — Drone Operation Management" width={95} height={28} />
           </div>
           <p className="body-muted max-w-xs">Commercial drone operations, aerial intelligence, and mission documentation for enterprise and government clients.</p>
         </div>

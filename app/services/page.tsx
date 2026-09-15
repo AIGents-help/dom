@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   Camera, Map, Radio, Database, Plane, ClipboardCheck, ArrowRight, Thermometer, Boxes,
 } from "lucide-react";
@@ -84,10 +85,13 @@ export default function ServicesPage() {
   return (
     <>
       <section className="relative min-h-[620px] overflow-hidden bg-[#081525] text-white">
-        <img
+        <Image
           src="/images/construction-aerial.jpg"
           alt="Commercial drone mapping operation over a large site"
-          className="absolute inset-0 h-full w-full object-cover"
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-[#071321]/95 via-[#071321]/75 to-[#071321]/20" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#071321] via-transparent to-transparent" />
@@ -150,7 +154,7 @@ export default function ServicesPage() {
                 href={s.href}
                 className={`group relative overflow-hidden rounded-2xl border border-black/5 bg-[#0B1827] shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-2xl ${index < 2 ? "lg:min-h-[500px]" : ""}`}
               >
-                <img src={s.image} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+                <Image src={s.image} alt="" fill sizes="(max-width: 1024px) 100vw, 50vw" className="object-cover transition duration-700 group-hover:scale-105" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#071321] via-[#071321]/65 to-[#071321]/10" />
                 <div className="absolute inset-x-0 bottom-0 p-7 lg:p-9">
                   <div className="mb-4 flex items-center justify-between gap-4">
@@ -175,7 +179,7 @@ export default function ServicesPage() {
       </section>
 
       <section className="relative overflow-hidden bg-[#0B1827] py-20 text-white lg:py-24">
-        <img src="/images/city-night-aerial.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-20" />
+        <Image src="/images/city-night-aerial.jpg" alt="" fill sizes="100vw" className="object-cover opacity-20" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#0B1827] via-[#0B1827]/95 to-[#0B1827]/70" />
         <div className="container-app relative flex flex-col items-start justify-between gap-10 lg:flex-row lg:items-center">
           <div className="max-w-3xl">

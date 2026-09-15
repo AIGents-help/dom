@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, Map, Radio, Database, Camera, Thermometer, ClipboardCheck, ShieldCheck, CheckCircle2 } from "lucide-react";
 
 const services = [
@@ -22,7 +23,7 @@ export default function HomePage() {
   return (
     <div className="bg-background text-ink">
       <section className="relative min-h-[720px] overflow-hidden border-b border-white/10">
-        <img src="/images/construction-aerial.jpg" alt="Commercial drone operation over a construction and development site" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/images/construction-aerial.jpg" alt="Commercial drone operation over a construction and development site" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#07111c]/98 via-[#07111c]/82 to-[#07111c]/30" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
 
@@ -46,7 +47,7 @@ export default function HomePage() {
             </div>
 
             <div className="relative min-h-[450px] overflow-hidden rounded-3xl border border-white/10 bg-[#111923] shadow-2xl">
-              <img src="/images/drone-operation-safety.png" alt="Professional drone operation safety perimeter" className="absolute inset-0 h-full w-full object-cover" />
+              <Image src="/images/drone-operation-safety.png" alt="Professional drone operation safety perimeter" fill priority sizes="(max-width: 1024px) 100vw, 48vw" className="object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/25 to-transparent" />
               <div className="absolute left-5 top-5 rounded-full border border-white/20 bg-black/60 px-4 py-2 text-[10px] font-black uppercase tracking-[.18em] text-white backdrop-blur">Safety-First Field Operations</div>
               <div className="absolute inset-x-0 bottom-0 p-7">
@@ -86,7 +87,7 @@ export default function HomePage() {
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
           {services.map((service) => (
             <Link key={service.title} href={service.href} className="group relative min-h-[390px] overflow-hidden rounded-2xl border border-white/10 bg-[#111923] transition duration-300 hover:-translate-y-1 hover:border-accent/60 hover:shadow-2xl">
-              <img src={service.image} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+              <Image src={service.image} alt="" fill sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw" className="object-cover transition duration-700 group-hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-[#07111c] via-[#07111c]/60 to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-7">
                 <service.icon className="mb-4 h-7 w-7 text-accent" />
@@ -102,7 +103,7 @@ export default function HomePage() {
       <section className="border-y border-white/10 bg-[#0E151E] py-20 lg:py-28">
         <div className="container-app grid gap-12 lg:grid-cols-[.9fr_1.1fr] lg:items-center">
           <div className="relative min-h-[500px] overflow-hidden rounded-3xl border border-white/10">
-            <img src="/images/city-night-aerial.jpg" alt="Aerial view representing commercial asset intelligence" className="absolute inset-0 h-full w-full object-cover" />
+            <Image src="/images/city-night-aerial.jpg" alt="Aerial view representing commercial asset intelligence" fill sizes="(max-width: 1024px) 100vw, 45vw" className="object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
             <div className="absolute bottom-0 p-7">
               <p className="text-xs font-black uppercase tracking-[.18em] text-accent">The DOM Difference</p>
@@ -148,7 +149,7 @@ export default function HomePage() {
       </section>
 
       <section className="relative overflow-hidden border-y border-white/10 py-20 lg:py-24">
-        <img src="/images/solar-aerial.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-25" />
+        <Image src="/images/solar-aerial.jpg" alt="" fill sizes="100vw" className="object-cover opacity-25" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#07111c] via-[#07111c]/95 to-[#07111c]/70" />
         <div className="container-app relative grid gap-10 lg:grid-cols-[1fr_auto] lg:items-center">
           <div className="max-w-3xl">

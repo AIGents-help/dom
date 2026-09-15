@@ -1,4 +1,5 @@
 import { ShieldCheck, Wallet, Radar, FileCheck, Compass, Users, CreditCard, LayoutDashboard, ArrowRight, Plane } from "lucide-react";
+import Image from "next/image";
 import FlyForDomApplyForm from "@/components/FlyForDomApplyForm";
 
 export const metadata = {
@@ -26,7 +27,7 @@ export default function FlyForDomPage() {
   return (
     <div className="bg-background text-ink">
       <section className="relative min-h-[620px] overflow-hidden border-b border-white/10">
-        <img src="/images/city-night-aerial.jpg" alt="Commercial drone pilot operating in the field" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/images/city-night-aerial.jpg" alt="Commercial drone pilot operating in the field" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#07111c]/95 via-[#07111c]/80 to-[#07111c]/35" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
         <div className="container-app relative flex min-h-[620px] items-end py-16 lg:items-center lg:py-24">

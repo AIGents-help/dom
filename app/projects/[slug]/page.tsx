@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArrowRight, FlaskConical, Database, Layers3 } from "lucide-react";
 import { domKnowledge } from "@/lib/knowledge";
@@ -45,7 +46,7 @@ export default async function ProjectEvidencePage({ params }: PageProps) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
 
       <section className="relative min-h-[560px] overflow-hidden border-b border-white/10">
-        <img src="/images/construction-aerial.jpg" alt="Photogrammetry workflow validation evidence" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/images/construction-aerial.jpg" alt="Photogrammetry workflow validation evidence" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#07111c]/96 via-[#07111c]/80 to-[#07111c]/35" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
         <div className="container-app relative flex min-h-[560px] items-end py-16 lg:items-center lg:py-24">

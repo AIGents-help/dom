@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { domKnowledge } from "@/lib/knowledge";
@@ -47,7 +48,7 @@ export default async function ServiceDetailPage({ params }: PageProps) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceJsonLd) }} />
 
       <section className="relative min-h-[560px] overflow-hidden border-b border-white/10">
-        <img src={details.image} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src={details.image} alt="" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#090f16]/95 via-[#090f16]/75 to-[#090f16]/25" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#090f16] via-transparent to-transparent" />
         <div className="container-app relative flex min-h-[560px] items-end py-20 lg:items-center">
@@ -91,7 +92,7 @@ export default async function ServiceDetailPage({ params }: PageProps) {
 
       <section className="container-app py-16 lg:py-20">
         <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#111923] p-10 lg:p-14">
-          <img src={details.image} alt="" className="absolute inset-0 h-full w-full object-cover opacity-15" />
+        <Image src={details.image} alt="" fill sizes="100vw" className="object-cover opacity-15" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#111923] via-[#111923]/95 to-[#111923]/70" />
           <div className="relative flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
             <div className="max-w-3xl">

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
+import { passthroughImageLoader } from "@/lib/passthroughImageLoader";
 
 // Pilot > Public Profile tab — lets an approved pilot build a public,
 // client-facing portfolio page at /pilots/[slug]. Drafting (bio, photo,
@@ -218,7 +220,7 @@ export default function PilotPublicProfileEditor({
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16, marginTop: 12 }}>
           {profile.photo_url ? (
-            <img src={profile.photo_url} alt="" style={{ width: 72, height: 72, borderRadius: 12, objectFit: "cover" }} />
+            <Image src={profile.photo_url} alt="" width={72} height={72} unoptimized loader={passthroughImageLoader} style={{ borderRadius: 12, objectFit: "cover" }} />
           ) : (
             <div style={{ width: 72, height: 72, borderRadius: 12, background: V.raised, display: "grid", placeItems: "center", color: V.inkFaint, fontSize: 11 }}>
               No photo
@@ -294,7 +296,7 @@ export default function PilotPublicProfileEditor({
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 10, marginTop: 14 }}>
             {portfolio.map((img) => (
               <div key={img.id} style={{ position: "relative" }}>
-                <img src={img.image_url} alt={img.caption ?? ""} style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 8 }} />
+                <Image src={img.image_url} alt={img.caption ?? ""} width={320} height={100} unoptimized loader={passthroughImageLoader} style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 8 }} />
                 <button
                   onClick={() => deletePortfolioImage(img.id)}
                   style={{ position: "absolute", top: 4, right: 4, background: "rgba(245,247,250,.8)", border: "none", color: V.ink, borderRadius: 6, width: 22, height: 22, cursor: "pointer", fontSize: 12 }}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, BookOpen, Cpu, MapPinned } from "lucide-react";
 import { domKnowledge } from "@/lib/knowledge";
 
@@ -19,7 +20,7 @@ export default function KnowledgePage() {
   return (
     <div className="bg-background text-ink">
       <section className="relative min-h-[560px] overflow-hidden border-b border-white/10">
-        <img src="/images/city-night-aerial.jpg" alt="Aerial city data and infrastructure context" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/images/city-night-aerial.jpg" alt="Aerial city data and infrastructure context" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#07111c]/95 via-[#07111c]/78 to-[#07111c]/30" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
         <div className="container-app relative flex min-h-[560px] items-end py-16 lg:items-center lg:py-24">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   Factory, Building2, Wheat, Flame, Mountain, ShieldCheck, Truck, Landmark, ArrowRight,
 } from "lucide-react";
@@ -18,7 +19,7 @@ export default function IndustriesPage() {
   return (
     <div className="bg-[#090f16] text-white">
       <section className="relative min-h-[560px] overflow-hidden border-b border-white/10">
-        <img src="/images/city-night-aerial.jpg" alt="Aerial view of commercial and infrastructure assets" className="absolute inset-0 h-full w-full object-cover" />
+        <Image src="/images/city-night-aerial.jpg" alt="Aerial view of commercial and infrastructure assets" fill priority sizes="100vw" className="object-cover" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#090f16]/95 via-[#090f16]/75 to-[#090f16]/25" />
         <div className="absolute inset-0 bg-gradient-to-t from-[#090f16] via-transparent to-transparent" />
         <div className="container-app relative flex min-h-[560px] items-end py-20 lg:items-center">
@@ -42,7 +43,7 @@ export default function IndustriesPage() {
         <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           {industries.map((ind) => (
             <article key={ind.name} className="group relative min-h-[430px] overflow-hidden rounded-2xl border border-white/10 bg-[#111923] shadow-xl transition duration-300 hover:-translate-y-1 hover:border-[#f26a1b]/70 hover:shadow-2xl">
-              <img src={ind.image} alt="" className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105" />
+              <Image src={ind.image} alt="" fill sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw" className="object-cover transition duration-700 group-hover:scale-105" />
               <div className="absolute inset-0 bg-gradient-to-t from-black via-black/70 to-black/10" />
               <div className="absolute inset-x-0 bottom-0 p-6">
                 <div className="inline-flex rounded-full border border-white/15 bg-black/30 p-2.5 backdrop-blur"><ind.icon className="h-5 w-5 text-[#f26a1b]" /></div>
@@ -72,7 +73,7 @@ export default function IndustriesPage() {
 
       <section className="container-app py-16 lg:py-20">
         <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#111923] p-10 lg:p-14">
-          <img src="/images/construction-aerial.jpg" alt="" className="absolute inset-0 h-full w-full object-cover opacity-15" />
+        <Image src="/images/construction-aerial.jpg" alt="" fill sizes="100vw" className="object-cover opacity-15" />
           <div className="absolute inset-0 bg-gradient-to-r from-[#111923] via-[#111923]/95 to-[#111923]/70" />
           <div className="relative flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
             <div className="max-w-3xl">

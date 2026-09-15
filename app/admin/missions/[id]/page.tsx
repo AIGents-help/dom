@@ -166,6 +166,8 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [newDeliverableName, setNewDeliverableName] = useState("");
   const [newDeliverableType, setNewDeliverableType] = useState(DELIVERABLE_TYPES[0]);
+  const [newDeliverableFile, setNewDeliverableFile] = useState<File | null>(null);
+  const [deliverableInputKey, setDeliverableInputKey] = useState(0);
   const [uploadingDeliverable, setUploadingDeliverable] = useState(false);
   const [togglingQc, setTogglingQc] = useState<string | null>(null);
   const [editingMission, setEditingMission] = useState(false);
@@ -567,6 +569,8 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       if (insertError) throw insertError;
 
       setNewDeliverableName("");
+      setNewDeliverableFile(null);
+      setDeliverableInputKey((key) => key + 1);
       await load();
     } catch (e: any) {
       setError(e.message ?? "Failed to upload deliverable");
@@ -911,6 +915,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                   const completedUnpaid =
                     a.status === "qc_passed" &&
                     (!payment || (payment.status !== "captured" && payment.status !== "paid_out"));
+                  const allDeliverablesPassed = deliverables.length > 0 && deliverables.every((deliverable) => deliverable.qc_passed);
                   const paymentLabel =
                     payment?.status === "captured" ? "Collected"
                     : payment?.status === "paid_out" ? "Paid Out"
@@ -962,13 +967,14 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                             {requestingPayment === a.id ? "Sending…" : "Send Payment Request"}
                           </button>
                         )}
-                        {a.status === "accepted" && (
+                        {a.status === "submitted" && (
                           <button
                             onClick={() => markComplete(a.id)}
-                            disabled={completing === a.id}
-                            style={{ ...btnPrimary, padding: "7px 14px", fontSize: 13 }}
+                            disabled={completing === a.id || !allDeliverablesPassed}
+                            title={allDeliverablesPassed ? "Approve the mission and continue payout" : "Mark every deliverable QC Passed first"}
+                            style={{ ...btnPrimary, padding: "7px 14px", fontSize: 13, opacity: allDeliverablesPassed ? 1 : 0.5 }}
                           >
-                            {completing === a.id ? "Marking…" : "Mark Mission Complete"}
+                            {completing === a.id ? "Approving…" : "Approve Mission & Complete QC"}
                           </button>
                         )}
                         {canRetryPayout && (
@@ -1059,15 +1065,25 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                     <option key={t} value={t}>{t.replace(/_/g, " ")}</option>
                   ))}
                 </select>
-                <label style={{ ...btnGhost, display: "inline-block", opacity: newDeliverableName.trim() ? 1 : 0.5 }}>
-                  {uploadingDeliverable ? "Uploading…" : "Choose file & upload"}
-                  <input
-                    type="file"
-                    style={{ display: "none" }}
-                    disabled={!newDeliverableName.trim() || uploadingDeliverable}
-                    onChange={(e) => e.target.files?.[0] && uploadDeliverable(e.target.files[0])}
-                  />
-                </label>
+                <input
+                  key={deliverableInputKey}
+                  type="file"
+                  disabled={uploadingDeliverable}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] ?? null;
+                    setNewDeliverableFile(file);
+                    if (file && !newDeliverableName.trim()) setNewDeliverableName(file.name.replace(/\.[^.]+$/, ""));
+                  }}
+                  style={{ ...inputStyle, marginTop: 0, width: 240, padding: 7 }}
+                />
+                <button
+                  type="button"
+                  disabled={!newDeliverableName.trim() || !newDeliverableFile || uploadingDeliverable}
+                  onClick={() => newDeliverableFile && uploadDeliverable(newDeliverableFile)}
+                  style={{ ...btnPrimary, opacity: newDeliverableName.trim() && newDeliverableFile ? 1 : 0.5 }}
+                >
+                  {uploadingDeliverable ? "Uploading…" : "Upload deliverable"}
+                </button>
               </div>
             </div>
           )}

@@ -121,7 +121,9 @@ export default function PilotDashboard() {
     setProfile(body.profile);
     setPortfolio(body.portfolio ?? []);
     setRequestsForMe(body.requestsForMe ?? []);
-    setAssignments(body.assignments ?? []);
+    const nextAssignments = (body.assignments ?? []) as Assignment[];
+    setAssignments(nextAssignments);
+    setMissionLogAssignment((current) => current ? nextAssignments.find((assignment) => assignment.id === current.id) ?? null : null);
     setPayouts(body.payouts ?? []);
     setSops(body.sops ?? []);
     setMyClaims(body.myClaims ?? []);

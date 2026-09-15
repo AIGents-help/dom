@@ -17,9 +17,9 @@ import type Stripe from "stripe";
 // completion, it just leaves the mission "qc_passed, unpaid" for an admin to
 // retry.
 //
-// Re-callable by design: an assignment already past 'accepted' with a
+// Re-callable by design: an assignment already past 'submitted' with a
 // captured-but-untransferred payment skips the RPC (which only accepts
-// status = 'accepted' and would otherwise reject the retry) and goes
+// status = 'submitted' and would otherwise reject the retry) and goes
 // straight to the transfer step. This is what makes "Retry Payout" work.
 export async function POST(req: NextRequest) {
   if (!(await isAdminRequest(req))) {
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
     const contractor: any = Array.isArray(assignment.contractor) ? assignment.contractor[0] : assignment.contractor;
 
-    if (assignment.status === "accepted") {
+    if (assignment.status === "submitted") {
       const { error: rpcError } = await admin.rpc("admin_mark_mission_complete", {
         p_assignment_id: assignmentId,
       });
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
       );
     }
     // else: already qc_passed/paid — skip the RPC (it only accepts
-    // status = 'accepted' and would reject this as a retry). What happens
+    // status = 'submitted' and would reject this as a retry). What happens
     // next (retry transfer / already paid out / nothing to transfer) is
     // fully determined by the payment row read below.
 

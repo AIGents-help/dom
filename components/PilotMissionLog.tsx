@@ -9,6 +9,7 @@ import { useNow } from "@/lib/useNow";
 import PilotFieldWorkflow from "@/components/PilotFieldWorkflow";
 import PilotReadinessBanner from "@/components/PilotReadinessBanner";
 import MissionReviewPanel from "@/components/MissionReviewPanel";
+import { DELIVERABLE_TYPES, DOCUMENT_CATEGORIES, type PilotFileKind } from "@/lib/pilotMissionFiles";
 
 // Pilot > Mission Log — per-assignment documents + deliverables, mirroring
 // the admin Mission Briefing / Deliverables panels but driven by the
@@ -22,15 +23,13 @@ const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, 
 const btnGhost: React.CSSProperties = { padding: "8px 14px", borderRadius: 8, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "9px 11px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.ground, color: V.ink, fontSize: 13, outline: "none" };
 
-interface DocRow { id: string; category: string; name: string; file_url: string | null; is_required: boolean; is_completed: boolean; }
-interface DeliverableRow { id: string; name: string; type: string | null; storage_url: string | null; qc_passed: boolean | null; }
+interface DocRow { id: string; category: string; name: string; file_url: string | null; download_url: string | null; is_required: boolean; is_completed: boolean; }
+interface DeliverableRow { id: string; name: string; type: string | null; storage_url: string | null; download_url: string | null; qc_passed: boolean | null; }
 interface ForecastResult { available: boolean; reason?: string; location?: string; rating?: "favorable" | "caution" | "unfavorable"; summary?: string; forecast?: { highF: number; lowF: number; precipitationProbability: number; maxWindMph: number; maxGustMph: number }; source?: string; }
 
 export default function PilotMissionLog({
   assignmentId,
   assignmentStatus,
-  jobId,
-  missionRequestId,
   missionTitle,
   missionLocation,
   serviceType,
@@ -80,6 +79,9 @@ export default function PilotMissionLog({
   const [deliverables, setDeliverables] = useState<DeliverableRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [canUpload, setCanUpload] = useState(false);
+  const [workflowRefreshKey, setWorkflowRefreshKey] = useState(0);
   const [savingOperations, setSavingOperations] = useState(false);
   const [performanceDate, setPerformanceDate] = useState(scheduledFor ? new Date(scheduledFor).toISOString().slice(0, 16) : "");
   const [notes, setNotes] = useState(operationalNotes ?? "");
@@ -96,15 +98,25 @@ export default function PilotMissionLog({
   const [forecastLoading, setForecastLoading] = useState(false);
 
   const load = useCallback(async () => {
-    const sb = getSupabaseBrowser();
-    const [{ data: d }, { data: del }] = await Promise.all([
-      sb.from("mission_documents").select("id, category, name, file_url, is_required, is_completed").eq("mission_request_id", missionRequestId).order("sort_order"),
-      sb.from("deliverables").select("id, name, type, storage_url, qc_passed").eq("job_id", jobId).order("created_at"),
-    ]);
-    setDocs((d as DocRow[]) ?? []);
-    setDeliverables((del as DeliverableRow[]) ?? []);
-    setLoading(false);
-  }, [jobId, missionRequestId]);
+    setError(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      if (!data.session) throw new Error("Your session expired. Sign in again to continue.");
+      const response = await fetch(`/api/pilot/missions/${assignmentId}/files`, {
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Mission files could not be loaded.");
+      setDocs(body.documents ?? []);
+      setDeliverables(body.deliverables ?? []);
+      setCanUpload(!!body.canUpload);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Mission files could not be loaded.");
+    } finally {
+      setLoading(false);
+    }
+  }, [assignmentId]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -164,43 +176,47 @@ export default function PilotMissionLog({
     }
   }, [assignmentId, performanceDate, notes, accessNotes, cautions, communications, aircraft, onSaved]);
 
-  const uploadDoc = useCallback(async (name: string, category: string, file: File) => {
+  const uploadFile = useCallback(async (kind: PilotFileKind, name: string, category: string, file: File) => {
     setError(null);
+    setNotice(null);
     const sb = getSupabaseBrowser();
-    const path = `${missionRequestId}/${Date.now()}-${file.name}`;
-    const { error: uploadError } = await sb.storage.from("mission-documents").upload(path, file);
-    if (uploadError) { setError(uploadError.message); return; }
-    const { error: insErr } = await sb.from("mission_documents").insert({ mission_request_id: missionRequestId, name, category, file_url: path, is_required: false });
-    if (insErr) { setError(insErr.message); return; }
+    const { data } = await sb.auth.getSession();
+    if (!data.session) throw new Error("Your session expired. Sign in again to continue.");
+    const common = { kind, name, category, fileName: file.name, fileSize: file.size, contentType: file.type || "application/octet-stream" };
+    const prepareResponse = await fetch(`/api/pilot/missions/${assignmentId}/files`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
+      body: JSON.stringify({ action: "prepare_upload", ...common }),
+    });
+    const prepared = await prepareResponse.json().catch(() => ({}));
+    if (!prepareResponse.ok) throw new Error(prepared.error ?? "Upload could not be prepared.");
+    const { error: uploadError } = await sb.storage.from(prepared.bucket).uploadToSignedUrl(prepared.path, prepared.token, file, {
+      contentType: file.type || "application/octet-stream",
+    });
+    if (uploadError) throw new Error(uploadError.message);
+    const completeResponse = await fetch(`/api/pilot/missions/${assignmentId}/files`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
+      body: JSON.stringify({ action: "complete_upload", path: prepared.path, ...common }),
+    });
+    const completed = await completeResponse.json().catch(() => ({}));
+    if (!completeResponse.ok) throw new Error(completed.error ?? "Upload could not be added to the mission.");
     await load();
-  }, [missionRequestId, load]);
+    setWorkflowRefreshKey((key) => key + 1);
+    setNotice(`${kind === "document" ? "Document" : "Deliverable"} uploaded.`);
+  }, [assignmentId, load]);
 
-  const downloadDoc = useCallback(async (path: string) => {
-    const sb = getSupabaseBrowser();
-    const { data } = await sb.storage.from("mission-documents").createSignedUrl(path, 300);
-    if (data) window.open(data.signedUrl, "_blank");
-  }, []);
-
-  const uploadDeliverable = useCallback(async (name: string, type: string, file: File) => {
-    setError(null);
-    const sb = getSupabaseBrowser();
-    const path = `${jobId}/${Date.now()}-${file.name}`;
-    const { error: uploadError } = await sb.storage.from("mission-deliverables").upload(path, file);
-    if (uploadError) { setError(uploadError.message); return; }
-    const { error: insErr } = await sb.from("deliverables").insert({ job_id: jobId, name, type, storage_url: path });
-    if (insErr) { setError(insErr.message); return; }
-    await load();
-  }, [jobId, load]);
-
-  const downloadDeliverable = useCallback(async (path: string) => {
-    const sb = getSupabaseBrowser();
-    const { data } = await sb.storage.from("mission-deliverables").createSignedUrl(path, 300);
-    if (data) window.open(data.signedUrl, "_blank");
-  }, []);
+  const uploadDoc = useCallback((name: string, category: string, file: File) => uploadFile("document", name, category, file), [uploadFile]);
+  const uploadDeliverable = useCallback((name: string, category: string, file: File) => uploadFile("deliverable", name, category, file), [uploadFile]);
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", gap: 7, color: V.inkFaint, fontSize: 12 }}>
+        <span>Pilot Portal</span><span aria-hidden="true">/</span>
+        <button type="button" onClick={onClose} style={{ border: 0, padding: 0, background: "transparent", color: V.signal, cursor: "pointer", font: "inherit" }}>Missions</button>
+        <span aria-hidden="true">/</span><span aria-current="page" style={{ color: V.inkDim }}>{missionTitle}</span>
+      </nav>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div>
           <div className="font-saira" style={{ fontSize: 18, fontWeight: 700 }}>Mission Log — {missionTitle}</div>
           <p style={{ color: V.inkFaint, fontSize: 12, marginTop: 4 }}>
@@ -216,20 +232,21 @@ export default function PilotMissionLog({
           <p style={{ color: "#DC2626", fontSize: 13 }}>{error}</p>
         </div>
       )}
+      {notice && <div role="status" style={{ ...panelStyle, padding: 12, borderColor: V.telemetry, color: V.telemetry, fontSize: 13 }}>{notice}</div>}
 
       {loading ? (
         <p style={{ color: V.inkDim, fontSize: 13 }}>Loading…</p>
       ) : (
         <>
           <PilotReadinessBanner assignmentId={assignmentId} />
-          <PilotFieldWorkflow assignmentId={assignmentId} />
+          <PilotFieldWorkflow assignmentId={assignmentId} refreshKey={workflowRefreshKey} onChanged={onSaved} />
           <div style={{ ...panelStyle, borderColor: V.signal }}>
             <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>Mission Operations</div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
               <div style={{ color: V.inkDim, fontSize: 13 }}>{missionLocation}</div>
               <a href={googleMapsPlaceUrl(missionLocation)} target="_blank" rel="noreferrer" style={{ color: V.signal, fontSize: 12, fontWeight: 600 }}>Open site in Google Maps ↗</a>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10, marginTop: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginTop: 14 }}>
               <Detail label="Mission type" value={serviceType.replace(/_/g, " ")} />
               <Detail label="Client" value={clientCompany || clientName || "Not provided"} />
               <Detail label="Airspace" value={airspaceClass ? `Class ${airspaceClass}` : "Verify before flight"} />
@@ -239,7 +256,7 @@ export default function PilotMissionLog({
               <div style={{ color: V.ink, fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap", marginTop: 6 }}>{clientRequests || "No additional client requests were recorded."}</div>
               {clientEmail && <a href={`mailto:${clientEmail}`} style={{ color: V.signal, fontSize: 12, display: "inline-block", marginTop: 8 }}>Email {clientName || "client"} ↗</a>}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 320px) 1fr", gap: 14, marginTop: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14, marginTop: 14 }}>
               <div>
                 <label style={{ color: V.inkDim, fontSize: 12 }}>Scheduled performance date and time</label>
                 <input type="datetime-local" value={performanceDate} onChange={(e) => setPerformanceDate(e.target.value)} style={{ ...inputStyle, marginTop: 6 }} />
@@ -279,7 +296,7 @@ export default function PilotMissionLog({
                 </div>
               )}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 14, marginTop: 14 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14, marginTop: 14 }}>
               <MissionTextarea label="Site access & arrival" value={accessNotes} onChange={setAccessNotes} placeholder="Parking, gate codes, check-in, escorts, property access…" />
               <MissionTextarea label="Cautions & awareness" value={cautions} onChange={setCautions} placeholder="People, animals, utilities, obstacles, sensitive areas, weather or airspace concerns…" />
               <div style={{ gridColumn: "1 / -1" }}>
@@ -303,14 +320,12 @@ export default function PilotMissionLog({
                       <span style={{ fontWeight: 600, fontSize: 13 }}>{d.name}</span>
                       <span style={{ color: V.inkFaint, fontSize: 12, marginLeft: 8 }}>{d.category.replace(/_/g, " ")}{d.is_required ? " · required" : ""}</span>
                     </div>
-                    {d.file_url && (
-                      <button onClick={() => downloadDoc(d.file_url!)} style={{ ...btnGhost, padding: "5px 10px", fontSize: 12 }}>Download</button>
-                    )}
+                    {d.download_url && <a href={d.download_url} target="_blank" rel="noreferrer" style={{ ...btnGhost, padding: "5px 10px", fontSize: 12, textDecoration: "none" }}>Download</a>}
                   </div>
                 </div>
               ))}
             </div>
-            <UploadRow onUpload={uploadDoc} categories={["authorization", "permit", "waiver", "insurance", "site_access", "client_contract", "laanc", "notam", "safety", "equipment", "reference", "other"]} />
+            <UploadRow label="document" onUpload={uploadDoc} categories={[...DOCUMENT_CATEGORIES]} disabled={!canUpload} />
           </div>
 
           <div style={panelStyle}>
@@ -329,16 +344,17 @@ export default function PilotMissionLog({
                       <span className="font-mono-ibm" style={{ fontSize: 10, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase", background: d.qc_passed ? "rgba(22,163,74,.2)" : "rgba(229,112,31,.14)", color: d.qc_passed ? V.telemetry : V.warn }}>
                         {d.qc_passed ? "QC passed" : "pending QC"}
                       </span>
-                      {d.storage_url && <button onClick={() => downloadDeliverable(d.storage_url!)} style={{ ...btnGhost, padding: "5px 10px", fontSize: 12 }}>Download</button>}
+                      {d.download_url && <a href={d.download_url} target="_blank" rel="noreferrer" style={{ ...btnGhost, padding: "5px 10px", fontSize: 12, textDecoration: "none" }}>Download</a>}
                       {!d.qc_passed && <span style={{ color: V.inkFaint, fontSize: 11 }}>Awaiting DOM review</span>}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-            <UploadRow onUpload={uploadDeliverable} categories={["orthomosaic", "3d_model", "point_cloud", "report", "raw_images", "video", "other"]} />
+            <UploadRow label="deliverable" onUpload={uploadDeliverable} categories={[...DELIVERABLE_TYPES]} disabled={!canUpload} />
           </div>
           <MissionReviewPanel endpoint={`/api/pilot/missions/${assignmentId}/reviews`} enabled={["submitted","qc_passed","paid"].includes(assignmentStatus)} targets={[{type:"client",label:"Review Client",description:"Rate client communication, site readiness, access coordination, and professionalism."},{type:"mission",label:"Review the Gig",description:"Rate scope accuracy, site conditions, workload, pricing fairness, and whether you would accept similar work again."}]} />
+          <div style={{ display: "flex", justifyContent: "flex-start" }}><button type="button" onClick={onClose} style={btnGhost}>← Back to Missions</button></div>
         </>
       )}
     </div>
@@ -353,24 +369,82 @@ function MissionTextarea({ label, value, onChange, placeholder }: { label: strin
   return <div><label style={{ color: V.inkDim, fontSize: 12 }}>{label}</label><textarea value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} style={{ ...inputStyle, marginTop: 6, minHeight: 90, resize: "vertical" }} /></div>;
 }
 
-function UploadRow({ onUpload, categories }: { onUpload: (name: string, category: string, file: File) => void; categories: string[] }) {
+function UploadRow({
+  label,
+  onUpload,
+  categories,
+  disabled,
+}: {
+  label: "document" | "deliverable";
+  onUpload: (name: string, category: string, file: File) => Promise<void>;
+  categories: string[];
+  disabled: boolean;
+}) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState(categories[0]);
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [inputKey, setInputKey] = useState(0);
+
+  async function submit() {
+    if (!file || !name.trim()) return;
+    setUploading(true);
+    setLocalError(null);
+    try {
+      await onUpload(name.trim(), category, file);
+      setName("");
+      setFile(null);
+      setInputKey((key) => key + 1);
+    } catch (uploadError) {
+      setLocalError(uploadError instanceof Error ? uploadError.message : `Could not upload ${label}.`);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
-    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 14 }}>
-      <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} style={{ ...inputStyle, width: 180 }} />
-      <select value={category} onChange={(e) => setCategory(e.target.value)} style={{ ...inputStyle, width: 160 }}>
-        {categories.map((c) => <option key={c} value={c}>{c.replace(/_/g, " ")}</option>)}
-      </select>
-      <label style={{ ...btnGhost, display: "inline-block", fontSize: 12 }}>
-        Choose file & upload
-        <input
-          type="file"
-          style={{ display: "none" }}
-          disabled={!name.trim()}
-          onChange={(e) => { const f = e.target.files?.[0]; if (f && name.trim()) { onUpload(name.trim(), category, f); setName(""); } }}
-        />
-      </label>
+    <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${V.line}` }}>
+      <strong style={{ fontSize: 12 }}>Add {label}</strong>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 8, alignItems: "end", marginTop: 9 }}>
+        <label style={{ color: V.inkDim, fontSize: 11 }}>
+          Display name
+          <input disabled={disabled || uploading} placeholder={`${label[0].toUpperCase()}${label.slice(1)} name`} value={name} onChange={(event) => setName(event.target.value)} style={{ ...inputStyle, marginTop: 5 }} />
+        </label>
+        <label style={{ color: V.inkDim, fontSize: 11 }}>
+          Category
+          <select disabled={disabled || uploading} value={category} onChange={(event) => setCategory(event.target.value)} style={{ ...inputStyle, marginTop: 5 }}>
+            {categories.map((value) => <option key={value} value={value}>{value.replace(/_/g, " ")}</option>)}
+          </select>
+        </label>
+        <label style={{ color: V.inkDim, fontSize: 11 }}>
+          File
+          <input
+            key={inputKey}
+            type="file"
+            disabled={disabled || uploading}
+            onChange={(event) => {
+              const selected = event.target.files?.[0] ?? null;
+              setFile(selected);
+              setLocalError(null);
+              if (selected && !name.trim()) setName(selected.name.replace(/\.[^.]+$/, ""));
+            }}
+            style={{ ...inputStyle, marginTop: 5, padding: 7 }}
+          />
+        </label>
+        <button type="button" disabled={disabled || uploading || !file || !name.trim()} onClick={submit} style={{ ...btnPrimary, height: 37, opacity: !disabled && file && name.trim() ? 1 : 0.5, cursor: !disabled && file && name.trim() ? "pointer" : "not-allowed" }}>
+          {uploading ? "Uploading…" : `Upload ${label}`}
+        </button>
+      </div>
+      {file && <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 7 }}>Selected: {file.name} · {formatFileSize(file.size)}</p>}
+      {disabled && <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 7 }}>Uploads are closed for this mission status.</p>}
+      {localError && <p role="alert" style={{ color: V.danger, fontSize: 12, marginTop: 7 }}>{localError}</p>}
     </div>
   );
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

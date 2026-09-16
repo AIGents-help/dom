@@ -83,6 +83,7 @@ export default function PilotMissionLog({
   const [canUpload, setCanUpload] = useState(false);
   const [workflowRefreshKey, setWorkflowRefreshKey] = useState(0);
   const [savingOperations, setSavingOperations] = useState(false);
+  const [returningMission, setReturningMission] = useState(false);
   const [performanceDate, setPerformanceDate] = useState(scheduledFor ? new Date(scheduledFor).toISOString().slice(0, 16) : "");
   const [notes, setNotes] = useState(operationalNotes ?? "");
   const [accessNotes, setAccessNotes] = useState(siteAccessNotes ?? "");
@@ -96,6 +97,7 @@ export default function PilotMissionLog({
   const forecastDaysAway = performanceDate ? Math.ceil((new Date(performanceDate).getTime() - now) / 86_400_000) : null;
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [forecastLoading, setForecastLoading] = useState(false);
+  const canReturnMission = ["accepted", "scheduled"].includes(assignmentStatus);
 
   const load = useCallback(async () => {
     setError(null);
@@ -139,12 +141,25 @@ export default function PilotMissionLog({
   const forfeitMission = useCallback(async () => {
     if (!window.confirm("Return this mission to DOM because no compatible aircraft is available?")) return;
     setError(null);
-    const sb = getSupabaseBrowser();
-    const { data } = await sb.auth.getSession();
-    const res = await fetch(`/api/pilot/missions/${assignmentId}/respond`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session?.access_token ?? ""}` }, body: JSON.stringify({ action: "decline" }) });
-    const body = await res.json();
-    if (!res.ok) { setError(body.error ?? "DOM could not be notified"); return; }
-    onSaved(); onClose();
+    setReturningMission(true);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      if (!data.session) throw new Error("Your session expired. Sign in again to continue.");
+      const res = await fetch(`/api/pilot/missions/${assignmentId}/respond`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
+        body: JSON.stringify({ action: "return", reason: "No compatible aircraft available." }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "DOM could not be notified.");
+      onSaved();
+      onClose();
+    } catch (returnError) {
+      setError(returnError instanceof Error ? returnError.message : "DOM could not be notified.");
+    } finally {
+      setReturningMission(false);
+    }
   }, [assignmentId, onClose, onSaved]);
 
   const saveOperations = useCallback(async () => {
@@ -281,7 +296,7 @@ export default function PilotMissionLog({
                   {aircraft && selectedAssessment?.compatible && <div aria-live="polite" style={{ marginTop: 9, padding: 10, borderRadius: 8, border: `1px solid ${V.telemetry}`, background: "rgba(22,163,74,.08)" }}><strong style={{ color: V.telemetry, fontSize: 12 }}>✓ Equipment confirmed for this mission</strong><div style={{ color: V.inkDim, fontSize: 11, marginTop: 3 }}>{selectedAssessment.reason} Final go/no-go remains subject to payload configuration, site conditions, and manufacturer limits.</div></div>}
                 </>
               ) : (
-                <div style={{ marginTop: 10, padding: 12, borderRadius: 9, border: `1px solid ${V.danger}`, background: "rgba(220,38,38,.08)" }}><strong style={{ color: V.danger, fontSize: 12 }}>No compatible aircraft found</strong><p style={{ color: V.inkDim, fontSize: 11, marginTop: 5 }}>Update Pilot Profile → Equipment with the exact manufacturer and model if you own a suitable unit. Otherwise, return this mission to DOM so it can be reassigned.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 9 }}><button type="button" onClick={onGoToProfile} style={{ ...btnGhost, padding: "6px 10px", fontSize: 11 }}>Update equipment profile</button><button type="button" onClick={forfeitMission} style={{ ...btnGhost, padding: "6px 10px", fontSize: 11, borderColor: V.danger, color: V.danger }}>Forfeit / reassign mission</button></div></div>
+                <div style={{ marginTop: 10, padding: 12, borderRadius: 9, border: `1px solid ${V.danger}`, background: "rgba(220,38,38,.08)" }}><strong style={{ color: V.danger, fontSize: 12 }}>No compatible aircraft found</strong><p style={{ color: V.inkDim, fontSize: 11, marginTop: 5 }}>Update Pilot Profile → Equipment with the exact manufacturer and model if you own a suitable unit. Otherwise, return this mission to DOM so it can be reassigned.</p><div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 9 }}><button type="button" onClick={onGoToProfile} style={{ ...btnGhost, padding: "6px 10px", fontSize: 11 }}>Update equipment profile</button>{canReturnMission ? <button type="button" onClick={forfeitMission} disabled={returningMission} style={{ ...btnGhost, padding: "6px 10px", fontSize: 11, borderColor: V.danger, color: V.danger, opacity: returningMission ? .6 : 1 }}>{returningMission ? "Returning…" : "Return for reassignment"}</button> : <span style={{ color: V.warn, fontSize: 11, alignSelf: "center" }}>Field work has started. Contact DOM support to change pilots safely.</span>}</div></div>
               )}
               {guidance.length > 0 && (
                 <div style={{ display: "grid", gap: 10, marginTop: 14 }}>

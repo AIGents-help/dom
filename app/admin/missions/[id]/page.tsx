@@ -158,6 +158,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [selectedContractor, setSelectedContractor] = useState("");
   const [scheduledFor, setScheduledFor] = useState("");
   const [offering, setOffering] = useState(false);
+  const [offerNotice, setOfferNotice] = useState<string | null>(null);
   const [releasingClaim, setReleasingClaim] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [completing, setCompleting] = useState<string | null>(null);
@@ -308,6 +309,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       .eq("mission_request_id", id)
       .maybeSingle();
     setJob(jobRow as Job | null);
+    setScheduledFor(jobRow?.scheduled_for ? jobRow.scheduled_for.slice(0, 10) : "");
 
     if (jobRow) {
       const { data: assigns } = await sb
@@ -336,49 +338,42 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
         .order("created_at", { ascending: false });
       setDeliverables((deliverableRows as Deliverable[]) ?? []);
     } else {
-      // Only offer missions to contractors who are active AND fully
-      // verified — otherwise a pilot could accept work that then fails at
-      // actual payment time, since /api/checkout separately blocks
-      // unverified contractors from being paid.
-      const { data: activeContractors } = await sb
-        .from("contractors")
-        .select("id, full_name, status, service_area, home_address, rating, missions_completed")
-        .eq("status", "active")
-        .eq("part107_verified", true)
-        .eq("insurance_verified", true)
-        .order("rating", { ascending: false });
-      setContractors((activeContractors as Contractor[]) ?? []);
+      setAssignments([]);
+      setPayments([]);
+      setDeliverables([]);
+    }
 
-      // Tier badge per contractor — bulk-fetch trailing-90-day completed
-      // counts once and tally client-side (same pattern as the admin
-      // dashboard's funnel panels), rather than one RPC round-trip per row.
-      const contractorIds = (activeContractors ?? []).map((c) => c.id);
-      if (contractorIds.length) {
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-        const { data: recentCompletions } = await sb
-          .from("mission_assignments")
-          .select("contractor_id")
-          .in("contractor_id", contractorIds)
-          .in("status", ["qc_passed", "paid"])
-          .gte("completed_at", ninetyDaysAgo.toISOString());
-        const counts: Record<string, number> = {};
-        for (const row of recentCompletions ?? []) {
-          counts[row.contractor_id] = (counts[row.contractor_id] ?? 0) + 1;
-        }
-        // Display-only badge — mirrors calculate_commission_bps's tier
-        // bands (see the migration) since a real per-contractor RPC round
-        // trip per dropdown row isn't worth it for a label. The actual
-        // money calculation always goes through the SQL function; this
-        // can never itself write an incorrect commission, only mislabel
-        // the preview if the bands are ever retuned without updating here.
-        const tiers: Record<string, number> = {};
-        for (const cid of contractorIds) {
-          const count = counts[cid] ?? 0;
-          tiers[cid] = count >= 10 ? 1000 : count >= 5 ? 1500 : 2000;
-        }
-        setContractorTierBps(tiers);
+    // Staffing can happen both before the first offer and after a decline,
+    // so keep the verified pilot list available throughout the job lifecycle.
+    const { data: activeContractors } = await sb
+      .from("contractors")
+      .select("id, full_name, status, service_area, home_address, rating, missions_completed")
+      .eq("status", "active")
+      .eq("part107_verified", true)
+      .eq("insurance_verified", true)
+      .order("rating", { ascending: false });
+    setContractors((activeContractors as Contractor[]) ?? []);
+
+    const contractorIds = (activeContractors ?? []).map((c) => c.id);
+    if (contractorIds.length) {
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+      const { data: recentCompletions } = await sb
+        .from("mission_assignments")
+        .select("contractor_id")
+        .in("contractor_id", contractorIds)
+        .in("status", ["qc_passed", "paid"])
+        .gte("completed_at", ninetyDaysAgo.toISOString());
+      const counts: Record<string, number> = {};
+      for (const row of recentCompletions ?? []) {
+        counts[row.contractor_id] = (counts[row.contractor_id] ?? 0) + 1;
       }
+      const tiers: Record<string, number> = {};
+      for (const cid of contractorIds) {
+        const count = counts[cid] ?? 0;
+        tiers[cid] = count >= 10 ? 1000 : count >= 5 ? 1500 : 2000;
+      }
+      setContractorTierBps(tiers);
     }
 
     setLoading(false);
@@ -522,26 +517,23 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
     if (!selectedContractor) return;
     setOffering(true);
     setError(null);
+    setOfferNotice(null);
     try {
       const sb = getSupabaseBrowser();
-      const { error: rpcError } = await sb.rpc("admin_offer_mission", {
-        p_mission_request_id: id,
-        p_contractor_id: selectedContractor,
-        p_scheduled_for: scheduledFor ? new Date(scheduledFor).toISOString() : null,
-      });
-      if (rpcError) throw rpcError;
-
-      // Best-effort: a notification failure shouldn't undo the offer that
-      // already succeeded.
       const { data: session } = await sb.auth.getSession();
-      if (session.session) {
-        fetch("/api/notify/mission-available", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.session.access_token}` },
-          body: JSON.stringify({ missionRequestId: id, contractorId: selectedContractor }),
-        }).catch((e) => console.error("mission-available notify failed:", e));
-      }
-
+      if (!session.session) throw new Error("Not authenticated");
+      const res = await fetch(`/api/admin/missions/${id}/offer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.session.access_token}` },
+        body: JSON.stringify({
+          contractorId: selectedContractor,
+          scheduledFor: scheduledFor ? new Date(`${scheduledFor}T12:00:00`).toISOString() : null,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Failed to offer mission");
+      setSelectedContractor("");
+      setOfferNotice(body.notificationWarning ?? "Mission offered and pilot notified.");
       await load();
     } catch (e: any) {
       setError(e.message ?? "Failed to offer mission");
@@ -614,6 +606,12 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
     if (updateError) { setError(updateError.message); return; }
     await load();
   }, [job, load]);
+
+  const previouslyOfferedContractorIds = assignments.map((assignment) => assignment.contractor_id);
+  const previouslyOfferedContractorSet = new Set(previouslyOfferedContractorIds);
+  const availableContractors = contractors.filter((contractor) => !previouslyOfferedContractorSet.has(contractor.id));
+  const hasActiveAssignment = assignments.some((assignment) => !["declined", "cancelled"].includes(assignment.status));
+  const canOfferPilot = !job || (job.status === "scheduled" && !hasActiveAssignment);
 
   if (!authed) return null;
 
@@ -797,9 +795,20 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
             </div>
           )}
 
-          {!job && (
+          {offerNotice && (
+            <div style={{ ...panel, borderColor: V.telemetry }}>
+              <p style={{ color: V.telemetry, fontSize: 13 }}>{offerNotice}</p>
+            </div>
+          )}
+
+          {canOfferPilot && (
             <div style={panel}>
-              <Label>Offer to Contractor</Label>
+              <Label>{job ? "Offer to Another Pilot" : "Offer to Contractor"}</Label>
+              {job && (
+                <p style={{ color: V.inkDim, fontSize: 13, marginTop: 8 }}>
+                  The prior offer was declined or cancelled. Select a pilot who has not already received this mission.
+                </p>
+              )}
               {mission.status === "claimed" && (
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10, marginTop: 10, padding: 12, borderRadius: 8, background: "rgba(244,90,30,.08)", border: `1px solid ${V.signal}` }}>
                   <p style={{ color: V.signal, fontSize: 13, margin: 0 }}>
@@ -810,11 +819,12 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                   </button>
                 </div>
               )}
-              <EligiblePilotsPanel missionId={id} onSelect={setSelectedContractor} />
-              {contractors.length === 0 ? (
+              <EligiblePilotsPanel missionId={id} onSelect={setSelectedContractor} excludeContractorIds={previouslyOfferedContractorIds} />
+              {availableContractors.length === 0 ? (
                 <p style={{ color: V.inkDim, fontSize: 13, marginTop: 10 }}>
-                  No active contractors available. Verify and activate contractors in{" "}
-                  <a href="/admin/contractors" style={{ color: V.signal }}>Admin &gt; Contractors</a> first.
+                  {contractors.length === 0
+                    ? <>No active contractors available. Verify and activate contractors in <a href="/admin/contractors" style={{ color: V.signal }}>Admin &gt; Contractors</a> first.</>
+                    : "Every active contractor has already received this mission."}
                 </p>
               ) : (
                 <>
@@ -824,7 +834,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                     style={{ ...inputStyle, marginTop: 10 }}
                   >
                     <option value="">Select a contractor…</option>
-                    {contractors.map((c) => (
+                    {availableContractors.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.full_name} {c.service_area ? `(${c.service_area})` : ""} — {c.missions_completed} missions{c.rating ? `, ${c.rating}★` : ""}
                         {contractorTierBps[c.id] != null && ` — ${contractorTierBps[c.id] / 100}% tier`}
@@ -992,10 +1002,9 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                 })}
               </div>
 
-              {assignments.every((a) => a.status === "declined") && (
+              {assignments.length > 0 && assignments.every((a) => ["declined", "cancelled"].includes(a.status)) && (
                 <p style={{ color: V.inkDim, fontSize: 13, marginTop: 12 }}>
-                  All offers declined. Re-offering to a different contractor isn't wired up in this UI yet —
-                  use the Supabase dashboard to insert a new mission_assignments row for now.
+                  No pilot currently holds this mission. Use “Offer to Another Pilot” above to continue staffing.
                 </p>
               )}
             </div>

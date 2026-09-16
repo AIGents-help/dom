@@ -20,7 +20,15 @@ interface EligiblePilot {
   eligibility: { fit: string; missingOptional: string[] };
 }
 
-export default function EligiblePilotsPanel({ missionId, onSelect }: { missionId: string; onSelect?: (contractorId: string) => void }) {
+export default function EligiblePilotsPanel({
+  missionId,
+  onSelect,
+  excludeContractorIds = [],
+}: {
+  missionId: string;
+  onSelect?: (contractorId: string) => void;
+  excludeContractorIds?: string[];
+}) {
   const [pilots, setPilots] = useState<EligiblePilot[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +53,8 @@ export default function EligiblePilotsPanel({ missionId, onSelect }: { missionId
       setError(body.error ?? "Could not find eligible pilots.");
       return;
     }
-    setPilots(body.pilots ?? []);
+    const excluded = new Set(excludeContractorIds);
+    setPilots((body.pilots ?? []).filter((pilot: EligiblePilot) => !excluded.has(pilot.id)));
     setConfigured(body.configured !== false);
   }
 

@@ -10,6 +10,7 @@ import PilotFieldWorkflow from "@/components/PilotFieldWorkflow";
 import PilotReadinessBanner from "@/components/PilotReadinessBanner";
 import MissionReviewPanel from "@/components/MissionReviewPanel";
 import { DELIVERABLE_TYPES, DOCUMENT_CATEGORIES, type PilotFileKind } from "@/lib/pilotMissionFiles";
+import { deliverablePlanFor } from "@/lib/missionWorkflow";
 
 // Pilot > Mission Log — per-assignment documents + deliverables, mirroring
 // the admin Mission Briefing / Deliverables panels but driven by the
@@ -109,6 +110,7 @@ export default function PilotMissionLog({
   const [aircraft, setAircraft] = useState(assignedUav ?? "");
   const selectedAssessment = equipmentAssessments.find((item) => item.aircraft === aircraft);
   const guidance = aircraft ? missionEquipmentGuidance(missionServiceType, aircraft) : [];
+  const captureDeliverables = deliverablePlanFor(missionServiceType);
   const forecastDaysAway = performanceDate ? Math.ceil((new Date(performanceDate).getTime() - now) / 86_400_000) : null;
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [forecastLoading, setForecastLoading] = useState(false);
@@ -310,6 +312,34 @@ export default function PilotMissionLog({
         <>
           <PilotReadinessBanner assignmentId={assignmentId} />
           <PilotFieldWorkflow assignmentId={assignmentId} refreshKey={workflowRefreshKey} onChanged={onSaved} />
+          <section id="mission-capture-plan" style={{ ...panelStyle, borderColor: V.signal }}>
+            <style>{`@media print { body * { visibility: hidden !important; } #mission-capture-plan, #mission-capture-plan * { visibility: visible !important; } #mission-capture-plan { position: absolute; inset: 0; width: 100%; border: 0 !important; background: white !important; color: black !important; } #mission-capture-plan button { display: none !important; } }`}</style>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+              <div>
+                <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>Mission Capture Plan</div>
+                <h3 style={{ color: V.ink, fontSize: 18, marginTop: 5 }}>{missionName}</h3>
+                <p style={{ color: V.inkDim, fontSize: 12, marginTop: 3 }}>Use this job-specific plan in the field and print or save it as a PDF when needed.</p>
+              </div>
+              <button type="button" onClick={() => window.print()} style={btnGhost}>Print / Save PDF</button>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10, marginTop: 14 }}>
+              <Detail label="Mission type" value={missionServiceType.replace(/_/g, " ")} />
+              <Detail label="Aircraft" value={aircraft || "Select before flight"} />
+              <Detail label="Performance date" value={performanceDate ? new Date(performanceDate).toLocaleString() : "Not scheduled"} />
+              <Detail label="Airspace" value={airspaceClass ? `Class ${airspaceClass}` : "Verify before flight"} />
+            </div>
+            <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+              <CapturePlanRow label="Site" value={missionLocation} />
+              <CapturePlanRow label="Approved scope" value={missionScope || "No additional scope recorded."} />
+              <CapturePlanRow label="Site access" value={accessNotes || "Confirm access, parking, check-in, and site contact before arrival."} />
+              <CapturePlanRow label="Hazards and cautions" value={cautions || "Complete the site walk and record hazards before flight."} />
+              <CapturePlanRow label="Flight and capture notes" value={notes || "Follow the approved scope, maintain coverage overlap, and verify image quality before leaving."} />
+            </div>
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${V.line}` }}>
+              <strong style={{ color: V.ink, fontSize: 12 }}>Required capture outputs</strong>
+              <ul style={{ color: V.inkDim, fontSize: 12, lineHeight: 1.55, margin: "7px 0 0 18px" }}>{captureDeliverables.map((item) => <li key={`${item.type}-${item.label}`}><strong>{item.label}</strong>{item.required ? " — required. " : " — when included in scope. "}{item.guidance}</li>)}</ul>
+            </div>
+          </section>
           <div style={{ ...panelStyle, borderColor: V.signal }}>
             <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>Mission Operations</div>
             {deliveryResponsibility === "pilot" && (
@@ -331,7 +361,7 @@ export default function PilotMissionLog({
                 )}
               </div>
             )}
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
+            <div id="mission-airspace" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
               <div style={{ color: V.inkDim, fontSize: 13 }}>{missionLocation}</div>
               <a href={googleMapsPlaceUrl(missionLocation)} target="_blank" rel="noreferrer" style={{ color: V.signal, fontSize: 12, fontWeight: 600 }}>Open site in Google Maps ↗</a>
             </div>
@@ -340,16 +370,16 @@ export default function PilotMissionLog({
               <Detail label="Client" value={clientCompany || clientName || "Not provided"} />
               <Detail label="Airspace" value={airspaceClass ? `Class ${airspaceClass}` : "Verify before flight"} />
             </div>
-            <div style={{ marginTop: 14, padding: 12, borderRadius: 9, background: V.raised, border: `1px solid ${V.line}` }}>
+            <div id="mission-scope" style={{ marginTop: 14, padding: 12, borderRadius: 9, background: V.raised, border: `1px solid ${V.line}` }}>
               <div style={{ color: V.inkFaint, fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em" }}>Client requests / approved scope</div>
               <div style={{ color: V.ink, fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap", marginTop: 6 }}>{missionScope || "No additional client requests were recorded."}</div>
               {clientEmail && <a href={`mailto:${clientEmail}`} style={{ color: V.signal, fontSize: 12, display: "inline-block", marginTop: 8 }}>Email {clientName || "client"} ↗</a>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14, marginTop: 14 }}>
-              <div>
+              <div id="mission-schedule">
                 <label style={{ color: V.inkDim, fontSize: 12 }}>Scheduled performance date and time</label>
                 <input type="datetime-local" value={performanceDate} onChange={(e) => setPerformanceDate(e.target.value)} style={{ ...inputStyle, marginTop: 6 }} />
-                {performanceDate && <div aria-live="polite" style={{ marginTop: 8, padding: 10, borderRadius: 8, border: `1px solid ${forecast?.rating === "unfavorable" ? V.danger : forecast?.rating === "caution" ? V.warn : forecast?.available ? V.telemetry : V.line}`, background: forecast?.rating === "unfavorable" ? "rgba(220,38,38,.08)" : forecast?.rating === "caution" ? "rgba(245,158,11,.08)" : forecast?.available ? "rgba(22,163,74,.08)" : V.raised }}>
+                {performanceDate && <div id="mission-weather" aria-live="polite" style={{ marginTop: 8, padding: 10, borderRadius: 8, border: `1px solid ${forecast?.rating === "unfavorable" ? V.danger : forecast?.rating === "caution" ? V.warn : forecast?.available ? V.telemetry : V.line}`, background: forecast?.rating === "unfavorable" ? "rgba(220,38,38,.08)" : forecast?.rating === "caution" ? "rgba(245,158,11,.08)" : forecast?.available ? "rgba(22,163,74,.08)" : V.raised }}>
                   {forecastLoading ? <span style={{ color: V.inkDim, fontSize: 11 }}>Checking forecast…</span> : <>{forecast?.available ? <><strong style={{ color: forecast.rating === "unfavorable" ? V.danger : forecast.rating === "caution" ? V.warn : V.telemetry, fontSize: 12 }}>{forecast.rating === "unfavorable" ? "⚠ Consider reassignment" : forecast.rating === "caution" ? "△ Weather caution" : "✓ Forecast looks favorable"}</strong><div style={{ color: V.inkDim, fontSize: 11, marginTop: 4 }}>{forecast.summary}</div><div style={{ color: V.ink, fontSize: 11, marginTop: 5 }}>{forecast.forecast?.lowF}–{forecast.forecast?.highF}°F · Rain {forecast.forecast?.precipitationProbability}% · Wind {forecast.forecast?.maxWindMph} mph · Gusts {forecast.forecast?.maxGustMph} mph</div>{forecast.rating === "unfavorable" && <button type="button" onClick={() => setPerformanceDate("")} style={{ ...btnGhost, padding: "5px 9px", fontSize: 11, marginTop: 7 }}>Clear date and choose another</button>}</> : <span style={{ color: V.warn, fontSize: 11 }}>{forecast?.reason}</span>}<div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 8, paddingTop: 7, borderTop: `1px solid ${V.line}` }}><a href={missionWeatherUrl(missionLocation, new Date(performanceDate).toISOString())} target="_blank" rel="noreferrer" style={{ color: V.signal, fontSize: 11, fontWeight: 700 }}>View full forecast range ↗</a><a href="https://aviationweather.gov/" target="_blank" rel="noreferrer" style={{ color: V.signal, fontSize: 11, fontWeight: 700 }}>Aviation Weather Center ↗</a>{forecastDaysAway != null && forecastDaysAway > 10 && <span style={{ color: V.warn, fontSize: 10 }}>Long-range outlook—recheck inside 7–10 days.</span>}</div></>}
                 </div>}
               </div>
@@ -358,7 +388,7 @@ export default function PilotMissionLog({
                 <textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Access instructions, site contact coordination, equipment plan, weather considerations…" style={{ ...inputStyle, marginTop: 6, minHeight: 90, resize: "vertical" }} />
               </div>
             </div>
-            <div style={{ marginTop: 14, padding: 14, borderRadius: 10, background: V.raised, border: `1px solid ${V.line}` }}>
+            <div id="mission-aircraft" style={{ marginTop: 14, padding: 14, borderRadius: 10, background: V.raised, border: `1px solid ${V.line}` }}>
               <div className="font-saira" style={{ fontSize: 14, fontWeight: 700 }}>Assigned UAV & Mission Settings</div>
               {compatibleAircraft.length ? (
                 <>
@@ -386,8 +416,8 @@ export default function PilotMissionLog({
               )}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14, marginTop: 14 }}>
-              <MissionTextarea label="Site access & arrival" value={accessNotes} onChange={setAccessNotes} placeholder="Parking, gate codes, check-in, escorts, property access…" />
-              <MissionTextarea label="Cautions & awareness" value={cautions} onChange={setCautions} placeholder="People, animals, utilities, obstacles, sensitive areas, weather or airspace concerns…" />
+              <div id="mission-access"><MissionTextarea label="Site access & arrival" value={accessNotes} onChange={setAccessNotes} placeholder="Parking, gate codes, check-in, escorts, property access…" /></div>
+              <div id="mission-cautions"><MissionTextarea label="Cautions & awareness" value={cautions} onChange={setCautions} placeholder="People, animals, utilities, obstacles, sensitive areas, weather or airspace concerns…" /></div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <MissionTextarea label="Client communications & coordination" value={communications} onChange={setCommunications} placeholder="Log calls, emails, confirmations, changes requested, and follow-up commitments with dates…" />
               </div>
@@ -398,7 +428,7 @@ export default function PilotMissionLog({
             </button>
           </div>
 
-          <div style={panelStyle}>
+          <div id="mission-documents" style={panelStyle}>
             <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>Documents</div>
             <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
               {docs.length === 0 && <p style={{ color: V.inkDim, fontSize: 13 }}>No documents yet.</p>}
@@ -417,7 +447,7 @@ export default function PilotMissionLog({
             <UploadRow label="document" onUpload={uploadDoc} categories={[...DOCUMENT_CATEGORIES]} disabled={!canUpload} />
           </div>
 
-          <div style={panelStyle}>
+          <div id="mission-deliverables" style={panelStyle}>
             <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>Deliverables</div>
             <p style={{ color: V.inkFaint, fontSize: 12, marginTop: 6 }}>Only QC-passed deliverables are visible to the client.</p>
             <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
@@ -452,6 +482,10 @@ export default function PilotMissionLog({
 
 function Detail({ label, value }: { label: string; value: string }) {
   return <div style={{ padding: 10, borderRadius: 8, background: V.raised }}><div style={{ color: V.inkFaint, fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em" }}>{label}</div><div style={{ color: V.ink, fontSize: 13, marginTop: 4, textTransform: label === "Mission type" ? "capitalize" : "none" }}>{value}</div></div>;
+}
+
+function CapturePlanRow({ label, value }: { label: string; value: string }) {
+  return <div style={{ padding: 10, borderRadius: 8, background: V.raised }}><div style={{ color: V.inkFaint, fontSize: 10, textTransform: "uppercase", letterSpacing: ".08em" }}>{label}</div><div style={{ color: V.ink, fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap", marginTop: 4 }}>{value}</div></div>;
 }
 
 function MissionTextarea({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {

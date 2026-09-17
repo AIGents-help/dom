@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
 import { AUTOMATIC_WORKFLOW_KEYS, workflowProgress } from "@/lib/missionWorkflow";
+import { workflowResourcesFor } from "@/lib/workflowResources";
 
 const WORKFLOW_STAGES = [
   { id: "before", title: "Before Flight", description: "Plan the mission, confirm compliance, inspect equipment, and prepare the site.", phases: ["planning", "preflight"] },
@@ -150,7 +151,7 @@ export default function PilotFieldWorkflow({
           <button type="button" disabled={busyAction !== null} onClick={() => router.push("/pilot")} style={{ ...primaryButton, opacity: busyAction ? 0.5 : 1, cursor: busyAction ? "not-allowed" : "pointer" }}>Save &amp; Return to Missions</button>
         </div>
 
-        <div aria-live="polite" style={{ padding: 12, borderRadius: 9, border: `1px solid ${data.insurance.verified ? V.telemetry : uninsured ? V.warn : V.danger}`, background: data.insurance.verified ? "rgba(22,163,74,.08)" : uninsured ? "rgba(245,158,11,.08)" : "rgba(220,38,38,.08)" }}>
+        <div id="mission-insurance" aria-live="polite" style={{ padding: 12, borderRadius: 9, border: `1px solid ${data.insurance.verified ? V.telemetry : uninsured ? V.warn : V.danger}`, background: data.insurance.verified ? "rgba(22,163,74,.08)" : uninsured ? "rgba(245,158,11,.08)" : "rgba(220,38,38,.08)" }}>
           <strong style={{ color: data.insurance.verified ? V.telemetry : uninsured ? V.warn : V.danger, fontSize: 12 }}>{data.insurance.verified ? "✓ Insurance verified" : uninsured ? "Uninsured — responsibility acknowledged" : "Choose an insurance path"}</strong>
           <div style={{ color: V.inkDim, fontSize: 11, marginTop: 4 }}>
             {insuranceSatisfied
@@ -213,12 +214,18 @@ export default function PilotFieldWorkflow({
                 {stage.phases.map((phase) => (
                   <div key={phase} style={{ marginTop: 14 }}>
                     <h4 style={{ fontSize: 11, textTransform: "uppercase", color: V.inkFaint, letterSpacing: ".08em" }}>{phase}</h4>
-                    {stageItems.filter((item) => item.phase === phase).map((item) => (
-                      <label key={item.id} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "7px 0", fontSize: 13, color: item.completed ? V.inkDim : V.ink }}>
-                        <input type="checkbox" checked={item.completed} disabled={!insuranceSatisfied || AUTOMATIC_ITEMS.has(item.item_key) || busyAction !== null} onChange={(event) => act({ action: "checklist", itemId: item.id, completed: event.target.checked }, item.id)} />
-                        <span style={{ textDecoration: item.completed ? "line-through" : "none" }}>{item.label}{AUTOMATIC_ITEMS.has(item.item_key) && <small style={{ display: "block", color: V.inkFaint, textDecoration: "none" }}>Updates automatically</small>}</span>
-                      </label>
-                    ))}
+                    {stageItems.filter((item) => item.phase === phase).map((item) => {
+                      const resources = workflowResourcesFor(item.item_key);
+                      return (
+                        <div key={item.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", padding: "8px 0", fontSize: 13, color: item.completed ? V.inkDim : V.ink, flexWrap: "wrap" }}>
+                          <label style={{ display: "flex", gap: 9, alignItems: "flex-start", flex: "1 1 320px", cursor: AUTOMATIC_ITEMS.has(item.item_key) ? "default" : "pointer" }}>
+                            <input type="checkbox" checked={item.completed} disabled={!insuranceSatisfied || AUTOMATIC_ITEMS.has(item.item_key) || busyAction !== null} onChange={(event) => act({ action: "checklist", itemId: item.id, completed: event.target.checked }, item.id)} />
+                            <span style={{ textDecoration: item.completed ? "line-through" : "none" }}>{item.label}{AUTOMATIC_ITEMS.has(item.item_key) && <small style={{ display: "block", color: V.inkFaint, textDecoration: "none" }}>Updates automatically</small>}</span>
+                          </label>
+                          {resources.length > 0 && <div style={{ display: "flex", gap: 9, flexWrap: "wrap", paddingLeft: 24 }}>{resources.map((resource) => <a key={`${item.item_key}-${resource.href}`} href={resource.href} target={resource.external ? "_blank" : undefined} rel={resource.external ? "noreferrer" : undefined} style={resourceLinkStyle}>{resource.label}{resource.external ? " ↗" : " →"}</a>)}</div>}
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
 
@@ -279,3 +286,4 @@ const primaryButton: React.CSSProperties = { padding: "9px 13px", border: 0, bor
 const dangerButton: React.CSSProperties = { ...primaryButton, background: "transparent", border: `1px solid ${V.danger}`, color: V.danger, cursor: "pointer" };
 const inputStyle: React.CSSProperties = { width: "100%", padding: 10, borderRadius: 8, border: `1px solid ${V.line}`, background: V.ground, color: V.ink };
 const linkStyle: React.CSSProperties = { color: V.signal, fontSize: 11, fontWeight: 700 };
+const resourceLinkStyle: React.CSSProperties = { ...linkStyle, padding: "4px 8px", borderRadius: 6, border: `1px solid ${V.line}`, background: V.raised, textDecoration: "none", whiteSpace: "nowrap" };

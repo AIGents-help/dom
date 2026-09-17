@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
+import { AUTOMATIC_WORKFLOW_KEYS, workflowProgress } from "@/lib/missionWorkflow";
 
 const PHASES = ["planning", "preflight", "onsite", "flight", "postflight", "submission"] as const;
-const AUTOMATIC_ITEMS = new Set(["insurance_verified", "deliverables_uploaded", "mission_submitted"]);
+const AUTOMATIC_ITEMS = new Set<string>(AUTOMATIC_WORKFLOW_KEYS);
 
 interface WorkflowItem {
   id: string;
@@ -21,6 +22,7 @@ interface WorkflowData {
   assignmentStatus: string;
   insurance: { verified: boolean; source: string | null; expiresOn: string | null; gigEligible: boolean };
   submission: { ready: boolean; blockers: string[]; submitted: boolean };
+  deliverablePlan: Array<{ type: string; label: string; guidance: string; required: boolean; uploaded: boolean }>;
 }
 
 export default function PilotFieldWorkflow({
@@ -61,8 +63,8 @@ export default function PilotFieldWorkflow({
 
   useEffect(() => { load(); }, [load]);
 
-  const completed = useMemo(() => data?.items.filter((item) => item.completed).length ?? 0, [data]);
-  const percent = data ? Math.round((completed / Math.max(1, data.items.length)) * 100) : 0;
+  const progress = useMemo(() => workflowProgress(data?.items ?? []), [data]);
+  const percent = data ? Math.round((progress.prerequisitesCompleted / Math.max(1, progress.prerequisitesTotal)) * 100) : 0;
 
   async function act(body: Record<string, unknown>, label: string) {
     setBusyAction(label);
@@ -111,7 +113,8 @@ export default function PilotFieldWorkflow({
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
           <div>
             <div className="font-mono-ibm" style={{ fontSize: 12, color: V.signal, textTransform: "uppercase", letterSpacing: ".1em" }}>Field Workflow</div>
-            <strong style={{ display: "block", marginTop: 4 }}>{percent}% complete · {completed}/{data.items.length} steps</strong>
+            <strong style={{ display: "block", marginTop: 4 }}>{percent}% ready · {progress.prerequisitesCompleted}/{progress.prerequisitesTotal} requirements</strong>
+            <small style={{ display: "block", color: V.inkFaint, marginTop: 2 }}>Submission is the final action after all requirements are complete.</small>
             <span style={{ color: data.submission.ready || data.submission.submitted ? V.telemetry : V.inkDim, fontSize: 12 }}>{nextAction}</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -144,6 +147,15 @@ export default function PilotFieldWorkflow({
           </div>
         </div>
 
+        {!data.submission.submitted && data.submission.blockers.length > 0 && (
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 9, background: "rgba(245,158,11,.08)", border: `1px solid ${V.warn}` }}>
+            <strong style={{ color: V.warn, fontSize: 12 }}>Still required before QC</strong>
+            <ul style={{ color: V.inkDim, fontSize: 12, lineHeight: 1.5, margin: "7px 0 0 18px" }}>
+              {data.submission.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
+            </ul>
+          </div>
+        )}
+
         {(actionError || actionBlockers.length > 0) && (
           <div role="alert" style={{ marginTop: 12, padding: 12, borderRadius: 9, border: `1px solid ${V.danger}`, background: "rgba(220,38,38,.08)" }}>
             {actionError && <strong style={{ color: V.danger, fontSize: 12 }}>{actionError}</strong>}
@@ -172,6 +184,22 @@ export default function PilotFieldWorkflow({
             </section>
           ))}
         </div>
+
+        <section style={{ marginTop: 14, padding: 12, borderRadius: 9, background: V.raised, border: `1px solid ${V.line}` }}>
+          <strong style={{ color: V.ink, fontSize: 12 }}>Mission deliverables</strong>
+          <p style={{ color: V.inkDim, fontSize: 11, marginTop: 4 }}>Create these outputs from the captured mission data, then upload the finished client-ready files below.</p>
+          <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+            {data.deliverablePlan.map((item) => (
+              <div key={`${item.type}-${item.label}`} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                <span aria-hidden="true" style={{ color: item.uploaded ? V.telemetry : item.required ? V.warn : V.inkFaint }}>{item.uploaded ? "✓" : item.required ? "○" : "△"}</span>
+                <div>
+                  <strong style={{ color: V.ink, fontSize: 12 }}>{item.label}{item.required ? " · required" : " · when scoped"}</strong>
+                  <div style={{ color: V.inkDim, fontSize: 11, marginTop: 2 }}>{item.guidance}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
           {!data.job.checked_in_at && <ActionButton disabled={!insured || busyAction !== null} busy={busyAction === "check_in"} onClick={() => act({ action: "check_in" }, "check_in")}>Check in on site</ActionButton>}

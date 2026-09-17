@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
-import { WORKFLOW_ITEMS } from "@/lib/missionWorkflow";
+import { deliverablePlanFor, missingRequiredDeliverables, WORKFLOW_ITEMS } from "@/lib/missionWorkflow";
 
 interface WorkflowJob {
   mission_request_id: string;
+  service_type: string | null;
   scheduled_for: string | null;
   checked_in_at: string | null;
   started_at: string | null;
@@ -38,7 +39,7 @@ async function context(req: NextRequest, assignmentId: string): Promise<Workflow
     .eq("user_id", user.id).maybeSingle();
   if (!contractor) return null;
   const { data: assignment } = await admin.from("mission_assignments")
-    .select("job_id,status,assigned_uav,insurance_source,mission_insurance_verified,mission_insurance_reference,mission_insurance_expires_at,job:jobs(mission_request_id,scheduled_for,checked_in_at,started_at,completed_at)")
+    .select("job_id,status,assigned_uav,insurance_source,mission_insurance_verified,mission_insurance_reference,mission_insurance_expires_at,job:jobs(mission_request_id,service_type,scheduled_for,checked_in_at,started_at,completed_at)")
     .eq("id", assignmentId).eq("contractor_id", contractor.id).maybeSingle();
   if (!assignment) return null;
   const job = Array.isArray(assignment.job) ? assignment.job[0] : assignment.job;
@@ -71,18 +72,32 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
   if (seedError) return NextResponse.json({ error: "Field workflow could not be initialized." }, { status: 500 });
 
   const insurance = coverage(ctx);
-  const now = new Date().toISOString();
-  await ctx.admin.from("mission_checklist_items").update({
-    completed: insurance.verified,
-    completed_at: insurance.verified ? now : null,
-    notes: insurance.verified ? `${insurance.source}${insurance.reference ? ` · ${insurance.reference}` : ""}` : "Insurance verification required",
-  }).eq("assignment_id", assignmentId).eq("item_key", "insurance_verified");
-
-  const [{ data: items, error: itemsError }, { count: deliverableCount, error: deliverablesError }] = await Promise.all([
-    ctx.admin.from("mission_checklist_items").select("*").eq("assignment_id", assignmentId).order("sort_order"),
-    ctx.admin.from("deliverables").select("id", { count: "exact", head: true }).eq("job_id", ctx.assignment.job_id),
+  const [{ data: deliverables, error: deliverablesError }] = await Promise.all([
+    ctx.admin.from("deliverables").select("id,type").eq("job_id", ctx.assignment.job_id),
   ]);
-  if (itemsError || deliverablesError) return NextResponse.json({ error: "Field workflow could not be loaded." }, { status: 500 });
+  if (deliverablesError) return NextResponse.json({ error: "Field workflow could not be loaded." }, { status: 500 });
+
+  const now = new Date().toISOString();
+  const submitted = ["submitted", "qc_passed", "paid"].includes(ctx.assignment.status);
+  const missingDeliverables = missingRequiredDeliverables(ctx.assignment.job.service_type, (deliverables ?? []).map((item) => item.type));
+  const deliverablesComplete = missingDeliverables.length === 0;
+  const automaticStates = [
+    { key: "uav_assigned", completed: !!ctx.assignment.assigned_uav, notes: ctx.assignment.assigned_uav ? `Assigned aircraft: ${ctx.assignment.assigned_uav}` : "Assign a compatible UAV" },
+    { key: "insurance_verified", completed: insurance.verified, notes: insurance.verified ? `${insurance.source}${insurance.reference ? ` · ${insurance.reference}` : ""}` : "Insurance verification required" },
+    { key: "capture_complete", completed: !!ctx.assignment.job.completed_at, notes: ctx.assignment.job.completed_at ? "Field capture marked complete" : "Complete the approved capture plan" },
+    { key: "deliverables_uploaded", completed: deliverablesComplete, notes: deliverablesComplete ? "Every required deliverable category is uploaded" : `Still required: ${missingDeliverables.map((item) => item.label).join(", ")}` },
+    { key: "mission_submitted", completed: submitted, notes: submitted ? "Submitted to DOM for QC" : "Submit after all required work is complete" },
+  ];
+  await Promise.all(automaticStates.map((state) => ctx.admin.from("mission_checklist_items").update({
+    completed: state.completed,
+    completed_at: state.completed ? now : null,
+    notes: state.notes,
+  }).eq("assignment_id", assignmentId).eq("item_key", state.key)));
+
+  const [{ data: items, error: itemsError }] = await Promise.all([
+    ctx.admin.from("mission_checklist_items").select("*").eq("assignment_id", assignmentId).order("sort_order"),
+  ]);
+  if (itemsError) return NextResponse.json({ error: "Field workflow could not be loaded." }, { status: 500 });
 
   const blockers: string[] = [];
   const cautions: string[] = [];
@@ -95,11 +110,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
   const submissionBlockers = [
     ...blockers,
     ...(!ctx.assignment.job.completed_at ? ["Mark field capture complete"] : []),
-    ...(!deliverableCount ? ["Upload at least one deliverable"] : []),
+    ...missingDeliverables.map((item) => `Upload ${item.label}`),
     ...requiredIncomplete.map((item) => item.label),
   ];
   return NextResponse.json({
     items: items ?? [], job: ctx.assignment.job, assignmentStatus: ctx.assignment.status, insurance,
+    deliverablePlan: deliverablePlanFor(ctx.assignment.job.service_type).map((item) => ({
+      ...item,
+      uploaded: (deliverables ?? []).some((deliverable) => deliverable.type === item.type),
+    })),
     readiness: {
       level: blockers.length ? "no_go" : cautions.length ? "caution" : "go",
       blockers, cautions,
@@ -108,7 +127,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
     submission: {
       ready: submissionBlockers.length === 0,
       blockers: [...new Set(submissionBlockers)],
-      submitted: ["submitted", "qc_passed", "paid"].includes(ctx.assignment.status),
+      submitted,
     },
   });
 }
@@ -155,13 +174,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
     });
   } else if (body.action === "submit_for_qc") {
     if (["submitted", "qc_passed", "paid"].includes(ctx.assignment.status)) return NextResponse.json({ ok: true });
-    const [{ count }, { data: incomplete }] = await Promise.all([
-      ctx.admin.from("deliverables").select("id", { count: "exact", head: true }).eq("job_id", ctx.assignment.job_id),
+    const [{ data: submittedDeliverables }, { data: incomplete }] = await Promise.all([
+      ctx.admin.from("deliverables").select("type").eq("job_id", ctx.assignment.job_id),
       ctx.admin.from("mission_checklist_items").select("label").eq("assignment_id", assignmentId).eq("required", true).eq("completed", false).neq("item_key", "mission_submitted"),
     ]);
     const blockers = [
       ...(!ctx.assignment.job.completed_at ? ["Mark field capture complete"] : []),
-      ...(!count ? ["Upload at least one deliverable"] : []),
+      ...missingRequiredDeliverables(ctx.assignment.job.service_type, (submittedDeliverables ?? []).map((item) => item.type)).map((item) => `Upload ${item.label}`),
       ...(incomplete ?? []).map((item) => item.label),
     ];
     if (blockers.length) return NextResponse.json({ error: "Complete the remaining steps before QC submission.", blockers: [...new Set(blockers)] }, { status: 409 });

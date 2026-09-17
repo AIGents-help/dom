@@ -9,6 +9,7 @@ import { googleMapsDirectionsUrl, googleMapsPlaceUrl } from "@/lib/googleMaps";
 import MissionFinancialControl from "@/components/MissionFinancialControl";
 import MissionReviewPanel from "@/components/MissionReviewPanel";
 import EligiblePilotsPanel from "@/components/admin/EligiblePilotsPanel";
+import AdminMissionWorkflow from "@/components/admin/AdminMissionWorkflow";
 
 // Admin > Mission detail — view a mission's quote/airspace, advance its status
 // through the mission lifecycle, and offer it to a contractor.
@@ -888,6 +889,8 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
               )}
             </div>
           )}
+
+          {job && <AdminMissionWorkflow missionId={id} onChanged={load} />}
 
           {job && (
             <div style={panel}>

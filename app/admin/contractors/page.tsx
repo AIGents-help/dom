@@ -26,6 +26,9 @@ type Contractor = {
   insurance_expires_on: string | null;
   insurance_liability_cents: number | null;
   insurance_coi_path: string | null;
+  insurance_verification_basis: string | null;
+  insurance_verification_note: string | null;
+  insurance_verified_at: string | null;
   dom_gig_insurance_eligible: boolean;
   stripe_connect_account_id: string | null;
   stripe_payouts_enabled: boolean;
@@ -49,6 +52,9 @@ export default function AdminContractorsPage() {
   const [tierBps, setTierBps] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [authed, setAuthed] = useState(false);
+  const [coverageFor, setCoverageFor] = useState<string | null>(null);
+  const [coverageSaving, setCoverageSaving] = useState(false);
+  const [coverageForm, setCoverageForm] = useState({ provider: "", reference: "", expiresOn: "", reason: "" });
 
   const load = useCallback(async () => {
     const supabaseBrowser = getSupabaseBrowser();
@@ -110,9 +116,36 @@ export default function AdminContractorsPage() {
     // optimistic
     setRows((r) => r.map((c) => (c.id === id ? { ...c, [field]: value } : c)));
     const supabaseBrowser = getSupabaseBrowser();
-    const patch = field === "insurance_verified" && value ? { [field]: value, insurance_requested: false } : { [field]: value };
+    const patch = field === "insurance_verified" && value
+      ? { [field]: value, insurance_requested: false }
+      : field === "insurance_verified"
+        ? { [field]: false, insurance_verification_basis: null, insurance_verification_note: null, insurance_verified_by: null, insurance_verified_at: null }
+        : { [field]: value };
     const { error } = await supabaseBrowser.from("contractors").update(patch).eq("id", id);
     if (error) load(); // revert from source of truth on failure
+  }
+
+  async function approveAlternateCoverage(id: string) {
+    setCoverageSaving(true);
+    try {
+      const supabaseBrowser = getSupabaseBrowser();
+      const { data } = await supabaseBrowser.auth.getSession();
+      if (!data.session) throw new Error("Admin session expired.");
+      const response = await fetch(`/api/admin/contractors/${id}/insurance-exception`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
+        body: JSON.stringify(coverageForm),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Alternate coverage could not be approved.");
+      setCoverageFor(null);
+      setCoverageForm({ provider: "", reference: "", expiresOn: "", reason: "" });
+      await load();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Alternate coverage could not be approved.");
+    } finally {
+      setCoverageSaving(false);
+    }
   }
 
   async function setActive(id: string) {
@@ -198,7 +231,9 @@ export default function AdminContractorsPage() {
 
       <div style={{ display: "grid", gap: 12 }}>
         {rows.map((c) => {
-          const cleared = c.part107_verified && c.insurance_verified;
+          const insuranceCurrent = !!c.insurance_verified && !!c.insurance_expires_on && insurancePolicyIsCurrent(c.insurance_expires_on);
+          const alternateCoverage = c.insurance_verification_basis === "admin_alternate_coverage";
+          const cleared = c.part107_verified && insuranceCurrent;
           return (
             <div key={c.id} style={rowCard}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
@@ -208,9 +243,11 @@ export default function AdminContractorsPage() {
                   <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: "#8A95A7", marginTop: 4 }}>
                     107#: {c.part107_number ?? "—"} · {c.missions_completed} mission{c.missions_completed === 1 ? "" : "s"} completed
                   </div>
-                  <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: c.insurance_verified ? "#16A34A" : "#E5701F", marginTop: 4 }}>
-                    Insurance: {c.insurance_provider ?? "—"} · {c.insurance_policy_number ?? "no policy"} · {c.insurance_expires_on ? `expires ${new Date(`${c.insurance_expires_on}T12:00:00`).toLocaleDateString()}` : "no expiration"}{c.insurance_liability_cents ? ` · $${(c.insurance_liability_cents / 100).toLocaleString()} liability` : ""}{c.insurance_coi_path ? " · COI UPLOADED" : ""}
+                  <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: insuranceCurrent ? "#16A34A" : "#E5701F", marginTop: 4 }}>
+                    Insurance: {insuranceCurrent ? (alternateCoverage ? "ADMIN-APPROVED ALTERNATE COVERAGE" : "VERIFIED PILOT POLICY") : c.insurance_verified ? "VERIFICATION INCOMPLETE" : "NOT VERIFIED"}
+                    {c.insurance_provider ? ` · ${c.insurance_provider}` : ""}{c.insurance_policy_number ? ` · ${c.insurance_policy_number}` : ""}{c.insurance_expires_on ? ` · expires ${new Date(`${c.insurance_expires_on}T12:00:00`).toLocaleDateString()}` : " · expiration required"}{c.insurance_liability_cents ? ` · $${(c.insurance_liability_cents / 100).toLocaleString()} liability` : ""}{c.insurance_coi_path ? " · COI UPLOADED" : ""}
                   </div>
+                  {alternateCoverage && c.insurance_verification_note && <div style={{ fontSize: 11, color: "#5F6B7A", marginTop: 3 }}>Admin basis: {c.insurance_verification_note}</div>}
                   {!c.part107_verified && c.membership_deadline && (
                     <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: c.resource_access_locked ? "#8A95A7" : daysUntil(c.membership_deadline) <= 7 ? "#E5701F" : "#5F6B7A", marginTop: 4 }}>
                       {(c.cert_timeline_bucket ?? "—").replace(/_/g, " ")} · deadline {new Date(c.membership_deadline).toLocaleDateString()}
@@ -236,7 +273,11 @@ export default function AdminContractorsPage() {
 
               <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
                 <Toggle label="Part 107" on={c.part107_verified} onClick={() => toggle(c.id, "part107_verified", !c.part107_verified)} />
-                <Toggle label="Insurance" on={c.insurance_verified} onClick={() => toggle(c.id, "insurance_verified", !c.insurance_verified)} />
+                <Toggle label="Insurance" on={insuranceCurrent} onClick={() => toggle(c.id, "insurance_verified", !c.insurance_verified)} />
+                {!insuranceCurrent && <Btn onClick={() => {
+                  setCoverageFor(coverageFor === c.id ? null : c.id);
+                  setCoverageForm({ provider: "", reference: "", expiresOn: "", reason: "" });
+                }}>Approve alternate coverage</Btn>}
                 <Toggle label="DOM Gig Insurance Program" on={c.dom_gig_insurance_eligible} onClick={() => toggle(c.id, "dom_gig_insurance_eligible", !c.dom_gig_insurance_eligible)} />
                 {c.insurance_requested && !c.insurance_verified && (
                   <span style={{ ...badge, background: "rgba(124,58,237,.14)", color: "#7C3AED", alignSelf: "center" }}>
@@ -255,6 +296,22 @@ export default function AdminContractorsPage() {
                   <Btn onClick={() => unlockResourceAccess(c.id)}>Unlock resource access</Btn>
                 )}
               </div>
+              {coverageFor === c.id && (
+                <div style={{ marginTop: 14, padding: 14, borderRadius: 10, border: "1px solid #F45A1E", background: "rgba(244,90,30,.05)" }}>
+                  <strong style={{ fontSize: 13 }}>Admin-approved alternate coverage</strong>
+                  <p style={{ color: "#5F6B7A", fontSize: 12, marginTop: 4 }}>Use when this pilot is covered by a client, site owner, employer, or another party. This approval expires automatically.</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 8, marginTop: 10 }}>
+                    <input value={coverageForm.provider} onChange={(event) => setCoverageForm((form) => ({ ...form, provider: event.target.value }))} placeholder="Covering organization / carrier" style={inputStyle} />
+                    <input value={coverageForm.reference} onChange={(event) => setCoverageForm((form) => ({ ...form, reference: event.target.value }))} placeholder="Policy, contract, or approval reference" style={inputStyle} />
+                    <input type="date" value={coverageForm.expiresOn} onChange={(event) => setCoverageForm((form) => ({ ...form, expiresOn: event.target.value }))} style={inputStyle} />
+                  </div>
+                  <textarea value={coverageForm.reason} onChange={(event) => setCoverageForm((form) => ({ ...form, reason: event.target.value }))} placeholder="Why this alternate coverage applies" style={{ ...inputStyle, width: "100%", minHeight: 70, marginTop: 8 }} />
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <Btn onClick={() => approveAlternateCoverage(c.id)}>{coverageSaving ? "Approving…" : "Approve coverage"}</Btn>
+                    <Btn onClick={() => setCoverageFor(null)}>Cancel</Btn>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
@@ -287,3 +344,4 @@ const badgeOk: React.CSSProperties = { background: "rgba(22,163,74,.14)", color:
 const badgeWarn: React.CSSProperties = { background: "rgba(229,112,31,.14)", color: "#E5701F" };
 const toggleBase: React.CSSProperties = { fontFamily: "IBM Plex Mono, monospace", fontSize: 12, padding: "8px 12px", borderRadius: 8, border: "1px solid #D9E0E8", cursor: "pointer" };
 const btnGhost: React.CSSProperties = { fontFamily: "Saira, sans-serif", fontSize: 13, fontWeight: 600, padding: "8px 14px", borderRadius: 8, border: "1px solid #D9E0E8", background: "transparent", color: "#172033", cursor: "pointer" };
+const inputStyle: React.CSSProperties = { padding: "9px 10px", borderRadius: 8, border: "1px solid #D9E0E8", background: "#FFFFFF", color: "#172033", fontSize: 13 };

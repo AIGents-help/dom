@@ -22,7 +22,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ as
 
     const { data: assignment } = await admin
       .from("mission_assignments")
-      .select("id, job_id, contractor_id, status, job:jobs(scheduled_for, service_type)")
+      .select("id, job_id, contractor_id, status, job:jobs(title, scheduled_for, service_type, delivery_responsibility, mission_request:mission_requests(id, created_by_contractor_id, scope))")
       .eq("id", assignmentId)
       .eq("contractor_id", contractor.id)
       .maybeSingle();
@@ -32,6 +32,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ as
     }
 
     const body = await req.json();
+    const missionDefinition = body.missionDefinition && typeof body.missionDefinition === "object"
+      ? body.missionDefinition as Record<string, unknown>
+      : null;
     const scheduledFor = body.scheduledFor ? new Date(body.scheduledFor) : null;
     if (body.scheduledFor && Number.isNaN(scheduledFor?.getTime())) {
       return NextResponse.json({ error: "Invalid performance date" }, { status: 400 });
@@ -48,11 +51,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ as
     }
 
     const previousJob: any = Array.isArray(assignment.job) ? assignment.job[0] : assignment.job;
-    const compatibility = assessMissionEquipment(previousJob?.service_type ?? "", contractor.equipment).find((item) => item.aircraft === assignedUav);
+    const requestedServiceType = missionDefinition && typeof missionDefinition.serviceType === "string"
+      ? missionDefinition.serviceType.trim()
+      : previousJob?.service_type ?? "";
+    const compatibility = assessMissionEquipment(requestedServiceType, contractor.equipment).find((item) => item.aircraft === assignedUav);
     if (assignedUav && !compatibility?.compatible) {
       return NextResponse.json({ error: "The selected aircraft is not verified as capable of this mission. Update your equipment profile or return the mission to DOM." }, { status: 400 });
     }
     const previousScheduledFor = previousJob?.scheduled_for ?? null;
+    if (missionDefinition) {
+      const title = clean(missionDefinition.title).slice(0, 160);
+      const scope = clean(missionDefinition.scope);
+      const { error: definitionError } = await admin.rpc("pilot_update_owned_mission_definition", {
+        p_assignment_id: assignment.id,
+        p_actor_user_id: user.id,
+        p_title: title,
+        p_service_type: requestedServiceType,
+        p_scope: scope || null,
+      });
+      if (definitionError) {
+        return NextResponse.json({ error: definitionError.message }, { status: 409 });
+      }
+    }
     const [{ error: jobError }, { error: assignmentError }] = await Promise.all([
       admin.from("jobs").update({ scheduled_for: scheduledFor?.toISOString() ?? null }).eq("id", assignment.job_id),
       admin.from("mission_assignments").update({
@@ -78,7 +98,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ as
       }
     }
 
-    return NextResponse.json({ ok: true, scheduledFor: nextScheduledFor });
+    return NextResponse.json({
+      ok: true,
+      scheduledFor: nextScheduledFor,
+      missionDefinition: missionDefinition ? {
+        title: clean(missionDefinition.title).slice(0, 160),
+        serviceType: requestedServiceType,
+        scope: clean(missionDefinition.scope),
+      } : undefined,
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message ?? "Could not update mission" }, { status: 500 });
   }

@@ -22,6 +22,16 @@ const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderR
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { padding: "8px 14px", borderRadius: 8, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "9px 11px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.ground, color: V.ink, fontSize: 13, outline: "none" };
+const SERVICE_TYPES = [
+  ["roof_inspection_residential", "Roof Inspection (Residential)"],
+  ["roof_inspection_commercial", "Roof Inspection (Commercial)"],
+  ["construction_progress", "Construction Progress Mapping"],
+  ["thermal_inspection", "Thermal + Visual Inspection"],
+  ["ortho_survey", "Orthomosaic Survey"],
+  ["powerline_inspection", "Powerline / Utility Inspection"],
+  ["real_estate_media", "Real Estate / General Aerial Images"],
+  ["custom", "Custom Mission"],
+] as const;
 
 interface DocRow { id: string; category: string; name: string; file_url: string | null; download_url: string | null; is_required: boolean; is_completed: boolean; }
 interface DeliverableRow { id: string; name: string; type: string | null; storage_url: string | null; download_url: string | null; qc_passed: boolean | null; }
@@ -83,17 +93,22 @@ export default function PilotMissionLog({
   const [canUpload, setCanUpload] = useState(false);
   const [workflowRefreshKey, setWorkflowRefreshKey] = useState(0);
   const [savingOperations, setSavingOperations] = useState(false);
+  const [editingDefinition, setEditingDefinition] = useState(false);
+  const [savingDefinition, setSavingDefinition] = useState(false);
+  const [missionName, setMissionName] = useState(missionTitle);
+  const [missionServiceType, setMissionServiceType] = useState(serviceType);
+  const [missionScope, setMissionScope] = useState(clientRequests ?? "");
   const [returningMission, setReturningMission] = useState(false);
   const [performanceDate, setPerformanceDate] = useState(scheduledFor ? new Date(scheduledFor).toISOString().slice(0, 16) : "");
   const [notes, setNotes] = useState(operationalNotes ?? "");
   const [accessNotes, setAccessNotes] = useState(siteAccessNotes ?? "");
   const [cautions, setCautions] = useState(cautionsAwareness ?? "");
   const [communications, setCommunications] = useState(clientCommunications ?? "");
-  const equipmentAssessments = assessMissionEquipment(serviceType, profileEquipment);
+  const equipmentAssessments = assessMissionEquipment(missionServiceType, profileEquipment);
   const compatibleAircraft = equipmentAssessments.filter((item) => item.compatible);
   const [aircraft, setAircraft] = useState(assignedUav ?? "");
   const selectedAssessment = equipmentAssessments.find((item) => item.aircraft === aircraft);
-  const guidance = aircraft ? missionEquipmentGuidance(serviceType, aircraft) : [];
+  const guidance = aircraft ? missionEquipmentGuidance(missionServiceType, aircraft) : [];
   const forecastDaysAway = performanceDate ? Math.ceil((new Date(performanceDate).getTime() - now) / 86_400_000) : null;
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [forecastLoading, setForecastLoading] = useState(false);
@@ -120,12 +135,15 @@ export default function PilotMissionLog({
     }
   }, [assignmentId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   useEffect(() => {
-    if (!performanceDate || !missionLocation) { setForecast(null); return; }
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
+      if (!performanceDate || !missionLocation) { setForecast(null); return; }
       setForecastLoading(true);
       try {
         const date = performanceDate.slice(0, 10);
@@ -191,6 +209,43 @@ export default function PilotMissionLog({
     }
   }, [assignmentId, performanceDate, notes, accessNotes, cautions, communications, aircraft, onSaved]);
 
+  const saveMissionDefinition = useCallback(async () => {
+    if (!missionName.trim()) { setError("Enter a mission name."); return; }
+    setSavingDefinition(true);
+    setError(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      if (!data.session) throw new Error("Your session expired. Sign in again to continue.");
+      const res = await fetch(`/api/pilot/missions/${assignmentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
+        body: JSON.stringify({
+          scheduledFor: performanceDate ? new Date(performanceDate).toISOString() : null,
+          operationalNotes: notes,
+          siteAccessNotes: accessNotes,
+          cautionsAwareness: cautions,
+          clientCommunications: communications,
+          assignedUav: aircraft,
+          missionDefinition: { title: missionName, serviceType: missionServiceType, scope: missionScope },
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "Could not update the mission definition.");
+      setMissionName(body.missionDefinition?.title ?? missionName.trim());
+      setMissionServiceType(body.missionDefinition?.serviceType ?? missionServiceType);
+      setMissionScope(body.missionDefinition?.scope ?? missionScope.trim());
+      setEditingDefinition(false);
+      setNotice("Mission name, type, and scope updated. Mapper will use the new details.");
+      setWorkflowRefreshKey((key) => key + 1);
+      onSaved();
+    } catch (definitionError) {
+      setError(definitionError instanceof Error ? definitionError.message : "Could not update the mission definition.");
+    } finally {
+      setSavingDefinition(false);
+    }
+  }, [aircraft, assignmentId, accessNotes, cautions, communications, missionName, missionScope, missionServiceType, notes, onSaved, performanceDate]);
+
   const uploadFile = useCallback(async (kind: PilotFileKind, name: string, category: string, file: File) => {
     setError(null);
     setNotice(null);
@@ -229,11 +284,11 @@ export default function PilotMissionLog({
       <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", gap: 7, color: V.inkFaint, fontSize: 12 }}>
         <span>Pilot Portal</span><span aria-hidden="true">/</span>
         <button type="button" onClick={onClose} style={{ border: 0, padding: 0, background: "transparent", color: V.signal, cursor: "pointer", font: "inherit" }}>Missions</button>
-        <span aria-hidden="true">/</span><span aria-current="page" style={{ color: V.inkDim }}>{missionTitle}</span>
+        <span aria-hidden="true">/</span><span aria-current="page" style={{ color: V.inkDim }}>{missionName}</span>
       </nav>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <div className="font-saira" style={{ fontSize: 18, fontWeight: 700 }}>Mission Log — {missionTitle}</div>
+          <div className="font-saira" style={{ fontSize: 18, fontWeight: 700 }}>Mission Log — {missionName}</div>
           <p style={{ color: V.inkFaint, fontSize: 12, marginTop: 4 }}>
             Delivery handled by: {deliveryResponsibility === "pilot" ? "you" : "DOM admin"} — but documents and
             deliverables here are always shared between you and admin.
@@ -257,18 +312,37 @@ export default function PilotMissionLog({
           <PilotFieldWorkflow assignmentId={assignmentId} refreshKey={workflowRefreshKey} onChanged={onSaved} />
           <div style={{ ...panelStyle, borderColor: V.signal }}>
             <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>Mission Operations</div>
+            {deliveryResponsibility === "pilot" && (
+              <div style={{ marginTop: 12, padding: 14, borderRadius: 10, background: V.raised, border: `1px solid ${editingDefinition ? V.signal : V.line}` }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <div>
+                    <strong style={{ color: V.ink, fontSize: 13 }}>Your mission definition</strong>
+                    <p style={{ color: V.inkDim, fontSize: 11, marginTop: 3 }}>Because you created this mission, you can adjust its name, type, and scope before submission.</p>
+                  </div>
+                  {!editingDefinition && <button type="button" onClick={() => setEditingDefinition(true)} style={btnGhost}>Edit mission</button>}
+                </div>
+                {editingDefinition && (
+                  <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+                    <label style={{ color: V.inkDim, fontSize: 12 }}>Mission name<input value={missionName} maxLength={160} onChange={(event) => setMissionName(event.target.value)} style={{ ...inputStyle, marginTop: 5 }} /></label>
+                    <label style={{ color: V.inkDim, fontSize: 12 }}>Mission type<select value={missionServiceType} onChange={(event) => setMissionServiceType(event.target.value)} style={{ ...inputStyle, marginTop: 5 }}>{SERVICE_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+                    <label style={{ color: V.inkDim, fontSize: 12 }}>Scope and deliverables<textarea value={missionScope} maxLength={5000} onChange={(event) => setMissionScope(event.target.value)} placeholder="Describe what will be captured and what you will deliver." style={{ ...inputStyle, marginTop: 5, minHeight: 100, resize: "vertical" }} /></label>
+                    <div style={{ display: "flex", gap: 8 }}><button type="button" onClick={saveMissionDefinition} disabled={savingDefinition || !missionName.trim()} style={{ ...btnPrimary, opacity: savingDefinition || !missionName.trim() ? .5 : 1 }}>{savingDefinition ? "Saving…" : "Save mission changes"}</button><button type="button" onClick={() => { setMissionName(missionTitle); setMissionServiceType(serviceType); setMissionScope(clientRequests ?? ""); setEditingDefinition(false); }} disabled={savingDefinition} style={btnGhost}>Cancel</button></div>
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", marginTop: 8 }}>
               <div style={{ color: V.inkDim, fontSize: 13 }}>{missionLocation}</div>
               <a href={googleMapsPlaceUrl(missionLocation)} target="_blank" rel="noreferrer" style={{ color: V.signal, fontSize: 12, fontWeight: 600 }}>Open site in Google Maps ↗</a>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10, marginTop: 14 }}>
-              <Detail label="Mission type" value={serviceType.replace(/_/g, " ")} />
+              <Detail label="Mission type" value={missionServiceType.replace(/_/g, " ")} />
               <Detail label="Client" value={clientCompany || clientName || "Not provided"} />
               <Detail label="Airspace" value={airspaceClass ? `Class ${airspaceClass}` : "Verify before flight"} />
             </div>
             <div style={{ marginTop: 14, padding: 12, borderRadius: 9, background: V.raised, border: `1px solid ${V.line}` }}>
               <div style={{ color: V.inkFaint, fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em" }}>Client requests / approved scope</div>
-              <div style={{ color: V.ink, fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap", marginTop: 6 }}>{clientRequests || "No additional client requests were recorded."}</div>
+              <div style={{ color: V.ink, fontSize: 13, lineHeight: 1.55, whiteSpace: "pre-wrap", marginTop: 6 }}>{missionScope || "No additional client requests were recorded."}</div>
               {clientEmail && <a href={`mailto:${clientEmail}`} style={{ color: V.signal, fontSize: 12, display: "inline-block", marginTop: 8 }}>Email {clientName || "client"} ↗</a>}
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14, marginTop: 14 }}>
@@ -318,7 +392,7 @@ export default function PilotMissionLog({
                 <MissionTextarea label="Client communications & coordination" value={communications} onChange={setCommunications} placeholder="Log calls, emails, confirmations, changes requested, and follow-up commitments with dates…" />
               </div>
             </div>
-            <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 9 }}>Client scope, location, and pricing remain locked to the DOM-approved mission.</p>
+            <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 9 }}>{deliveryResponsibility === "pilot" ? "Mission changes save to your pilot-owned job and are recorded in its activity history. Existing pricing is not changed automatically." : "Client scope, location, and pricing remain locked to the DOM-approved mission."}</p>
             <button onClick={saveOperations} disabled={savingOperations || !selectedAssessment?.compatible || !["accepted", "scheduled", "in_progress", "submitted"].includes(assignmentStatus)} style={{ ...btnPrimary, marginTop: 12, opacity: selectedAssessment?.compatible && ["accepted", "scheduled", "in_progress", "submitted"].includes(assignmentStatus) ? 1 : .5 }}>
               {savingOperations ? "Saving…" : "Save Mission Updates"}
             </button>

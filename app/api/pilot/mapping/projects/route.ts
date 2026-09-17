@@ -23,9 +23,7 @@ export async function GET(req: NextRequest) {
 // contractor_id is NEVER taken from the request body — only from the
 // resolved, verified auth context. Creating a project requires the
 // contractor to have a real, confirmed assignment on the target job (any
-// status past the offer stage — see MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES;
-// restricting this to literally 'accepted' was found via live testing to
-// exclude every job that had actually progressed, e.g. to qc_passed).
+// status past the offer stage — see MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES).
 export async function POST(req: NextRequest) {
   const auth = await resolveContractor(req);
   if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });

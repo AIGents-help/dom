@@ -28,17 +28,24 @@ export default function MappingProjectCreate({
       setLoadingJobs(true);
       const res = await fetch("/api/pilot/mapping/jobs-eligible", { headers: { Authorization: `Bearer ${accessToken}` } });
       const body = await res.json().catch(() => ({}));
-      setJobs(res.ok ? (body.jobs ?? []) : []);
+      if (res.ok) {
+        setJobs(body.jobs ?? []);
+        setError(null);
+      } else {
+        setJobs([]);
+        setError(body.error ?? "Eligible missions could not be loaded.");
+      }
       setLoadingJobs(false);
     })();
   }, [accessToken]);
 
-  useEffect(() => {
-    const job = jobs.find((j) => j.id === jobId);
-    if (job && !locationSnapshot) setLocationSnapshot(job.location ?? "");
-    if (job && !name) setName(`${job.title} — Mapping`);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobId]);
+  function selectJob(nextJobId: string) {
+    setJobId(nextJobId);
+    const job = jobs.find((item) => item.id === nextJobId);
+    if (!job) return;
+    if (!locationSnapshot) setLocationSnapshot(job.location ?? "");
+    if (!name) setName(`${job.title} — Mapping`);
+  }
 
   async function create() {
     if (!jobId) { setError("Select a job first."); return; }
@@ -66,7 +73,7 @@ export default function MappingProjectCreate({
     <div style={panelStyle}>
       <div className="font-saira" style={{ fontWeight: 600, fontSize: 16, color: V.ink, marginBottom: 4 }}>New Mapping Project</div>
       <p style={{ color: V.inkDim, fontSize: 13, marginBottom: 16 }}>
-        Attach a mapping project to a job you have an accepted assignment on.
+        Choose any active or completed mission you own or are assigned to.
       </p>
 
       {error && <p style={{ color: V.signal, fontSize: 13, marginBottom: 12 }}>{error}</p>}
@@ -77,9 +84,9 @@ export default function MappingProjectCreate({
           {loadingJobs ? (
             <p style={{ color: V.inkFaint, fontSize: 13 }}>Loading eligible jobs…</p>
           ) : jobs.length === 0 ? (
-            <p style={{ color: V.inkFaint, fontSize: 13 }}>No accepted assignments to attach a mapping project to yet.</p>
+            <p style={{ color: V.inkFaint, fontSize: 13 }}>No eligible missions are available yet.</p>
           ) : (
-            <select style={inputStyle} value={jobId} onChange={(e) => setJobId(e.target.value)}>
+            <select style={inputStyle} value={jobId} onChange={(e) => selectJob(e.target.value)}>
               <option value="">Select a job…</option>
               {jobs.map((j) => (
                 <option key={j.id} value={j.id}>{j.title} — {j.location ?? "no location"}</option>

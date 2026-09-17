@@ -112,7 +112,7 @@ export const MAPPER_DELIVERABLE_TYPES = ["orthomosaic", "3d_model", "dsm", "dtm"
 // testing that restricting this to literally 'accepted' only excluded every
 // job that had actually progressed, which is most of them in practice.
 export const MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES = [
-  "accepted", "in_progress", "submitted", "qc_passed", "qc_rejected", "paid",
+  "accepted", "scheduled", "in_progress", "submitted", "qc_passed", "qc_rejected", "paid",
 ] as const;
 
 // A project can't be re-queued while a job for it is already in flight, and

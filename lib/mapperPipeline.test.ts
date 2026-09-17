@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   canUploadImages, canQueueProcessing, isStaleProcessingJob, formatBytes, formatProgress, dedupeDeliverables,
   DEFAULT_STALE_THRESHOLD_MS, MAPPING_PROJECT_STATUS_OPTIONS, PROCESSING_JOB_STATUS_OPTIONS,
+  MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES,
   type MappingProjectStatus, type DeduplicableDeliverable,
 } from "./mapperPipeline";
 
@@ -13,6 +14,10 @@ describe("status vocab", () => {
     expect(PROCESSING_JOB_STATUS_OPTIONS.map((s) => s.value)).toEqual([
       "queued", "claimed", "processing", "completed", "failed", "cancelled",
     ]);
+  });
+
+  it("allows scheduled missions to create mapping projects", () => {
+    expect(MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES).toContain("scheduled");
   });
 });
 

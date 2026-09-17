@@ -5,8 +5,8 @@ import { MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES } from "@/lib/mapperPipeline";
 
 // GET /api/pilot/mapping/jobs-eligible
 // Jobs this contractor can attach a new mapping project to — any job with a
-// real, confirmed assignment (not just 'accepted'; verified via live
-// testing that a job already flown/delivered still needs to be eligible).
+// real, confirmed assignment, including scheduled self-service missions and
+// jobs that have already been flown or delivered.
 export async function GET(req: NextRequest) {
   const auth = await resolveContractor(req);
   if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });

@@ -21,6 +21,7 @@ interface WorkflowContext {
     job: WorkflowJob;
   };
   contractor: {
+    id: string;
     part107_verified: boolean; insurance_verified: boolean;
     insurance_provider: string | null; insurance_policy_number: string | null;
     insurance_expires_on: string | null; dom_gig_insurance_eligible: boolean;
@@ -52,9 +53,12 @@ function coverage(ctx: WorkflowContext) {
     && new Date(`${ctx.contractor.insurance_expires_on}T23:59:59`).getTime() > Date.now();
   const gigCurrent = ctx.assignment.insurance_source === "dom_gig" && ctx.assignment.mission_insurance_verified
     && (!ctx.assignment.mission_insurance_expires_at || new Date(ctx.assignment.mission_insurance_expires_at).getTime() > Date.now());
+  const uninsuredAcknowledged = ctx.assignment.insurance_source === "pilot_uninsured_acknowledgement";
   return {
+    satisfied: profileCurrent || gigCurrent || uninsuredAcknowledged,
     verified: profileCurrent || gigCurrent,
-    source: gigCurrent ? "DOM-provided gig policy" : profileCurrent ? `${ctx.contractor.insurance_provider ?? "Pilot"} policy` : null,
+    uninsuredAcknowledged,
+    source: gigCurrent ? "DOM-provided gig policy" : profileCurrent ? `${ctx.contractor.insurance_provider ?? "Pilot"} policy` : uninsuredAcknowledged ? "Uninsured — pilot acknowledged responsibility" : null,
     expiresOn: gigCurrent ? ctx.assignment.mission_insurance_expires_at : ctx.contractor.insurance_expires_on,
     reference: gigCurrent ? ctx.assignment.mission_insurance_reference : ctx.contractor.insurance_policy_number,
     gigEligible: ctx.contractor.dom_gig_insurance_eligible,
@@ -83,7 +87,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
   const deliverablesComplete = missingDeliverables.length === 0;
   const automaticStates = [
     { key: "uav_assigned", completed: !!ctx.assignment.assigned_uav, notes: ctx.assignment.assigned_uav ? `Assigned aircraft: ${ctx.assignment.assigned_uav}` : "Assign a compatible UAV" },
-    { key: "insurance_verified", completed: insurance.verified, notes: insurance.verified ? `${insurance.source}${insurance.reference ? ` · ${insurance.reference}` : ""}` : "Insurance verification required" },
+    { key: "insurance_verified", completed: insurance.satisfied, notes: insurance.satisfied ? `${insurance.source}${insurance.reference ? ` · ${insurance.reference}` : ""}` : "Select an insurance or responsibility path" },
     { key: "capture_complete", completed: !!ctx.assignment.job.completed_at, notes: ctx.assignment.job.completed_at ? "Field capture marked complete" : "Complete the approved capture plan" },
     { key: "deliverables_uploaded", completed: deliverablesComplete, notes: deliverablesComplete ? "Every required deliverable category is uploaded" : `Still required: ${missingDeliverables.map((item) => item.label).join(", ")}` },
     { key: "mission_submitted", completed: submitted, notes: submitted ? "Submitted to DOM for QC" : "Submit after all required work is complete" },
@@ -101,7 +105,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
 
   const blockers: string[] = [];
   const cautions: string[] = [];
-  if (!insurance.verified) blockers.push("Mission insurance is not verified");
+  if (!insurance.satisfied) blockers.push("Select an insurance or uninsured-responsibility path");
   if (!ctx.contractor.part107_verified) blockers.push("Part 107 verification is not current");
   if (!ctx.assignment.assigned_uav) blockers.push("A compatible UAV has not been assigned");
   if (!ctx.assignment.job.scheduled_for) cautions.push("Mission performance date is not scheduled");
@@ -139,8 +143,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
   if (!body || typeof body.action !== "string") return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   const insurance = coverage(ctx);
-  if (!insurance.verified && body.action !== "incident") {
-    return NextResponse.json({ error: "Verified insurance is mandatory. Upload a current COI in Pilot Profile or ask DOM to bind approved gig coverage before continuing." }, { status: 409 });
+  if (body.action === "acknowledge_uninsured") {
+    if (insurance.verified) return NextResponse.json({ error: "This mission already has verified coverage." }, { status: 409 });
+    if (body.accepted !== true) return NextResponse.json({ error: "You must accept the uninsured responsibility acknowledgement." }, { status: 400 });
+    const version = "pilot-uninsured-responsibility-v1";
+    const { error } = await ctx.admin.rpc("pilot_acknowledge_uninsured_responsibility", {
+      p_assignment_id: assignmentId,
+      p_actor_user_id: ctx.user.id,
+      p_terms_version: version,
+      p_user_agent: req.headers.get("user-agent"),
+      p_forwarded_for: req.headers.get("x-forwarded-for"),
+    });
+    if (error) return NextResponse.json({ error: error.message }, { status: 409 });
+    return NextResponse.json({ ok: true });
+  }
+  if (!insurance.satisfied && body.action !== "incident") {
+    return NextResponse.json({ error: "Select a valid insurance path or acknowledge uninsured responsibility before continuing." }, { status: 409 });
   }
   const flightActions = ["check_in", "start_flight", "field_complete", "submit_for_qc"];
   if (flightActions.includes(body.action) && !ctx.contractor.part107_verified) return NextResponse.json({ error: "Part 107 verification is required before field operations." }, { status: 409 });

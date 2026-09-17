@@ -20,7 +20,7 @@ interface WorkflowData {
   items: WorkflowItem[];
   job: { checked_in_at: string | null; started_at: string | null; completed_at: string | null };
   assignmentStatus: string;
-  insurance: { verified: boolean; source: string | null; expiresOn: string | null; gigEligible: boolean };
+  insurance: { satisfied: boolean; verified: boolean; uninsuredAcknowledged: boolean; source: string | null; expiresOn: string | null; gigEligible: boolean };
   submission: { ready: boolean; blockers: string[]; submitted: boolean };
   deliverablePlan: Array<{ type: string; label: string; guidance: string; required: boolean; uploaded: boolean }>;
 }
@@ -42,6 +42,7 @@ export default function PilotFieldWorkflow({
   const [showIncident, setShowIncident] = useState(false);
   const [incidentSummary, setIncidentSummary] = useState("");
   const [incidentDetails, setIncidentDetails] = useState("");
+  const [uninsuredConsent, setUninsuredConsent] = useState(false);
 
   const load = useCallback(async () => {
     setLoadError(null);
@@ -100,7 +101,8 @@ export default function PilotFieldWorkflow({
   if (loadError) return <Panel><p role="alert" style={{ color: V.danger, fontSize: 13 }}>{loadError}</p></Panel>;
   if (!data) return <Panel><p style={{ color: V.inkDim, fontSize: 13 }}>Loading field workflow…</p></Panel>;
 
-  const insured = data.insurance.verified;
+  const insuranceSatisfied = data.insurance.satisfied;
+  const uninsured = data.insurance.uninsuredAcknowledged;
   const nextAction = data.submission.submitted
     ? "Submitted to DOM for QC"
     : data.submission.ready
@@ -127,15 +129,24 @@ export default function PilotFieldWorkflow({
       </summary>
 
       <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 16, paddingTop: 16 }}>
-        <div aria-live="polite" style={{ padding: 12, borderRadius: 9, border: `1px solid ${insured ? V.telemetry : V.danger}`, background: insured ? "rgba(22,163,74,.08)" : "rgba(220,38,38,.08)" }}>
-          <strong style={{ color: insured ? V.telemetry : V.danger, fontSize: 12 }}>{insured ? "✓ Mandatory insurance verified" : "Insurance verification required"}</strong>
+        <div aria-live="polite" style={{ padding: 12, borderRadius: 9, border: `1px solid ${data.insurance.verified ? V.telemetry : uninsured ? V.warn : V.danger}`, background: data.insurance.verified ? "rgba(22,163,74,.08)" : uninsured ? "rgba(245,158,11,.08)" : "rgba(220,38,38,.08)" }}>
+          <strong style={{ color: data.insurance.verified ? V.telemetry : uninsured ? V.warn : V.danger, fontSize: 12 }}>{data.insurance.verified ? "✓ Insurance verified" : uninsured ? "Uninsured — responsibility acknowledged" : "Choose an insurance path"}</strong>
           <div style={{ color: V.inkDim, fontSize: 11, marginTop: 4 }}>
-            {insured
+            {insuranceSatisfied
               ? `${data.insurance.source}${data.insurance.expiresOn ? ` · expires ${new Date(data.insurance.expiresOn).toLocaleDateString()}` : ""}`
               : data.insurance.gigEligible
                 ? "DOM must bind and verify gig coverage for this assignment before work begins."
                 : "Upload a current COI in Pilot Profile before continuing."}
           </div>
+          {!insuranceSatisfied && (
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${V.line}` }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, color: V.ink, fontSize: 12 }}>
+                <input type="checkbox" checked={uninsuredConsent} onChange={(event) => setUninsuredConsent(event.target.checked)} />
+                <span>I elect to proceed without a verified insurance policy for this self-service mission. I understand this is not proof of insurance, and I remain responsible for confirming and satisfying all legal, client, property-owner, and site insurance requirements and for my independent flight operations.</span>
+              </label>
+              <button type="button" disabled={!uninsuredConsent || busyAction !== null} style={{ ...dangerButton, marginTop: 10, opacity: uninsuredConsent ? 1 : 0.5 }} onClick={() => act({ action: "acknowledge_uninsured", accepted: true }, "acknowledge_uninsured")}>{busyAction === "acknowledge_uninsured" ? "Recording…" : "Proceed uninsured — accept responsibility"}</button>
+            </div>
+          )}
         </div>
 
         <div style={{ marginTop: 12, padding: 12, borderRadius: 9, background: V.raised, border: `1px solid ${V.line}` }}>
@@ -163,7 +174,7 @@ export default function PilotFieldWorkflow({
           </div>
         )}
 
-        <div style={{ display: "grid", gap: 12, marginTop: 14, opacity: insured ? 1 : 0.55 }}>
+        <div style={{ display: "grid", gap: 12, marginTop: 14, opacity: insuranceSatisfied ? 1 : 0.55 }}>
           {PHASES.map((phase) => (
             <section key={phase}>
               <h4 style={{ fontSize: 11, textTransform: "uppercase", color: V.inkFaint, letterSpacing: ".08em" }}>{phase}</h4>
@@ -172,7 +183,7 @@ export default function PilotFieldWorkflow({
                   <input
                     type="checkbox"
                     checked={item.completed}
-                    disabled={!insured || AUTOMATIC_ITEMS.has(item.item_key) || busyAction !== null}
+                    disabled={!insuranceSatisfied || AUTOMATIC_ITEMS.has(item.item_key) || busyAction !== null}
                     onChange={(event) => act({ action: "checklist", itemId: item.id, completed: event.target.checked }, item.id)}
                   />
                   <span style={{ textDecoration: item.completed ? "line-through" : "none" }}>
@@ -202,9 +213,9 @@ export default function PilotFieldWorkflow({
         </section>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
-          {!data.job.checked_in_at && <ActionButton disabled={!insured || busyAction !== null} busy={busyAction === "check_in"} onClick={() => act({ action: "check_in" }, "check_in")}>Check in on site</ActionButton>}
-          {data.job.checked_in_at && !data.job.started_at && <ActionButton disabled={!insured || busyAction !== null} busy={busyAction === "start_flight"} onClick={() => act({ action: "start_flight" }, "start_flight")}>Start flight operations</ActionButton>}
-          {data.job.started_at && !data.job.completed_at && <ActionButton disabled={!insured || busyAction !== null} busy={busyAction === "field_complete"} onClick={() => act({ action: "field_complete" }, "field_complete")}>Mark field capture complete</ActionButton>}
+          {!data.job.checked_in_at && <ActionButton disabled={!insuranceSatisfied || busyAction !== null} busy={busyAction === "check_in"} onClick={() => act({ action: "check_in" }, "check_in")}>Check in on site</ActionButton>}
+          {data.job.checked_in_at && !data.job.started_at && <ActionButton disabled={!insuranceSatisfied || busyAction !== null} busy={busyAction === "start_flight"} onClick={() => act({ action: "start_flight" }, "start_flight")}>Start flight operations</ActionButton>}
+          {data.job.started_at && !data.job.completed_at && <ActionButton disabled={!insuranceSatisfied || busyAction !== null} busy={busyAction === "field_complete"} onClick={() => act({ action: "field_complete" }, "field_complete")}>Mark field capture complete</ActionButton>}
           <button type="button" style={dangerButton} onClick={() => setShowIncident((visible) => !visible)}>Report safety incident</button>
         </div>
 

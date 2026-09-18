@@ -19,10 +19,21 @@ export const WORKFLOW_ITEMS = [
   ["postflight","aircraft_postflight","Complete postflight aircraft and battery inspection"],
   ["postflight","media_backed_up","Back up and verify all mission media"],
   ["submission","deliverables_uploaded","Upload required files and field notes"],
-  ["submission","mission_submitted","Submit mission to DOM for QC"],
+  ["submission","mission_submitted","Complete mission approval and delivery"],
 ] as const;
 
 export type WorkflowItemKey = (typeof WORKFLOW_ITEMS)[number][1];
+
+export type MissionCompletionMode = "dom_qc" | "owner_delivery" | "owner_review";
+
+export function missionCompletionMode(
+  createdByContractorId: string | null | undefined,
+  actingContractorId: string,
+  deliveryResponsibility: string | null | undefined,
+): MissionCompletionMode {
+  if (!createdByContractorId || deliveryResponsibility !== "pilot") return "dom_qc";
+  return createdByContractorId === actingContractorId ? "owner_delivery" : "owner_review";
+}
 
 export const AUTOMATIC_WORKFLOW_KEYS = [
   "uav_assigned",
@@ -75,6 +86,9 @@ const DELIVERABLE_PLANS: Record<string, DeliverableRequirement[]> = {
   real_estate_media: [
     { type: "raw_images", label: "Edited aerial photo set", guidance: "Final color-corrected images in the agreed delivery resolution.", required: true },
     { type: "video", label: "Edited aerial video", guidance: "Add when video is included in the approved scope.", required: false },
+  ],
+  aerial_images: [
+    { type: "raw_images", label: "Client-ready aerial image set", guidance: "Edited, full-resolution still images covering the agreed subjects, angles, context, and detail views.", required: true },
   ],
 };
 

@@ -19,16 +19,17 @@ export function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-export function shell(title: string, bodyHtml: string): string {
+export function shell(title: string, bodyHtml: string, providerName = "Drone Operation Management"): string {
   return `
     <div style="font-family:-apple-system,'Segoe UI',Arial,sans-serif; max-width:560px; margin:0 auto; color:#1a1a1a;">
       <div style="background:#05080f; padding:24px 32px;">
-        <span style="color:#22d3ee; font-size:12px; letter-spacing:.14em; text-transform:uppercase; font-weight:600;">Drone Operation Management</span>
+        <span style="color:#22d3ee; font-size:12px; letter-spacing:.14em; text-transform:uppercase; font-weight:600;">${escapeHtml(providerName)}</span>
       </div>
       <div style="padding:32px;">
         <h2 style="margin:0 0 12px; font-size:20px;">${escapeHtml(title)}</h2>
         ${bodyHtml}
-        <p style="color:#444; margin-top:24px;">— Drone Operation Management</p>
+        <p style="color:#444; margin-top:24px;">— ${escapeHtml(providerName)}</p>
+        ${providerName === "Drone Operation Management" ? "" : '<p style="color:#888; margin-top:20px; font-size:11px;">Workflow powered by DOM</p>'}
       </div>
     </div>
   `;
@@ -255,14 +256,16 @@ export function missionReminder24h(params: {
 export function missionCompleted(params: {
   clientName: string;
   missionTitle: string;
+  providerName?: string;
 }): TemplateResult {
   return {
     subject: `Mission Completed — ${params.missionTitle}`,
     html: shell(
       "Your mission has been completed",
       `
-        <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.clientName)}, your mission has been flown and is now in processing. Deliverables will follow shortly.</p>
-      `
+        <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.clientName)}, your mission is complete and the approved deliverables are now available in your client portal.</p>
+      `,
+      params.providerName ?? "Drone Operation Management",
     ),
   };
 }

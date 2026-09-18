@@ -10,6 +10,7 @@
 // links, blank-line-separated paragraphs.
 
 import { V } from "@/lib/theme";
+import Image from "next/image";
 
 function renderInline(text: string, key: string | number) {
   const parts = text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g);
@@ -72,6 +73,17 @@ export default function SopViewer({ bodyMd }: { bodyMd: string }) {
     } else if (trimmed.startsWith("## ")) {
       flushList();
       blocks.push(<h2 key={idx} className="font-mono-ibm" style={{ fontSize: 13, letterSpacing: ".08em", textTransform: "uppercase", color: V.signal, marginTop: 22 }}>{trimmed.slice(3)}</h2>);
+    } else if (/^!\[[^\]]*\]\([^)]+\)$/.test(trimmed)) {
+      flushList();
+      const match = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(trimmed);
+      if (match && match[2].startsWith("/")) {
+        blocks.push(
+          <figure key={idx} style={{ margin: "14px 0 18px" }}>
+            <Image src={match[2]} alt={match[1]} width={1200} height={800} style={{ display: "block", width: "100%", height: "auto", maxHeight: 520, objectFit: "cover", borderRadius: 10, border: `1px solid ${V.line}` }} />
+            {match[1] && <figcaption style={{ color: V.inkFaint, fontSize: 11, marginTop: 7 }}>{match[1]}</figcaption>}
+          </figure>
+        );
+      }
     } else if (/^- \[ \] /.test(trimmed)) {
       if (!list || list.type !== "check") { flushList(); list = { type: "check", items: [] }; }
       list.items.push(trimmed.replace(/^- \[ \] /, ""));

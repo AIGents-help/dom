@@ -15,9 +15,8 @@ import { deliverablePlanFor } from "@/lib/missionWorkflow";
 // Pilot > Mission Log — per-assignment documents + deliverables, mirroring
 // the admin Mission Briefing / Deliverables panels but driven by the
 // pilot's own RLS access (pilot manages assigned mission docs /
-// pilot manages own job deliverables policies). Works identically whether
-// the mission was admin-offered or pilot-self-created — access is the
-// same RLS check either way, so there's nothing to special-case here.
+// pilot manages own job deliverables policies). Pilot-owned missions use
+// owner certification; DOM-assigned missions retain DOM QC.
 
 const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
@@ -31,6 +30,7 @@ const SERVICE_TYPES = [
   ["ortho_survey", "Orthomosaic Survey"],
   ["powerline_inspection", "Powerline / Utility Inspection"],
   ["real_estate_media", "Real Estate / General Aerial Images"],
+  ["aerial_images", "Aerial Images"],
   ["custom", "Custom Mission"],
 ] as const;
 
@@ -115,6 +115,7 @@ export default function PilotMissionLog({
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
   const [forecastLoading, setForecastLoading] = useState(false);
   const canReturnMission = ["accepted", "scheduled"].includes(assignmentStatus);
+  const pilotOwned = deliveryResponsibility === "pilot";
 
   const load = useCallback(async () => {
     setError(null);
@@ -292,8 +293,7 @@ export default function PilotMissionLog({
         <div>
           <div className="font-saira" style={{ fontSize: 18, fontWeight: 700 }}>Mission Log — {missionName}</div>
           <p style={{ color: V.inkFaint, fontSize: 12, marginTop: 4 }}>
-            Delivery handled by: {deliveryResponsibility === "pilot" ? "you" : "DOM admin"} — but documents and
-            deliverables here are always shared between you and admin.
+            Delivery handled by: {pilotOwned ? "your pilot business" : "DOM admin"}. {pilotOwned ? "You own client approval and final delivery; DOM hosts the workflow." : "DOM reviews and approves the final deliverables."}
           </p>
         </div>
         <button onClick={onClose} style={btnGhost}>← Back to Missions</button>
@@ -449,7 +449,7 @@ export default function PilotMissionLog({
 
           <div id="mission-deliverables" style={panelStyle}>
             <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>Deliverables</div>
-            <p style={{ color: V.inkFaint, fontSize: 12, marginTop: 6 }}>Only QC-passed deliverables are visible to the client.</p>
+            <p style={{ color: V.inkFaint, fontSize: 12, marginTop: 6 }}>{pilotOwned ? "Your files become visible to the client when you certify and deliver the mission." : "Only DOM QC-passed deliverables are visible to the client."}</p>
             <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
               {deliverables.length === 0 && <p style={{ color: V.inkDim, fontSize: 13 }}>No deliverables uploaded yet.</p>}
               {deliverables.map((d) => (
@@ -461,10 +461,10 @@ export default function PilotMissionLog({
                     </div>
                     <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       <span className="font-mono-ibm" style={{ fontSize: 10, padding: "3px 9px", borderRadius: 20, textTransform: "uppercase", background: d.qc_passed ? "rgba(22,163,74,.2)" : "rgba(229,112,31,.14)", color: d.qc_passed ? V.telemetry : V.warn }}>
-                        {d.qc_passed ? "QC passed" : "pending QC"}
+                        {d.qc_passed ? (pilotOwned ? "owner approved" : "QC passed") : (pilotOwned ? "draft" : "pending QC")}
                       </span>
                       {d.download_url && <a href={d.download_url} target="_blank" rel="noreferrer" style={{ ...btnGhost, padding: "5px 10px", fontSize: 12, textDecoration: "none" }}>Download</a>}
-                      {!d.qc_passed && <span style={{ color: V.inkFaint, fontSize: 11 }}>Awaiting DOM review</span>}
+                      {!d.qc_passed && <span style={{ color: V.inkFaint, fontSize: 11 }}>{pilotOwned ? "Not yet released to client" : "Awaiting DOM review"}</span>}
                     </div>
                   </div>
                 </div>

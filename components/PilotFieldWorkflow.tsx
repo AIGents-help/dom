@@ -28,6 +28,7 @@ interface WorkflowData {
   assignmentStatus: string;
   insurance: { satisfied: boolean; verified: boolean; uninsuredAcknowledged: boolean; source: string | null; expiresOn: string | null; gigEligible: boolean };
   submission: { ready: boolean; blockers: string[]; submitted: boolean };
+  ownership: { completionMode: "dom_qc" | "owner_delivery" | "owner_review"; pilotOwned: boolean; ownerIsCurrentPilot: boolean };
   deliverablePlan: Array<{ type: string; label: string; guidance: string; required: boolean; uploaded: boolean }>;
 }
 
@@ -117,8 +118,9 @@ export default function PilotFieldWorkflow({
   const insuranceSatisfied = data.insurance.satisfied;
   const uninsured = data.insurance.uninsuredAcknowledged;
   const activeStage = !data.job.checked_in_at ? "before" : !data.job.completed_at ? "during" : "after";
+  const ownerDelivery = data.ownership.completionMode === "owner_delivery";
   const nextAction = data.submission.submitted
-    ? "Mission submitted"
+    ? ownerDelivery ? "Delivered to your client" : "Mission submitted"
     : data.submission.ready
       ? "Ready to submit"
       : data.submission.blockers[0] ?? "Continue the required checklist";
@@ -247,8 +249,8 @@ export default function PilotFieldWorkflow({
                       <p style={{ color: V.inkDim, fontSize: 11, marginTop: 4 }}>Create these outputs from the captured mission data, then upload the finished client-ready files below.</p>
                       <div style={{ display: "grid", gap: 8, marginTop: 8 }}>{data.deliverablePlan.map((item) => <div key={`${item.type}-${item.label}`} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}><span aria-hidden="true" style={{ color: item.uploaded ? V.telemetry : item.required ? V.warn : V.inkFaint }}>{item.uploaded ? "✓" : item.required ? "○" : "△"}</span><div><strong style={{ color: V.ink, fontSize: 12 }}>{item.label}{item.required ? " · required" : " · when scoped"}</strong><div style={{ color: V.inkDim, fontSize: 11, marginTop: 2 }}>{item.guidance}</div></div></div>)}</div>
                     </div>
-                    {data.job.completed_at && !data.submission.submitted && <div style={{ marginTop: 14, padding: 14, borderRadius: 10, border: `1px solid ${data.submission.ready ? V.telemetry : V.line}`, background: data.submission.ready ? "rgba(22,163,74,.08)" : V.raised }}><strong style={{ fontSize: 13 }}>Final step: submit mission</strong>{!data.submission.ready && <p style={{ color: V.inkDim, fontSize: 11, marginTop: 5 }}>{data.submission.blockers.length} item{data.submission.blockers.length === 1 ? " remains" : "s remain"}. Finish the checklist and upload the required deliverables.</p>}<ActionButton disabled={!data.submission.ready || busyAction !== null} busy={busyAction === "submit_for_qc"} onClick={() => { if (window.confirm("Submit this mission and its deliverables?")) act({ action: "submit_for_qc" }, "submit_for_qc"); }}>Submit completed mission</ActionButton></div>}
-                    {data.submission.submitted && <p role="status" style={{ color: V.telemetry, fontSize: 13, marginTop: 14 }}>✓ Mission submitted successfully.</p>}
+                    {data.job.completed_at && !data.submission.submitted && <div style={{ marginTop: 14, padding: 14, borderRadius: 10, border: `1px solid ${data.submission.ready ? V.telemetry : V.line}`, background: data.submission.ready ? "rgba(22,163,74,.08)" : V.raised }}><strong style={{ fontSize: 13 }}>{ownerDelivery ? "Final step: owner certification" : "Final step: submit mission"}</strong>{ownerDelivery && <p style={{ color: V.inkDim, fontSize: 11, marginTop: 5 }}>You are the mission owner. Certifying publishes the finished deliverables directly to your client; DOM does not perform routine QC.</p>}{!data.submission.ready && <p style={{ color: V.inkDim, fontSize: 11, marginTop: 5 }}>{data.submission.blockers.length} item{data.submission.blockers.length === 1 ? " remains" : "s remain"}. Finish the checklist and upload the required deliverables.</p>}<ActionButton disabled={!data.submission.ready || busyAction !== null} busy={busyAction === "complete_mission"} onClick={() => { if (window.confirm(ownerDelivery ? "Certify this mission and release its deliverables to your client?" : "Submit this mission and its deliverables to DOM QC?")) act({ action: "complete_mission" }, "complete_mission"); }}>{ownerDelivery ? "Certify & Deliver to Client" : "Submit to DOM QC"}</ActionButton></div>}
+                    {data.submission.submitted && <p role="status" style={{ color: V.telemetry, fontSize: 13, marginTop: 14 }}>✓ {ownerDelivery ? "Owner-approved deliverables are available to your client." : "Mission submitted to DOM QC."}</p>}
                   </>
                 )}
               </section>

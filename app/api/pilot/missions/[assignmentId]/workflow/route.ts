@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
-import { deliverablePlanFor, missingRequiredDeliverables, WORKFLOW_ITEMS } from "@/lib/missionWorkflow";
+import { sendClientMissionUpdate } from "@/lib/resend/clientMissionUpdates";
+import { deliverablePlanFor, missingRequiredDeliverables, missionCompletionMode, WORKFLOW_ITEMS } from "@/lib/missionWorkflow";
 
 interface WorkflowJob {
   mission_request_id: string;
@@ -10,6 +11,8 @@ interface WorkflowJob {
   checked_in_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  delivery_responsibility: string | null;
+  mission_request: { created_by_contractor_id: string | null } | null;
 }
 interface WorkflowContext {
   admin: ReturnType<typeof getSupabaseAdmin>;
@@ -40,12 +43,13 @@ async function context(req: NextRequest, assignmentId: string): Promise<Workflow
     .eq("user_id", user.id).maybeSingle();
   if (!contractor) return null;
   const { data: assignment } = await admin.from("mission_assignments")
-    .select("job_id,status,assigned_uav,insurance_source,mission_insurance_verified,mission_insurance_reference,mission_insurance_expires_at,job:jobs(mission_request_id,service_type,scheduled_for,checked_in_at,started_at,completed_at)")
+    .select("job_id,status,assigned_uav,insurance_source,mission_insurance_verified,mission_insurance_reference,mission_insurance_expires_at,job:jobs(mission_request_id,service_type,scheduled_for,checked_in_at,started_at,completed_at,delivery_responsibility,mission_request:mission_requests(created_by_contractor_id))")
     .eq("id", assignmentId).eq("contractor_id", contractor.id).maybeSingle();
   if (!assignment) return null;
   const job = Array.isArray(assignment.job) ? assignment.job[0] : assignment.job;
   if (!job) return null;
-  return { admin, user, assignment: { ...assignment, job } as WorkflowContext["assignment"], contractor };
+  const missionRequest = Array.isArray(job.mission_request) ? job.mission_request[0] : job.mission_request;
+  return { admin, user, assignment: { ...assignment, job: { ...job, mission_request: missionRequest } } as WorkflowContext["assignment"], contractor };
 }
 
 function coverage(ctx: WorkflowContext) {
@@ -82,6 +86,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
   if (deliverablesError) return NextResponse.json({ error: "Field workflow could not be loaded." }, { status: 500 });
 
   const now = new Date().toISOString();
+  const completionMode = missionCompletionMode(
+    ctx.assignment.job.mission_request?.created_by_contractor_id,
+    ctx.contractor.id,
+    ctx.assignment.job.delivery_responsibility,
+  );
   const submitted = ["submitted", "qc_passed", "paid"].includes(ctx.assignment.status);
   const missingDeliverables = missingRequiredDeliverables(ctx.assignment.job.service_type, (deliverables ?? []).map((item) => item.type));
   const deliverablesComplete = missingDeliverables.length === 0;
@@ -90,7 +99,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
     { key: "insurance_verified", completed: insurance.satisfied, notes: insurance.satisfied ? `${insurance.source}${insurance.reference ? ` · ${insurance.reference}` : ""}` : "Select an insurance or responsibility path" },
     { key: "capture_complete", completed: !!ctx.assignment.job.completed_at, notes: ctx.assignment.job.completed_at ? "Field capture marked complete" : "Complete the approved capture plan" },
     { key: "deliverables_uploaded", completed: deliverablesComplete, notes: deliverablesComplete ? "Every required deliverable category is uploaded" : `Still required: ${missingDeliverables.map((item) => item.label).join(", ")}` },
-    { key: "mission_submitted", completed: submitted, notes: submitted ? "Submitted to DOM for QC" : "Submit after all required work is complete" },
+    { key: "mission_submitted", completed: submitted, notes: submitted ? (completionMode === "owner_delivery" ? "Certified and delivered by the mission owner" : "Submitted to DOM for QC") : "Complete after all required work is finished" },
   ];
   await Promise.all(automaticStates.map((state) => ctx.admin.from("mission_checklist_items").update({
     completed: state.completed,
@@ -118,7 +127,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
     ...requiredIncomplete.map((item) => item.label),
   ];
   return NextResponse.json({
-    items: items ?? [], job: ctx.assignment.job, assignmentStatus: ctx.assignment.status, insurance,
+    items: (items ?? []).map((item) => item.item_key === "mission_submitted" ? {
+      ...item,
+      label: completionMode === "owner_delivery" ? "Certify and deliver the mission to your client" : completionMode === "owner_review" ? "Submit the mission to its owner for approval" : "Submit mission to DOM for QC",
+    } : item),
+    job: ctx.assignment.job, assignmentStatus: ctx.assignment.status, insurance,
+    ownership: { completionMode, pilotOwned: completionMode !== "dom_qc", ownerIsCurrentPilot: completionMode === "owner_delivery" },
     deliverablePlan: deliverablePlanFor(ctx.assignment.job.service_type).map((item) => ({
       ...item,
       uploaded: (deliverables ?? []).some((deliverable) => deliverable.type === item.type),
@@ -160,7 +174,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
   if (!insurance.satisfied && body.action !== "incident") {
     return NextResponse.json({ error: "Select a valid insurance path or acknowledge uninsured responsibility before continuing." }, { status: 409 });
   }
-  const flightActions = ["check_in", "start_flight", "field_complete", "submit_for_qc"];
+  const flightActions = ["check_in", "start_flight", "field_complete", "submit_for_qc", "complete_mission"];
   if (flightActions.includes(body.action) && !ctx.contractor.part107_verified) return NextResponse.json({ error: "Part 107 verification is required before field operations." }, { status: 409 });
   if (flightActions.includes(body.action) && !ctx.assignment.assigned_uav) return NextResponse.json({ error: "Assign a compatible UAV before field operations." }, { status: 409 });
 
@@ -190,7 +204,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
       event_type: body.action,
       summary: body.action === "check_in" ? "Pilot checked in on site" : body.action === "start_flight" ? "Flight operations started" : "Field capture completed",
     });
-  } else if (body.action === "submit_for_qc") {
+  } else if (["submit_for_qc", "complete_mission"].includes(body.action)) {
     if (["submitted", "qc_passed", "paid"].includes(ctx.assignment.status)) return NextResponse.json({ ok: true });
     const [{ data: submittedDeliverables }, { data: incomplete }] = await Promise.all([
       ctx.admin.from("deliverables").select("type").eq("job_id", ctx.assignment.job_id),
@@ -201,9 +215,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
       ...missingRequiredDeliverables(ctx.assignment.job.service_type, (submittedDeliverables ?? []).map((item) => item.type)).map((item) => `Upload ${item.label}`),
       ...(incomplete ?? []).map((item) => item.label),
     ];
-    if (blockers.length) return NextResponse.json({ error: "Complete the remaining steps before QC submission.", blockers: [...new Set(blockers)] }, { status: 409 });
-    const { error } = await ctx.admin.rpc("pilot_submit_mission_for_qc", { p_assignment_id: assignmentId, p_actor_user_id: ctx.user.id });
+    if (blockers.length) return NextResponse.json({ error: "Complete the remaining steps before finishing this mission.", blockers: [...new Set(blockers)] }, { status: 409 });
+    const completionMode = missionCompletionMode(
+      ctx.assignment.job.mission_request?.created_by_contractor_id,
+      ctx.contractor.id,
+      ctx.assignment.job.delivery_responsibility,
+    );
+    if (completionMode === "owner_review") return NextResponse.json({ error: "This pilot-created mission must be submitted to its owner for approval. Owner review will be enabled with team assignments." }, { status: 409 });
+    const rpc = completionMode === "owner_delivery" ? "pilot_owner_certify_mission" : "pilot_submit_mission_for_qc";
+    const { error } = await ctx.admin.rpc(rpc, { p_assignment_id: assignmentId, p_actor_user_id: ctx.user.id });
     if (error) return NextResponse.json({ error: error.message }, { status: 409 });
+    if (completionMode === "owner_delivery") {
+      try { await sendClientMissionUpdate(assignmentId, { type: "mission_complete" }); }
+      catch (emailError) { console.error("pilot-owner client delivery email failed", emailError); }
+    }
   } else if (body.action === "incident") {
     if (typeof body.summary !== "string" || !body.summary.trim()) return NextResponse.json({ error: "Incident summary required" }, { status: 400 });
     const { error } = await ctx.admin.from("mission_incidents").insert({

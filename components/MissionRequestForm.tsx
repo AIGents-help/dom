@@ -93,6 +93,7 @@ export default function MissionRequestForm() {
           <select className="input" id="serviceType" name="serviceType" defaultValue="">
             <option value="" disabled>Select service</option>
             <option>Aerial Cinematography</option>
+            <option value="aerial_images">Aerial Images</option>
             <option>Mapping & Surveying</option>
             <option>Infrastructure Inspection</option>
             <option>Thermal & Multispectral Imaging</option>

@@ -140,6 +140,7 @@ const SERVICE_TYPES = [
   ["ortho_survey", "Orthomosaic Survey"],
   ["powerline_inspection", "Powerline / Utility Inspection"],
   ["real_estate_media", "Real Estate Aerial Media"],
+  ["aerial_images", "Aerial Images"],
   ["custom", "Custom Mission"],
 ] as const;
 

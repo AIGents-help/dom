@@ -351,6 +351,7 @@ export default function PilotCreateMissionWizard({
                 {services.length ? services.map((s) => <option key={s.id} value={s.id}>{s.label}</option>) : (
                   <>
                     <option value="roof_inspection_commercial">Roof Inspection (Commercial)</option>
+                    <option value="aerial_images">Aerial Images</option>
                     <option value="custom">Create Custom Mission</option>
                   </>
                 )}

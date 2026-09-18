@@ -30,7 +30,7 @@ export function missionEquipmentGuidance(serviceType: string, aircraft: string):
   const uav = aircraft.toLowerCase();
   const mapping = /mapping|survey|construction|orthomosaic/.test(mission);
   const inspection = /inspection|roof|powerline|utility|solar|infrastructure/.test(mission);
-  const media = /media|real_estate|photo|video/.test(mission);
+  const media = /media|real_estate|aerial_images|photo|video/.test(mission);
   const thermal = /thermal|4t|mavic 3t|h20t|m30t/.test(`${mission} ${uav}`);
   const mechanicalShutter = /matrice 4e|mavic 3e|phantom 4 rtk/.test(uav);
 

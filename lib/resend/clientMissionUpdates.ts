@@ -16,7 +16,10 @@ export async function sendClientMissionUpdate(assignmentId: string, event: Clien
       contractor:contractors ( full_name ),
       job:jobs (
         id, title, location, mission_request_id,
-        mission_request:mission_requests ( id, requester_name, requester_email, company, client_id )
+        mission_request:mission_requests (
+          id, requester_name, requester_email, company, client_id, created_by_contractor_id,
+          owner:contractors!mission_requests_created_by_contractor_id_fkey ( full_name )
+        )
       )
     `)
     .eq("id", assignmentId)
@@ -26,6 +29,7 @@ export async function sendClientMissionUpdate(assignmentId: string, event: Clien
   const job: any = Array.isArray(assignment.job) ? assignment.job[0] : assignment.job;
   const mission: any = Array.isArray(job?.mission_request) ? job.mission_request[0] : job?.mission_request;
   const pilot: any = Array.isArray(assignment.contractor) ? assignment.contractor[0] : assignment.contractor;
+  const owner: any = Array.isArray(mission?.owner) ? mission.owner[0] : mission?.owner;
   if (!job || !mission) return { skipped: true, reason: "mission record not found" };
 
   let clientEmail: string | null = mission.requester_email;
@@ -66,7 +70,7 @@ export async function sendClientMissionUpdate(assignmentId: string, event: Clien
     });
   } else {
     emailType = "mission_completed";
-    template = missionCompleted({ clientName, missionTitle });
+    template = missionCompleted({ clientName, missionTitle, providerName: mission.created_by_contractor_id ? owner?.full_name : undefined });
   }
 
   return sendNotification({

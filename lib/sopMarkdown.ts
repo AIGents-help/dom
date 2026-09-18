@@ -45,6 +45,12 @@ export function sopMarkdownToHtml(bodyMd: string): string {
     } else if (trimmed.startsWith("## ")) {
       flushList();
       blocks.push(`<h2>${renderInline(trimmed.slice(3))}</h2>`);
+    } else if (/^!\[[^\]]*\]\([^)]+\)$/.test(trimmed)) {
+      flushList();
+      const match = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(trimmed);
+      if (match && match[2].startsWith("/")) {
+        blocks.push(`<figure><img src="${escapeHtml(match[2])}" alt="${escapeHtml(match[1])}" style="display:block;width:100%;height:auto;max-height:520px;object-fit:cover;border-radius:8px"><figcaption>${escapeHtml(match[1])}</figcaption></figure>`);
+      }
     } else if (/^- \[ \] /.test(trimmed)) {
       if (!list || list.type !== "check") { flushList(); list = { type: "check", items: [] }; }
       list.items.push(trimmed.replace(/^- \[ \] /, ""));

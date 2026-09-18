@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AUTOMATIC_WORKFLOW_KEYS,
   deliverablePlanFor,
+  missionCompletionMode,
   missingRequiredDeliverables,
   PROTECTED_WORKFLOW_KEYS,
   workflowProgress,
@@ -38,5 +39,11 @@ describe("mission workflow policy", () => {
       { item_key: "media_backed_up", completed: false },
       { item_key: "mission_submitted", completed: false },
     ])).toEqual({ prerequisitesCompleted: 1, prerequisitesTotal: 2, submitted: false });
+  });
+
+  it("separates DOM QC, owner delivery, and team-pilot review", () => {
+    expect(missionCompletionMode(null, "pilot-1", "admin")).toBe("dom_qc");
+    expect(missionCompletionMode("pilot-1", "pilot-1", "pilot")).toBe("owner_delivery");
+    expect(missionCompletionMode("owner-1", "pilot-2", "pilot")).toBe("owner_review");
   });
 });

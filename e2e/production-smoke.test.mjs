@@ -1,0 +1,61 @@
+import assert from "node:assert/strict";
+import { after, before, test } from "node:test";
+import { chromium } from "playwright";
+
+const baseURL = (process.env.E2E_BASE_URL || "https://droneopsman.com").replace(/\/$/, "");
+let browser;
+
+before(async () => {
+  browser = await chromium.launch({ headless: true });
+});
+
+after(async () => {
+  await browser?.close();
+});
+
+async function openStablePage(path) {
+  const page = await browser.newPage();
+  const pageErrors = [];
+  const consoleErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
+
+  const response = await page.goto(`${baseURL}${path}`, { waitUntil: "networkidle", timeout: 45_000 });
+  assert.ok(response, `${path} did not return a response`);
+  assert.ok(response.status() < 400, `${path} returned HTTP ${response.status()}`);
+  assert.equal(pageErrors.length, 0, `${path} raised browser errors: ${pageErrors.join(" | ")}`);
+
+  const applicationErrors = consoleErrors.filter((message) =>
+    !message.includes("favicon") && !message.includes("Failed to load resource")
+  );
+  assert.equal(applicationErrors.length, 0, `${path} logged application errors: ${applicationErrors.join(" | ")}`);
+  await page.close();
+}
+
+test("public entry points render without browser crashes", async () => {
+  for (const path of ["/", "/contact", "/pilot", "/admin"]) await openStablePage(path);
+});
+
+test("privileged workflow APIs reject anonymous callers", async () => {
+  const context = await browser.newContext();
+  const checks = [
+    ["POST", "/api/pilot/missions/create", {}],
+    ["GET", "/api/pilot/mapping/jobs-eligible"],
+    ["POST", "/api/admin/missions/00000000-0000-0000-0000-000000000000/manage", { action: "advance_status" }],
+  ];
+
+  for (const [method, path, data] of checks) {
+    const response = await context.request.fetch(`${baseURL}${path}`, {
+      method,
+      data,
+      failOnStatusCode: false,
+    });
+    assert.ok(
+      [401, 403].includes(response.status()),
+      `${method} ${path} returned ${response.status()} instead of rejecting the anonymous request`,
+    );
+  }
+  await context.close();
+});

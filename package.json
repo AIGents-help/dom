@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "lint:ci": "eslint . --max-warnings 203",
     "test": "vitest run",
+    "test:e2e": "node --test e2e/*.test.mjs",
     "typecheck:worker": "npm --prefix services/mapper-worker run typecheck",
     "verify": "npm test && npm run lint:ci && npm run build && npm run typecheck:worker && npm audit && npm audit --prefix services/mapper-worker",
     "import:leads": "tsx scripts/import-dom-leads.ts"

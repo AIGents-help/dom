@@ -408,8 +408,15 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
     setError(null);
     try {
       const sb = getSupabaseBrowser();
-      const { error: rpcError } = await sb.rpc("admin_release_mission_claim", { p_mission_request_id: id });
-      if (rpcError) throw rpcError;
+      const { data } = await sb.auth.getSession();
+      if (!data.session) throw new Error("Admin session expired.");
+      const response = await fetch(`/api/admin/missions/${id}/claim`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
+        body: JSON.stringify({ action: "release" }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error ?? "Failed to release claim");
       await load();
     } catch (e: any) {
       setError(e.message ?? "Failed to release claim");

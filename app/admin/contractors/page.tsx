@@ -105,6 +105,19 @@ export default function AdminContractorsPage() {
     })();
   }, [router, load]);
 
+  async function updateAccess(id: string, payload: Record<string, unknown>) {
+    const supabaseBrowser = getSupabaseBrowser();
+    const { data } = await supabaseBrowser.auth.getSession();
+    if (!data.session) throw new Error("Admin session expired.");
+    const response = await fetch(`/api/admin/contractors/${id}/access`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error ?? "Pilot access could not be updated.");
+  }
+
   async function toggle(id: string, field: "part107_verified" | "insurance_verified" | "dom_gig_insurance_eligible", value: boolean) {
     if (field === "insurance_verified" && value) {
       const contractor = rows.find((row) => row.id === id);
@@ -115,14 +128,8 @@ export default function AdminContractorsPage() {
     }
     // optimistic
     setRows((r) => r.map((c) => (c.id === id ? { ...c, [field]: value } : c)));
-    const supabaseBrowser = getSupabaseBrowser();
-    const patch = field === "insurance_verified" && value
-      ? { [field]: value, insurance_requested: false }
-      : field === "insurance_verified"
-        ? { [field]: false, insurance_verification_basis: null, insurance_verification_note: null, insurance_verified_by: null, insurance_verified_at: null }
-        : { [field]: value };
-    const { error } = await supabaseBrowser.from("contractors").update(patch).eq("id", id);
-    if (error) load(); // revert from source of truth on failure
+    try { await updateAccess(id, { action: "set_verification", field, value }); }
+    catch (error) { window.alert(error instanceof Error ? error.message : "Verification could not be updated."); await load(); }
   }
 
   async function approveAlternateCoverage(id: string) {
@@ -150,25 +157,19 @@ export default function AdminContractorsPage() {
 
   async function setActive(id: string) {
     setRows((r) => r.map((c) => (c.id === id ? { ...c, status: "active" } : c)));
-    const supabaseBrowser = getSupabaseBrowser();
-    await supabaseBrowser.from("contractors").update({ status: "active" }).eq("id", id);
+    try { await updateAccess(id, { action: "activate" }); }
+    catch (error) { window.alert(error instanceof Error ? error.message : "Pilot could not be activated."); await load(); }
   }
 
   async function unlockResourceAccess(id: string) {
     setRows((r) => r.map((c) => (c.id === id ? { ...c, resource_access_locked: false } : c)));
-    const supabaseBrowser = getSupabaseBrowser();
-    const { error } = await supabaseBrowser.from("contractors").update({ resource_access_locked: false }).eq("id", id);
-    if (error) load();
+    try { await updateAccess(id, { action: "unlock_resources" }); }
+    catch (error) { window.alert(error instanceof Error ? error.message : "Resource access could not be unlocked."); await load(); }
   }
 
   async function approveSelfService(id: string) {
-    const supabaseBrowser = getSupabaseBrowser();
-    const { error } = await supabaseBrowser.rpc("admin_approve_self_service", { p_contractor_id: id });
-    if (error) {
-      alert(error.message);
-      return;
-    }
-    load();
+    try { await updateAccess(id, { action: "approve_self_service" }); await load(); }
+    catch (error) { window.alert(error instanceof Error ? error.message : "Self-service access could not be approved."); }
   }
 
   async function onboard(id: string) {

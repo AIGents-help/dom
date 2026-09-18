@@ -93,13 +93,13 @@ export async function POST(req: NextRequest) {
     };
     const quote = calculateQuote(quoteInput);
 
-    // Call the RPC as the pilot themselves (forwarding their own bearer
-    // token) so auth.uid() resolves correctly inside the SECURITY DEFINER
-    // function — not the service-role client, which has no bound user.
+    // The service-only transaction receives the verified actor ID from this
+    // route; the browser cannot invoke it or choose another actor.
     // Note: no commissionCents/contractorCents in this payload — the RPC
     // computes the real split itself via calculate_commission_bps() and
     // ignores any caller-supplied split, so there's nothing to pre-guess.
-    const { data: jobId, error: rpcError } = await supabaseAuth.rpc("pilot_create_own_mission", {
+    const { data: jobId, error: rpcError } = await admin.rpc("pilot_create_own_mission_service", {
+      p_actor_user_id: user.id,
       p_client_name: clientName,
       p_client_email: clientEmail,
       p_client_company: clientCompany ?? null,

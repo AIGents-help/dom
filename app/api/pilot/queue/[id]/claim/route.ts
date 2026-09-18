@@ -54,7 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: eligibilityReason(eligibility) ?? "You're not equipped for this mission.", eligibility }, { status: 403 });
   }
 
-  const { error: rpcError } = await supabase.rpc("pilot_request_mission", { p_mission_request_id: id });
+  const { error: rpcError } = await admin.rpc("pilot_request_mission_service", { p_mission_request_id: id, p_actor_user_id: user.id });
   if (rpcError) return NextResponse.json({ error: rpcError.message }, { status: 500 });
 
   return NextResponse.json({ ok: true });

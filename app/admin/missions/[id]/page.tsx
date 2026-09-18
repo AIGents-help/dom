@@ -433,18 +433,21 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
     setError(null);
     try {
       const sb = getSupabaseBrowser();
-      const { error: updateError } = await sb
-        .from("mission_requests")
-        .update({ status: next })
-        .eq("id", id);
-      if (updateError) throw updateError;
+      const { data: session } = await sb.auth.getSession();
+      if (!session.session) throw new Error("Admin session expired.");
+      const response = await fetch(`/api/admin/missions/${id}/manage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.session.access_token}` },
+        body: JSON.stringify({ action: "advance_status" }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error ?? "Failed to update status");
 
       // Booking-confirmation email — there's no dedicated "confirm booking"
       // action in this app, so 'approved' on the generic pipeline is the
       // closest real signal. Best-effort: a notification failure shouldn't
       // block the status change that already succeeded.
       if (next === "approved" || next === "delivered") {
-        const { data: session } = await sb.auth.getSession();
         if (session.session) {
           const endpoint = next === "approved" ? "/api/notify/booking-confirmed" : "/api/notify/deliverable-ready";
           fetch(endpoint, {
@@ -518,9 +521,12 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
     const reference = window.prompt("Enter the DOM gig-policy number or binder reference:"); if (!reference?.trim()) return;
     const expires = window.prompt("Enter coverage expiration date/time (for example 2026-08-24T18:00):"); if (!expires) return;
     const expiration = new Date(expires); if (Number.isNaN(expiration.getTime()) || expiration.getTime() <= Date.now()) { setError("Enter a valid future coverage expiration."); return; }
-    const sb = getSupabaseBrowser(); const { error } = await sb.from("mission_assignments").update({ insurance_source: "dom_gig", mission_insurance_verified: true, mission_insurance_reference: reference.trim(), mission_insurance_expires_at: expiration.toISOString() }).eq("id", assignmentId);
-    if (error) setError(error.message); else await load();
-  }, [load]);
+    const sb = getSupabaseBrowser(); const { data } = await sb.auth.getSession();
+    if (!data.session) { setError("Admin session expired."); return; }
+    const response = await fetch(`/api/admin/missions/${id}/manage`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify({ action: "bind_gig_insurance", assignmentId, reference: reference.trim(), expiresAt: expiration.toISOString() }) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) setError(result.error ?? "Gig coverage could not be bound"); else await load();
+  }, [id, load]);
 
   const offerToContractor = useCallback(async () => {
     if (!selectedContractor) return;
@@ -560,14 +566,14 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       const path = `${job.id}/${Date.now()}-${file.name}`;
       const { error: uploadError } = await sb.storage.from("mission-deliverables").upload(path, file);
       if (uploadError) throw uploadError;
-
-      const { error: insertError } = await sb.from("deliverables").insert({
-        job_id: job.id,
-        name: newDeliverableName.trim(),
-        type: newDeliverableType,
-        storage_url: path,
-      });
-      if (insertError) throw insertError;
+      const { data } = await sb.auth.getSession();
+      if (!data.session) throw new Error("Admin session expired.");
+      const response = await fetch(`/api/admin/missions/${id}/manage`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify({ action: "register_deliverable", name: newDeliverableName.trim(), type: newDeliverableType, storageUrl: path }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        await sb.storage.from("mission-deliverables").remove([path]);
+        throw new Error(result.error ?? "Deliverable could not be registered");
+      }
 
       setNewDeliverableName("");
       setNewDeliverableFile(null);
@@ -578,24 +584,25 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
     } finally {
       setUploadingDeliverable(false);
     }
-  }, [job, newDeliverableName, newDeliverableType, load]);
+  }, [job, id, newDeliverableName, newDeliverableType, load]);
 
   const toggleQcPassed = useCallback(async (deliverableId: string, next: boolean) => {
     setTogglingQc(deliverableId);
     setError(null);
     try {
       const sb = getSupabaseBrowser();
-      const patch: Record<string, unknown> = { qc_passed: next };
-      if (next) patch.delivered_at = new Date().toISOString();
-      const { error: updateError } = await sb.from("deliverables").update(patch).eq("id", deliverableId);
-      if (updateError) throw updateError;
+      const { data } = await sb.auth.getSession();
+      if (!data.session) throw new Error("Admin session expired.");
+      const response = await fetch(`/api/admin/missions/${id}/manage`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify({ action: "set_deliverable_qc", deliverableId, passed: next }) });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error ?? "Failed to update deliverable");
       await load();
     } catch (e: any) {
       setError(e.message ?? "Failed to update deliverable");
     } finally {
       setTogglingQc(null);
     }
-  }, [load]);
+  }, [id, load]);
 
   const downloadDeliverable = useCallback(async (storageUrl: string) => {
     try {
@@ -611,10 +618,13 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const setDeliveryResponsibility = useCallback(async (value: string) => {
     if (!job) return;
     const sb = getSupabaseBrowser();
-    const { error: updateError } = await sb.from("jobs").update({ delivery_responsibility: value }).eq("id", job.id);
-    if (updateError) { setError(updateError.message); return; }
+    const { data } = await sb.auth.getSession();
+    if (!data.session) { setError("Admin session expired."); return; }
+    const response = await fetch(`/api/admin/missions/${id}/manage`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify({ action: "set_delivery_responsibility", value }) });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) { setError(result.error ?? "Delivery responsibility could not be updated"); return; }
     await load();
-  }, [job, load]);
+  }, [job, id, load]);
 
   const previouslyOfferedContractorIds = assignments.map((assignment) => assignment.contractor_id);
   const previouslyOfferedContractorSet = new Set(previouslyOfferedContractorIds);

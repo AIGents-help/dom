@@ -8,6 +8,7 @@ import { assessMissionEquipment, missionEquipmentGuidance, missionWeatherUrl } f
 import { useNow } from "@/lib/useNow";
 import PilotFieldWorkflow from "@/components/PilotFieldWorkflow";
 import PilotReadinessBanner from "@/components/PilotReadinessBanner";
+import PilotTeamPanel from "@/components/PilotTeamPanel";
 import MissionReviewPanel from "@/components/MissionReviewPanel";
 import { DELIVERABLE_TYPES, DOCUMENT_CATEGORIES, type PilotFileKind } from "@/lib/pilotMissionFiles";
 import { deliverablePlanFor } from "@/lib/missionWorkflow";
@@ -310,6 +311,7 @@ export default function PilotMissionLog({
         <p style={{ color: V.inkDim, fontSize: 13 }}>Loading…</p>
       ) : (
         <>
+          {pilotOwned && <PilotTeamPanel assignmentId={assignmentId} onChanged={() => { setWorkflowRefreshKey((key) => key + 1); onSaved(); }} />}
           <PilotReadinessBanner assignmentId={assignmentId} />
           <PilotFieldWorkflow assignmentId={assignmentId} refreshKey={workflowRefreshKey} onChanged={onSaved} />
           <section id="mission-capture-plan" style={{ ...panelStyle, borderColor: V.signal }}>

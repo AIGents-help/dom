@@ -18,7 +18,7 @@ interface WorkflowContext {
   admin: ReturnType<typeof getSupabaseAdmin>;
   user: { id: string };
   assignment: {
-    job_id: string; status: string; assigned_uav: string | null;
+    job_id: string; status: string; assignment_role: "owner" | "field"; assigned_uav: string | null;
     insurance_source: string | null; mission_insurance_verified: boolean;
     mission_insurance_reference: string | null; mission_insurance_expires_at: string | null;
     job: WorkflowJob;
@@ -43,7 +43,7 @@ async function context(req: NextRequest, assignmentId: string): Promise<Workflow
     .eq("user_id", user.id).maybeSingle();
   if (!contractor) return null;
   const { data: assignment } = await admin.from("mission_assignments")
-    .select("job_id,status,assigned_uav,insurance_source,mission_insurance_verified,mission_insurance_reference,mission_insurance_expires_at,job:jobs(mission_request_id,service_type,scheduled_for,checked_in_at,started_at,completed_at,delivery_responsibility,mission_request:mission_requests(created_by_contractor_id))")
+    .select("job_id,status,assignment_role,assigned_uav,insurance_source,mission_insurance_verified,mission_insurance_reference,mission_insurance_expires_at,job:jobs(mission_request_id,service_type,scheduled_for,checked_in_at,started_at,completed_at,delivery_responsibility,mission_request:mission_requests(created_by_contractor_id))")
     .eq("id", assignmentId).eq("contractor_id", contractor.id).maybeSingle();
   if (!assignment) return null;
   const job = Array.isArray(assignment.job) ? assignment.job[0] : assignment.job;
@@ -221,8 +221,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
       ctx.contractor.id,
       ctx.assignment.job.delivery_responsibility,
     );
-    if (completionMode === "owner_review") return NextResponse.json({ error: "This pilot-created mission must be submitted to its owner for approval. Owner review will be enabled with team assignments." }, { status: 409 });
-    const rpc = completionMode === "owner_delivery" ? "pilot_owner_certify_mission" : "pilot_submit_mission_for_qc";
+    if (completionMode === "owner_delivery") {
+      const { data: activeFieldAssignment } = await ctx.admin.from("mission_assignments")
+        .select("status").eq("job_id", ctx.assignment.job_id).eq("assignment_role", "field")
+        .not("status", "in", '("declined","cancelled")').maybeSingle();
+      if (activeFieldAssignment) {
+        const error = activeFieldAssignment.status === "submitted"
+          ? "Review and approve the submitted field-pilot work in the Field Pilot panel."
+          : "The field pilot must complete and submit this mission before owner approval.";
+        return NextResponse.json({ error }, { status: 409 });
+      }
+    }
+    const rpc = completionMode === "owner_delivery"
+      ? "pilot_owner_certify_mission"
+      : completionMode === "owner_review"
+        ? "pilot_submit_team_mission_for_owner"
+        : "pilot_submit_mission_for_qc";
     const { error } = await ctx.admin.rpc(rpc, { p_assignment_id: assignmentId, p_actor_user_id: ctx.user.id });
     if (error) return NextResponse.json({ error: error.message }, { status: 409 });
     if (completionMode === "owner_delivery") {

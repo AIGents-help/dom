@@ -16,9 +16,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });
   }
 
+  const admin = getSupabaseAdmin();
+  const { data: contractor } = await admin.from("contractors").select("id").eq("user_id", user.id).maybeSingle();
+  if (!contractor) return NextResponse.json({ error: "Pilot profile not found" }, { status: 404 });
+  const { data: assignment } = await admin.from("mission_assignments")
+    .select("assignment_role").eq("id", assignmentId).eq("contractor_id", contractor.id).maybeSingle();
+  if (!assignment) return NextResponse.json({ error: "Mission assignment not found" }, { status: 404 });
+
   if (action === "return") {
     const cleanReason = typeof reason === "string" ? reason.trim().slice(0, 500) : "";
-    const { error: returnError } = await getSupabaseAdmin().rpc("pilot_return_mission_to_dom", {
+    const returnFunction = assignment.assignment_role === "field" ? "pilot_return_team_assignment" : "pilot_return_mission_to_dom";
+    const { error: returnError } = await admin.rpc(returnFunction, {
       p_assignment_id: assignmentId,
       p_actor_user_id: user.id,
       p_reason: cleanReason || null,
@@ -28,6 +36,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
       return NextResponse.json({ error: returnError.message }, { status: conflict ? 409 : 400 });
     }
     return NextResponse.json({ ok: true, returned: true });
+  }
+
+  if (assignment.assignment_role === "field") {
+    const { error } = await admin.rpc("pilot_respond_team_assignment", {
+      p_assignment_id: assignmentId,
+      p_actor_user_id: user.id,
+      p_action: action,
+    });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ ok: true });
   }
 
   const { error } = await supabase.rpc(

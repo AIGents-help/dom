@@ -17,7 +17,7 @@ async function context(req: NextRequest, assignmentId: string) {
   const { data: contractor } = await admin.from("contractors").select("id,full_name").eq("user_id", user.id).maybeSingle();
   if (!contractor) return null;
   const { data: assignment } = await admin.from("mission_assignments")
-    .select("id,job_id,contractor_id,assignment_role,status,assigned_uav,mission_price_cents,contractor_payout_cents,job:jobs(id,title,service_type,location,delivery_responsibility,mission_request:mission_requests(id,created_by_contractor_id))")
+    .select("id,job_id,contractor_id,assignment_role,status,assigned_uav,mission_price_cents,contractor_payout_cents,job:jobs(id,title,service_type,location,delivery_responsibility,started_at,completed_at,mission_request:mission_requests(id,created_by_contractor_id))")
     .eq("id", assignmentId).eq("contractor_id", contractor.id).maybeSingle();
   if (!assignment) return null;
   const job = Array.isArray(assignment.job) ? assignment.job[0] : assignment.job;
@@ -41,9 +41,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
     const excluded = new Set((fieldAssignments ?? []).map((item) => item.contractor_id));
     excluded.add(ctx.contractor.id);
     const { data: contractors } = await ctx.admin.from("contractors")
-      .select("id,full_name,email,service_area,equipment,part107_verified,insurance_verified,status")
+      .select("id,full_name,email,service_area,equipment,part107_verified,insurance_verified,insurance_expires_on,status")
       .eq("status", "active").eq("part107_verified", true).eq("insurance_verified", true);
-    eligiblePilots = (contractors ?? []).filter((pilot) => !excluded.has(pilot.id)).map((pilot) => {
+    eligiblePilots = (contractors ?? []).filter((pilot) => !excluded.has(pilot.id) && !!pilot.insurance_expires_on && new Date(`${pilot.insurance_expires_on}T23:59:59`).getTime() > Date.now()).map((pilot) => {
       const equipment = assessMissionEquipment(ctx.job.service_type, pilot.equipment);
       return {
         id: pilot.id, fullName: pilot.full_name, email: pilot.email, serviceArea: pilot.service_area,
@@ -89,11 +89,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
     return NextResponse.json({ ok: true });
   }
 
+  if (ctx.job.started_at || ctx.job.completed_at) {
+    return NextResponse.json({ error: "Field staffing is locked after mission operations have started." }, { status: 409 });
+  }
+
   const contractorId = typeof body.contractorId === "string" ? body.contractorId : "";
   const payoutCents = Number(body.payoutCents);
   if (body.action !== "offer" || !UUID.test(contractorId) || !Number.isInteger(payoutCents) || payoutCents < 0) {
     return NextResponse.json({ error: "Select a pilot and enter a valid whole-dollar payout" }, { status: 400 });
   }
+  const { data: targetPilot } = await ctx.admin.from("contractors")
+    .select("id,status,part107_verified,insurance_verified,insurance_expires_on")
+    .eq("id", contractorId).maybeSingle();
+  const coverageCurrent = !!targetPilot?.insurance_verified && !!targetPilot?.insurance_expires_on
+    && new Date(`${targetPilot.insurance_expires_on}T23:59:59`).getTime() > Date.now();
+  if (!targetPilot || targetPilot.status !== "active" || !targetPilot.part107_verified || !coverageCurrent) {
+    return NextResponse.json({ error: "The field pilot must be active with current Part 107 and insurance coverage." }, { status: 409 });
+  }
+
   const { data: fieldAssignmentId, error } = await ctx.admin.rpc("pilot_owner_offer_team_assignment", {
     p_owner_assignment_id: assignmentId,
     p_actor_user_id: ctx.user.id,

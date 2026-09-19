@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import BarrierProductVisual from "@/components/shop/BarrierProductVisual";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
@@ -23,4 +24,4 @@ export default function AdminProductsPage() {
 
 function Field({ label, value, onChange, type = "text", disabled = false, step }: { label: string; value: string; onChange: (value: string) => void; type?: string; disabled?: boolean; step?: string }) { return <label className="text-sm text-white">{label}<input className="mt-1 w-full rounded border bg-white p-2 text-slate-900 placeholder:text-slate-400 disabled:bg-slate-100 disabled:text-slate-500" type={type} step={step ?? (type === "number" ? "0.01" : undefined)} min={type === "number" ? "0" : undefined} inputMode={step === "1" ? "numeric" : undefined} value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} /></label>; }
 
-function ProductThumbnail({ product }: { product: Product }) { const match = product.product_key.match(/^barrier-(1|3|4|6|12|24)$/); if (match) return <div className="overflow-hidden rounded-xl border bg-white p-2"><BarrierProductVisual count={Number(match[1]) as 1 | 3 | 4 | 6 | 12 | 24} className="aspect-square w-full" label={`${match[1]} Drone Operation barrier posts`} /></div>; if (product.image_url) return <div className="overflow-hidden rounded-xl border bg-white"><img src={product.image_url} alt={product.product_name} className="aspect-square h-full w-full object-contain p-2" /></div>; return <div className="flex aspect-square items-center justify-center rounded-xl border bg-slate-50 p-2 text-center text-xs font-semibold text-slate-400">No image</div>; }
+function ProductThumbnail({ product }: { product: Product }) { const match = product.product_key.match(/^barrier-(1|3|4|6|12|24)$/); if (match) return <div className="overflow-hidden rounded-xl border bg-white p-2"><BarrierProductVisual count={Number(match[1]) as 1 | 3 | 4 | 6 | 12 | 24} className="aspect-square w-full" label={`${match[1]} Drone Operation barrier posts`} /></div>; if (product.image_url) return <div className="overflow-hidden rounded-xl border bg-white"><Image src={product.image_url} alt={product.product_name} width={112} height={112} unoptimized className="aspect-square h-full w-full object-contain p-2" /></div>; return <div className="flex aspect-square items-center justify-center rounded-xl border bg-slate-50 p-2 text-center text-xs font-semibold text-slate-400">No image</div>; }

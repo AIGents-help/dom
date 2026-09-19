@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Product key, name, and a valid price are required." }, { status: 400 });
   }
   const availableQuantity = quantity(body.availableQuantity);\n  if (body.fulfillmentMode === "stocked" && (!Number.isInteger(availableQuantity) || availableQuantity < 0)) return NextResponse.json({ error: "Available quantity must be a whole number of 0 or more." }, { status: 400 });\n  const variants = Array.isArray(body.variants) ? body.variants.map((item) => clean(item, 40)).filter(Boolean).slice(0, 30) : [];
-  const { error } = await getSupabaseAdmin().from("shop_inventory").insert({
+  const { data: saved, error } = await getSupabaseAdmin().from("shop_inventory").insert({
     product_key: productKey, product_name: productName, description: clean(body.description, 2000),
     unit_amount_cents: unitAmount, variants, category: clean(body.category, 80) || "Equipment",
     image_url: clean(body.imageUrl, 1000) || null, active: body.active !== false,
@@ -36,8 +36,8 @@ export async function POST(req: NextRequest) {
     available_quantity: body.fulfillmentMode === "stocked" ? availableQuantity : null,
     shipping_base_cents: Math.max(0, cents(body.shippingBaseCents) || 0),
     shipping_additional_cents: Math.max(0, cents(body.shippingAdditionalCents) || 0), updated_at: new Date().toISOString(),
-  });
-  return error ? NextResponse.json({ error: error.code === "23505" ? "That product key already exists." : error.message }, { status: 409 }) : NextResponse.json({ success: true });
+  }).select("*").single();
+  return error ? NextResponse.json({ error: error.code === "23505" ? "That product key already exists." : error.message }, { status: 409 }) : NextResponse.json({ success: true, product: saved });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -49,13 +49,13 @@ export async function PATCH(req: NextRequest) {
   if (!productKey || !productName || !Number.isInteger(unitAmount) || unitAmount < 0) return NextResponse.json({ error: "Name and a valid price are required." }, { status: 400 });
   const availableQuantity = quantity(body?.availableQuantity);\n  if (body?.fulfillmentMode === "stocked" && (!Number.isInteger(availableQuantity) || availableQuantity < 0)) return NextResponse.json({ error: "Available quantity must be a whole number of 0 or more." }, { status: 400 });\n  const variants = Array.isArray(body?.variants) ? body.variants.map((item) => clean(item, 40)).filter(Boolean).slice(0, 30) : [];
   const stocked = body?.fulfillmentMode === "stocked";
-  const { error } = await getSupabaseAdmin().from("shop_inventory").update({
+  const { data: saved, error } = await getSupabaseAdmin().from("shop_inventory").update({
     product_name: productName, description: clean(body?.description, 2000), unit_amount_cents: unitAmount,
     variants, category: clean(body?.category, 80) || "Equipment", image_url: clean(body?.imageUrl, 1000) || null,
     active: body?.active === true, fulfillment_mode: stocked ? "stocked" : "made_to_order",
     available_quantity: stocked ? availableQuantity : null,
     shipping_base_cents: Math.max(0, cents(body?.shippingBaseCents) || 0),
     shipping_additional_cents: Math.max(0, cents(body?.shippingAdditionalCents) || 0), updated_at: new Date().toISOString(),
-  }).eq("product_key", productKey);
-  return error ? NextResponse.json({ error: error.message }, { status: 500 }) : NextResponse.json({ success: true });
+  }).eq("product_key", productKey).select("*").single();
+  return error ? NextResponse.json({ error: error.message }, { status: 500 }) : NextResponse.json({ success: true, product: saved });
 }

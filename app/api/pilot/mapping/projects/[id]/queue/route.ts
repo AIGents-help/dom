@@ -29,7 +29,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = await req.json().catch(() => ({}));
   const requestedProfile = typeof body?.profile === "string" ? body.profile : "standard";
   const profile = PROCESSING_PROFILES.some((p) => p.value === requestedProfile) ? requestedProfile : "standard";
-  const options = resolveProcessingProfileOptions(profile);
+  const requestedContourInterval = Number(body?.contour_interval_m);
+  const contourInterval = Number.isFinite(requestedContourInterval) && requestedContourInterval > 0
+    ? Math.min(20, Math.max(0.1, requestedContourInterval))
+    : 0.5;
+  const options = [
+    ...resolveProcessingProfileOptions(profile),
+    { name: "__dom_contour_interval_m", value: contourInterval },
+  ];
 
   const { error: jobError } = await admin.from("mapping_processing_jobs").insert({
     mapping_project_id: project.id,

@@ -241,6 +241,7 @@ export function missionReminder24h(params: {
   missionTitle: string;
   scheduledDate: string;
   location: string;
+  missionUrl?: string;
 }): TemplateResult {
   return {
     subject: `Reminder: Mission Tomorrow — ${params.missionTitle}`,
@@ -248,6 +249,8 @@ export function missionReminder24h(params: {
       "Your mission is tomorrow",
       `
         <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.pilotName)}, this is a reminder that your mission is scheduled for ${escapeHtml(params.scheduledDate)} at ${escapeHtml(params.location)}.</p>
+        <p style="color:#444; line-height:1.5;">Open the briefing now to confirm airspace, weather, access, aircraft, insurance, and the capture plan before departure.</p>
+        ${params.missionUrl ? button("Review Mission Briefing", params.missionUrl) : ""}
       `
     ),
   };
@@ -339,13 +342,16 @@ export function missionAssigned(params: {
 export function deliverableSubmissionReminder(params: {
   pilotName: string;
   missionTitle: string;
+  missionUrl?: string;
 }): TemplateResult {
   return {
     subject: `Reminder: Submit Your Deliverables — ${params.missionTitle}`,
     html: shell(
       "Deliverables still due",
       `
-        <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.pilotName)}, don't forget to submit your deliverables for ${escapeHtml(params.missionTitle)}.</p>
+        <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.pilotName)}, field capture is complete but the finished deliverables for ${escapeHtml(params.missionTitle)} have not been submitted.</p>
+        <p style="color:#444; line-height:1.5;">Back up the media, upload every required deliverable and field note, then complete the mission's final approval step.</p>
+        ${params.missionUrl ? button("Finish Mission Delivery", params.missionUrl) : ""}
       `
     ),
   };
@@ -354,14 +360,35 @@ export function deliverableSubmissionReminder(params: {
 export function payoutCompleted(params: {
   pilotName: string;
   amountCents: number;
+  missionTitle?: string;
 }): TemplateResult {
   return {
-    subject: `Payout Completed — ${formatCents(params.amountCents)}`,
+    subject: `Payout Released — ${formatCents(params.amountCents)}`,
     html: shell(
-      "Your payout has arrived",
+      "Your DOM payout was released",
       `
-        <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.pilotName)}, your payout of ${formatCents(params.amountCents)} has completed and should now be in your account.</p>
+        <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.pilotName)}, DOM released ${formatCents(params.amountCents)}${params.missionTitle ? ` for ${escapeHtml(params.missionTitle)}` : ""} to your connected Stripe account.</p>
+        <p style="color:#444; line-height:1.5;">Your bank-deposit timing is controlled by the payout schedule in Stripe.</p>
       `
+    ),
+  };
+}
+
+export function adminPaymentFailed(params: {
+  missionTitle: string;
+  paymentId: string;
+  detail: string;
+  adminUrl: string;
+}): TemplateResult {
+  return {
+    subject: `Action Required: Mission Payment — ${params.missionTitle}`,
+    html: shell(
+      "A mission payment needs attention",
+      `
+        <p style="color:#444; line-height:1.5;">The payment or pilot transfer for ${escapeHtml(params.missionTitle)} did not complete.</p>
+        ${infoTable(infoRow("Payment", params.paymentId) + infoRow("Issue", params.detail))}
+        ${button("Open Mission", params.adminUrl)}
+      `,
     ),
   };
 }

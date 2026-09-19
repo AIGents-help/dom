@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { Download, FileText, PackageCheck } from "lucide-react";
 import { V, panelStyle } from "./theme";
 import type { MappingDeliverable } from "./types";
@@ -9,7 +10,8 @@ function labelFor(type: string | null) {
   return type.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export default function DominicDeliverySummary({ deliverables }: { deliverables: MappingDeliverable[] }) {
+export default function DominicDeliverySummary({ deliverables, projectId }: { deliverables: MappingDeliverable[]; projectId: string }) {
+  const router = useRouter();
   const qcPassed = deliverables.filter((item) => item.qc_passed).length;
   const pending = deliverables.length - qcPassed;
   const categories = new Set(deliverables.map((item) => item.type).filter(Boolean));
@@ -42,7 +44,7 @@ export default function DominicDeliverySummary({ deliverables }: { deliverables:
       ) : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 8, marginTop: 14 }}>
-        <Roadmap icon={FileText} title="Annotated Report" copy="Measurements, findings, notes and map imagery in a client-ready report." />
+        <Roadmap icon={FileText} title="Project Report" copy="Measurements, findings, project details and deliverables in a client-ready printable report." live onClick={() => router.push(`/dominic/report/${projectId}`)} />
         <Roadmap icon={PackageCheck} title="Delivery Bundle" copy="One packaged download containing the approved mission deliverables." />
         <Roadmap icon={Download} title="Direct Exports" copy="GeoTIFF, GIS, CAD, point-cloud and model files stay individually downloadable." live />
       </div>
@@ -55,13 +57,13 @@ function Stat({ value, label }: { value: number; label: string }) {
     <div style={{ minWidth: 72, border: `1px solid ${V.line}`, borderRadius: 9, padding: "7px 9px", background: "#0B1117" }}>
       <div style={{ color: V.ink, fontSize: 16, fontWeight: 850 }}>{value}</div>
       <div className="font-mono-ibm" style={{ color: V.inkFaint, fontSize: 8, textTransform: "uppercase", letterSpacing: ".06em" }}>{label}</div>
-    </div>
+    </button>
   );
 }
 
-function Roadmap({ icon: Icon, title, copy, live = false }: { icon: typeof FileText; title: string; copy: string; live?: boolean }) {
+function Roadmap({ icon: Icon, title, copy, live = false, onClick }: { icon: typeof FileText; title: string; copy: string; live?: boolean; onClick?: () => void }) {
   return (
-    <div style={{ border: `1px solid ${V.line}`, borderRadius: 9, padding: 11, background: "#0B1117" }}>
+    <button onClick={onClick} disabled={!onClick} style={{ width: "100%", border: `1px solid ${V.line}`, borderRadius: 9, padding: 11, background: "#0B1117", textAlign: "left", cursor: onClick ? "pointer" : "default" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <Icon size={15} color={V.signal} />
         <span className="font-mono-ibm" style={{ color: live ? V.telemetry : V.inkFaint, fontSize: 8 }}>{live ? "LIVE" : "NEXT"}</span>

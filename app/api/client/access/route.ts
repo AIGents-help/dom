@@ -37,13 +37,16 @@ export async function GET(req: NextRequest) {
 
   const { data: jobs } = await admin.from("jobs").select(`
     id, title, service_type, location, scheduled_for, status, created_at,
-    mission_request:mission_requests(id, status, scope, quoted_amount_cents),
+    mission_request:mission_requests(id, status, scope, quoted_amount_cents, created_by_contractor_id),
     assignments:mission_assignments(id, status, assigned_uav, contractor:contractors(full_name, slug)),
     deliverables(id, name, type, qc_passed, client_status, client_feedback, client_reviewed_at, delivered_at),
     payments(id, amount_total_cents, status, created_at)
   `).eq("client_id", client.id).order("created_at", { ascending: false });
   const missionIds = (jobs ?? []).map((job: any) => (Array.isArray(job.mission_request) ? job.mission_request[0] : job.mission_request)?.id).filter(Boolean);
   const { data: activity } = missionIds.length ? await admin.from("mission_activity_events").select("id, mission_request_id, event_type, summary, created_at").in("mission_request_id", missionIds).in("visibility", ["client", "shared"]).order("created_at", { ascending: false }) : { data: [] };
-  const { data: changes } = missionIds.length ? await admin.from("mission_change_orders").select("id, mission_request_id, title, reason, amount_delta_cents, status, created_at").in("mission_request_id", missionIds).order("created_at", { ascending: false }) : { data: [] };
-  return NextResponse.json({ client, jobs: jobs ?? [], activity: activity ?? [], changeOrders: changes ?? [] });
+  const [{ data: changes }, { data: quotes }] = missionIds.length ? await Promise.all([
+    admin.from("mission_change_orders").select("id, mission_request_id, title, reason, scope_delta, amount_delta_cents, status, sent_at, responded_at, client_response_notes, created_at").in("mission_request_id", missionIds).order("created_at", { ascending: false }),
+    admin.from("quotes").select("id, mission_request_id, service_type, total_cents, status, version_number, sent_at, accepted_at, rejected_at, expires_at, client_response_notes, created_at").in("mission_request_id", missionIds).neq("status", "draft").order("version_number", { ascending: false }),
+  ]) : [{ data: [] }, { data: [] }];
+  return NextResponse.json({ client, jobs: jobs ?? [], activity: activity ?? [], changeOrders: changes ?? [], quotes: quotes ?? [] });
 }

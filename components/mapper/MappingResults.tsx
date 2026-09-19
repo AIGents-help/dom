@@ -6,6 +6,7 @@ import { V, btnGhost } from "./theme";
 import OrthomosaicViewer from "./OrthomosaicViewer";
 import Model3DViewer from "./Model3DViewer";
 import PointCloudViewer from "./PointCloudViewer";
+import ElevationRasterViewer from "./ElevationRasterViewer";
 import MappingDeliverables from "./MappingDeliverables";
 import type { MappingDeliverable } from "./types";
 import type { DominicWorkbenchTool } from "./workbenchTypes";
@@ -89,7 +90,8 @@ export default function MappingResults({
   }, [availableLayers, byType, projectId, accessToken]);
 
   const active = byType.get(selectedLayer) ?? null;
-  const isRaster = selectedLayer === "orthomosaic" || selectedLayer === "dsm" || selectedLayer === "dtm";
+  const isOrthomosaic = selectedLayer === "orthomosaic";
+  const isElevation = selectedLayer === "dsm" || selectedLayer === "dtm";
 
   return (
     <div>
@@ -119,17 +121,22 @@ export default function MappingResults({
           </div>
 
           <div style={{ marginBottom: 12 }}>
-            {active && isRaster ? (
+            {active && isOrthomosaic ? (
               <OrthomosaicViewer
                 signedUrl={signedUrls[active.id] ?? null}
                 name={active.name}
                 projectId={projectId}
                 deliverableId={active.id}
                 accessToken={accessToken}
-                workbenchTool={selectedLayer === "orthomosaic" ? workbenchTool : "select"}
+                workbenchTool={workbenchTool}
                 toolSet={toolSet}
-                viewerLabel={LAYER_LABELS[selectedLayer]}
-                allowMeasurements={selectedLayer === "orthomosaic"}
+              />
+            ) : null}
+            {active && isElevation ? (
+              <ElevationRasterViewer
+                signedUrl={signedUrls[active.id] ?? null}
+                name={active.name}
+                label={selectedLayer === "dsm" ? "DSM" : "DTM"}
               />
             ) : null}
             {active && selectedLayer === "3d_model" ? <Model3DViewer signedUrl={signedUrls[active.id] ?? null} name={active.name} /> : null}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 // Pilot counterpart to AdminSidebar. It intentionally uses the same full-
 // height rail geometry, spacing, collapse behavior, colors, and footer so
@@ -33,7 +34,7 @@ const ITEMS: { id: PilotTab; label: string; icon: string }[] = [
   { id: "support", label: "Pilot Support", icon: "✚" },
   ...(QUEUE_ENABLED ? [{ id: "queue" as PilotTab, label: "Queue", icon: "◫" }] : []),
   { id: "create", label: "Create Mission", icon: "✎" },
-  ...(MAPPER_ENABLED ? [{ id: "mapping" as PilotTab, label: "Mapping", icon: "▦" }] : []),
+  ...(MAPPER_ENABLED ? [{ id: "mapping" as PilotTab, label: "DOMINIC", icon: "◉" }] : []),
   { id: "assets", label: "Assets", icon: "✈" },
   { id: "publicprofile", label: "Public Profile", icon: "◈" },
   { id: "resources", label: "Resources", icon: "⬡" },
@@ -52,6 +53,7 @@ export default function PilotSidebar({
   onSignOut: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const stored = window.localStorage.getItem("dom_pilot_sidebar_collapsed");
@@ -102,7 +104,7 @@ export default function PilotSidebar({
           return (
             <button
               key={item.id}
-              onClick={() => setTab(item.id)}
+              onClick={() => item.id === "mapping" ? router.push("/dominic") : setTab(item.id)}
               title={collapsed ? item.label : undefined}
               style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8,

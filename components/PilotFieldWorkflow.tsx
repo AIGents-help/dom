@@ -22,6 +22,7 @@ interface WorkflowItem {
   completed: boolean;
 }
 
+interface WorkflowIssue { message: string; action: string; target: string; }
 interface WorkflowData {
   items: WorkflowItem[];
   job: { checked_in_at: string | null; started_at: string | null; completed_at: string | null };
@@ -30,6 +31,7 @@ interface WorkflowData {
   submission: { ready: boolean; blockers: string[]; submitted: boolean };
   ownership: { completionMode: "dom_qc" | "owner_delivery" | "owner_review"; pilotOwned: boolean; ownerIsCurrentPilot: boolean };
   deliverablePlan: Array<{ type: string; label: string; guidance: string; required: boolean; uploaded: boolean }>;
+  readiness?: { issues?: WorkflowIssue[] };
 }
 
 export default function PilotFieldWorkflow({
@@ -119,6 +121,13 @@ export default function PilotFieldWorkflow({
   const uninsured = data.insurance.uninsuredAcknowledged;
   const activeStage = !data.job.checked_in_at ? "before" : !data.job.completed_at ? "during" : "after";
   const ownerDelivery = data.ownership.completionMode === "owner_delivery";
+  const readinessIssues = data.readiness?.issues ?? [];
+  function goToIssue(target: string) {
+    const element = document.getElementById(target);
+    const details = element?.closest("details");
+    if (details) details.open = true;
+    window.setTimeout(() => element?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+  }
   const nextAction = data.submission.submitted
     ? ownerDelivery ? "Delivered to your client" : "Mission submitted"
     : data.submission.ready
@@ -180,9 +189,12 @@ export default function PilotFieldWorkflow({
         {!data.submission.submitted && data.submission.blockers.length > 0 && (
           <div style={{ marginTop: 12, padding: 12, borderRadius: 9, background: "rgba(245,158,11,.08)", border: `1px solid ${V.warn}` }}>
             <strong style={{ color: V.warn, fontSize: 12 }}>Still required before submission</strong>
-            <ul style={{ color: V.inkDim, fontSize: 12, lineHeight: 1.5, margin: "7px 0 0 18px" }}>
-              {data.submission.blockers.map((blocker) => <li key={blocker}>{blocker}</li>)}
-            </ul>
+            <div style={{ display: "grid", gap: 7, marginTop: 8 }}>
+              {data.submission.blockers.map((blocker) => {
+                const issue = readinessIssues.find((item) => item.message === blocker || blocker.includes(item.message) || item.message.includes(blocker));
+                return <div key={blocker} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, color: V.inkDim, fontSize: 12 }}><span>• {blocker}</span>{issue && <button type="button" onClick={() => goToIssue(issue.target)} style={{ border: 0, padding: 0, background: "transparent", color: V.signal, font: "inherit", fontWeight: 700, textDecoration: "underline", cursor: "pointer", whiteSpace: "nowrap" }}>{issue.action} →</button>}</div>;
+              })}
+            </div>
           </div>
         )}
 
@@ -223,7 +235,7 @@ export default function PilotFieldWorkflow({
                     {stageItems.filter((item) => item.phase === phase).map((item) => {
                       const resources = workflowResourcesFor(item.item_key);
                       return (
-                        <div key={item.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", padding: "8px 0", fontSize: 13, color: item.completed ? V.inkDim : V.ink, flexWrap: "wrap" }}>
+                        <div id={`workflow-item-${item.id}`} key={item.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", padding: "8px 0", fontSize: 13, color: item.completed ? V.inkDim : V.ink, flexWrap: "wrap" }}>
                           <label style={{ display: "flex", gap: 9, alignItems: "flex-start", flex: "1 1 320px", cursor: AUTOMATIC_ITEMS.has(item.item_key) ? "default" : "pointer" }}>
                             <input type="checkbox" checked={item.completed} disabled={!insuranceSatisfied || AUTOMATIC_ITEMS.has(item.item_key) || busyAction !== null} onChange={(event) => act({ action: "checklist", itemId: item.id, completed: event.target.checked }, item.id)} />
                             <span style={{ textDecoration: item.completed ? "line-through" : "none" }}>{item.label}{AUTOMATIC_ITEMS.has(item.item_key) && <small style={{ display: "block", color: V.inkFaint, textDecoration: "none" }}>Updates automatically</small>}</span>

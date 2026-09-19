@@ -1,0 +1,1 @@
+alter table contractors add column insurance_requested boolean not null default false;

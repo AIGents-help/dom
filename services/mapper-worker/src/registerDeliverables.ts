@@ -6,6 +6,10 @@ const TYPE_LABEL: Record<ExtractedOutput["type"], string> = {
   "3d_model": "3D Model",
   dsm: "Digital Surface Model (DSM)",
   dtm: "Digital Terrain Model (DTM)",
+  contours: "Contour Lines (GeoJSON)",
+  contours_shapefile: "Contour Lines (Shapefile)",
+  contours_kml: "Contour Lines (KML)",
+  contours_dxf: "Contour Lines (DXF)",
   point_cloud: "Point Cloud",
 };
 

@@ -13,7 +13,7 @@ import AdmZip from "adm-zip";
 // types the worker knows how to register are exactly the ones it locates.
 
 export interface ExtractedOutput {
-  type: "orthomosaic" | "3d_model" | "dsm" | "dtm" | "point_cloud";
+  type: "orthomosaic" | "3d_model" | "dsm" | "dtm" | "contours" | "point_cloud";
   localPath: string;
   filename: string;
 }
@@ -30,6 +30,7 @@ const OUTPUT_HINTS: { type: ExtractedOutput["type"]; dirHint: string; extensions
   { type: "3d_model", dirHint: "odm_texturing", extensions: [".glb", ".gltf", ".obj"] },
   { type: "dsm", dirHint: "odm_dem", extensions: [".tif", ".tiff"] }, // filtered further by "dsm" in filename below
   { type: "dtm", dirHint: "odm_dem", extensions: [".tif", ".tiff"] }, // filtered further by "dtm" in filename below
+  { type: "contours", dirHint: "odm_dem", extensions: [".shp", ".geojson", ".gpkg"] },
   { type: "point_cloud", dirHint: "odm_georeferencing", extensions: [".laz", ".las", ".ply"] },
 ];
 
@@ -67,6 +68,7 @@ export function locateOutputs(extractedDir: string): ExtractedOutput[] {
       if (!inHintDir || !hasExt) return false;
       if (hint.type === "dsm") return lower.includes("dsm");
       if (hint.type === "dtm") return lower.includes("dtm");
+      if (hint.type === "contours") return lower.includes("contour");
       return true;
     });
     if (candidates.length > 0) {

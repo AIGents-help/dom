@@ -44,3 +44,45 @@ revoke all on function public.create_shop_checkout_service(uuid,text,text,text,t
 revoke all on function public.complete_shop_order_service(text,text,text,text,text,text,integer,integer,integer,integer,integer,text,jsonb) from public,anon,authenticated;
 grant execute on function public.create_shop_checkout_service(uuid,text,text,text,text,text,integer,integer,integer) to service_role;
 grant execute on function public.complete_shop_order_service(text,text,text,text,text,text,integer,integer,integer,integer,integer,text,jsonb) to service_role;
+
+
+create or replace function public.release_shop_checkout_service(
+  p_session_id text
+) returns boolean
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+declare
+  v_order public.shop_orders%rowtype;
+  v_item public.shop_order_items%rowtype;
+begin
+  select * into v_order
+  from public.shop_orders
+  where stripe_checkout_session_id = p_session_id
+  for update;
+
+  if not found then return false; end if;
+  if v_order.payment_status <> 'pending' or v_order.status <> 'pending_payment' then return false; end if;
+
+  for v_item in select * from public.shop_order_items where order_id = v_order.id loop
+    update public.shop_inventory
+      set available_quantity = available_quantity + v_item.quantity,
+          updated_at = now()
+      where product_key = v_item.product_key
+        and fulfillment_mode = 'stocked';
+  end loop;
+
+  update public.shop_orders
+    set status = 'cancelled',
+        payment_status = 'failed',
+        cancelled_at = now(),
+        updated_at = now()
+    where id = v_order.id;
+
+  return true;
+end;
+$$;
+
+revoke all on function public.release_shop_checkout_service(text) from public, anon, authenticated;
+grant execute on function public.release_shop_checkout_service(text) to service_role;

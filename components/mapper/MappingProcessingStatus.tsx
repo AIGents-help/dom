@@ -24,6 +24,7 @@ export default function MappingProcessingStatus({
   const [queuing, setQueuing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProcessingProfileValue>("standard");
+  const [contourInterval, setContourInterval] = useState("0.5");
 
   const guard = canQueueProcessing(project);
 
@@ -33,7 +34,7 @@ export default function MappingProcessingStatus({
     const res = await fetch(`/api/pilot/mapping/projects/${project.id}/queue`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ profile }),
+      body: JSON.stringify({ profile, contour_interval_m: Number(contourInterval) }),
     });
     const body = await res.json().catch(() => ({}));
     setQueuing(false);
@@ -81,6 +82,23 @@ export default function MappingProcessingStatus({
           <p style={{ color: V.inkFaint, fontSize: 12, marginBottom: 12, maxWidth: 420 }}>
             {PROCESSING_PROFILES.find((p) => p.value === profile)?.description}
           </p>
+          {profile === "survey" && (
+            <div style={{ marginBottom: 12, maxWidth: 220 }}>
+              <label style={labelStyle} htmlFor="mapper-contour-interval">Contour interval</label>
+              <select
+                id="mapper-contour-interval"
+                value={contourInterval}
+                onChange={(e) => setContourInterval(e.target.value)}
+                style={inputStyle}
+              >
+                <option value="0.25">0.25 m</option>
+                <option value="0.5">0.5 m</option>
+                <option value="1">1 m</option>
+                <option value="2">2 m</option>
+                <option value="5">5 m</option>
+              </select>
+            </div>
+          )}
           <button onClick={queueProcessing} disabled={queuing} style={btnPrimary}>
             {queuing ? "Queuing…" : project.status === "failed" ? "Retry Processing" : "Queue Processing"}
           </button>

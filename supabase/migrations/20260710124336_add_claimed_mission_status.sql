@@ -1,0 +1,1 @@
+alter type mission_status add value 'claimed' before 'assigned';

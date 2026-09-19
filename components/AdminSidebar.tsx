@@ -21,6 +21,7 @@ const NAV = [
   { href: "/admin/missions?view=active", label: "Active Jobs", icon: "▣", child: true },
   { href: "/admin/missions?view=schedule", label: "Schedule", icon: "□", child: true },
   { href: "/admin/missions?view=deliverables", label: "Deliverables / QC", icon: "▱", child: true },
+  { href: "/admin/missions?view=pilot_owned", label: "Pilot-Owned", icon: "◎", child: true },
   { href: "/admin/missions?view=closed", label: "Completed", icon: "⌁", child: true },
   { href: "/admin/contractors", label: "Contractors", icon: "◎" },
   { href: "/admin/store", label: "Store", icon: "▦" },

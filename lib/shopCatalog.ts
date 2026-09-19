@@ -1,4 +1,3 @@
-import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export type ShopProduct = {

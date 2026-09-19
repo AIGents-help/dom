@@ -8,6 +8,7 @@ import Model3DViewer from "./Model3DViewer";
 import PointCloudViewer from "./PointCloudViewer";
 import MappingDeliverables from "./MappingDeliverables";
 import type { MappingDeliverable } from "./types";
+import type { DominicWorkbenchTool } from "./workbenchTypes";
 
 // Orchestrates the three output viewers (each structure-only this pass —
 // see their own files) plus the full deliverables list. Picks the most
@@ -19,10 +20,14 @@ export default function MappingResults({
   deliverables,
   accessToken,
   projectId,
+  workbenchTool = "select",
+  toolSet = "General",
 }: {
   deliverables: MappingDeliverable[];
   accessToken: string;
   projectId: string;
+  workbenchTool?: DominicWorkbenchTool;
+  toolSet?: string;
 }) {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -79,6 +84,8 @@ export default function MappingResults({
               projectId={projectId}
               deliverableId={orthomosaic.id}
               accessToken={accessToken}
+              workbenchTool={workbenchTool}
+              toolSet={toolSet}
             />
           )}
           {model3d && <Model3DViewer signedUrl={signedUrls[model3d.id] ?? null} name={model3d.name} />}

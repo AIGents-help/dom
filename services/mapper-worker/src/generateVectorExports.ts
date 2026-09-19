@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { basename, dirname, extname, join } from "node:path";
+import { basename, extname, join } from "node:path";
 import AdmZip from "adm-zip";
 import { env } from "./env";
 import type { ExtractedOutput } from "./extractOutputs";

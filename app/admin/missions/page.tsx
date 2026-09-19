@@ -8,11 +8,11 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 type Assignment = { id: string; status: string; assigned_uav: string | null; mission_insurance_verified: boolean; mission_checklist_items: Array<{ required: boolean; completed: boolean }> };
 type Deliverable = { id: string; qc_passed: boolean | null; delivered_at: string | null };
 type Job = { id: string; status: string; scheduled_for: string | null; delivery_responsibility: string | null; assignments: Assignment[]; deliverables: Deliverable[] };
-type Mission = { id: string; requester_name: string | null; company: string | null; service_type: string | null; location: string | null; status: string; quoted_amount_cents: number | null; created_at: string; jobs: Job[] };
+type Mission = { id: string; requester_name: string | null; company: string | null; service_type: string | null; location: string | null; status: string; quoted_amount_cents: number | null; created_at: string; created_by_contractor_id: string | null; created_by_pilot_name: string | null; requires_admin_approval: boolean; jobs: Job[] };
 
 const VIEWS = [
   ["all", "All missions"], ["requests", "Mission requests"], ["active", "Active jobs"],
-  ["schedule", "Schedule"], ["deliverables", "Deliverables / QC"], ["closed", "Completed"],
+  ["schedule", "Schedule"], ["deliverables", "Deliverables / QC"], ["pilot_owned", "Pilot-owned"], ["closed", "Completed"],
 ] as const;
 
 export default function AdminMissionsPage() {
@@ -31,7 +31,7 @@ function MissionList() {
     try {
       const { data } = await getSupabaseBrowser().auth.getSession();
       if (!data.session) throw new Error("Admin session expired. Sign in again.");
-      const response = await fetch("/api/admin/missions", { headers: { Authorization: `Bearer ${data.session.access_token}` } });
+      const response = await fetch("/api/admin/missions", { cache: "no-store", headers: { Authorization: `Bearer ${data.session.access_token}` } });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? "Missions could not be loaded.");
       setMissions(body.missions ?? []);
@@ -47,6 +47,7 @@ function MissionList() {
     if (view === "active") return !["requested", "reviewing", "scoped", "quoted", "delivered", "closed", "cancelled"].includes(mission.status);
     if (view === "schedule") return jobs.some((job) => !!job.scheduled_for) && !["delivered", "closed", "cancelled"].includes(mission.status);
     if (view === "deliverables") return jobs.some((job) => (job.deliverables ?? []).some((item) => !item.qc_passed && !item.delivered_at));
+    if (view === "pilot_owned") return !!mission.created_by_contractor_id;
     if (view === "closed") return ["delivered", "closed"].includes(mission.status);
     return true;
   }), [missions, view]);
@@ -68,8 +69,8 @@ function MissionCard({ mission }: { mission: Mission }) {
   const jobs = mission.jobs ?? [];
   const nextDate = jobs.map((job) => job.scheduled_for).filter(Boolean).sort()[0];
   const pendingQc = jobs.reduce((total, job) => total + (job.deliverables ?? []).filter((item) => !item.qc_passed && !item.delivered_at).length, 0);
-  const pilotOwned = jobs.some((job) => job.delivery_responsibility === "pilot");
+  const pilotOwned = !!mission.created_by_contractor_id || jobs.some((job) => job.delivery_responsibility === "pilot");
   return <Link href={`/admin/missions/${mission.id}`} className="card block p-5 text-inherit no-underline transition hover:border-[#f26a1b] hover:shadow-md">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-[#f26a1b]">{mission.status.replaceAll("_", " ")}{pilotOwned ? " · pilot-owned" : ""}</p><h2 className="mt-1 text-lg font-extrabold">{mission.company || mission.requester_name || "Unnamed mission"}</h2><p className="mt-1 text-sm text-slate-600">{(mission.service_type ?? "custom").replaceAll("_", " ")} · {mission.location || "Location not set"}</p></div><div className="text-right text-sm text-slate-600">{nextDate ? `Scheduled ${new Date(nextDate).toLocaleString()}` : "Not scheduled"}{pendingQc > 0 && <div className="mt-1 font-bold text-amber-700">{pendingQc} pending QC</div>}</div></div>
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-[#f26a1b]">{mission.status.replaceAll("_", " ")}{pilotOwned ? ` · pilot-owned${mission.created_by_pilot_name ? ` by ${mission.created_by_pilot_name}` : ""}` : ""}</p><h2 className="mt-1 text-lg font-extrabold">{mission.company || mission.requester_name || "Unnamed mission"}</h2><p className="mt-1 text-sm text-slate-600">{(mission.service_type ?? "custom").replaceAll("_", " ")} · {mission.location || "Location not set"}</p></div><div className="text-right text-sm text-slate-600">{nextDate ? `Scheduled ${new Date(nextDate).toLocaleString()}` : "Not scheduled"}{pendingQc > 0 && <div className="mt-1 font-bold text-amber-700">{pendingQc} pending QC</div>}</div></div>
   </Link>;
 }

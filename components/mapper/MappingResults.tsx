@@ -7,16 +7,18 @@ import OrthomosaicViewer from "./OrthomosaicViewer";
 import Model3DViewer from "./Model3DViewer";
 import PointCloudViewer from "./PointCloudViewer";
 import ElevationRasterViewer from "./ElevationRasterViewer";
+import ContourViewer from "./ContourViewer";
 import MappingDeliverables from "./MappingDeliverables";
 import type { MappingDeliverable } from "./types";
 import type { DominicWorkbenchTool } from "./workbenchTypes";
 
-type ViewerLayer = "orthomosaic" | "dsm" | "dtm" | "3d_model" | "point_cloud";
+type ViewerLayer = "orthomosaic" | "dsm" | "dtm" | "contours" | "3d_model" | "point_cloud";
 
 const LAYER_LABELS: Record<ViewerLayer, string> = {
   orthomosaic: "Orthomosaic",
   dsm: "DSM",
   dtm: "DTM",
+  contours: "Contours",
   "3d_model": "3D Model",
   point_cloud: "Point Cloud",
 };
@@ -43,7 +45,7 @@ export default function MappingResults({
   const deduped = useMemo(() => dedupeDeliverables(deliverables), [deliverables]);
   const byType = useMemo(() => new Map(deduped.filter((d) => d.type).map((d) => [d.type as string, d])), [deduped]);
   const availableLayers = useMemo(
-    () => (["orthomosaic", "dsm", "dtm", "3d_model", "point_cloud"] as ViewerLayer[]).filter((type) => byType.has(type)),
+    () => (["orthomosaic", "dsm", "dtm", "contours", "3d_model", "point_cloud"] as ViewerLayer[]).filter((type) => byType.has(type)),
     [byType]
   );
 
@@ -139,6 +141,7 @@ export default function MappingResults({
                 label={selectedLayer === "dsm" ? "DSM" : "DTM"}
               />
             ) : null}
+            {active && selectedLayer === "contours" ? <ContourViewer signedUrl={signedUrls[active.id] ?? null} name={active.name} /> : null}
             {active && selectedLayer === "3d_model" ? <Model3DViewer signedUrl={signedUrls[active.id] ?? null} name={active.name} /> : null}
             {active && selectedLayer === "point_cloud" ? (
               <PointCloudViewer

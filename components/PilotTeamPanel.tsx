@@ -6,6 +6,8 @@ import { V } from "@/lib/theme";
 
 interface TeamData {
   viewerRole: "owner" | "field_pilot";
+  ownerName: string | null;
+  ownerAssignment: null | { status: string; assignedUav: string | null };
   missionPriceCents: number | null;
   currentAssignment: null | {
     id: string;
@@ -87,26 +89,37 @@ export default function PilotTeamPanel({ assignmentId, onChanged }: { assignment
   const current = data.currentAssignment;
   return (
     <div style={panel}>
-      <div className="font-mono-ibm" style={{ color: V.signal, fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase" }}>Field Pilot</div>
-      <p style={{ color: V.inkDim, fontSize: 12, marginTop: 6 }}>You retain the client relationship and final approval. The invited pilot is responsible only for field execution and submission to you.</p>
+      <div className="font-mono-ibm" style={{ color: V.signal, fontSize: 11, letterSpacing: ".1em", textTransform: "uppercase" }}>Mission Staffing</div>
+      <div style={{ marginTop: 10, padding: 12, borderRadius: 9, border: `1px solid ${V.telemetry}`, background: "rgba(22,163,74,.08)" }}>
+        <strong style={{ color: V.telemetry, fontSize: 13 }}>✓ You are assigned as the owner-pilot</strong>
+        <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>
+          {data.ownerName ?? "Mission owner"} · {data.ownerAssignment?.status.replaceAll("_", " ") ?? "accepted"}
+          {data.ownerAssignment?.assignedUav ? ` · ${data.ownerAssignment.assignedUav}` : ""}
+        </p>
+        <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 5 }}>No additional pilot is required. Continue the mission workflow yourself, or optionally invite another pilot for field execution.</p>
+      </div>
       {current ? (
         <div style={{ marginTop: 12 }}>
+          <div style={{ color: V.inkDim, fontSize: 11, marginBottom: 6 }}>Additional field pilot</div>
           <strong>{current.pilot?.full_name ?? "Invited pilot"}</strong>
           <div style={{ color: V.inkDim, fontSize: 12, marginTop: 3 }}>{current.status.replace("_", " ")} · agreed field payout ${((current.payoutCents ?? 0) / 100).toFixed(2)}</div>
           {current.status === "submitted" && <button type="button" onClick={approve} disabled={busy} style={{ ...button, background: V.signal, color: V.ground, borderColor: V.signal, marginTop: 10 }}>{busy ? "Approving…" : "Approve & Deliver to Client"}</button>}
           {current.status !== "submitted" && <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 8 }}>Owner approval unlocks after the field pilot submits the completed mission.</p>}
         </div>
       ) : (
-        <div style={{ display: "grid", gap: 9, marginTop: 12 }}>
-          <select value={selectedPilot} onChange={(event) => setSelectedPilot(event.target.value)} style={{ padding: 9, borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink }}>
-            <option value="">Select an eligible pilot…</option>
-            {data.eligiblePilots.map((pilot) => <option key={pilot.id} value={pilot.id}>{pilot.fullName}{pilot.serviceArea ? ` · ${pilot.serviceArea}` : ""}{pilot.equipmentFit ? " · equipment match" : " · verify equipment"}</option>)}
-          </select>
-          <label style={{ color: V.inkDim, fontSize: 12 }}>Agreed field payout ($)<input inputMode="decimal" value={payoutDollars} onChange={(event) => setPayoutDollars(event.target.value)} placeholder="0.00" style={{ display: "block", width: "100%", padding: 9, marginTop: 4, borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink }} /></label>
-          <p style={{ color: V.inkFaint, fontSize: 11 }}>This records the agreement. Automated payment from the mission owner to the field pilot is not yet enabled.</p>
-          <button type="button" onClick={offer} disabled={busy || data.eligiblePilots.length === 0} style={{ ...button, justifySelf: "start" }}>{busy ? "Sending…" : "Offer Field Assignment"}</button>
-          {data.eligiblePilots.length === 0 && <p style={{ color: V.warn, fontSize: 11 }}>No other active pilots currently meet the verified Part 107 and insurance requirements.</p>}
-        </div>
+        <details style={{ marginTop: 12 }}>
+          <summary style={{ cursor: "pointer", color: V.ink, fontSize: 12, fontWeight: 700 }}>Add an additional field pilot (optional)</summary>
+          <p style={{ color: V.inkDim, fontSize: 12, marginTop: 7 }}>You retain the client relationship and final approval. An invited pilot handles only field execution and submits the work back to you.</p>
+          {data.eligiblePilots.length > 0 ? <div style={{ display: "grid", gap: 9, marginTop: 10 }}>
+            <select aria-label="Additional field pilot" value={selectedPilot} onChange={(event) => setSelectedPilot(event.target.value)} style={{ padding: 9, borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink }}>
+              <option value="">Select an eligible additional pilot…</option>
+              {data.eligiblePilots.map((pilot) => <option key={pilot.id} value={pilot.id}>{pilot.fullName}{pilot.serviceArea ? ` · ${pilot.serviceArea}` : ""}{pilot.equipmentFit ? " · equipment match" : " · verify equipment"}</option>)}
+            </select>
+            <label style={{ color: V.inkDim, fontSize: 12 }}>Agreed field payout ($)<input inputMode="decimal" value={payoutDollars} onChange={(event) => setPayoutDollars(event.target.value)} placeholder="0.00" style={{ display: "block", width: "100%", padding: 9, marginTop: 4, borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink }} /></label>
+            <p style={{ color: V.inkFaint, fontSize: 11 }}>This records the agreement. Automated payment from the mission owner to the field pilot is not yet enabled.</p>
+            <button type="button" onClick={offer} disabled={busy} style={{ ...button, justifySelf: "start" }}>{busy ? "Sending…" : "Offer Field Assignment"}</button>
+          </div> : <p style={{ color: V.inkDim, fontSize: 11, marginTop: 8 }}>No additional verified pilots are available right now. You remain assigned and can continue this mission yourself.</p>}
+        </details>
       )}
       {error && <p role="alert" style={{ color: V.danger, fontSize: 12, marginTop: 9 }}>{error}</p>}
       {notice && <p role="status" style={{ color: V.telemetry, fontSize: 12, marginTop: 9 }}>{notice}</p>}

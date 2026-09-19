@@ -17,7 +17,7 @@ async function context(req: NextRequest, assignmentId: string) {
   const { data: contractor } = await admin.from("contractors").select("id,full_name").eq("user_id", user.id).maybeSingle();
   if (!contractor) return null;
   const { data: assignment } = await admin.from("mission_assignments")
-    .select("id,job_id,contractor_id,assignment_role,status,mission_price_cents,contractor_payout_cents,job:jobs(id,title,service_type,location,delivery_responsibility,mission_request:mission_requests(id,created_by_contractor_id))")
+    .select("id,job_id,contractor_id,assignment_role,status,assigned_uav,mission_price_cents,contractor_payout_cents,job:jobs(id,title,service_type,location,delivery_responsibility,mission_request:mission_requests(id,created_by_contractor_id))")
     .eq("id", assignmentId).eq("contractor_id", contractor.id).maybeSingle();
   if (!assignment) return null;
   const job = Array.isArray(assignment.job) ? assignment.job[0] : assignment.job;
@@ -55,6 +55,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
   return NextResponse.json({
     viewerRole: owner ? "owner" : "field_pilot",
     ownerName: owner ? ctx.contractor.full_name : null,
+    ownerAssignment: owner ? {
+      status: ctx.assignment.status,
+      assignedUav: ctx.assignment.assigned_uav,
+    } : null,
     missionTitle: ctx.job.title,
     missionPriceCents: ctx.assignment.mission_price_cents,
     currentAssignment: current ? {

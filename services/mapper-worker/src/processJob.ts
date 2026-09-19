@@ -17,6 +17,7 @@ import { getProjectDriveContext } from "./projectContext";
 import { convertPointCloud } from "./convertPointCloud";
 import { uploadPotreeOctree } from "./uploadPotree";
 import { buildCogOrthomosaic } from "./buildCogOrthomosaic";
+import { generateContours } from "./generateContours";
 import type { ExtractedOutput } from "./extractOutputs";
 
 const POLL_ODM_INTERVAL_MS = 5000;
@@ -94,8 +95,11 @@ export async function processJob(job: ProcessingJob): Promise<void> {
 
     // 3. Uploading to Processor — submit to NodeODM.
     await updateProgress(job.id, project.id, 20, "Uploading to Processor");
-    const options = Array.isArray(job.options) ? (job.options as { name: string; value: unknown }[]) : [];
-    const taskUuid = await initTask(project.name, options);
+    const allOptions = Array.isArray(job.options) ? (job.options as { name: string; value: unknown }[]) : [];
+    const contourSetting = allOptions.find((option) => option.name === "__dom_contour_interval_m");
+    const contourIntervalM = typeof contourSetting?.value === "number" ? contourSetting.value : 0.5;
+    const odmOptions = allOptions.filter((option) => !option.name.startsWith("__dom_"));
+    const taskUuid = await initTask(project.name, odmOptions);
     await uploadImagesToTask(taskUuid, localImagePaths);
     await commitTask(taskUuid);
     await logEvent(project.id, "nodeodm_task_submitted", `NodeODM task ${taskUuid} submitted (${images.length} images).`, { taskUuid });
@@ -138,6 +142,28 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     await downloadAllOutputs(taskUuid, zipPath);
     extractAllZip(zipPath, workspace.outputDir);
     const outputs = locateOutputs(workspace.outputDir);
+
+    // DOMINIC elevation derivative: when a Survey run produced DTM or DSM,
+    // generate a GeoJSON contour layer locally with GDAL. Prefer bare-earth
+    // DTM; fall back to DSM when DTM is unavailable.
+    if (!outputs.some((output) => output.type === "contours")) {
+      const elevationSource = outputs.find((output) => output.type === "dtm") ?? outputs.find((output) => output.type === "dsm");
+      if (elevationSource) {
+        try {
+          const contourPath = join(workspace.outputDir, "dominic_contours.geojson");
+          const contours = await generateContours(elevationSource.localPath, contourPath, contourIntervalM);
+          if (contours) {
+            outputs.push(contours);
+            await logEvent(project.id, "contours_generated", `Generated contours at ${contourIntervalM} m interval from ${elevationSource.type.toUpperCase()}.`, {
+              contourIntervalM,
+              sourceType: elevationSource.type,
+            });
+          }
+        } catch (contourErr) {
+          console.error(`[processJob] Job ${job.id}: contour generation skipped:`, contourErr instanceof Error ? contourErr.message : contourErr);
+        }
+      }
+    }
     if (outputs.length === 0) {
       throw new Error("NodeODM finished but no recognizable output files were found in all.zip.");
     }

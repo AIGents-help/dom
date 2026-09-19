@@ -6,9 +6,15 @@ const clean = (value: unknown, max: number) => String(value ?? "").trim().slice(
 const cents = (value: unknown) => Number(value);
 
 export async function GET(req: NextRequest) {
-  if (!(await isAdminRequest(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const { data, error } = await getSupabaseAdmin().from("shop_inventory").select("*").order("sort_order").order("product_name");
-  return error ? NextResponse.json({ error: error.message }, { status: 500 }) : NextResponse.json({ products: data ?? [] });
+  const admin = await isAdminRequest(req);
+  let query = getSupabaseAdmin().from("shop_inventory").select("*").order("sort_order").order("product_name");
+  if (!admin) query = query.eq("active", true);
+  const { data, error } = await query;
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(
+    { products: data ?? [], access: admin ? "admin" : "catalog" },
+    { headers: { "Cache-Control": "no-store, max-age=0" } },
+  );
 }
 
 export async function POST(req: NextRequest) {

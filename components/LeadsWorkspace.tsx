@@ -59,6 +59,8 @@ export default function LeadsWorkspace() {
 
   const [loading, setLoading] = useState(true);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [serverTotal, setServerTotal] = useState(0);
+  const [loadedAt, setLoadedAt] = useState<string | null>(null);
   const [notes, setNotes] = useState<NoteRow[]>([]);
   const [eventsByProspect, setEventsByProspect] = useState<Record<string, OutreachEvent[]>>({});
   const [contacts, setContacts] = useState<LeadContact[]>([]);
@@ -142,7 +144,10 @@ export default function LeadsWorkspace() {
       return;
     }
 
-    setLeads((body.leads as Lead[]) ?? []);
+    const loadedLeads = (body.leads as Lead[]) ?? [];
+    setLeads(loadedLeads);
+    setServerTotal(Number(body.meta?.totalLeadCount ?? loadedLeads.length));
+    setLoadedAt(typeof body.meta?.loadedAt === "string" ? body.meta.loadedAt : new Date().toISOString());
     setNotes((body.notes as NoteRow[]) ?? []);
     setContacts((body.contacts as LeadContact[]) ?? []);
     setLocations((body.locations as LeadLocation[]) ?? []);
@@ -702,6 +707,18 @@ export default function LeadsWorkspace() {
   if (loading) return <p className="text-muted">Loading CRM files…</p>;
 
   const anyFilterActive = !!(filterStatus || filterIndustry || filterEngagement || filterOwnership || search || filterOpportunityType || filterDjiOnly);
+  const anythingHidden = filtered.length < leads.length || activeView !== "all";
+
+  function showAllCrmFiles() {
+    setActiveView("all");
+    setSearch("");
+    setFilterStatus("");
+    setFilterIndustry("");
+    setFilterEngagement("");
+    setFilterOwnership("");
+    setFilterOpportunityType("");
+    setFilterDjiOnly(false);
+  }
 
   // Deliberately not built on `inputCls` (which is `w-full`) — the filter
   // bar needs compact, independently-sized controls on one row, and mixing
@@ -720,7 +737,7 @@ export default function LeadsWorkspace() {
       <Section
         title="CRM Files"
         desc="Prospects and clients share one continuous customer record. Open a file to manage details, documents, contact history, and next actions."
-        action={<div className="flex items-center gap-2"><span className="text-xs text-muted">{leads.length} files loaded</span><ActionBtn onClick={() => void load()}>Refresh</ActionBtn><ActionBtn onClick={() => setShowAddLead((s) => !s)}>{showAddLead ? "Cancel" : "+ Add CRM File"}</ActionBtn></div>}
+        action={<div className="flex flex-wrap items-center justify-end gap-2"><span className="text-xs text-muted">{serverTotal || leads.length} total · {filtered.length} shown{loadedAt ? ` · refreshed ${new Date(loadedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}</span>{anythingHidden && <ActionBtn onClick={showAllCrmFiles}>Show all {serverTotal || leads.length}</ActionBtn>}<ActionBtn onClick={() => void load()}>Refresh</ActionBtn><ActionBtn onClick={() => setShowAddLead((s) => !s)}>{showAddLead ? "Cancel" : "+ Add CRM File"}</ActionBtn></div>}
       >
         <SummaryStrip contexts={contexts} today={today} activeView={activeView} onSelectView={setActiveView} />
 

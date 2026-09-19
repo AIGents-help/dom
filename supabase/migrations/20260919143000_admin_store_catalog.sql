@@ -24,7 +24,17 @@ update public.shop_inventory set
     when 'barrier-1' then 6900 when 'barrier-3' then 17900 when 'barrier-4' then 22900
     when 'barrier-6' then 31900 when 'barrier-12' then 59900 when 'barrier-24' then 109900
     else unit_amount_cents end,
-  variants = case when product_key = 'drone-operation-safety-vest' then array['S','M','L','XL']::text[] else variants end;
+  variants = case when product_key = 'drone-operation-safety-vest' then array['S','M','L','XL']::text[] else variants end,
+  image_url = case product_key
+    when 'drone-operation-safety-vest' then '/shop/safety/drone-operation-vest-front.jpeg'
+    when 'portable-landing-pad' then '/shop/safety/portable-landing-pad.jpeg'
+    else image_url end,
+  fulfillment_mode = case
+    when product_key in ('drone-operation-safety-vest','portable-landing-pad','barrier-1','barrier-3','barrier-4','barrier-6','barrier-12','barrier-24') then 'stocked'
+    else fulfillment_mode end,
+  available_quantity = case
+    when product_key in ('drone-operation-safety-vest','portable-landing-pad','barrier-1','barrier-3','barrier-4','barrier-6','barrier-12','barrier-24') then coalesce(available_quantity, 0)
+    else available_quantity end;
 
 create index if not exists shop_inventory_catalog_sort_idx
   on public.shop_inventory(active desc, sort_order, product_name);

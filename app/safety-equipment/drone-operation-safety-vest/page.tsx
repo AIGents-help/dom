@@ -1,13 +1,19 @@
 import Image from "next/image";
 import Link from "next/link";
 import QuantityBuyButton from "@/components/shop/QuantityBuyButton";
+import { formatProductPrice, getShopProduct } from "@/lib/shopCatalog";
 
-export default function DroneOperationSafetyVestPage() {
+export default async function DroneOperationSafetyVestPage() {
+  const product = await getShopProduct("drone-operation-safety-vest");
+  const name = product?.product_name ?? "Drone Operation Safety Vest";
+  const description = product?.description ?? "Identify the pilot and visual observer while improving crew visibility around an active drone operation. The orange vest includes reflective striping, a DOM mark on the front, and clear DRONE OPERATION lettering on the back.";
+  const unitPrice = (product?.unit_amount_cents ?? 1500) / 100;
+  const variants = product?.variants?.length ? product.variants : ["S", "M", "L", "XL"];
   return (
     <div className="min-h-screen bg-[#0b1118] text-white">
       <div className="container-app py-6 text-sm text-slate-400">
         <Link href="/safety-equipment" className="hover:text-[#f26a1b]">Safety Equipment</Link>
-        <span className="mx-2">/</span>Drone Operation Safety Vest
+        <span className="mx-2">/</span>{name}
       </div>
 
       <section className="container-app grid gap-10 pb-16 pt-4 lg:grid-cols-[1.08fr_.92fr] lg:items-center">
@@ -23,15 +29,15 @@ export default function DroneOperationSafetyVestPage() {
         <div>
           <span className="inline-flex rounded-full bg-[#f26a1b] px-3 py-1 text-xs font-black tracking-wider text-white">CREW SAFETY</span>
           <p className="mt-5 text-sm font-bold uppercase tracking-[.18em] text-[#f26a1b]">DOM Safety Equipment</p>
-          <h1 className="mt-2 text-4xl font-extrabold leading-tight md:text-5xl">Drone Operation Safety Vest</h1>
-          <div className="mt-4 text-5xl font-black text-[#f26a1b]">$15 <span className="text-xl text-slate-300">each</span></div>
-          <p className="mt-6 text-lg leading-8 text-slate-300">Identify the pilot and visual observer while improving crew visibility around an active drone operation. The orange vest includes reflective striping, a DOM mark on the front, and clear DRONE OPERATION lettering on the back.</p>
+          <h1 className="mt-2 text-4xl font-extrabold leading-tight md:text-5xl">{name}</h1>
+          <div className="mt-4 text-5xl font-black text-[#f26a1b]">{formatProductPrice(product?.unit_amount_cents ?? 1500)} <span className="text-xl text-slate-300">each</span></div>
+          <p className="mt-6 text-lg leading-8 text-slate-300">{description}</p>
           <div className="mt-7 grid gap-3 sm:grid-cols-2">
             {["Sizes S, M, L, and XL", "High-visibility orange", "Reflective front and back striping", "Front pockets and zipper closure"].map((item) => (
               <div key={item} className="rounded-xl border border-white/10 bg-[#111923] p-4 text-sm font-semibold text-slate-200"><span className="mr-2 text-[#f26a1b]">✓</span>{item}</div>
             ))}
           </div>
-          <QuantityBuyButton productKey="drone-operation-safety-vest" unitPrice={15} options={["S", "M", "L", "XL"]} />
+          <QuantityBuyButton productKey="drone-operation-safety-vest" unitPrice={unitPrice} options={variants} />
           <p className="mt-3 text-xs leading-5 text-slate-500">Choose one size per checkout line. For mixed-size orders, place separate orders or contact DOM.</p>
         </div>
       </section>

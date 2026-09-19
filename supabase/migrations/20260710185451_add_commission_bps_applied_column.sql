@@ -1,0 +1,1 @@
+alter table mission_assignments add column commission_bps_applied integer;

@@ -132,6 +132,7 @@ export default function LeadsWorkspace() {
     }
 
     const response = await fetch("/api/admin/leads/workspace", {
+      cache: "no-store",
       headers: { Authorization: `Bearer ${sessionData.session.access_token}` },
     });
     const body = await response.json().catch(() => ({}));
@@ -178,6 +179,17 @@ export default function LeadsWorkspace() {
       }
     })();
   }, [router, load]);
+
+  useEffect(() => {
+    const refresh = () => { void load(); };
+    const onVisibility = () => { if (document.visibilityState === "visible") refresh(); };
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [load]);
 
   // Deep-link support: a note or dashboard stat card can send us here with
   // ?lead=<id> and we'll open that lead's drawer once leads have loaded.
@@ -708,7 +720,7 @@ export default function LeadsWorkspace() {
       <Section
         title="CRM Files"
         desc="Prospects and clients share one continuous customer record. Open a file to manage details, documents, contact history, and next actions."
-        action={<ActionBtn onClick={() => setShowAddLead((s) => !s)}>{showAddLead ? "Cancel" : "+ Add CRM File"}</ActionBtn>}
+        action={<div className="flex items-center gap-2"><span className="text-xs text-muted">{leads.length} files loaded</span><ActionBtn onClick={() => void load()}>Refresh</ActionBtn><ActionBtn onClick={() => setShowAddLead((s) => !s)}>{showAddLead ? "Cancel" : "+ Add CRM File"}</ActionBtn></div>}
       >
         <SummaryStrip contexts={contexts} today={today} activeView={activeView} onSelectView={setActiveView} />
 

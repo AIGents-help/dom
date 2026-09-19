@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { Download, FileArchive, FileCode2, FileDown, Layers3 } from "lucide-react";
 import { deliverableHasFile } from "@/lib/mapperPipeline";
-import { V, panelStyle, btnGhost } from "./theme";
+import { V, panelStyle } from "./theme";
 import type { MappingDeliverable } from "./types";
 
 const EXPORTS = [

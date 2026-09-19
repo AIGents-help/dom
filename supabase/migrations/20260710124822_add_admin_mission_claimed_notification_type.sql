@@ -1,0 +1,1 @@
+alter type email_notification_type add value 'admin_mission_claimed';

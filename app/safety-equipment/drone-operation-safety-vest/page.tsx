@@ -3,6 +3,8 @@ import Link from "next/link";
 import QuantityBuyButton from "@/components/shop/QuantityBuyButton";
 import { formatProductPrice, getShopProduct } from "@/lib/shopCatalog";
 
+export const dynamic = "force-dynamic";
+
 export default async function DroneOperationSafetyVestPage() {
   const product = await getShopProduct("drone-operation-safety-vest");
   const name = product?.product_name ?? "Drone Operation Safety Vest";

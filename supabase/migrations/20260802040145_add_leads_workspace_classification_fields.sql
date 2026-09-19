@@ -26,6 +26,18 @@ create table if not exists public.leads (
   updated_at timestamptz not null default now()
 );
 
+
+create table if not exists public.clients (
+  id uuid primary key default gen_random_uuid(),
+  company_name text,
+  contact_name text,
+  email text,
+  phone text,
+  industry text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- Additive, non-destructive migration for the DOM Leads workspace refactor.
 -- Adds classification/opportunity/Smartlead-readiness fields to `leads` only.
 -- Does NOT touch vertical, tier, source, external_prospect_id, status, existing

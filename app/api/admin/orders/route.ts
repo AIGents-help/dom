@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     admin.from("shop_inventory").select("*").order("product_name"),
   ]);
   if (orderError || inventoryError) return NextResponse.json({ error: orderError?.message ?? inventoryError?.message }, { status: 500 });
-  return NextResponse.json({ orders: orders ?? [], inventory: inventory ?? [] });
+  return NextResponse.json({ orders: orders ?? [], inventory: inventory ?? [] }, { headers: { "Cache-Control": "no-store, max-age=0" } });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -38,6 +38,21 @@ export async function PATCH(req: NextRequest) {
   const orderId = String(body.orderId ?? "");
   const { data: order, error: loadError } = await admin.from("shop_orders").select("*").eq("id", orderId).maybeSingle();
   if (loadError || !order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+
+  if (action === "cancel") {
+    if (order.payment_status !== "pending" || order.status !== "pending_payment") {
+      return NextResponse.json({ error: "Only unpaid pending checkouts can be cancelled directly. Paid orders must be refunded." }, { status: 409 });
+    }
+    const { data: released, error } = await admin.rpc("release_shop_checkout_service", { p_session_id: order.stripe_checkout_session_id });
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, released: !!released });
+  }
+
+  if (action === "notes") {
+    const notes = String(body.notes ?? "").trim().slice(0, 5000);
+    const { error } = await admin.from("shop_orders").update({ admin_notes: notes || null, updated_at: new Date().toISOString() }).eq("id", orderId);
+    return error ? NextResponse.json({ error: error.message }, { status: 500 }) : NextResponse.json({ success: true });
+  }
 
   if (action === "processing" || action === "delivered") {
     const allowed = action === "processing" ? ["new", "inventory_hold"] : ["shipped"];

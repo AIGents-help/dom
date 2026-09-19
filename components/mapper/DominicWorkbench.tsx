@@ -54,6 +54,7 @@ export default function DominicWorkbench({
   const [activeTool, setActiveTool] = useState<DominicWorkbenchTool>("select");
   const [toolSet, setToolSet] = useState("General");
   const [layersOpen, setLayersOpen] = useState(true);
+  const [requestedLayer, setRequestedLayer] = useState<string | null>(null);
 
   const available = useMemo(() => {
     const types = new Set(deliverables.map((d) => d.type).filter(Boolean));
@@ -106,7 +107,7 @@ export default function DominicWorkbench({
               {["General", "Roof", "Solar", "Construction", "Infrastructure", "Property", "Thermal"].map((set) => <option key={set}>{set}</option>)}
             </select>
           </div>
-          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} />
+          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} requestedLayer={requestedLayer} />
         </main>
 
         <aside style={{ borderLeft: `1px solid ${V.line}`, background: "#0B1016", padding: 12 }}>
@@ -123,13 +124,34 @@ export default function DominicWorkbench({
           {layersOpen ? (
             <div style={{ display: "grid", gap: 5, marginTop: 10 }}>
               {available.map((layer) => (
-                <div key={layer.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "7px 8px", borderRadius: 8, background: layer.ready ? "#121922" : "transparent", color: layer.ready ? V.ink : V.inkFaint, fontSize: 11 }}>
+                <button
+                  key={layer.label}
+                  disabled={!layer.ready || layer.label === "Contours"}
+                  onClick={() => {
+                    const layerType = layer.types.find((type) => deliverables.some((d) => d.type === type));
+                    if (layerType) setRequestedLayer(layerType);
+                  }}
+                  style={{
+                    border: requestedLayer && layer.types.includes(requestedLayer) ? `1px solid ${V.signal}` : "1px solid transparent",
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    padding: "7px 8px",
+                    borderRadius: 8,
+                    background: layer.ready ? "#121922" : "transparent",
+                    color: layer.ready ? V.ink : V.inkFaint,
+                    fontSize: 11,
+                    cursor: layer.ready && layer.label !== "Contours" ? "pointer" : "default",
+                  }}
+                >
                   <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
                     {layer.label === "3D Model" ? <Box size={13} /> : <Map size={13} />}
                     {layer.label}
                   </span>
-                  <span style={{ fontSize: 9, color: layer.ready ? V.telemetry : V.inkFaint }}>{layer.ready ? "READY" : "—"}</span>
-                </div>
+                  <span style={{ fontSize: 9, color: layer.ready ? V.telemetry : V.inkFaint }}>{layer.ready ? (layer.label === "Contours" ? "EXPORT" : "READY") : "—"}</span>
+                </button>
               ))}
             </div>
           ) : null}

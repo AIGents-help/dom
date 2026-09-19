@@ -133,7 +133,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
     ...requiredIncomplete.map((item) => ({
       message: item.label,
       action: "Open checklist item",
-      target: `workflow-${["planning", "preflight"].includes(item.phase) ? "before" : ["onsite", "flight"].includes(item.phase) ? "during" : "after"}`,
+      target: `workflow-item-${item.id}`,
     })),
   ];
   const submissionBlockers = [

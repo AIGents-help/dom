@@ -24,6 +24,7 @@ const NAV = [
   { href: "/admin/dashboard#notes", label: "Notes", icon: "≡", child: true },
   { href: "/admin/dashboard#status", label: "Status Tracking", icon: "⌁", child: true },
   { href: "/admin/contractors", label: "Contractors", icon: "◎" },
+  { href: "/admin/orders", label: "Shop Orders", icon: "▦" },
 ];
 
 const NOTIFICATION_NAV = [

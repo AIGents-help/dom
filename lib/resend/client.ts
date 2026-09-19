@@ -45,7 +45,11 @@ export type EmailType =
   | "admin_mission_claimed"
   | "unverified_pilot_welcome"
   | "verification_deadline_reminder"
-  | "verification_deadline_final";
+  | "verification_deadline_final"
+  | "shop_order_confirmation"
+  | "shop_order_shipped"
+  | "shop_order_refunded"
+  | "admin_shop_order";
 
 // Matches the live notification_recipient_type enum.
 export type RecipientType = "customer" | "pilot" | "admin";

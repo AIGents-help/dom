@@ -56,6 +56,52 @@ interface TemplateResult {
   html: string;
 }
 
+export function shopOrderConfirmation(params: {
+  customerName: string;
+  orderNumber: string;
+  itemSummary: string;
+  totalCents: number;
+}): TemplateResult {
+  return {
+    subject: `Order Confirmed — ${params.orderNumber}`,
+    html: shell("We received your equipment order", `
+      <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.customerName)}, your payment was received and your order is in the fulfillment queue.</p>
+      ${infoTable(infoRow("Order", params.orderNumber) + infoRow("Items", params.itemSummary) + infoRow("Total", formatCents(params.totalCents)))}
+      <p style="color:#444; line-height:1.5;">We will email tracking details when the order ships.</p>
+    `),
+  };
+}
+
+export function adminShopOrder(params: { orderNumber: string; itemSummary: string; totalCents: number; adminUrl: string }): TemplateResult {
+  return {
+    subject: `New Shop Order — ${params.orderNumber}`,
+    html: shell("A paid shop order is ready", `
+      ${infoTable(infoRow("Order", params.orderNumber) + infoRow("Items", params.itemSummary) + infoRow("Total", formatCents(params.totalCents)))}
+      ${button("Open Fulfillment Queue", params.adminUrl)}
+    `),
+  };
+}
+
+export function shopOrderShipped(params: { customerName: string; orderNumber: string; carrier: string; trackingNumber: string; trackingUrl?: string }): TemplateResult {
+  return {
+    subject: `Order Shipped — ${params.orderNumber}`,
+    html: shell("Your order is on the way", `
+      <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.customerName)}, ${escapeHtml(params.orderNumber)} has shipped.</p>
+      ${infoTable(infoRow("Carrier", params.carrier) + infoRow("Tracking", params.trackingNumber))}
+      ${params.trackingUrl ? button("Track Shipment", params.trackingUrl) : ""}
+    `),
+  };
+}
+
+export function shopOrderRefunded(params: { customerName: string; orderNumber: string; totalCents: number }): TemplateResult {
+  return {
+    subject: `Order Refunded — ${params.orderNumber}`,
+    html: shell("Your order was refunded", `
+      <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.customerName)}, ${formatCents(params.totalCents)} was refunded for ${escapeHtml(params.orderNumber)}. Your bank controls when the credit appears.</p>
+    `),
+  };
+}
+
 // ---- Implemented and wired (or ready to wire) ----
 
 export function bookingConfirmation(params: {

@@ -17,10 +17,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
   }
 
   const admin = getSupabaseAdmin();
-  const { data: contractor } = await admin.from("contractors").select("id").eq("user_id", user.id).maybeSingle();
+  const { data: contractor } = await admin.from("contractors").select("id,full_name").eq("user_id", user.id).maybeSingle();
   if (!contractor) return NextResponse.json({ error: "Pilot profile not found" }, { status: 404 });
   const { data: assignment } = await admin.from("mission_assignments")
-    .select("assignment_role,job:jobs(delivery_responsibility)").eq("id", assignmentId).eq("contractor_id", contractor.id).maybeSingle();
+    .select("assignment_role,job_id,job:jobs(id,mission_request_id,delivery_responsibility)").eq("id", assignmentId).eq("contractor_id", contractor.id).maybeSingle();
   if (!assignment) return NextResponse.json({ error: "Mission assignment not found" }, { status: 404 });
   const job = Array.isArray(assignment.job) ? assignment.job[0] : assignment.job;
   const isTeamFieldAssignment = assignment.assignment_role === "field" && job?.delivery_responsibility === "pilot";
@@ -41,12 +41,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
   }
 
   if (isTeamFieldAssignment) {
+    const cleanReason = typeof reason === "string" ? reason.trim().slice(0, 500) : "";
     const { error } = await admin.rpc("pilot_respond_team_assignment", {
       p_assignment_id: assignmentId,
       p_actor_user_id: user.id,
       p_action: action,
     });
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    if (action === "decline" && cleanReason) {
+      await admin.from("mission_assignments").update({ decline_reason: cleanReason }).eq("id", assignmentId).eq("contractor_id", contractor.id);
+    }
+    if (job?.id && job?.mission_request_id) {
+      await admin.from("mission_activity_events").insert({
+        mission_request_id: job.mission_request_id,
+        job_id: job.id,
+        assignment_id: assignmentId,
+        actor_user_id: user.id,
+        actor_role: "field_pilot",
+        visibility: "shared",
+        event_type: action === "accept" ? "team_assignment_accepted" : "team_assignment_declined",
+        summary: action === "accept" ? "Field pilot accepted the pilot-owner assignment" : "Field pilot declined the pilot-owner assignment",
+        details: action === "decline" ? { reason: cleanReason || null, pilot_name: contractor.full_name ?? null } : { pilot_name: contractor.full_name ?? null },
+      });
+    }
     return NextResponse.json({ ok: true });
   }
 

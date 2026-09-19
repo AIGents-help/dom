@@ -26,6 +26,7 @@ const DRIVE_OUTPUT_FOLDER: Record<ExtractedOutput["type"], keyof DriveFolderTree
   "3d_model": "model_3d",
   dsm: "elevation",
   dtm: "elevation",
+  contours: "elevation",
   point_cloud: "point_cloud",
 };
 

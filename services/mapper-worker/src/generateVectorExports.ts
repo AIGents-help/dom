@@ -19,7 +19,7 @@ export async function generateVectorExports(
   mkdirSync(outputDir, { recursive: true });
 
   const kmlPath = join(outputDir, "dominic_contours.kml");
-  if (await runOgr(["-f", "KML", kmlPath, sourcePath, "-t_srs", "EPSG:4326"])) {
+  if (await runOgr(["-f", "KML", "-t_srs", "EPSG:4326", kmlPath, sourcePath])) {
     if (existsSync(kmlPath)) generated.push({ type: "contours_kml", localPath: kmlPath, filename: basename(kmlPath) });
   }
 

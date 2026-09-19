@@ -9,6 +9,7 @@ import PointCloudViewer from "./PointCloudViewer";
 import ElevationRasterViewer from "./ElevationRasterViewer";
 import ContourViewer from "./ContourViewer";
 import DominicExportPanel from "./DominicExportPanel";
+import DominicDeliverySummary from "./DominicDeliverySummary";
 import MappingDeliverables from "./MappingDeliverables";
 import type { MappingDeliverable } from "./types";
 import type { DominicWorkbenchTool } from "./workbenchTypes";
@@ -160,6 +161,7 @@ export default function MappingResults({
 
       {previewError && <p style={{ color: V.danger, fontSize: 12, marginBottom: 20 }}>{previewError}</p>}
 
+      <DominicDeliverySummary deliverables={deduped} />
       <DominicExportPanel deliverables={deduped} accessToken={accessToken} projectId={projectId} />
 
       <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".08em", color: V.inkFaint, textTransform: "uppercase", marginBottom: 10, marginTop: availableLayers.length > 0 ? 0 : 8 }}>

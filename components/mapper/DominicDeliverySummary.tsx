@@ -57,7 +57,7 @@ function Stat({ value, label }: { value: number; label: string }) {
     <div style={{ minWidth: 72, border: `1px solid ${V.line}`, borderRadius: 9, padding: "7px 9px", background: "#0B1117" }}>
       <div style={{ color: V.ink, fontSize: 16, fontWeight: 850 }}>{value}</div>
       <div className="font-mono-ibm" style={{ color: V.inkFaint, fontSize: 8, textTransform: "uppercase", letterSpacing: ".06em" }}>{label}</div>
-    </button>
+    </div>
   );
 }
 
@@ -70,6 +70,6 @@ function Roadmap({ icon: Icon, title, copy, live = false, onClick }: { icon: typ
       </div>
       <div style={{ color: V.ink, fontSize: 12, fontWeight: 800, marginTop: 8 }}>{title}</div>
       <div style={{ color: V.inkFaint, fontSize: 10, lineHeight: 1.45, marginTop: 4 }}>{copy}</div>
-    </div>
+    </button>
   );
 }

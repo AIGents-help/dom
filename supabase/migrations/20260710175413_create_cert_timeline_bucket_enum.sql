@@ -1,0 +1,1 @@
+create type cert_timeline_bucket as enum ('has_test_date', 'within_30_days', 'within_60_days', 'within_90_days', 'exploring');

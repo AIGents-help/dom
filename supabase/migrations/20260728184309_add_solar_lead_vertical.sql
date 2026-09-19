@@ -1,0 +1,1 @@
+alter type lead_vertical add value if not exists 'solar';

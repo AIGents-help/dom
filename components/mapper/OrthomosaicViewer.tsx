@@ -7,6 +7,7 @@ import {
   MEASUREMENT_TYPES, computeMeasurementValue, formatMeasurementValue, isValidMeasurementGeometry,
   type MeasurementType, type MeasurementCrs, type LngLat,
 } from "@/lib/measurementPipeline";
+import type { DominicMarkup, DominicMarkupType, DominicWorkbenchTool } from "./workbenchTypes";
 
 interface Measurement {
   id: string;
@@ -56,12 +57,16 @@ export default function OrthomosaicViewer({
   projectId,
   deliverableId,
   accessToken,
+  workbenchTool = "select",
+  toolSet = "General",
 }: {
   signedUrl: string | null;
   name: string;
   projectId?: string;
   deliverableId?: string;
   accessToken?: string;
+  workbenchTool?: DominicWorkbenchTool;
+  toolSet?: string;
 }) {
   const [state, setState] = useState<ViewerState>("loading");
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +88,13 @@ export default function OrthomosaicViewer({
   const [savingMeasurement, setSavingMeasurement] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [markupMode, setMarkupMode] = useState<DominicMarkupType | null>(null);
+  const [markupPoints, setMarkupPoints] = useState<{ x: number; y: number }[]>([]);
+  const [markupLabel, setMarkupLabel] = useState("");
+  const [markups, setMarkups] = useState<DominicMarkup[]>([]);
+  const [savingMarkup, setSavingMarkup] = useState(false);
+  const [markupError, setMarkupError] = useState<string | null>(null);
+  const [showMarkups, setShowMarkups] = useState(true);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
@@ -217,6 +229,41 @@ export default function OrthomosaicViewer({
     reloadMeasurements();
   }, [reloadMeasurements]);
 
+  const reloadMarkups = useCallback(async () => {
+    if (!measurementsEnabled || !deliverableId) return;
+    const res = await fetch(`/api/pilot/mapping/projects/${projectId}/markups?deliverable_id=${encodeURIComponent(deliverableId)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.ok) setMarkups(body.markups ?? []);
+  }, [measurementsEnabled, projectId, deliverableId, accessToken]);
+
+  useEffect(() => {
+    reloadMarkups();
+  }, [reloadMarkups]);
+
+  useEffect(() => {
+    setMarkupError(null);
+    if (workbenchTool === "distance" || workbenchTool === "area") {
+      setMarkupMode(null);
+      setMarkupPoints([]);
+      startDraw(workbenchTool);
+      return;
+    }
+    if (workbenchTool === "note" || workbenchTool === "callout" || workbenchTool === "pin" || workbenchTool === "cloud" || workbenchTool === "shape") {
+      setDrawMode(null);
+      setDrawingPoints([]);
+      setMarkupMode(workbenchTool);
+      setMarkupPoints([]);
+      setMarkupLabel("");
+      return;
+    }
+    setDrawMode(null);
+    setDrawingPoints([]);
+    setMarkupMode(null);
+    setMarkupPoints([]);
+  }, [workbenchTool]);
+
   function startDraw(type: MeasurementType) {
     setDrawMode(type);
     setDrawingPoints([]);
@@ -227,6 +274,48 @@ export default function OrthomosaicViewer({
   function cancelDraw() {
     setDrawMode(null);
     setDrawingPoints([]);
+  }
+
+  function cancelMarkup() {
+    setMarkupMode(null);
+    setMarkupPoints([]);
+    setMarkupLabel("");
+    setMarkupError(null);
+  }
+
+  const pointMarkup = markupMode === "note" || markupMode === "callout" || markupMode === "pin";
+  const canSaveMarkup = !!markupMode && (pointMarkup ? markupPoints.length === 1 : markupPoints.length >= 3);
+
+  async function saveMarkup() {
+    if (!markupMode || !canSaveMarkup || !measurementsEnabled || !deliverableId) return;
+    setSavingMarkup(true);
+    setMarkupError(null);
+    const geometry = pointMarkup
+      ? { type: "Point" as const, coordinates: pixelToGeo(markupPoints[0].x, markupPoints[0].y) }
+      : { type: "Polygon" as const, coordinates: markupPoints.map((point) => pixelToGeo(point.x, point.y)) };
+    const res = await fetch(`/api/pilot/mapping/projects/${projectId}/markups`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ markup_type: markupMode, label: markupLabel, geometry, tool_set: toolSet, deliverable_id: deliverableId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setSavingMarkup(false);
+    if (!res.ok) {
+      setMarkupError(body.error ?? "Could not save this markup.");
+      return;
+    }
+    setMarkupPoints([]);
+    setMarkupLabel("");
+    await reloadMarkups();
+  }
+
+  async function deleteMarkup(id: string) {
+    if (!measurementsEnabled) return;
+    const res = await fetch(`/api/pilot/mapping/projects/${projectId}/markups/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (res.ok) await reloadMarkups();
   }
 
   const drawGeometry = drawMode
@@ -313,12 +402,19 @@ export default function OrthomosaicViewer({
   function onMouseUp(e: React.MouseEvent) {
     const wasClick = dragRef.current && !dragRef.current.moved;
     dragRef.current = null;
-    if (!wasClick || !drawMode || !canvasRef.current) return;
+    if (!wasClick || (!drawMode && !markupMode) || !canvasRef.current) return;
     const rect = canvasRef.current.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
     const px = ((e.clientX - rect.left) / rect.width) * naturalSize.width;
     const py = ((e.clientY - rect.top) / rect.height) * naturalSize.height;
-    setDrawingPoints((pts) => [...pts, { x: px, y: py }]);
+    if (drawMode) {
+      setDrawingPoints((pts) => [...pts, { x: px, y: py }]);
+      return;
+    }
+    if (markupMode) {
+      if (markupMode === "note" || markupMode === "callout" || markupMode === "pin") setMarkupPoints([{ x: px, y: py }]);
+      else setMarkupPoints((pts) => [...pts, { x: px, y: py }]);
+    }
   }
 
   function endDrag() {
@@ -326,6 +422,7 @@ export default function OrthomosaicViewer({
   }
 
   const canDraw = measurementsEnabled && !!bbox && state === "ready";
+  const drawingActive = !!drawMode || !!markupMode;
   const canvasTransform = `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) scale(${baseScale * zoom})`;
 
   return (
@@ -348,6 +445,11 @@ export default function OrthomosaicViewer({
               {measurements.length > 0 && (
                 <button onClick={() => setShowMeasurements((s) => !s)} style={{ ...btnGhost, padding: "5px 10px", fontSize: 11 }}>
                   {showMeasurements ? "Hide Measurements" : "Show Measurements"}
+                </button>
+              )}
+              {markups.length > 0 && (
+                <button onClick={() => setShowMarkups((s) => !s)} style={{ ...btnGhost, padding: "5px 10px", fontSize: 11 }}>
+                  {showMarkups ? "Hide Markups" : "Show Markups"}
                 </button>
               )}
             </>
@@ -379,12 +481,36 @@ export default function OrthomosaicViewer({
       )}
       {measurementError && <p style={{ color: V.danger, fontSize: 12, padding: "6px 14px" }}>{measurementError}</p>}
 
+      {markupMode && (
+        <div style={{ padding: "8px 14px", borderBottom: `1px solid ${V.line}`, background: "#0B1117", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, color: V.inkDim }}>
+            {pointMarkup ? `Click the map to place a ${markupMode}.` : `Click the map to outline this ${markupMode}. Add at least 3 points.`}
+          </span>
+          {canSaveMarkup && (
+            <input
+              value={markupLabel}
+              onChange={(e) => setMarkupLabel(e.target.value)}
+              placeholder={markupMode === "pin" ? "Issue / finding" : "Note (optional)"}
+              style={{ ...inputStyle, width: 210, padding: "5px 8px", fontSize: 12 }}
+            />
+          )}
+          {canSaveMarkup && (
+            <button onClick={saveMarkup} disabled={savingMarkup} style={{ ...btnPrimary, padding: "5px 12px", fontSize: 12 }}>
+              {savingMarkup ? "Saving…" : "Save Markup"}
+            </button>
+          )}
+          <button onClick={() => { setMarkupPoints([]); setMarkupLabel(""); }} style={{ ...btnGhost, padding: "5px 12px", fontSize: 12 }}>Clear</button>
+          <button onClick={cancelMarkup} style={{ ...btnGhost, padding: "5px 12px", fontSize: 12 }}>Cancel</button>
+        </div>
+      )}
+      {markupError && <p style={{ color: V.danger, fontSize: 12, padding: "6px 14px" }}>{markupError}</p>}
+
       <div
         ref={viewportRef}
         onWheel={onWheel}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
-        onMouseUp={drawMode ? onMouseUp : endDrag}
+        onMouseUp={drawingActive ? onMouseUp : endDrag}
         onMouseLeave={endDrag}
         style={{
           position: "relative",
@@ -392,7 +518,7 @@ export default function OrthomosaicViewer({
           height: fullscreen ? "calc(100% - 45px)" : undefined,
           background: V.ground,
           overflow: "hidden",
-          cursor: drawMode ? "crosshair" : state === "ready" ? (dragRef.current ? "grabbing" : "grab") : "default",
+          cursor: drawingActive ? "crosshair" : state === "ready" ? (dragRef.current ? "grabbing" : "grab") : "default",
         }}
       >
         {!signedUrl && (
@@ -448,9 +574,46 @@ export default function OrthomosaicViewer({
               ))}
             {drawMode &&
               drawingPoints.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={4 / (baseScale * zoom)} fill={V.telemetry} />)}
+            {showMarkups && markups.map((markup) => {
+              if (markup.geometry.type === "Point") {
+                const point = geoToPixel(markup.geometry.coordinates);
+                return (
+                  <g key={markup.id}>
+                    <circle cx={point.x} cy={point.y} r={9 / (baseScale * zoom)} fill={markup.markup_type === "pin" ? V.danger : V.signal} stroke="#fff" strokeWidth={2 / (baseScale * zoom)} />
+                    {markup.label ? <text x={point.x + 12 / (baseScale * zoom)} y={point.y - 9 / (baseScale * zoom)} fontSize={12 / (baseScale * zoom)} fill="#fff" stroke="#000" strokeWidth={2 / (baseScale * zoom)} paintOrder="stroke">{markup.label}</text> : null}
+                  </g>
+                );
+              }
+              const points = markup.geometry.coordinates.map(geoToPixel);
+              return <polygon key={markup.id} points={points.map((p) => `${p.x},${p.y}`).join(" ")} fill="rgba(244,90,30,.15)" stroke={V.signal} strokeWidth={3 / (baseScale * zoom)} strokeDasharray={markup.markup_type === "cloud" ? `${8 / (baseScale * zoom)} ${5 / (baseScale * zoom)}` : undefined} />;
+            })}
+            {markupMode && markupPoints.length > 0 && (
+              pointMarkup ? (
+                <circle cx={markupPoints[0].x} cy={markupPoints[0].y} r={9 / (baseScale * zoom)} fill={V.telemetry} stroke="#fff" strokeWidth={2 / (baseScale * zoom)} />
+              ) : (
+                <polygon points={markupPoints.map((p) => `${p.x},${p.y}`).join(" ")} fill="rgba(47,182,109,.15)" stroke={V.telemetry} strokeWidth={3 / (baseScale * zoom)} strokeDasharray={`${7 / (baseScale * zoom)} ${5 / (baseScale * zoom)}`} />
+              )
+            )}
           </svg>
         )}
       </div>
+
+      {measurementsEnabled && markups.length > 0 && (
+        <div style={{ padding: "10px 14px", borderTop: `1px solid ${V.line}` }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+            <div className="font-mono-ibm" style={{ fontSize: 10, color: V.inkFaint, textTransform: "uppercase", letterSpacing: ".06em" }}>DOMINIC Markups</div>
+            <button onClick={() => setShowMarkups((show) => !show)} style={{ ...btnGhost, padding: "3px 8px", fontSize: 10 }}>{showMarkups ? "Hide" : "Show"}</button>
+          </div>
+          <div style={{ display: "grid", gap: 6 }}>
+            {markups.map((markup) => (
+              <div key={markup.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12 }}>
+                <span style={{ color: V.ink }}><strong style={{ textTransform: "capitalize" }}>{markup.markup_type}</strong>{markup.label ? ` · ${markup.label}` : ""} <span style={{ color: V.inkFaint }}>({markup.tool_set})</span></span>
+                <button onClick={() => deleteMarkup(markup.id)} style={{ ...btnGhost, padding: "3px 8px", fontSize: 10, color: V.danger, borderColor: V.danger }}>Delete</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {measurementsEnabled && measurements.length > 0 && (
         <div style={{ padding: "10px 14px", borderTop: `1px solid ${V.line}` }}>

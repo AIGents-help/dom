@@ -3,6 +3,8 @@ import Image from "next/image";
 import BarrierProductVisual from "@/components/shop/BarrierProductVisual";
 import { formatProductPrice, getActiveShopProducts } from "@/lib/shopCatalog";
 
+export const dynamic = "force-dynamic";
+
 const products = [
   { count: 1 as const, name: "Single Barrier", price: "$69", href: "/safety-equipment/single-barrier", badge: "START HERE" },
   { count: 3 as const, name: "3-Post Field Kit", price: "$179", href: "/safety-equipment/3-post-field-kit", badge: "FIELD KIT" },

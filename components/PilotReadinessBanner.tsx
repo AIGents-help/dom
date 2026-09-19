@@ -47,7 +47,13 @@ export default function PilotReadinessBanner({ assignmentId, onGoToProfile }: { 
     const element = document.getElementById(target);
     const details = element?.closest("details");
     if (details) details.open = true;
-    window.setTimeout(() => element?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+    window.setTimeout(() => {
+      element?.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (element) {
+        element.setAttribute("data-readiness-target", "active");
+        window.setTimeout(() => element.removeAttribute("data-readiness-target"), 2200);
+      }
+    }, 0);
   }
 
   return (
@@ -61,6 +67,7 @@ export default function PilotReadinessBanner({ assignmentId, onGoToProfile }: { 
         background: `${color}12`,
       }}
     >
+      <style>{`[data-readiness-target="active"] { outline: 3px solid ${V.signal} !important; outline-offset: 4px; transition: outline-color .2s ease; }`}</style>
       <strong style={{ color, fontSize: 15 }}>
         {data.level === "go"
           ? "✓ GO — Mission Ready"

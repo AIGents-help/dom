@@ -54,6 +54,8 @@ interface MissionRequest {
   claimed_by_contractor_id: string | null;
   client_id: string | null;
   client_profile_sync_enabled: boolean;
+  created_by_contractor_id: string | null;
+  requires_admin_approval: boolean;
   created_at: string;
 }
 
@@ -151,6 +153,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [loading, setLoading] = useState(true);
   const [mission, setMission] = useState<MissionRequest | null>(null);
   const [requestedPilotName, setRequestedPilotName] = useState<string | null>(null);
+  const [createdPilotName, setCreatedPilotName] = useState<string | null>(null);
   const [quote, setQuote] = useState<Quote | null>(null);
   const [job, setJob] = useState<Job | null>(null);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -294,6 +297,12 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       setRequestedPilotName(rc?.full_name ?? null);
     } else {
       setRequestedPilotName(null);
+    }
+    if (mr?.created_by_contractor_id) {
+      const { data: owner } = await sb.from("contractors").select("full_name").eq("id", mr.created_by_contractor_id).maybeSingle();
+      setCreatedPilotName(owner?.full_name ?? "Pilot");
+    } else {
+      setCreatedPilotName(null);
     }
 
     const { data: q } = await sb
@@ -630,7 +639,8 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const previouslyOfferedContractorSet = new Set(previouslyOfferedContractorIds);
   const availableContractors = contractors.filter((contractor) => !previouslyOfferedContractorSet.has(contractor.id));
   const hasActiveAssignment = assignments.some((assignment) => !["declined", "cancelled"].includes(assignment.status));
-  const canOfferPilot = !job || (job.status === "scheduled" && !hasActiveAssignment);
+  const isPilotOwnedMission = !!mission?.created_by_contractor_id;
+  const canOfferPilot = !isPilotOwnedMission && (!job || (job.status === "scheduled" && !hasActiveAssignment));
 
   if (!authed) return null;
 
@@ -673,6 +683,14 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                 {mission.status.replace("_", " ")}
               </span>
             </div>
+            {isPilotOwnedMission && (
+              <div style={{ marginTop: 12, padding: 12, borderRadius: 10, border: `1px solid ${V.signal}`, background: "rgba(244,90,30,.08)" }}>
+                <div style={{ color: V.signal, fontSize: 12, fontWeight: 700 }}>PILOT-OWNED · SELF-ASSIGNED</div>
+                <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>
+                  Created by {createdPilotName ?? "the pilot"}. This mission does not require Admin staffing or approval; DOM retains oversight of safety, insurance, exceptions, and platform records.
+                </p>
+              </div>
+            )}
             <div style={{marginTop:10,fontSize:11,fontWeight:700,color:mission.client_id?(mission.client_profile_sync_enabled?V.telemetry:V.warn):V.inkFaint}}>{mission.client_id?(mission.client_profile_sync_enabled?"✓ Using current client profile":"⚠ Mission-specific client override"):"Historical requester snapshot · no linked client"}</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 1, background: V.lineSoft, borderRadius: 10, overflow: "hidden", marginTop: 16 }}>
               <Readout k="Requester" v={mission.requester_email ?? "—"} />
@@ -924,9 +942,10 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                 {(["admin", "pilot"] as const).map((v) => (
                   <button
                     key={v}
-                    onClick={() => setDeliveryResponsibility(v)}
+                    onClick={() => { if (!isPilotOwnedMission) void setDeliveryResponsibility(v); }}
+                    disabled={isPilotOwnedMission}
                     style={{
-                      fontFamily: "Saira, sans-serif", fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 8, cursor: "pointer",
+                      fontFamily: "Saira, sans-serif", fontSize: 12, fontWeight: 600, padding: "5px 12px", borderRadius: 8, cursor: isPilotOwnedMission ? "default" : "pointer",
                       border: `1px solid ${job.delivery_responsibility === v ? V.signal : V.line}`,
                       background: job.delivery_responsibility === v ? "rgba(244,90,30,.12)" : "transparent",
                       color: job.delivery_responsibility === v ? V.signal : V.inkFaint,
@@ -935,7 +954,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                     {v === "admin" ? "Admin" : "Pilot"}
                   </button>
                 ))}
-                <span style={{ color: V.inkFaint, fontSize: 11 }}>— both can always view/upload; this is just who's expected to finalize delivery.</span>
+                <span style={{ color: V.inkFaint, fontSize: 11 }}>{isPilotOwnedMission ? "— pilot-owned missions remain pilot-finalized; Admin oversees exceptions rather than reassigning ownership." : "— both can always view/upload; this is just who's expected to finalize delivery."}</span>
               </div>
               <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
                 {assignments.map((a) => {

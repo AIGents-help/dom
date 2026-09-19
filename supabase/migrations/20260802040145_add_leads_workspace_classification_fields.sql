@@ -1,3 +1,30 @@
+-- The original production database predates this repository's migration
+-- history, so a fresh disposable Supabase stack does not yet have the legacy
+-- leads table/type. Bootstrap that legacy surface only when it is absent;
+-- production is unchanged because these statements are idempotent.
+do $$
+begin
+  if not exists (select 1 from pg_type where typnamespace = 'public'::regnamespace and typname = 'lead_status') then
+    create type public.lead_status as enum ('cold', 'contacted', 'qualified', 'quoted', 'scheduled', 'customer', 'lost');
+  end if;
+end $$;
+
+create table if not exists public.leads (
+  id uuid primary key default gen_random_uuid(),
+  name text,
+  company text,
+  email text,
+  phone text,
+  vertical text,
+  tier text,
+  source text,
+  external_prospect_id text,
+  status public.lead_status not null default 'cold',
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- Additive, non-destructive migration for the DOM Leads workspace refactor.
 -- Adds classification/opportunity/Smartlead-readiness fields to `leads` only.
 -- Does NOT touch vertical, tier, source, external_prospect_id, status, existing

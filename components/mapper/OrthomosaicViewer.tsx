@@ -59,7 +59,6 @@ export default function OrthomosaicViewer({
   accessToken,
   workbenchTool = "select",
   toolSet = "General",
-  viewerLabel = "Orthomosaic",
   allowMeasurements = true,
 }: {
   signedUrl: string | null;
@@ -69,7 +68,6 @@ export default function OrthomosaicViewer({
   accessToken?: string;
   workbenchTool?: DominicWorkbenchTool;
   toolSet?: string;
-  viewerLabel?: string;
   allowMeasurements?: boolean;
 }) {
   const [state, setState] = useState<ViewerState>("loading");

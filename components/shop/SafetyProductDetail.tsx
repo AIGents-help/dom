@@ -35,7 +35,7 @@ export default async function SafetyProductDetail({ count, name, price, productK
         <div>
           <span className="inline-flex rounded-full bg-[#f26a1b] px-3 py-1 text-xs font-black tracking-wider text-white">{badge}</span>
           <p className="mt-5 text-sm font-bold uppercase tracking-[.18em] text-[#f26a1b]">DOM Safety Equipment</p>
-          <h1 className="mt-2 text-4xl font-extrabold leading-tight md:text-5xl">{name}</h1>
+          <h1 className="mt-2 text-4xl font-extrabold leading-tight md:text-5xl">{displayName}</h1>
           <div className="mt-4 text-5xl font-black text-[#f26a1b]">{displayPrice}</div>
           <p className="mt-6 text-lg leading-8 text-slate-300">{displayDescription}</p>
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import BarrierProductVisual from "@/components/shop/BarrierProductVisual";
+import { formatProductPrice, getActiveShopProducts } from "@/lib/shopCatalog";
 
 const products = [
   { count: 1 as const, name: "Single Barrier", price: "$69", href: "/safety-equipment/single-barrier", badge: "START HERE" },
@@ -11,7 +12,11 @@ const products = [
   { count: 24 as const, name: "24-Post Corporate Kit", price: "$1,099", href: "/safety-equipment/24-post-corporate-kit", badge: "CORPORATE" },
 ];
 
-export default function SafetyEquipmentPage() {
+export default async function SafetyEquipmentPage() {
+  const liveProducts = await getActiveShopProducts();
+  const liveByKey = new Map(liveProducts.map((product) => [product.product_key, product]));
+  const vest = liveByKey.get("drone-operation-safety-vest");
+  const pad = liveByKey.get("portable-landing-pad");
   return (
     <div className="bg-[#0b1118] text-white">
       <section className="border-b border-white/10">
@@ -48,10 +53,10 @@ export default function SafetyEquipmentPage() {
             </div>
             <div className="p-6">
               <div className="flex items-start justify-between gap-4">
-                <h3 className="text-xl font-extrabold">Drone Operation Safety Vest</h3>
-                <span className="whitespace-nowrap text-2xl font-extrabold text-[#f26a1b]">$15 each</span>
+                <h3 className="text-xl font-extrabold">{vest?.product_name ?? "Drone Operation Safety Vest"}</h3>
+                <span className="whitespace-nowrap text-2xl font-extrabold text-[#f26a1b]">{vest ? `${formatProductPrice(vest.unit_amount_cents)} each` : "$15 each"}</span>
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-400">Orange high-visibility vest with reflective striping, DOM mark, and DRONE OPERATION printed across the back. Sizes S–XL.</p>
+              <p className="mt-3 text-sm leading-6 text-slate-400">{vest?.description ?? "Orange high-visibility vest with reflective striping, DOM mark, and DRONE OPERATION printed across the back. Sizes S–XL."}</p>
               <div className="mt-5 font-bold text-[#f26a1b]">Choose size →</div>
             </div>
           </Link>
@@ -62,14 +67,14 @@ export default function SafetyEquipmentPage() {
             </div>
             <div className="p-6">
               <div className="flex items-start justify-between gap-4">
-                <h3 className="text-xl font-extrabold">Portable Drone Landing Pad</h3>
-                <span className="whitespace-nowrap text-2xl font-extrabold text-[#f26a1b]">$15 each</span>
+                <h3 className="text-xl font-extrabold">{pad?.product_name ?? "Portable Drone Landing Pad"}</h3>
+                <span className="whitespace-nowrap text-2xl font-extrabold text-[#f26a1b]">{pad ? `${formatProductPrice(pad.unit_amount_cents)} each` : "$15 each"}</span>
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-400">High-visibility, foldable landing surface for cleaner, more clearly designated takeoffs and landings.</p>
+              <p className="mt-3 text-sm leading-6 text-slate-400">{pad?.description ?? "High-visibility, foldable landing surface for cleaner, more clearly designated takeoffs and landings."}</p>
               <div className="mt-5 font-bold text-[#f26a1b]">View product →</div>
             </div>
           </Link>
-          {products.map((product) => (
+          {products.map((product) => { const live = liveByKey.get(`barrier-${product.count}`); return (
             <Link key={product.count} href={product.href} className="group overflow-hidden rounded-2xl border border-white/10 bg-[#111923] transition hover:-translate-y-1 hover:border-[#f26a1b] hover:shadow-2xl">
               <div className="relative bg-white p-3">
                 <BarrierProductVisual count={product.count} className="aspect-[9/6] w-full" label={`Exactly ${product.count} Drone Operation barrier ${product.count === 1 ? "post" : "posts"}`} />
@@ -77,14 +82,14 @@ export default function SafetyEquipmentPage() {
               </div>
               <div className="p-6">
                 <div className="flex items-start justify-between gap-4">
-                  <h3 className="text-xl font-extrabold">{product.name}</h3>
-                  <span className="text-2xl font-extrabold text-[#f26a1b]">{product.price}</span>
+                  <h3 className="text-xl font-extrabold">{live?.product_name ?? product.name}</h3>
+                  <span className="text-2xl font-extrabold text-[#f26a1b]">{live ? formatProductPrice(live.unit_amount_cents) : product.price}</span>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-slate-400">Exactly {product.count} retractable {product.count === 1 ? "post" : "posts"}. Black or high-visibility orange finish with 6 ft orange webbing per unit.</p>
+                <p className="mt-3 text-sm leading-6 text-slate-400">{live?.description ?? `Exactly ${product.count} retractable ${product.count === 1 ? "post" : "posts"}. Black or high-visibility orange finish with 6 ft orange webbing per unit.`}</p>
                 <div className="mt-5 font-bold text-[#f26a1b]">View product →</div>
               </div>
             </Link>
-          ))}
+          );})}
         </div>
       </section>
 

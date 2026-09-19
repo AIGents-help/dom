@@ -321,7 +321,6 @@ export const PROCESSING_PROFILES = [
       { name: "orthophoto-resolution", value: 1 },
       { name: "dsm", value: true },
       { name: "dtm", value: true },
-      { name: "dem-euclidean-map", value: true },
     ],
   },
 ] as const satisfies readonly { value: string; label: string; description: string; options: OdmOption[] }[];

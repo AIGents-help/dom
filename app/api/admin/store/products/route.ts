@@ -28,7 +28,9 @@ export async function POST(req: NextRequest) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(productKey) || !productName || !Number.isInteger(unitAmount) || unitAmount < 0) {
     return NextResponse.json({ error: "Product key, name, and a valid price are required." }, { status: 400 });
   }
-  const availableQuantity = quantity(body.availableQuantity);\n  if (body.fulfillmentMode === "stocked" && (!Number.isInteger(availableQuantity) || availableQuantity < 0)) return NextResponse.json({ error: "Available quantity must be a whole number of 0 or more." }, { status: 400 });\n  const variants = Array.isArray(body.variants) ? body.variants.map((item) => clean(item, 40)).filter(Boolean).slice(0, 30) : [];
+  const availableQuantity = quantity(body.availableQuantity);
+  if (body.fulfillmentMode === "stocked" && (!Number.isInteger(availableQuantity) || availableQuantity < 0)) return NextResponse.json({ error: "Available quantity must be a whole number of 0 or more." }, { status: 400 });
+  const variants = Array.isArray(body.variants) ? body.variants.map((item) => clean(item, 40)).filter(Boolean).slice(0, 30) : [];
   const { data: saved, error } = await getSupabaseAdmin().from("shop_inventory").insert({
     product_key: productKey, product_name: productName, description: clean(body.description, 2000),
     unit_amount_cents: unitAmount, variants, category: clean(body.category, 80) || "Equipment",
@@ -48,7 +50,9 @@ export async function PATCH(req: NextRequest) {
   const productName = clean(body?.productName, 160);
   const unitAmount = cents(body?.unitAmountCents);
   if (!productKey || !productName || !Number.isInteger(unitAmount) || unitAmount < 0) return NextResponse.json({ error: "Name and a valid price are required." }, { status: 400 });
-  const availableQuantity = quantity(body?.availableQuantity);\n  if (body?.fulfillmentMode === "stocked" && (!Number.isInteger(availableQuantity) || availableQuantity < 0)) return NextResponse.json({ error: "Available quantity must be a whole number of 0 or more." }, { status: 400 });\n  const variants = Array.isArray(body?.variants) ? body.variants.map((item) => clean(item, 40)).filter(Boolean).slice(0, 30) : [];
+  const availableQuantity = quantity(body?.availableQuantity);
+  if (body?.fulfillmentMode === "stocked" && (!Number.isInteger(availableQuantity) || availableQuantity < 0)) return NextResponse.json({ error: "Available quantity must be a whole number of 0 or more." }, { status: 400 });
+  const variants = Array.isArray(body?.variants) ? body.variants.map((item) => clean(item, 40)).filter(Boolean).slice(0, 30) : [];
   const stocked = body?.fulfillmentMode === "stocked";
   const { data: saved, error } = await getSupabaseAdmin().from("shop_inventory").update({
     product_name: productName, description: clean(body?.description, 2000), unit_amount_cents: unitAmount,

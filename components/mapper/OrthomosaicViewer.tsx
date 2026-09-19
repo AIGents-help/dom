@@ -38,7 +38,7 @@ function isGeographicBbox(bbox: [number, number, number, number]): boolean {
 // long side) is decoded once into a canvas; pan/zoom/fit-to-extent then
 // operate on that canvas via CSS transform -- fast and simple, and correct
 // for any orthomosaic size since the decode step itself is bounded. If the
-// worker's COG tiling step (buildCog{viewerLabel}.ts) has run, geotiff.js
+// worker's COG tiling step (buildCogOrthomosaic.ts) has run, geotiff.js
 // automatically benefits from the file's overviews/tiling for that decode;
 // if not, the original GeoTIFF is still read and displayed correctly, just
 // with a slower first decode on a very large source file. The original
@@ -82,7 +82,7 @@ export default function OrthomosaicViewer({
   const [bbox, setBbox] = useState<[number, number, number, number] | null>(null);
   const [crs, setCrs] = useState<MeasurementCrs>("geographic");
 
-  const measurementsEnabled = !!(projectId && deliverableId && accessToken);
+  const measurementsEnabled = allowMeasurements && !!projectId && !!deliverableId && !!accessToken;
   const [drawMode, setDrawMode] = useState<MeasurementType | null>(null);
   const [drawingPoints, setDrawingPoints] = useState<{ x: number; y: number }[]>([]); // image pixel space
   const [pendingLabel, setPendingLabel] = useState("");

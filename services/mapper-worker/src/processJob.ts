@@ -19,6 +19,7 @@ import { uploadPotreeOctree } from "./uploadPotree";
 import { buildCogOrthomosaic } from "./buildCogOrthomosaic";
 import { generateContours } from "./generateContours";
 import { generateVectorExports } from "./generateVectorExports";
+import { dominicDeliverableFilename } from "./deliverableBranding";
 import type { ExtractedOutput } from "./extractOutputs";
 
 const POLL_ODM_INTERVAL_MS = 5000;
@@ -220,13 +221,22 @@ export async function processJob(job: ProcessingJob): Promise<void> {
           }
         }
 
+        // Client-facing files carry DOMINIC identity in the filename. We do
+        // not burn a watermark into GeoTIFF/vector/point-cloud source data:
+        // altering professional geospatial pixels/geometry would compromise
+        // the deliverable. Visual reports/previews carry the visible brand.
+        const brandedOutput = {
+          ...uploadOutput_,
+          filename: dominicDeliverableFilename(project.name, uploadOutput_),
+        };
+
         let location: DeliverableLocation;
         if (driveEnabled && driveFolders) {
           const folderId = driveFolders[DRIVE_OUTPUT_FOLDER[output.type]];
-          const externalFileId = await uploadFile(uploadOutput_.localPath, uploadOutput_.filename, folderId);
+          const externalFileId = await uploadFile(brandedOutput.localPath, brandedOutput.filename, folderId);
           location = { provider: "google_drive", externalFileId };
         } else {
-          const storagePath = await uploadOutput(project.job_id, uploadOutput_);
+          const storagePath = await uploadOutput(project.job_id, brandedOutput);
           location = { provider: "supabase", storagePath };
         }
 

@@ -58,5 +58,6 @@ export async function fulfillShopCheckout(session: Stripe.Checkout.Session): Pro
 export async function markShopCheckoutFailed(session: Stripe.Checkout.Session): Promise<void> {
   if (session.metadata?.order_type !== "dom_safety_equipment") return;
   const admin = getSupabaseAdmin();
-  await admin.from("shop_orders").update({ payment_status: "failed", updated_at: new Date().toISOString() }).eq("stripe_checkout_session_id", session.id).eq("payment_status", "pending");
+  const { error } = await admin.rpc("release_shop_checkout_service", { p_session_id: session.id });
+  if (error) throw new Error(`Unable to release shop checkout: ${error.message}`);
 }

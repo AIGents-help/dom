@@ -18,6 +18,7 @@ import { convertPointCloud } from "./convertPointCloud";
 import { uploadPotreeOctree } from "./uploadPotree";
 import { buildCogOrthomosaic } from "./buildCogOrthomosaic";
 import { generateContours } from "./generateContours";
+import { generateVectorExports } from "./generateVectorExports";
 import type { ExtractedOutput } from "./extractOutputs";
 
 const POLL_ODM_INTERVAL_MS = 5000;
@@ -28,6 +29,9 @@ const DRIVE_OUTPUT_FOLDER: Record<ExtractedOutput["type"], keyof DriveFolderTree
   dsm: "elevation",
   dtm: "elevation",
   contours: "elevation",
+  contours_shapefile: "elevation",
+  contours_kml: "elevation",
+  contours_dxf: "elevation",
   point_cloud: "point_cloud",
 };
 
@@ -162,6 +166,24 @@ export async function processJob(job: ProcessingJob): Promise<void> {
         } catch (contourErr) {
           console.error(`[processJob] Job ${job.id}: contour generation skipped:`, contourErr instanceof Error ? contourErr.message : contourErr);
         }
+      }
+    }
+
+    const contourSource = outputs.find((output) => output.type === "contours");
+    if (contourSource) {
+      try {
+        const vectorDir = join(workspace.outputDir, "dominic_vector_exports");
+        const vectorExports = await generateVectorExports(contourSource.localPath, vectorDir);
+        outputs.push(...vectorExports);
+        if (vectorExports.length > 0) {
+          await logEvent(
+            project.id,
+            "vector_exports_generated",
+            `Generated ${vectorExports.length} GIS/CAD contour export(s): ${vectorExports.map((output) => output.type).join(", ")}.`
+          );
+        }
+      } catch (vectorErr) {
+        console.error(`[processJob] Job ${job.id}: GIS/CAD export generation skipped:`, vectorErr instanceof Error ? vectorErr.message : vectorErr);
       }
     }
     if (outputs.length === 0) {

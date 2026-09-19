@@ -1,0 +1,170 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { createClient } from "@supabase/supabase-js";
+import { chromium, request } from "playwright";
+
+const isolated = process.env.E2E_ISOLATED_SUPABASE === "true";
+const baseURL = (process.env.E2E_BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
+const supabaseURL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+test("pilot-owned team mission completes without DOM approval", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-E2E-${stamp}!Aa1`;
+  const ownerEmail = `owner-${stamp}@e2e.dom.invalid`;
+  const fieldEmail = `field-${stamp}@e2e.dom.invalid`;
+
+  const createUser = async (email) => {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    return data.user;
+  };
+  const ownerUser = await createUser(ownerEmail);
+  const fieldUser = await createUser(fieldEmail);
+
+  const contractorBase = {
+    status: "active",
+    part107_verified: true,
+    insurance_verified: true,
+    insurance_provider: "E2E Test Coverage",
+    insurance_policy_number: `E2E-${stamp}`,
+    insurance_expires_on: "2099-12-31",
+    equipment: "DJI Matrice 4E",
+    can_create_missions: true,
+    subscription_active: true,
+  };
+  const { data: contractors, error: contractorError } = await admin.from("contractors").insert([
+    { ...contractorBase, user_id: ownerUser.id, full_name: "E2E Mission Owner", email: ownerEmail },
+    { ...contractorBase, user_id: fieldUser.id, full_name: "E2E Field Pilot", email: fieldEmail },
+  ]).select("id,user_id");
+  assert.ifError(contractorError);
+  const ownerContractor = contractors.find((item) => item.user_id === ownerUser.id);
+  const fieldContractor = contractors.find((item) => item.user_id === fieldUser.id);
+
+  const signIn = async (email) => {
+    const client = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
+    assert.ifError(error);
+    return data.session;
+  };
+  const ownerSession = await signIn(ownerEmail);
+  const fieldSession = await signIn(fieldEmail);
+  const ownerToken = ownerSession.access_token;
+  const fieldToken = fieldSession.access_token;
+  const api = await request.newContext({ baseURL });
+  const browser = await chromium.launch({ headless: true });
+
+  const call = async (method, path, token, data, expected = 200) => {
+    const response = await api.fetch(path, {
+      method,
+      headers: { Authorization: `Bearer ${token}` },
+      data,
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), expected, `${method} ${path}: ${JSON.stringify(body)}`);
+    return body;
+  };
+
+  try {
+    const created = await call("POST", "/api/pilot/missions/create", ownerToken, {
+      clientName: "E2E Client",
+      clientEmail: `client-${stamp}@e2e.dom.invalid`,
+      clientCompany: "Disposable Mission Test",
+      location: "Isolated CI airfield",
+      latitude: 0,
+      longitude: 0,
+      serviceType: "aerial_images",
+      distanceMiles: 5,
+      siteComplexity: "simple",
+      urgency: "standard",
+      deliverableTier: "standard",
+      travelDistanceSource: "pilot_google_maps_verified",
+    });
+    assert.ok(created.jobId);
+
+    const browserErrors = [];
+    const browserContext = await browser.newContext();
+    const storageKey = `sb-${new URL(supabaseURL).hostname.split(".")[0]}-auth-token`;
+    await browserContext.addInitScript(({ key, session }) => {
+      localStorage.setItem(key, JSON.stringify(session));
+    }, { key: storageKey, session: ownerSession });
+    const page = await browserContext.newPage();
+    page.on("pageerror", (error) => browserErrors.push(error.message));
+    const dashboard = await page.goto(`${baseURL}/pilot`, { waitUntil: "networkidle", timeout: 45_000 });
+    assert.ok(dashboard && dashboard.status() < 400, `pilot dashboard returned ${dashboard?.status()}`);
+    await page.getByText("Disposable Mission Test", { exact: false }).first().waitFor({ timeout: 15_000 });
+    assert.deepEqual(browserErrors, [], `pilot dashboard browser errors: ${browserErrors.join(" | ")}`);
+    await browserContext.close();
+
+    const { data: ownerAssignment, error: ownerAssignmentError } = await admin.from("mission_assignments")
+      .select("id,job_id,status,assignment_role").eq("job_id", created.jobId).eq("contractor_id", ownerContractor.id).single();
+    assert.ifError(ownerAssignmentError);
+    assert.equal(ownerAssignment.assignment_role, "owner");
+
+    await call("GET", `/api/pilot/missions/${ownerAssignment.id}/workflow`, ownerToken);
+    const offered = await call("POST", `/api/pilot/missions/${ownerAssignment.id}/team`, ownerToken, {
+      action: "offer",
+      contractorId: fieldContractor.id,
+      payoutCents: 10000,
+    });
+    assert.ok(offered.assignmentId);
+    await call("POST", `/api/pilot/missions/${offered.assignmentId}/respond`, fieldToken, { action: "accept" });
+
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString();
+    const { error: preparationError } = await admin.from("mission_assignments")
+      .update({ assigned_uav: "DJI Matrice 4E" }).in("id", [ownerAssignment.id, offered.assignmentId]);
+    assert.ifError(preparationError);
+    const { error: scheduleError } = await admin.from("jobs").update({ scheduled_for: tomorrow }).eq("id", created.jobId);
+    assert.ifError(scheduleError);
+
+    const workflow = await call("GET", `/api/pilot/missions/${offered.assignmentId}/workflow`, fieldToken);
+    assert.equal(workflow.ownership.completionMode, "owner_review");
+    const automatic = new Set(["uav_assigned", "insurance_verified", "capture_complete", "deliverables_uploaded", "mission_submitted"]);
+    for (const item of workflow.items.filter((entry) => entry.required && !entry.completed && !automatic.has(entry.item_key))) {
+      await call("POST", `/api/pilot/missions/${offered.assignmentId}/workflow`, fieldToken, {
+        action: "checklist",
+        itemId: item.id,
+        completed: true,
+      });
+    }
+    await call("POST", `/api/pilot/missions/${offered.assignmentId}/workflow`, fieldToken, { action: "check_in" });
+    await call("POST", `/api/pilot/missions/${offered.assignmentId}/workflow`, fieldToken, { action: "start_flight" });
+    await call("POST", `/api/pilot/missions/${offered.assignmentId}/workflow`, fieldToken, { action: "field_complete" });
+
+    const { error: deliverableError } = await admin.from("deliverables").insert({
+      job_id: created.jobId,
+      name: "Disposable E2E aerial image set",
+      type: "raw_images",
+      storage_url: `${created.jobId}/e2e/aerial-images.zip`,
+    });
+    assert.ifError(deliverableError);
+    const ready = await call("GET", `/api/pilot/missions/${offered.assignmentId}/workflow`, fieldToken);
+    assert.equal(ready.submission.ready, true, JSON.stringify(ready.submission.blockers));
+    await call("POST", `/api/pilot/missions/${offered.assignmentId}/workflow`, fieldToken, { action: "submit_for_qc" });
+    await call("POST", `/api/pilot/missions/${ownerAssignment.id}/team`, ownerToken, { action: "approve" });
+
+    const [{ data: job }, { data: mission }, { data: assignments }, { data: deliverable }] = await Promise.all([
+      admin.from("jobs").select("status").eq("id", created.jobId).single(),
+      admin.from("jobs").select("mission_request:mission_requests(status)").eq("id", created.jobId).single(),
+      admin.from("mission_assignments").select("assignment_role,status").eq("job_id", created.jobId),
+      admin.from("deliverables").select("qc_passed,delivered_at").eq("job_id", created.jobId).single(),
+    ]);
+    assert.equal(job.status, "delivered");
+    const missionRequest = Array.isArray(mission.mission_request) ? mission.mission_request[0] : mission.mission_request;
+    assert.equal(missionRequest.status, "delivered");
+    assert.deepEqual(new Set(assignments.map((item) => item.status)), new Set(["qc_passed"]));
+    assert.equal(deliverable.qc_passed, true);
+    assert.ok(deliverable.delivered_at);
+  } finally {
+    await api.dispose();
+    await browser.close();
+    await admin.auth.admin.deleteUser(fieldUser.id);
+    await admin.auth.admin.deleteUser(ownerUser.id);
+  }
+});

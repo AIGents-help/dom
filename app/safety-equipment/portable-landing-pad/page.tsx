@@ -3,6 +3,8 @@ import Link from "next/link";
 import QuantityBuyButton from "@/components/shop/QuantityBuyButton";
 import { formatProductPrice, getShopProduct } from "@/lib/shopCatalog";
 
+export const dynamic = "force-dynamic";
+
 export default async function PortableLandingPadPage() {
   const product = await getShopProduct("portable-landing-pad");
   const name = product?.product_name ?? "Portable Drone Landing Pad";

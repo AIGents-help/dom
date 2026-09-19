@@ -125,43 +125,38 @@ export default function LeadsWorkspace() {
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
-    const [leadsRes, notesRes, contactsRes, locationsRes, relationshipsRes, activitiesRes, nextActionsRes, smartleadRes] = await Promise.all([
-      sb.from("leads").select("*").order("created_at", { ascending: false }),
-      sb.from("notes").select("*").eq("entity_type", "lead").order("created_at", { ascending: false }),
-      sb.from("lead_contacts").select("*").order("is_primary", { ascending: false }),
-      sb.from("lead_locations").select("*").order("created_at", { ascending: true }),
-      sb.from("lead_relationships").select("*").order("created_at", { ascending: true }),
-      sb.from("lead_activities").select("*").order("occurred_at", { ascending: false }),
-      sb.from("lead_next_actions").select("*").order("due_at", { ascending: true }),
-      sb.from("lead_smartlead_status").select("*"),
-    ]);
-    const leadRows = (leadsRes.data as Lead[]) ?? [];
-    setLeads(leadRows);
-    setNotes((notesRes.data as NoteRow[]) ?? []);
-    setContacts((contactsRes.data as LeadContact[]) ?? []);
-    setLocations((locationsRes.data as LeadLocation[]) ?? []);
-    setRelationships((relationshipsRes.data as LeadRelationship[]) ?? []);
-    setActivities((activitiesRes.data as LeadActivity[]) ?? []);
-    setNextActions((nextActionsRes.data as LeadNextAction[]) ?? []);
-    setSmartleadStatuses((smartleadRes.data as LeadSmartleadStatus[]) ?? []);
-
-    const prospectIds = leadRows.map((l) => l.external_prospect_id).filter((id): id is string => !!id);
-    if (prospectIds.length > 0) {
-      const { data: eventsData } = await sb
-        .from("outreach_events")
-        .select("id, prospect_id, event_type, intent, created_at")
-        .in("prospect_id", prospectIds)
-        .order("created_at", { ascending: false });
-      const grouped: Record<string, OutreachEvent[]> = {};
-      for (const ev of (eventsData as OutreachEvent[]) ?? []) {
-        (grouped[ev.prospect_id] ??= []).push(ev);
-      }
-      setEventsByProspect(grouped);
-    } else {
-      setEventsByProspect({});
+    const { data: sessionData } = await sb.auth.getSession();
+    if (!sessionData.session) {
+      setLoading(false);
+      return;
     }
+
+    const response = await fetch("/api/admin/leads/workspace", {
+      headers: { Authorization: `Bearer ${sessionData.session.access_token}` },
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      showToast(body.error ?? "CRM files could not be loaded.", "error");
+      setLoading(false);
+      return;
+    }
+
+    setLeads((body.leads as Lead[]) ?? []);
+    setNotes((body.notes as NoteRow[]) ?? []);
+    setContacts((body.contacts as LeadContact[]) ?? []);
+    setLocations((body.locations as LeadLocation[]) ?? []);
+    setRelationships((body.relationships as LeadRelationship[]) ?? []);
+    setActivities((body.activities as LeadActivity[]) ?? []);
+    setNextActions((body.nextActions as LeadNextAction[]) ?? []);
+    setSmartleadStatuses((body.smartleadStatuses as LeadSmartleadStatus[]) ?? []);
+
+    const grouped: Record<string, OutreachEvent[]> = {};
+    for (const event of (body.outreachEvents as OutreachEvent[]) ?? []) {
+      (grouped[event.prospect_id] ??= []).push(event);
+    }
+    setEventsByProspect(grouped);
     setLoading(false);
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     (async () => {

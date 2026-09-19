@@ -26,7 +26,7 @@ interface WorkflowData {
   items: WorkflowItem[];
   job: { checked_in_at: string | null; started_at: string | null; completed_at: string | null };
   assignmentStatus: string;
-  insurance: { satisfied: boolean; verified: boolean; uninsuredAcknowledged: boolean; source: string | null; expiresOn: string | null; gigEligible: boolean };
+  insurance: { satisfied: boolean; verified: boolean; uninsuredAcknowledged: boolean; source: string | null; expiresOn: string | null; gigEligible: boolean; selfService: boolean; uninsuredEligible: boolean };
   submission: { ready: boolean; blockers: string[]; submitted: boolean };
   ownership: { completionMode: "dom_qc" | "owner_delivery" | "owner_review"; pilotOwned: boolean; ownerIsCurrentPilot: boolean };
   deliverablePlan: Array<{ type: string; label: string; guidance: string; required: boolean; uploaded: boolean }>;
@@ -158,11 +158,15 @@ export default function PilotFieldWorkflow({
           <div style={{ color: V.inkDim, fontSize: 11, marginTop: 4 }}>
             {insuranceSatisfied
               ? `${data.insurance.source}${data.insurance.expiresOn ? ` · expires ${new Date(data.insurance.expiresOn).toLocaleDateString()}` : ""}`
-              : data.insurance.gigEligible
+              : data.insurance.gigEligible && !data.insurance.selfService
                 ? "DOM must bind and verify gig coverage for this assignment before work begins."
-                : "Upload a current COI in Pilot Profile before continuing."}
+                : data.insurance.uninsuredEligible
+                  ? "Admin has authorized the uninsured self-service option for your account. You must still accept responsibility for this mission below."
+                  : data.insurance.selfService
+                    ? "Upload a current COI in Pilot Profile, or ask DOM Admin to authorize the uninsured self-service option for your account."
+                    : "DOM-assigned missions require verified personal, alternate, or DOM gig insurance coverage."}
           </div>
-          {!insuranceSatisfied && (
+          {!insuranceSatisfied && data.insurance.uninsuredEligible && (
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${V.line}` }}>
               <label style={{ display: "flex", alignItems: "flex-start", gap: 8, color: V.ink, fontSize: 12 }}>
                 <input type="checkbox" checked={uninsuredConsent} onChange={(event) => setUninsuredConsent(event.target.checked)} />

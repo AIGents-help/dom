@@ -30,6 +30,10 @@ type Contractor = {
   insurance_verification_note: string | null;
   insurance_verified_at: string | null;
   dom_gig_insurance_eligible: boolean;
+  uninsured_self_service_eligible: boolean;
+  uninsured_self_service_authorization_note: string | null;
+  uninsured_self_service_authorized_by: string | null;
+  uninsured_self_service_authorized_at: string | null;
   stripe_connect_account_id: string | null;
   stripe_payouts_enabled: boolean;
   service_area: string | null;
@@ -55,6 +59,9 @@ export default function AdminContractorsPage() {
   const [coverageFor, setCoverageFor] = useState<string | null>(null);
   const [coverageSaving, setCoverageSaving] = useState(false);
   const [coverageForm, setCoverageForm] = useState({ provider: "", reference: "", expiresOn: "", reason: "" });
+  const [uninsuredFor, setUninsuredFor] = useState<string | null>(null);
+  const [uninsuredReason, setUninsuredReason] = useState("");
+  const [uninsuredSaving, setUninsuredSaving] = useState(false);
 
   const load = useCallback(async () => {
     const supabaseBrowser = getSupabaseBrowser();
@@ -172,6 +179,24 @@ export default function AdminContractorsPage() {
     catch (error) { window.alert(error instanceof Error ? error.message : "Self-service access could not be approved."); }
   }
 
+  async function setUninsuredEligibility(id: string, enabled: boolean) {
+    if (uninsuredReason.trim().length < 10) {
+      window.alert("Enter an Admin reason of at least 10 characters.");
+      return;
+    }
+    setUninsuredSaving(true);
+    try {
+      await updateAccess(id, { action: "set_uninsured_eligibility", enabled, reason: uninsuredReason.trim() });
+      setUninsuredFor(null);
+      setUninsuredReason("");
+      await load();
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Uninsured self-service eligibility could not be updated.");
+    } finally {
+      setUninsuredSaving(false);
+    }
+  }
+
   async function onboard(id: string) {
     const supabaseBrowser = getSupabaseBrowser();
     const { data: session } = await supabaseBrowser.auth.getSession();
@@ -263,6 +288,9 @@ export default function AdminContractorsPage() {
                   {c.can_create_missions && (
                     <span style={{ ...badge, ...badgeOk, marginLeft: 6 }}>SELF-SERVICE ✓</span>
                   )}
+                  {c.uninsured_self_service_eligible && (
+                    <span style={{ ...badge, ...badgeWarn, marginLeft: 6 }}>UNINSURED SELF-SERVICE ELIGIBLE</span>
+                  )}
                   <div style={{ fontFamily: "IBM Plex Mono, monospace", fontSize: 11, color: c.stripe_payouts_enabled ? "#16A34A" : "#8A95A7", marginTop: 6 }}>
                     {c.stripe_connect_account_id ? (c.stripe_payouts_enabled ? "PAYOUTS READY" : "STRIPE PENDING") : "NO STRIPE ACCT"}
                   </div>
@@ -293,10 +321,33 @@ export default function AdminContractorsPage() {
                 {!c.can_create_missions && (
                   <Btn onClick={() => approveSelfService(c.id)}>Approve to Create Missions</Btn>
                 )}
+                <Btn onClick={() => {
+                  setUninsuredFor(uninsuredFor === c.id ? null : c.id);
+                  setUninsuredReason("");
+                }}>{c.uninsured_self_service_eligible ? "Revoke uninsured eligibility" : "Authorize uninsured self-service"}</Btn>
                 {c.resource_access_locked && (
                   <Btn onClick={() => unlockResourceAccess(c.id)}>Unlock resource access</Btn>
                 )}
               </div>
+              {c.uninsured_self_service_authorization_note && (
+                <div style={{ fontSize: 11, color: "#5F6B7A", marginTop: 9 }}>
+                  Uninsured self-service authorization: {c.uninsured_self_service_authorization_note}
+                  {c.uninsured_self_service_authorized_at ? ` · ${new Date(c.uninsured_self_service_authorized_at).toLocaleString()}` : ""}
+                </div>
+              )}
+              {uninsuredFor === c.id && (
+                <div style={{ marginTop: 14, padding: 14, borderRadius: 10, border: "1px solid #E5701F", background: "rgba(229,112,31,.06)" }}>
+                  <strong style={{ fontSize: 13 }}>{c.uninsured_self_service_eligible ? "Revoke uninsured self-service eligibility" : "Authorize uninsured self-service eligibility"}</strong>
+                  <p style={{ color: "#5F6B7A", fontSize: 12, marginTop: 4 }}>
+                    This applies only to pilot-created self-service missions. It does not verify insurance or clear the pilot for DOM-assigned missions. The pilot must separately accept responsibility on each mission.
+                  </p>
+                  <textarea value={uninsuredReason} onChange={(event) => setUninsuredReason(event.target.value)} placeholder={c.uninsured_self_service_eligible ? "Reason for revoking future eligibility" : "Admin reason for authorizing this option"} style={{ ...inputStyle, width: "100%", minHeight: 70, marginTop: 8 }} />
+                  <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                    <Btn onClick={() => setUninsuredEligibility(c.id, !c.uninsured_self_service_eligible)}>{uninsuredSaving ? "Saving…" : c.uninsured_self_service_eligible ? "Revoke eligibility" : "Authorize option"}</Btn>
+                    <Btn onClick={() => setUninsuredFor(null)}>Cancel</Btn>
+                  </div>
+                </div>
+              )}
               {coverageFor === c.id && (
                 <div style={{ marginTop: 14, padding: 14, borderRadius: 10, border: "1px solid #F45A1E", background: "rgba(244,90,30,.05)" }}>
                   <strong style={{ fontSize: 13 }}>Admin-approved alternate coverage</strong>

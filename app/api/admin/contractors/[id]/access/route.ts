@@ -13,6 +13,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { data: contractor } = await admin.from("contractors").select("id,insurance_coi_path,insurance_policy_number,insurance_expires_on").eq("id", id).maybeSingle();
   if (!contractor) return NextResponse.json({ error: "Pilot not found" }, { status: 404 });
 
+  if (action === "set_uninsured_eligibility") {
+    const reason = typeof body?.reason === "string" ? body.reason.trim() : "";
+    if (typeof body?.enabled !== "boolean" || reason.length < 10) {
+      return NextResponse.json({ error: "An Admin reason of at least 10 characters is required." }, { status: 400 });
+    }
+    const authorization = req.headers.get("authorization");
+    const token = authorization?.replace(/^Bearer\s+/i, "");
+    if (!token) return NextResponse.json({ error: "Admin session expired" }, { status: 401 });
+    const { data: { user } } = await admin.auth.getUser(token);
+    if (!user) return NextResponse.json({ error: "Admin session expired" }, { status: 401 });
+    const { error } = await admin.rpc("admin_set_uninsured_self_service_eligibility", {
+      p_contractor_id: id,
+      p_actor_user_id: user.id,
+      p_enabled: body.enabled,
+      p_reason: reason,
+    });
+    if (error) return NextResponse.json({ error: error.message }, { status: 409 });
+    return NextResponse.json({ ok: true });
+  }
+
   let patch: Record<string, unknown>;
   if (action === "set_verification") {
     const field = body?.field as VerificationField;

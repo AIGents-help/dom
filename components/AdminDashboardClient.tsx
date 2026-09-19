@@ -59,7 +59,6 @@ interface DeliverableRow {
 interface NoteRow {
   id: string; entity_type: string; entity_id: string; author: string | null; body: string; created_at: string;
 }
-
 const JOB_STATUSES = ["scheduled", "in_progress", "flown", "processing", "qc", "delivered", "cancelled"];
 
 const emptyClientForm = { company_name: "", contact_name: "", email: "", phone: "", industry: "", notes: "" };
@@ -214,7 +213,7 @@ export default function AdminDashboardClient() {
 
   const today = new Date().toISOString().slice(0, 10);
   const statusBoard: { label: string; count: number; tone: string; onClick: () => void }[] = [
-    { label: "Cold Prospects", count: leads.filter((l) => l.status === "cold").length, tone: "bg-blue-500/10 text-blue-400", onClick: () => router.push("/admin/leads") },
+    { label: "CRM Files", count: leads.length, tone: "bg-blue-500/10 text-blue-400", onClick: () => router.push("/admin/leads") },
     {
       label: "Follow-ups Due",
       count: leads.filter((l) => l.next_follow_up_at && l.next_follow_up_at <= today && !["customer", "lost"].includes(l.status)).length,

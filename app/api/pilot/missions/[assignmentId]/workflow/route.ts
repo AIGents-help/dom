@@ -12,7 +12,7 @@ interface WorkflowJob {
   started_at: string | null;
   completed_at: string | null;
   delivery_responsibility: string | null;
-  mission_request: { created_by_contractor_id: string | null } | null;
+  mission_request: { created_by_contractor_id: string | null; requires_admin_approval: boolean } | null;
 }
 interface WorkflowContext {
   admin: ReturnType<typeof getSupabaseAdmin>;
@@ -28,6 +28,7 @@ interface WorkflowContext {
     part107_verified: boolean; insurance_verified: boolean;
     insurance_provider: string | null; insurance_policy_number: string | null;
     insurance_expires_on: string | null; dom_gig_insurance_eligible: boolean;
+    uninsured_self_service_eligible: boolean;
   };
 }
 
@@ -39,11 +40,11 @@ async function context(req: NextRequest, assignmentId: string): Promise<Workflow
   if (!user) return null;
   const admin = getSupabaseAdmin();
   const { data: contractor } = await admin.from("contractors")
-    .select("id,part107_verified,insurance_verified,insurance_provider,insurance_policy_number,insurance_expires_on,dom_gig_insurance_eligible")
+    .select("id,part107_verified,insurance_verified,insurance_provider,insurance_policy_number,insurance_expires_on,dom_gig_insurance_eligible,uninsured_self_service_eligible")
     .eq("user_id", user.id).maybeSingle();
   if (!contractor) return null;
   const { data: assignment } = await admin.from("mission_assignments")
-    .select("job_id,status,assignment_role,assigned_uav,insurance_source,mission_insurance_verified,mission_insurance_reference,mission_insurance_expires_at,job:jobs(mission_request_id,service_type,scheduled_for,checked_in_at,started_at,completed_at,delivery_responsibility,mission_request:mission_requests(created_by_contractor_id))")
+    .select("job_id,status,assignment_role,assigned_uav,insurance_source,mission_insurance_verified,mission_insurance_reference,mission_insurance_expires_at,job:jobs(mission_request_id,service_type,scheduled_for,checked_in_at,started_at,completed_at,delivery_responsibility,mission_request:mission_requests(created_by_contractor_id,requires_admin_approval))")
     .eq("id", assignmentId).eq("contractor_id", contractor.id).maybeSingle();
   if (!assignment) return null;
   const job = Array.isArray(assignment.job) ? assignment.job[0] : assignment.job;
@@ -58,6 +59,8 @@ function coverage(ctx: WorkflowContext) {
   const gigCurrent = ctx.assignment.insurance_source === "dom_gig" && ctx.assignment.mission_insurance_verified
     && (!ctx.assignment.mission_insurance_expires_at || new Date(ctx.assignment.mission_insurance_expires_at).getTime() > Date.now());
   const uninsuredAcknowledged = ctx.assignment.insurance_source === "pilot_uninsured_acknowledgement";
+  const selfService = ctx.assignment.job.mission_request?.created_by_contractor_id === ctx.contractor.id
+    && !ctx.assignment.job.mission_request?.requires_admin_approval;
   return {
     satisfied: profileCurrent || gigCurrent || uninsuredAcknowledged,
     verified: profileCurrent || gigCurrent,
@@ -66,6 +69,8 @@ function coverage(ctx: WorkflowContext) {
     expiresOn: gigCurrent ? ctx.assignment.mission_insurance_expires_at : ctx.contractor.insurance_expires_on,
     reference: gigCurrent ? ctx.assignment.mission_insurance_reference : ctx.contractor.insurance_policy_number,
     gigEligible: ctx.contractor.dom_gig_insurance_eligible,
+    selfService,
+    uninsuredEligible: selfService && ctx.contractor.uninsured_self_service_eligible,
   };
 }
 
@@ -171,6 +176,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
   const insurance = coverage(ctx);
   if (body.action === "acknowledge_uninsured") {
     if (insurance.verified) return NextResponse.json({ error: "This mission already has verified coverage." }, { status: 409 });
+    if (!insurance.uninsuredEligible) return NextResponse.json({ error: insurance.selfService ? "DOM Admin has not authorized your uninsured self-service option." : "DOM-assigned missions require verified insurance coverage." }, { status: 409 });
     if (body.accepted !== true) return NextResponse.json({ error: "You must accept the uninsured responsibility acknowledgement." }, { status: 400 });
     const version = "pilot-uninsured-responsibility-v1";
     const { error } = await ctx.admin.rpc("pilot_acknowledge_uninsured_responsibility", {

@@ -124,7 +124,8 @@ export default function MappingResults({
             ))}
           </div>
 
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ position: "relative", marginBottom: 12 }}>
+            {active ? <div style={{ position: "absolute", right: 12, bottom: 12, zIndex: 30, pointerEvents: "none", border: `1px solid ${V.signal}`, borderRadius: 6, padding: "4px 7px", background: "rgba(9,13,17,.78)", color: V.signal, fontSize: 8, fontWeight: 900, letterSpacing: ".12em" }}>DOMINIC PREVIEW · DRONE OPERATION MANAGEMENT</div> : null}
             {active && isOrthomosaic ? (
               <OrthomosaicViewer
                 signedUrl={signedUrls[active.id] ?? null}

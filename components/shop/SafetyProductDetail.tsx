@@ -1,6 +1,6 @@
 import Link from "next/link";
 import BarrierProductVisual from "@/components/shop/BarrierProductVisual";
-import BuyButton from "@/components/shop/BuyButton";
+import QuantityBuyButton from "@/components/shop/QuantityBuyButton";
 import { formatProductPrice, getShopProduct } from "@/lib/shopCatalog";
 
 type Count = 1 | 3 | 4 | 6 | 12 | 24;
@@ -19,6 +19,8 @@ export default async function SafetyProductDetail({ count, name, price, productK
   const displayName = live?.product_name || name;
   const displayPrice = live ? formatProductPrice(live.unit_amount_cents) : price;
   const displayDescription = live?.description || description;
+  const available = !!live?.active && (live.fulfillment_mode !== "stocked" || (live.available_quantity ?? 0) > 0);
+  const maxQuantity = live?.fulfillment_mode === "stocked" ? (live.available_quantity ?? 0) : 20;
   return (
     <div className="min-h-screen bg-[#0b1118] text-white">
       <div className="container-app py-6 text-sm text-slate-400">
@@ -54,8 +56,8 @@ export default async function SafetyProductDetail({ count, name, price, productK
             ))}
           </div>
 
-          <BuyButton productKey={productKey} label={`Buy ${displayName} — ${displayPrice}`} />
-          <p className="mt-3 text-xs leading-5 text-slate-500">Stripe securely collects payment, billing details, shipping address, and phone number at checkout. Shipping charges are not added automatically at this time.</p>
+          {available ? <QuantityBuyButton productKey={productKey} unitPrice={(live?.unit_amount_cents ?? 0) / 100} options={live?.variants} maxQuantity={maxQuantity} /> : <p className="mt-7 font-bold text-amber-400">Temporarily unavailable</p>}
+          <p className="mt-3 text-xs leading-5 text-slate-500">Stripe securely collects payment, billing details, shipping address, and phone number at checkout. Current shipping charges are calculated before payment.</p>
         </div>
       </section>
 

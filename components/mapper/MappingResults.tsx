@@ -161,7 +161,7 @@ export default function MappingResults({
 
       {previewError && <p style={{ color: V.danger, fontSize: 12, marginBottom: 20 }}>{previewError}</p>}
 
-      <DominicDeliverySummary deliverables={deduped} />
+      <DominicDeliverySummary deliverables={deduped} projectId={projectId} />
       <DominicExportPanel deliverables={deduped} accessToken={accessToken} projectId={projectId} />
 
       <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".08em", color: V.inkFaint, textTransform: "uppercase", marginBottom: 10, marginTop: availableLayers.length > 0 ? 0 : 8 }}>

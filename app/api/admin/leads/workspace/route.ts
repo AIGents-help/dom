@@ -48,5 +48,9 @@ export async function GET(req: NextRequest) {
     nextActions: nextActions.data ?? [],
     smartleadStatuses: smartleadStatuses.data ?? [],
     outreachEvents: outreachEvents.data ?? [],
+    meta: {
+      totalLeadCount: (leads.data ?? []).length,
+      loadedAt: new Date().toISOString(),
+    },
   }, { headers: { "Cache-Control": "no-store, max-age=0" } });
 }

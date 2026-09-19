@@ -3,7 +3,8 @@ import { isAdminRequest } from "@/lib/authz";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 const clean = (value: unknown, max: number) => String(value ?? "").trim().slice(0, max);
-const cents = (value: unknown) => Number(value);\nconst quantity = (value: unknown) => Number(value);
+const cents = (value: unknown) => Number(value);
+const quantity = (value: unknown) => Number(value);
 
 export async function GET(req: NextRequest) {
   const admin = await isAdminRequest(req);

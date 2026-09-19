@@ -126,7 +126,7 @@ export default function DominicWorkbench({
               {available.map((layer) => (
                 <button
                   key={layer.label}
-                  disabled={!layer.ready || layer.label === "Contours"}
+                  disabled={!layer.ready}
                   onClick={() => {
                     const layerType = layer.types.find((type) => deliverables.some((d) => d.type === type));
                     if (layerType) setRequestedLayer(layerType);
@@ -143,14 +143,14 @@ export default function DominicWorkbench({
                     background: layer.ready ? "#121922" : "transparent",
                     color: layer.ready ? V.ink : V.inkFaint,
                     fontSize: 11,
-                    cursor: layer.ready && layer.label !== "Contours" ? "pointer" : "default",
+                    cursor: layer.ready ? "pointer" : "default",
                   }}
                 >
                   <span style={{ display: "flex", alignItems: "center", gap: 7 }}>
                     {layer.label === "3D Model" ? <Box size={13} /> : <Map size={13} />}
                     {layer.label}
                   </span>
-                  <span style={{ fontSize: 9, color: layer.ready ? V.telemetry : V.inkFaint }}>{layer.ready ? (layer.label === "Contours" ? "EXPORT" : "READY") : "—"}</span>
+                  <span style={{ fontSize: 9, color: layer.ready ? V.telemetry : V.inkFaint }}>{layer.ready ? "READY" : "—"}</span>
                 </button>
               ))}
             </div>

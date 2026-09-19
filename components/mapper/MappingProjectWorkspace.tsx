@@ -6,6 +6,7 @@ import { V, btnGhost, statusPillStyle } from "./theme";
 import { MAPPING_PROJECT_STATUS_LABELS, formatBytes, canUploadImages } from "@/lib/mapperPipeline";
 import MappingImageUploader from "./MappingImageUploader";
 import MappingProcessingStatus from "./MappingProcessingStatus";
+import MappingResults from "./MappingResults";
 import DominicWorkbench from "./DominicWorkbench";
 import type { MappingProject, MappingImage, MappingProcessingJob, MappingDeliverable } from "./types";
 

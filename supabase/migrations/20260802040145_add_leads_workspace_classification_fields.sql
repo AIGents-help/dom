@@ -21,6 +21,7 @@ create table if not exists public.leads (
   external_prospect_id text,
   status public.lead_status not null default 'cold',
   notes text,
+  next_follow_up_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

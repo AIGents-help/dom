@@ -20,18 +20,17 @@ import {
 import { V } from "./theme";
 import MappingResults from "./MappingResults";
 import type { MappingDeliverable } from "./types";
+import type { DominicWorkbenchTool } from "./workbenchTypes";
 
-type Tool = "select" | "distance" | "area" | "note" | "callout" | "pin" | "cloud" | "shape";
-
-const tools: Array<{ id: Tool; label: string; icon: typeof MousePointer2; live?: boolean }> = [
+const tools: Array<{ id: DominicWorkbenchTool; label: string; icon: typeof MousePointer2; live?: boolean }> = [
   { id: "select", label: "Select", icon: MousePointer2, live: true },
   { id: "distance", label: "Distance", icon: Ruler, live: true },
   { id: "area", label: "Area", icon: Pentagon, live: true },
-  { id: "note", label: "Note", icon: Type },
-  { id: "callout", label: "Callout", icon: MessageSquareText },
-  { id: "pin", label: "Issue Pin", icon: MapPin },
-  { id: "cloud", label: "Cloud", icon: Cloud },
-  { id: "shape", label: "Shape", icon: Square },
+  { id: "note", label: "Note", icon: Type, live: true },
+  { id: "callout", label: "Callout", icon: MessageSquareText, live: true },
+  { id: "pin", label: "Issue Pin", icon: MapPin, live: true },
+  { id: "cloud", label: "Cloud", icon: Cloud, live: true },
+  { id: "shape", label: "Shape", icon: Square, live: true },
 ];
 
 const layerTypes = [
@@ -52,7 +51,7 @@ export default function DominicWorkbench({
   accessToken: string;
   projectId: string;
 }) {
-  const [activeTool, setActiveTool] = useState<Tool>("select");
+  const [activeTool, setActiveTool] = useState<DominicWorkbenchTool>("select");
   const [toolSet, setToolSet] = useState("General");
   const [layersOpen, setLayersOpen] = useState(true);
 
@@ -71,7 +70,7 @@ export default function DominicWorkbench({
               <button
                 key={id}
                 onClick={() => setActiveTool(id)}
-                title={live ? label : `${label} — markup persistence is coming next`}
+                title={live ? label : `${label} — coming soon`}
                 style={{
                   border: active ? `1px solid ${V.signal}` : "1px solid transparent",
                   background: active ? "rgba(244,90,30,.13)" : "transparent",
@@ -107,7 +106,7 @@ export default function DominicWorkbench({
               {["General", "Roof", "Solar", "Construction", "Infrastructure", "Property", "Thermal"].map((set) => <option key={set}>{set}</option>)}
             </select>
           </div>
-          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} />
+          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} />
         </main>
 
         <aside style={{ borderLeft: `1px solid ${V.line}`, background: "#0B1016", padding: 12 }}>
@@ -138,7 +137,7 @@ export default function DominicWorkbench({
           <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 14, paddingTop: 14 }}>
             <div style={{ color: V.inkFaint, fontSize: 9, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 8 }}>Tool Set</div>
             <div style={{ color: V.ink, fontSize: 13, fontWeight: 700 }}>{toolSet}</div>
-            <p style={{ color: V.inkFaint, fontSize: 10, lineHeight: 1.45, marginTop: 5 }}>Reusable DOMINIC markups and inspection symbols will follow this selected workflow.</p>
+            <p style={{ color: V.inkFaint, fontSize: 10, lineHeight: 1.45, marginTop: 5 }}>DOMINIC saves notes, callouts, issue pins and drawn regions to this project with the selected inspection workflow.</p>
           </div>
 
           <button

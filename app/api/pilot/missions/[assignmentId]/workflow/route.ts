@@ -120,6 +120,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
   if (!ctx.assignment.job.scheduled_for) cautions.push("Mission performance date is not scheduled");
   const requiredIncomplete = (items ?? []).filter((item) => item.required && !item.completed && item.item_key !== "mission_submitted");
   if (requiredIncomplete.length) cautions.push(`${requiredIncomplete.length} required workflow item${requiredIncomplete.length === 1 ? " is" : "s are"} incomplete`);
+  const readinessIssues = [
+    ...(!insurance.satisfied ? [{ message: "Select an insurance or uninsured-responsibility path", action: "Choose insurance path", target: "mission-insurance" }] : []),
+    ...(!ctx.contractor.part107_verified ? [{ message: "Part 107 verification is not current", action: "Open Pilot Profile", target: "pilot-profile" }] : []),
+    ...(!ctx.assignment.assigned_uav ? [{ message: "A compatible UAV has not been assigned", action: "Assign aircraft", target: "mission-aircraft" }] : []),
+    ...(!ctx.assignment.job.scheduled_for ? [{ message: "Mission performance date is not scheduled", action: "Set performance date", target: "mission-schedule" }] : []),
+    ...requiredIncomplete.map((item) => ({
+      message: item.label,
+      action: "Open checklist item",
+      target: `workflow-${["planning", "preflight"].includes(item.phase) ? "before" : ["onsite", "flight"].includes(item.phase) ? "during" : "after"}`,
+    })),
+  ];
   const submissionBlockers = [
     ...blockers,
     ...(!ctx.assignment.job.completed_at ? ["Mark field capture complete"] : []),
@@ -141,6 +152,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
       level: blockers.length ? "no_go" : cautions.length ? "caution" : "go",
       blockers, cautions,
       requiredIncomplete: requiredIncomplete.map((item) => ({ id: item.id, label: item.label, phase: item.phase })),
+      issues: readinessIssues,
     },
     submission: {
       ready: submissionBlockers.length === 0,

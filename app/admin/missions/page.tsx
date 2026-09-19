@@ -1,199 +1,75 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
-import { V } from "@/lib/theme";
-import { googleMapsPlaceUrl } from "@/lib/googleMaps";
-import MissionMapThumbnail from "@/components/MissionMapThumbnail";
 
-// Admin > Missions — list all missions with status, airspace, and financials at a glance.
+type Assignment = { id: string; status: string; assigned_uav: string | null; mission_insurance_verified: boolean; mission_checklist_items: Array<{ required: boolean; completed: boolean }> };
+type Deliverable = { id: string; qc_passed: boolean | null; delivered_at: string | null };
+type Job = { id: string; status: string; scheduled_for: string | null; delivery_responsibility: string | null; assignments: Assignment[]; deliverables: Deliverable[] };
+type Mission = { id: string; requester_name: string | null; company: string | null; service_type: string | null; location: string | null; status: string; quoted_amount_cents: number | null; created_at: string; jobs: Job[] };
 
-interface Mission {
-  id: string;
-  requester_name: string | null;
-  company: string | null;
-  service_type: string | null;
-  location: string | null;
-  status: string;
-  quoted_amount_cents: number | null;
-  created_at: string;
-  jobs: Array<{ scheduled_for: string | null; assignments: Array<{ assigned_uav: string | null; mission_insurance_verified: boolean; mission_checklist_items: Array<{ required: boolean; completed: boolean }> }> }>;
-}
-
-const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  requested: { bg: "rgba(229,112,31,.07)", text: "#B45309", border: "#E5701F" },
-  reviewing: { bg: "rgba(234,179,8,.08)", text: "#A16207", border: "#EAB308" },
-  scoped: { bg: "rgba(14,165,233,.07)", text: "#0369A1", border: "#0EA5E9" },
-  quoted: { bg: "rgba(6,182,212,.07)", text: "#0E7490", border: "#06B6D4" },
-  approved: { bg: "rgba(22,163,74,.07)", text: "#15803D", border: "#16A34A" },
-  claimed: { bg: "rgba(249,115,22,.08)", text: "#C2410C", border: "#F97316" },
-  assigned: { bg: "rgba(124,58,237,.07)", text: "#6D28D9", border: "#7C3AED" },
-  scheduled: { bg: "rgba(13,148,136,.08)", text: "#0F766E", border: "#0D9488" },
-  in_progress: { bg: "rgba(37,99,235,.07)", text: "#1D4ED8", border: "#2563EB" },
-  delivered: { bg: "rgba(22,163,74,.08)", text: "#15803D", border: "#16A34A" },
-  closed: { bg: "rgba(95,107,122,.07)", text: "#475569", border: "#64748B" },
-  cancelled: { bg: "rgba(220,38,38,.055)", text: "#B91C1C", border: "#DC2626" },
-};
-
-const LEGEND = [
-  ["New / review", "#E5701F"], ["Scoped / quoted", "#0EA5E9"], ["Approved / delivered", "#16A34A"],
-  ["Assigned", "#7C3AED"], ["Scheduled", "#0D9488"], ["In progress", "#2563EB"], ["Closed", "#64748B"], ["Cancelled", "#DC2626"],
+const VIEWS = [
+  ["all", "All missions"], ["requests", "Mission requests"], ["active", "Active jobs"],
+  ["schedule", "Schedule"], ["deliverables", "Deliverables / QC"], ["closed", "Completed"],
 ] as const;
 
-export default function MissionsPage() {
-  const router = useRouter();
+export default function AdminMissionsPage() {
+  return <Suspense fallback={<main className="section"><div className="container-app">Loading missions…</div></main>}><MissionList /></Suspense>;
+}
+
+function MissionList() {
+  const params = useSearchParams();
+  const view = params.get("view") ?? "all";
   const [missions, setMissions] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState("newest");
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const sb = getSupabaseBrowser();
-    let query = sb
-      .from("mission_requests")
-      .select("id, requester_name, company, service_type, location, status, quoted_amount_cents, created_at, jobs(scheduled_for,assignments(assigned_uav,mission_insurance_verified,mission_checklist_items(required,completed)))")
-      .order("created_at", { ascending: false });
+    setLoading(true); setError("");
+    try {
+      const { data } = await getSupabaseBrowser().auth.getSession();
+      if (!data.session) throw new Error("Admin session expired. Sign in again.");
+      const response = await fetch("/api/admin/missions", { headers: { Authorization: `Bearer ${data.session.access_token}` } });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error ?? "Missions could not be loaded.");
+      setMissions(body.missions ?? []);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Missions could not be loaded."); }
+    finally { setLoading(false); }
+  }, []);
 
-    if (filter !== "all") {
-      query = query.eq("status", filter);
-    }
+  useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, [load]);
 
-    const { data } = await query;
-    if (data) setMissions(data as Mission[]);
-    setLoading(false);
-  }, [filter]);
+  const shown = useMemo(() => missions.filter((mission) => {
+    const jobs = mission.jobs ?? [];
+    if (view === "requests") return ["requested", "reviewing", "scoped", "quoted", "approved"].includes(mission.status);
+    if (view === "active") return !["requested", "reviewing", "scoped", "quoted", "delivered", "closed", "cancelled"].includes(mission.status);
+    if (view === "schedule") return jobs.some((job) => !!job.scheduled_for) && !["delivered", "closed", "cancelled"].includes(mission.status);
+    if (view === "deliverables") return jobs.some((job) => (job.deliverables ?? []).some((item) => !item.qc_passed && !item.delivered_at));
+    if (view === "closed") return ["delivered", "closed"].includes(mission.status);
+    return true;
+  }), [missions, view]);
 
-  useEffect(() => {
-    (async () => {
-      const sb = getSupabaseBrowser();
-      const { data } = await sb.auth.getSession();
-      if (!data.session) { router.push("/admin/login"); return; }
-      load();
-    })();
-  }, [router, load]);
-
-  const filtered = [...missions].sort((a, b) => {
-    if (sortBy === "oldest") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-    if (sortBy === "value_high") return (b.quoted_amount_cents ?? 0) - (a.quoted_amount_cents ?? 0);
-    if (sortBy === "client") return (a.company ?? a.requester_name ?? "").localeCompare(b.company ?? b.requester_name ?? "");
-    if (sortBy === "status") return a.status.localeCompare(b.status);
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
-  const activeCount = missions.filter((m) => !["closed", "cancelled"].includes(m.status)).length;
-
-  return (
-    <Shell>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div>
-          <h1 className="font-saira" style={{ fontSize: 26, fontWeight: 700 }}>Missions</h1>
-          <p style={{ color: V.inkDim, fontSize: 13 }}>{activeCount} active · {missions.length} total</p>
-        </div>
-        <button onClick={() => router.push("/admin/missions/create")} style={btnPrimary}>
-          + Create Mission
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 18, flexWrap: "wrap", alignItems: "center" }}>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        {["all", "requested", "reviewing", "scoped", "quoted", "approved", "claimed", "assigned", "scheduled", "in_progress", "delivered", "closed", "cancelled"].map((f) => (
-          <button key={f} onClick={() => setFilter(f)} className="font-mono-ibm" style={{
-            fontSize: 11, padding: "5px 10px", borderRadius: 6, cursor: "pointer",
-            border: `1px solid ${f === filter ? V.signal : V.line}`,
-            background: f === filter ? "rgba(244,90,30,.12)" : "transparent",
-            color: f === filter ? V.signal : V.inkFaint,
-          }}>
-            {f.replace("_", " ").toUpperCase()}
-          </button>
-        ))}
-        </div>
-        <label style={{ color: V.inkDim, fontSize: 12 }}>
-          Sort{" "}
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink }}>
-            <option value="newest">Newest first</option><option value="oldest">Oldest first</option>
-            <option value="value_high">Highest quote</option><option value="client">Client A–Z</option><option value="status">Status A–Z</option>
-          </select>
-        </label>
-      </div>
-
-      {loading && <p style={{ color: V.inkDim }}>Loading missions…</p>}
-
-      {!loading && filtered.length === 0 && (
-        <div style={{ ...panel, textAlign: "center", padding: 40 }}>
-          <p style={{ color: V.inkDim }}>No missions yet.</p>
-          <button onClick={() => router.push("/admin/missions/create")} style={{ ...btnPrimary, marginTop: 14 }}>
-            Create your first mission
-          </button>
-        </div>
-      )}
-
-      <div style={{ display: "grid", gap: 10 }}>
-        {filtered.map((m) => {
-          const sc = STATUS_COLORS[m.status] ?? STATUS_COLORS.requested;
-          const assignment = m.jobs?.[0]?.assignments?.[0];
-          const incompleteRequired = assignment?.mission_checklist_items?.filter((item) => item.required && !item.completed).length ?? 0;
-          const readinessIncomplete = m.status === "scheduled" && (!assignment?.assigned_uav || !assignment?.mission_insurance_verified || incompleteRequired > 0);
-          return (
-            <div key={m.id} style={{ ...panel, cursor: "pointer", transition: "box-shadow .15s, transform .15s", borderColor: sc.border, borderLeftWidth: 6, background: `linear-gradient(90deg, ${sc.bg}, ${V.surface} 48%)` }}
-              onClick={() => router.push(`/admin/missions/${m.id}`)}
-              onMouseOver={(e) => (e.currentTarget.style.boxShadow = `0 5px 18px ${sc.bg}`)}
-              onMouseOut={(e) => (e.currentTarget.style.boxShadow = "none")}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-                <div style={{ display: "flex", gap: 13, alignItems: "center", minWidth: 0, flex: 1 }}>
-                  {m.location && <MissionMapThumbnail location={m.location} />}
-                  <div style={{ minWidth: 0 }}>
-                  <div className="font-saira" style={{ fontWeight: 600, fontSize: 16 }}>
-                    {m.company ?? m.requester_name ?? "Unnamed"}{" "}
-                    <span style={{ color: V.inkDim, fontWeight: 400, fontSize: 14 }}>
-                      — {(m.service_type ?? "").replace(/_/g, " ")}
-                    </span>
-                  </div>
-                  <div style={{ color: V.inkFaint, fontSize: 13, marginTop: 3 }}>
-                    {m.location?.slice(0, 60) ?? "No location"}
-                  </div>
-                  {m.location && <a href={googleMapsPlaceUrl(m.location)} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ display: "inline-block", color: V.signal, fontSize: 11, fontWeight: 600, marginTop: 5 }}>Google Maps ↗</a>}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <span className="font-mono-ibm" style={{
-                    fontSize: 10, letterSpacing: ".06em", padding: "4px 9px", borderRadius: 20,
-                    background: sc.bg, color: sc.text, textTransform: "uppercase",
-                  }}>
-                    {m.status.replace("_", " ")}
-                  </span>
-                  {readinessIncomplete && <div title="Scheduled, but required readiness items remain incomplete" style={{ color: V.danger, fontSize: 11, fontWeight: 700, marginTop: 6 }}>⛔ READINESS INCOMPLETE</div>}
-                  {m.quoted_amount_cents && (
-                    <div className="font-mono-ibm" style={{ fontSize: 14, color: V.telemetry, marginTop: 6 }}>
-                      ${(m.quoted_amount_cents / 100).toFixed(2)}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="font-mono-ibm" style={{ fontSize: 11, color: V.inkFaint, marginTop: 8 }}>
-                {new Date(m.created_at).toLocaleDateString()} · {m.id.slice(0, 8)}
-                <span style={{ float: "right", color: V.signal, fontWeight: 600 }}>Open / Edit →</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      {!loading && missions.length > 0 && <StatusLegend items={LEGEND} />}
-    </Shell>
-  );
+  return <main className="section"><div className="container-app">
+    <div className="flex flex-wrap items-start justify-between gap-4"><div><p className="eyebrow mb-2">Operations</p><h1 className="heading-lg">Missions</h1><p className="body-muted mt-2">One working view for requests, staffing, schedules, deliverables, and completion.</p></div><Link href="/admin/missions/create" className="rounded-lg bg-[#f26a1b] px-4 py-3 font-bold text-white">+ Create Mission</Link></div>
+    <nav aria-label="Mission views" className="mt-6 flex flex-wrap gap-2">{VIEWS.map(([key, label]) => <Link key={key} href={key === "all" ? "/admin/missions" : `/admin/missions?view=${key}`} className={`rounded-lg border px-3 py-2 text-sm font-semibold no-underline ${view === key ? "border-[#f26a1b] bg-[#f26a1b] text-white" : "border-slate-300 bg-white text-slate-800"}`}>{label}</Link>)}</nav>
+    {error && <div role="alert" className="mt-5 rounded-lg border border-red-300 bg-red-50 p-4 text-red-800">{error} <button className="ml-2 underline" onClick={() => void load()}>Retry</button></div>}
+    {loading && <div className="card mt-5 p-8">Loading missions…</div>}
+    {!loading && !error && <div className="mt-5 grid gap-3">
+      <p className="text-sm text-slate-600">{shown.length} mission{shown.length === 1 ? "" : "s"} in this view</p>
+      {shown.length === 0 && <div className="card p-8">No missions match this view.</div>}
+      {shown.map((mission) => <MissionCard key={mission.id} mission={mission} />)}
+    </div>}
+  </div></main>;
 }
 
-function StatusLegend({ items }: { items: ReadonlyArray<readonly [string, string]> }) {
-  return <div style={{ ...panel, marginTop: 18, padding: 14 }}><div className="font-mono-ibm" style={{ fontSize: 10, color: V.inkFaint, letterSpacing: ".12em", textTransform: "uppercase", marginBottom: 9 }}>Mission status colors</div><div style={{ display: "flex", gap: "8px 16px", flexWrap: "wrap" }}>{items.map(([label, color]) => <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 6, color: V.inkDim, fontSize: 12 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: color }} />{label}</span>)}</div></div>;
+function MissionCard({ mission }: { mission: Mission }) {
+  const jobs = mission.jobs ?? [];
+  const nextDate = jobs.map((job) => job.scheduled_for).filter(Boolean).sort()[0];
+  const pendingQc = jobs.reduce((total, job) => total + (job.deliverables ?? []).filter((item) => !item.qc_passed && !item.delivered_at).length, 0);
+  const pilotOwned = jobs.some((job) => job.delivery_responsibility === "pilot");
+  return <Link href={`/admin/missions/${mission.id}`} className="card block p-5 text-inherit no-underline transition hover:border-[#f26a1b] hover:shadow-md">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-[#f26a1b]">{mission.status.replaceAll("_", " ")}{pilotOwned ? " · pilot-owned" : ""}</p><h2 className="mt-1 text-lg font-extrabold">{mission.company || mission.requester_name || "Unnamed mission"}</h2><p className="mt-1 text-sm text-slate-600">{(mission.service_type ?? "custom").replaceAll("_", " ")} · {mission.location || "Location not set"}</p></div><div className="text-right text-sm text-slate-600">{nextDate ? `Scheduled ${new Date(nextDate).toLocaleString()}` : "Not scheduled"}{pendingQc > 0 && <div className="mt-1 font-bold text-amber-700">{pendingQc} pending QC</div>}</div></div>
+  </Link>;
 }
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ minHeight: "100vh", background: V.ground, color: V.ink, fontFamily: "Inter, system-ui, sans-serif" }}>
-      <div style={{ maxWidth: 960, margin: "0 auto", padding: "40px 24px" }}>{children}</div>
-    </div>
-  );
-}
-
-const panel: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
-const btnPrimary: React.CSSProperties = { padding: "10px 18px", borderRadius: 10, border: "none", background: V.signal, color: "#FFFFFF", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 14, cursor: "pointer" };

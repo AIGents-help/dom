@@ -4,7 +4,6 @@ import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendNotification } from "@/lib/resend/client";
 import { shopOrderRefunded, shopOrderShipped } from "@/lib/resend/templates";
-import { getShopProduct } from "@/lib/shop/catalog";
 
 export async function GET(req: NextRequest) {
   if (!(await isAdminRequest(req))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -24,15 +23,15 @@ export async function PATCH(req: NextRequest) {
   const admin = getSupabaseAdmin();
 
   if (action === "inventory") {
-    const product = getShopProduct(body.productKey);
+    const productKey = String(body.productKey ?? "");
     const mode = body.fulfillmentMode === "stocked" ? "stocked" : "made_to_order";
     const available = mode === "stocked" ? Number(body.availableQuantity) : null;
     const base = Number(body.shippingBaseCents);
     const additional = Number(body.shippingAdditionalCents);
-    if (!product || (available !== null && (!Number.isInteger(available) || available < 0)) || !Number.isInteger(base) || base < 0 || !Number.isInteger(additional) || additional < 0) {
+    if (!productKey || (available !== null && (!Number.isInteger(available) || available < 0)) || !Number.isInteger(base) || base < 0 || !Number.isInteger(additional) || additional < 0) {
       return NextResponse.json({ error: "Invalid inventory settings" }, { status: 400 });
     }
-    const { error } = await admin.from("shop_inventory").update({ fulfillment_mode: mode, available_quantity: available, shipping_base_cents: base, shipping_additional_cents: additional, active: body.active === true, updated_at: new Date().toISOString() }).eq("product_key", product.key);
+    const { error } = await admin.from("shop_inventory").update({ fulfillment_mode: mode, available_quantity: available, shipping_base_cents: base, shipping_additional_cents: additional, active: body.active === true, updated_at: new Date().toISOString() }).eq("product_key", productKey);
     return error ? NextResponse.json({ error: error.message }, { status: 500 }) : NextResponse.json({ success: true });
   }
 

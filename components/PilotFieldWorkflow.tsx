@@ -126,7 +126,7 @@ export default function PilotFieldWorkflow({
       : data.submission.blockers[0] ?? "Continue the required checklist";
 
   return (
-    <details style={panelStyle}>
+    <details id="field-workflow" style={panelStyle}>
       <summary style={{ cursor: "pointer", listStyle: "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
           <div>

@@ -17,14 +17,15 @@ const NAV = [
   { href: "/admin/dashboard", label: "Dashboard", icon: "◧" },
   { href: "/admin/leads", label: "CRM Files", icon: "☍" },
   { href: "/admin/missions", label: "Missions", icon: "▤" },
-  { href: "/admin/dashboard#missions", label: "Mission Requests", icon: "↗", child: true },
-  { href: "/admin/dashboard#jobs", label: "Jobs", icon: "▣", child: true },
-  { href: "/admin/dashboard#schedule", label: "Schedule", icon: "□", child: true },
-  { href: "/admin/dashboard#deliverables", label: "Deliverables", icon: "▱", child: true },
-  { href: "/admin/dashboard#notes", label: "Notes", icon: "≡", child: true },
-  { href: "/admin/dashboard#status", label: "Status Tracking", icon: "⌁", child: true },
+  { href: "/admin/missions?view=requests", label: "Mission Requests", icon: "↗", child: true },
+  { href: "/admin/missions?view=active", label: "Active Jobs", icon: "▣", child: true },
+  { href: "/admin/missions?view=schedule", label: "Schedule", icon: "□", child: true },
+  { href: "/admin/missions?view=deliverables", label: "Deliverables / QC", icon: "▱", child: true },
+  { href: "/admin/missions?view=closed", label: "Completed", icon: "⌁", child: true },
   { href: "/admin/contractors", label: "Contractors", icon: "◎" },
-  { href: "/admin/orders", label: "Shop Orders", icon: "▦" },
+  { href: "/admin/store", label: "Store", icon: "▦" },
+  { href: "/admin/store/products", label: "Products", icon: "◇", child: true },
+  { href: "/admin/orders", label: "Orders & Fulfillment", icon: "□", child: true },
 ];
 
 const NOTIFICATION_NAV = [
@@ -100,10 +101,11 @@ export default function AdminSidebar() {
 
       <nav style={{ display: "flex", flexDirection: "column", gap: 2, padding: 8, flex: 1 }}>
         {NAV.map((item) => {
-          const [itemPath, itemHash = ""] = item.href.split("#");
+          const [itemUrl, itemHash = ""] = item.href.split("#");
+          const itemPath = itemUrl.split("?")[0];
           const active = itemHash
             ? pathname === itemPath && hash === `#${itemHash}`
-            : pathname === itemPath && !hash || (!itemHash && (pathname?.startsWith(itemPath + "/") ?? false));
+            : pathname === itemPath && !hash || (!itemHash && !item.child && (pathname?.startsWith(itemPath + "/") ?? false));
           return (
             <Link
               key={item.href}

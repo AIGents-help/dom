@@ -312,7 +312,7 @@ export default function PilotMissionLog({
       ) : (
         <>
           {pilotOwned && <PilotTeamPanel assignmentId={assignmentId} onChanged={() => { setWorkflowRefreshKey((key) => key + 1); onSaved(); }} />}
-          <PilotReadinessBanner assignmentId={assignmentId} />
+          <PilotReadinessBanner assignmentId={assignmentId} onGoToProfile={onGoToProfile} />
           <PilotFieldWorkflow assignmentId={assignmentId} refreshKey={workflowRefreshKey} onChanged={onSaved} />
           <section id="mission-capture-plan" style={{ ...panelStyle, borderColor: V.signal }}>
             <style>{`@media print { body * { visibility: hidden !important; } #mission-capture-plan, #mission-capture-plan * { visibility: visible !important; } #mission-capture-plan { position: absolute; inset: 0; width: 100%; border: 0 !important; background: white !important; color: black !important; } #mission-capture-plan button { display: none !important; } }`}</style>

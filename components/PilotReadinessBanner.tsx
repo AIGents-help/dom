@@ -8,6 +8,7 @@ interface ReadinessData {
   level: "go" | "caution" | "no_go";
   blockers?: string[];
   cautions?: string[];
+  issues?: Array<{ message: string; action: string; target: string }>;
 }
 
 export function readinessReasons(data: Pick<ReadinessData, "blockers" | "cautions">) {
@@ -16,7 +17,7 @@ export function readinessReasons(data: Pick<ReadinessData, "blockers" | "caution
   return [...blockers, ...cautions];
 }
 
-export default function PilotReadinessBanner({ assignmentId }: { assignmentId: string }) {
+export default function PilotReadinessBanner({ assignmentId, onGoToProfile }: { assignmentId: string; onGoToProfile?: () => void }) {
   const [data, setData] = useState<ReadinessData | null>(null);
 
   const load = useCallback(async () => {
@@ -31,13 +32,23 @@ export default function PilotReadinessBanner({ assignmentId }: { assignmentId: s
   }, [assignmentId]);
 
   useEffect(() => {
-    load();
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   if (!data) return null;
 
   const color = data.level === "go" ? V.telemetry : data.level === "no_go" ? V.danger : V.warn;
   const reasons = readinessReasons(data);
+  const issues = Array.isArray(data.issues) ? data.issues : reasons.map((message) => ({ message, action: "Resolve item", target: "field-workflow" }));
+
+  function goTo(target: string) {
+    if (target === "pilot-profile") { onGoToProfile?.(); return; }
+    const element = document.getElementById(target);
+    const details = element?.closest("details");
+    if (details) details.open = true;
+    window.setTimeout(() => element?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
+  }
 
   return (
     <div
@@ -57,9 +68,10 @@ export default function PilotReadinessBanner({ assignmentId }: { assignmentId: s
             ? "⛔ NO-GO — Resolve Before Departure"
             : "⚠ CAUTION — Pilot Confirmation Required"}
       </strong>
-      {reasons.map((reason) => (
-        <div key={reason} style={{ fontSize: 11, color: V.inkDim, marginTop: 4 }}>
-          • {reason}
+      {issues.map((issue, index) => (
+        <div key={`${issue.target}-${issue.message}-${index}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 11, color: V.inkDim, marginTop: 7 }}>
+          <span>• {issue.message}</span>
+          <button type="button" onClick={() => goTo(issue.target)} style={{ border: 0, padding: 0, background: "transparent", color: V.signal, font: "inherit", fontWeight: 700, textDecoration: "underline", cursor: "pointer", whiteSpace: "nowrap" }}>{issue.action} →</button>
         </div>
       ))}
     </div>

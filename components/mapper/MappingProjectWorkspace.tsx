@@ -7,6 +7,7 @@ import { MAPPING_PROJECT_STATUS_LABELS, formatBytes, canUploadImages } from "@/l
 import MappingImageUploader from "./MappingImageUploader";
 import MappingProcessingStatus from "./MappingProcessingStatus";
 import MappingResults from "./MappingResults";
+import DominicWorkbench from "./DominicWorkbench";
 import type { MappingProject, MappingImage, MappingProcessingJob, MappingDeliverable } from "./types";
 
 interface WorkspacePayload {
@@ -106,7 +107,7 @@ export default function MappingProjectWorkspace({
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8, color: V.inkFaint, fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase" }}>
             <Layers3 size={14} color={V.signal} /> Map · Measure · Analyze
           </div>
-          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={project.id} />
+          <DominicWorkbench deliverables={deliverables} accessToken={accessToken} projectId={project.id} />
         </section>
       )}
 

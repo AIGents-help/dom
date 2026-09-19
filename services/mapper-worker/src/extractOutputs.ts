@@ -13,7 +13,7 @@ import AdmZip from "adm-zip";
 // types the worker knows how to register are exactly the ones it locates.
 
 export interface ExtractedOutput {
-  type: "orthomosaic" | "3d_model" | "dsm" | "dtm" | "contours" | "point_cloud";
+  type: "orthomosaic" | "3d_model" | "dsm" | "dtm" | "contours" | "contours_shapefile" | "contours_kml" | "contours_dxf" | "point_cloud";
   localPath: string;
   filename: string;
 }

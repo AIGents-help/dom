@@ -59,13 +59,9 @@ export async function POST(req: NextRequest) {
       case "checkout.session.async_payment_failed":
         await markShopCheckoutFailed(event.data.object as Stripe.Checkout.Session);
         break;
-      case "checkout.session.expired": {
-        const session = event.data.object as Stripe.Checkout.Session;
-        if (session.metadata?.order_type === "dom_safety_equipment") {
-          await admin.from("shop_orders").update({ status: "cancelled", payment_status: "failed", cancelled_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("stripe_checkout_session_id", session.id).eq("payment_status", "pending");
-        }
+      case "checkout.session.expired":
+        await markShopCheckoutFailed(event.data.object as Stripe.Checkout.Session);
         break;
-      }
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
         const resource = subscription.metadata?.subscription_type === "resource_access";

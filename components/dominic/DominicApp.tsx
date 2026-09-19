@@ -279,7 +279,7 @@ export default function DominicApp() {
               >
                 <div>
                   <div style={{ fontFamily: "Saira, sans-serif", fontSize: 17, fontWeight: 800 }}>DOMINIC Workspace</div>
-                  <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>Existing DOM Mapper projects, processing and deliverables — now inside the product shell.</div>
+                  <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>Mission-linked projects, processing, measurements, analysis and deliverables.</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: MUTED }}>
                   <UploadCloud size={16} color={ORANGE} />
@@ -287,7 +287,7 @@ export default function DominicApp() {
                 </div>
               </div>
 
-              <div style={{ padding: 18, color: "#111827", background: "#F6F8FA", minHeight: 620 }}>
+              <div style={{ padding: 18, color: TEXT, background: "#0B1117", minHeight: 620 }}>
                 <MappingTab accessToken={accessToken} />
               </div>
             </div>

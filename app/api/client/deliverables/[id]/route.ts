@@ -26,7 +26,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: deliverable } = await admin
     .from("deliverables")
-    .select("id, name, type, qc_passed, client_status, job:jobs!inner(id, client_id, mission_request_id)")
+    .select("id, name, type, qc_passed, client_status, client_feedback, client_reviewed_at, job:jobs!inner(id, client_id, mission_request_id)")
     .eq("id", id)
     .maybeSingle();
   const job = Array.isArray(deliverable?.job) ? deliverable.job[0] : deliverable?.job;
@@ -37,12 +37,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "This deliverable is already approved. Contact DOM if a new revision is required." }, { status: 409 });
   }
 
-  if (deliverable.client_status === status) {
+  const sameReview =
+    deliverable.client_status === status &&
+    (status === "approved" || (deliverable.client_feedback ?? "") === feedback);
+  if (sameReview) {
     return NextResponse.json({
       ok: true,
       status,
-      feedback: status === "revision_requested" ? feedback || null : null,
-      reviewedAt: null,
+      feedback: deliverable.client_feedback ?? null,
+      reviewedAt: deliverable.client_reviewed_at ?? null,
       unchanged: true,
     });
   }

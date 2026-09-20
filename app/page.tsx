@@ -3,12 +3,9 @@ import Image from "next/image";
 import {
   ArrowRight,
   BarChart3,
-  Check,
   Cloud,
   MapPinned,
-  MapPin,
   Ruler,
-  ShieldCheck,
   Target,
   Users,
   Zap,
@@ -34,116 +31,48 @@ const benefits = [
   [Cloud, "All in One", "Platform"],
 ];
 
-const mascotSrc = "/brand/dominic-mascot.webp?v=20260920-hero2";
+const mascotSrc = "/brand/dominic-reference.webp";
 
 export default function HomePage() {
   return (
     <main className="bg-[#080c10] text-white">
-      <section className="grid border-b border-[#f45a1e] lg:h-[420px] lg:grid-cols-2">
-        <div className="relative min-h-[500px] overflow-hidden lg:min-h-0">
+      <div className="sr-only">Uniquely Sophisticated. Intelligent Mapping by DOM. Safety-First Operations. Same Perspective. Higher Purpose. Map. Measure. Analyze. Deliver.</div>
+      <section className="grid border-b border-[#f45a1e] bg-black lg:h-[420px] lg:grid-cols-2">
+        <div className="relative aspect-[768/420] overflow-hidden lg:aspect-auto lg:h-[420px]">
           <Image
-            src="/images/drone-operation-safety.png"
-            alt="Professional commercial drone operation"
+            src="/brand/dom-home-hero-left.webp"
+            alt="DOM professional drone operations — Higher Insights, Real Results"
             fill
             priority
             sizes="(max-width: 1024px) 100vw, 50vw"
-            className="object-cover object-center"
+            className="object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#07111c]/92 via-[#07111c]/58 to-[#07111c]/14" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/68 via-transparent to-black/5" />
-
-          <div className="relative flex h-full flex-col justify-center px-7 py-10 sm:px-10 lg:px-[52px] lg:py-7">
-            <h1 className="max-w-[600px] text-[42px] font-black uppercase leading-[.96] tracking-[-.025em] sm:text-[50px] lg:text-[42px] xl:text-[46px]">
-              Higher insights
-              <span className="mt-1 block text-[#ff641c]">Real results</span>
-            </h1>
-
-            <p className="mt-3 max-w-[500px] text-[15px] leading-6 text-white/92 lg:text-[13px] xl:text-[14px]">
-              Professional drone operations for inspection, mapping,
-              construction, real estate, and more.
-            </p>
-
-            <div className="mt-5 flex flex-wrap gap-3">
-              <Link
-                href="/request-mission"
-                className="inline-flex h-[44px] items-center gap-2 rounded-md bg-[#ff641c] px-6 text-[13px] font-black text-black transition hover:bg-[#ff7a3a]"
-              >
-                Request a Mission <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href="/services"
-                className="inline-flex h-[44px] items-center rounded-md border border-white/55 bg-black/30 px-7 text-[13px] font-black text-white transition hover:border-[#ff641c]"
-              >
-                Our Services
-              </Link>
-            </div>
-
-            <div className="mt-7 grid max-w-[680px] grid-cols-2 gap-x-5 gap-y-4 xl:grid-cols-4">
-              {[
-                [ShieldCheck, "Safety First", "Always"],
-                [BarChart3, "Data You Can Trust", "Actionable Results"],
-                [Users, "Professional Pilots", "FAA Part 107"],
-                [MapPin, "Local & Nationwide", "Where You Need Us"],
-              ].map(([Icon, title, copy]) => {
-                const I = Icon as typeof ShieldCheck;
-                return (
-                  <div key={title as string} className="flex items-center gap-2.5">
-                    <I className="h-7 w-7 shrink-0 text-[#ff641c]" />
-                    <div className="min-w-0">
-                      <div className="whitespace-nowrap text-[11px] font-black">{title as string}</div>
-                      <div className="whitespace-nowrap text-[10px] text-white/72">{copy as string}</div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+          <Link
+            href="/request-mission"
+            aria-label="Request a Mission"
+            className="absolute left-[6.5%] top-[61.5%] h-[10.5%] w-[25%] rounded-md"
+          />
+          <Link
+            href="/services"
+            aria-label="Our Services"
+            className="absolute left-[33%] top-[61.5%] h-[10.5%] w-[18.5%] rounded-md"
+          />
         </div>
 
-        <div className="relative min-h-[560px] overflow-hidden bg-[radial-gradient(circle_at_35%_50%,rgba(244,90,30,.24),transparent_34%),linear-gradient(125deg,#080a0c_0%,#121212_48%,#07090b_100%)] lg:min-h-0">
-          <div className="absolute inset-0 opacity-[.20] [background-image:linear-gradient(rgba(244,90,30,.18)_1px,transparent_1px),linear-gradient(90deg,rgba(244,90,30,.18)_1px,transparent_1px)] [background-size:32px_32px]" />
-
-          <div className="absolute left-[1%] top-[18%] z-20 -rotate-3 text-[17px] italic leading-7 text-white/82">
-            “ Map<br />&nbsp;&nbsp;Measure<br />&nbsp;&nbsp;Analyze<br />&nbsp;&nbsp;Deliver ”
-          </div>
-
-          <img
-            src={mascotSrc}
-            alt="DOMINIC mapping software mascot"
-            className="absolute bottom-[-3%] left-[5%] z-10 h-[94%] w-[49%] object-contain object-bottom drop-shadow-[0_24px_50px_rgba(0,0,0,.55)]"
+        <div className="relative aspect-[768/420] overflow-hidden lg:aspect-auto lg:h-[420px]">
+          <Image
+            src="/brand/dom-home-hero-right.webp"
+            alt="DOMINIC Intelligent Mapping by DOM"
+            fill
+            priority
+            sizes="(max-width: 1024px) 100vw, 50vw"
+            className="object-cover"
           />
-
-          <div className="absolute right-[3.5%] top-1/2 z-20 w-[46%] -translate-y-1/2">
-            <DominicBrandLockup size="lg" />
-            <h2 className="mt-5 text-[23px] font-black uppercase leading-[1.05] xl:text-[25px]">
-              Turning images
-              <span className="block text-[#ff641c]">into intelligence</span>
-            </h2>
-
-            <div className="mt-4 space-y-2">
-              {[
-                "2D & 3D Mapping",
-                "Accurate Measurements",
-                "Contours & Elevations",
-                "Professional Reports",
-                "Built for Real-World Operations",
-              ].map((item) => (
-                <div key={item} className="flex items-center gap-2 text-[11px] font-semibold text-white/92 xl:text-[12px]">
-                  <Check className="h-4 w-4 text-[#ff641c]" />
-                  {item}
-                </div>
-              ))}
-            </div>
-
-            <Link
-              href="/dominic"
-              className="mt-4 inline-flex h-[40px] items-center gap-2 rounded-md bg-[#ff641c] px-5 text-[12px] font-black text-black transition hover:bg-[#ff7a3a]"
-            >
-              See DOMINIC in Action <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-
-            <p className="mt-3 text-[11px] italic text-white/70">“Same Perspective. Higher Purpose.”</p>
-          </div>
+          <Link
+            href="/dominic"
+            aria-label="See DOMINIC in Action"
+            className="absolute left-[67%] top-[76.5%] h-[9.5%] w-[28%] rounded-md"
+          />
         </div>
       </section>
 

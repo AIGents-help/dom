@@ -80,16 +80,9 @@ export async function registerDeliverable(
     .maybeSingle();
   if (error) throw new Error(`Failed to register deliverable (${output.type}): ${error.message}`);
 
-  if (previousRevision && registered?.id) {
-    const { error: supersedeError } = await supabaseAdmin
-      .from("deliverables")
-      .update({ client_status: "superseded" })
-      .eq("id", previousRevision.id)
-      .eq("client_status", "revision_requested");
-    if (supersedeError) {
-      console.warn(`[registerDeliverables] Corrected output registered but prior revision status was not updated: ${supersedeError.message}`);
-    }
-  }
+  // Keep the client-requested revision active until its corrected replacement
+  // passes QC. Registration only establishes lineage; QC owns the handoff.
+  void registered;
 }
 
 // Lets processJob skip uploading an output it has already registered for

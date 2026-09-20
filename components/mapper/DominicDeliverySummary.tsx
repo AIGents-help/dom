@@ -37,14 +37,15 @@ export default function DominicDeliverySummary({ deliverables, projectId }: { de
       setManifestBusy(false);
     }
   }
-  const qcPassed = deliverables.filter((item) => item.qc_passed).length;
-  const pending = deliverables.length - qcPassed;
-  const clientApproved = deliverables.filter((item) => item.client_status === "approved").length;
-  const revisionRequested = deliverables.filter((item) => item.client_status === "revision_requested").length;
-  const clientPending = deliverables.filter((item) => item.qc_passed && !["approved", "revision_requested"].includes(item.client_status ?? "")).length;
+  const currentDeliverables = deliverables.filter((item) => item.client_status !== "superseded");
+  const qcPassed = currentDeliverables.filter((item) => item.qc_passed).length;
+  const pending = currentDeliverables.length - qcPassed;
+  const clientApproved = currentDeliverables.filter((item) => item.client_status === "approved").length;
+  const revisionRequested = currentDeliverables.filter((item) => item.client_status === "revision_requested").length;
+  const clientPending = currentDeliverables.filter((item) => item.qc_passed && !["approved", "revision_requested"].includes(item.client_status ?? "")).length;
   const clientReviewed = clientApproved + revisionRequested;
   const handoffComplete = qcPassed > 0 && clientApproved === qcPassed;
-  const categories = new Set(deliverables.map((item) => item.type).filter(Boolean));
+  const categories = new Set(currentDeliverables.map((item) => item.type).filter(Boolean));
 
   return (
     <section style={{ ...panelStyle, padding: 16, marginBottom: 12 }}>
@@ -57,7 +58,7 @@ export default function DominicDeliverySummary({ deliverables, projectId }: { de
           </p>
         </div>
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-          <Stat value={deliverables.length} label="Outputs" />
+          <Stat value={currentDeliverables.length} label="Current Outputs" />
           <Stat value={qcPassed} label="QC Passed" />
           <Stat value={pending} label="Pending QC" />
           <Stat value={clientApproved} label="Client Approved" />
@@ -83,7 +84,7 @@ export default function DominicDeliverySummary({ deliverables, projectId }: { de
           </div>
           {revisionRequested > 0 ? (
             <div style={{ marginTop: 9, display: "grid", gap: 6 }}>
-              {deliverables.filter((item) => item.client_status === "revision_requested").map((item) => (
+              {currentDeliverables.filter((item) => item.client_status === "revision_requested").map((item) => (
                 <div key={item.id} style={{ borderTop: `1px solid ${V.lineSoft}`, paddingTop: 7 }}>
                   <strong style={{ color: V.ink, fontSize: 11 }}>{item.name}</strong>
                   <div style={{ color: V.warn, fontSize: 10, marginTop: 2 }}>{item.client_feedback || "Client requested a revision."}</div>

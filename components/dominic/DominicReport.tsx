@@ -42,6 +42,8 @@ interface ProjectPayload {
     client_status?: string | null;
     client_feedback?: string | null;
     client_reviewed_at?: string | null;
+    supersedes_deliverable_id?: string | null;
+    revision_number?: number | null;
     delivered_at: string | null;
   }>;
 }
@@ -120,10 +122,11 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   if (!data) return <div style={{ minHeight: "100vh", background: "#090D11", color: "#B2BCC7", padding: 32 }}>Preparing report…</div>;
 
   const project = data.project;
-  const passed = data.deliverables.filter((item) => item.qc_passed).length;
-  const approved = data.deliverables.filter((item) => item.client_status === "approved").length;
-  const revisions = data.deliverables.filter((item) => item.client_status === "revision_requested").length;
-  const reviewed = data.deliverables.filter((item) => ["approved", "revision_requested"].includes(item.client_status ?? "")).length;
+  const currentDeliverables = data.deliverables.filter((item) => item.client_status !== "superseded");
+  const passed = currentDeliverables.filter((item) => item.qc_passed).length;
+  const approved = currentDeliverables.filter((item) => item.client_status === "approved").length;
+  const revisions = currentDeliverables.filter((item) => item.client_status === "revision_requested").length;
+  const reviewed = currentDeliverables.filter((item) => ["approved", "revision_requested"].includes(item.client_status ?? "")).length;
   const handoffComplete = passed > 0 && approved === passed;
 
   return (
@@ -158,7 +161,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
             <Metric label="Source Images" value={String(project.image_count)} />
             <Metric label="Measurements" value={String(measurements.length)} />
             <Metric label="Findings / Markups" value={String(markups.length)} />
-            <Metric label="QC-Passed Outputs" value={`${passed}/${data.deliverables.length}`} />
+            <Metric label="QC-Passed Outputs" value={`${passed}/${currentDeliverables.length}`} />
             <Metric label="Client Approved" value={`${approved}/${passed}`} />
           </div>
 
@@ -209,11 +212,11 @@ export default function DominicReport({ projectId }: { projectId: string }) {
           )}
 
           <SectionTitle>Deliverables</SectionTitle>
-          {data.deliverables.length === 0 ? <Empty>No processed deliverables registered.</Empty> : (
+          {currentDeliverables.length === 0 ? <Empty>No processed deliverables registered.</Empty> : (
             <table style={tableStyle}>
               <thead><tr><Th>Deliverable</Th><Th>Type</Th><Th>QC</Th><Th>Client Review</Th><Th>Reviewed</Th></tr></thead>
-              <tbody>{data.deliverables.map((item) => (
-                <tr key={item.id}><Td>{item.name}</Td><Td>{titleCase(item.type ?? "output")}</Td><Td>{item.qc_passed ? "Passed" : "Pending"}</Td><Td>{item.client_status ? titleCase(item.client_status) : item.qc_passed ? "Awaiting Review" : "—"}</Td><Td>{item.client_reviewed_at ? new Date(item.client_reviewed_at).toLocaleString() : "—"}</Td></tr>
+              <tbody>{currentDeliverables.map((item) => (
+                <tr key={item.id}><Td>{item.name}{(item.revision_number ?? 1) > 1 ? ` · Rev ${item.revision_number}` : ""}</Td><Td>{titleCase(item.type ?? "output")}</Td><Td>{item.qc_passed ? "Passed" : "Pending"}</Td><Td>{item.client_status ? titleCase(item.client_status) : item.qc_passed ? "Awaiting Review" : "—"}</Td><Td>{item.client_reviewed_at ? new Date(item.client_reviewed_at).toLocaleString() : "—"}</Td></tr>
               ))}</tbody>
             </table>
           )}
@@ -223,7 +226,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
               <SectionTitle>Client Revision Requests</SectionTitle>
               <table style={tableStyle}>
                 <thead><tr><Th>Deliverable</Th><Th>Client Instructions</Th><Th>Reviewed</Th></tr></thead>
-                <tbody>{data.deliverables.filter((item) => item.client_status === "revision_requested").map((item) => (
+                <tbody>{currentDeliverables.filter((item) => item.client_status === "revision_requested").map((item) => (
                   <tr key={item.id}><Td>{item.name}</Td><Td>{item.client_feedback ?? "Revision requested"}</Td><Td>{item.client_reviewed_at ? new Date(item.client_reviewed_at).toLocaleString() : "—"}</Td></tr>
                 ))}</tbody>
               </table>

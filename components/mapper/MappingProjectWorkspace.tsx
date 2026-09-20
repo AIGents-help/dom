@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ImageIcon, Layers3, UploadCloud, CalendarDays, MapPin, Plane, CheckCircle2, RefreshCw } from "lucide-react";
+import { ChevronLeft, ImageIcon, Layers3, UploadCloud, CalendarDays, MapPin, Plane, CheckCircle2, RefreshCw, Trash2 } from "lucide-react";
 import { V, btnGhost, statusPillStyle } from "./theme";
 import { MAPPING_PROJECT_STATUS_LABELS, formatBytes, canUploadImages } from "@/lib/mapperPipeline";
 import MappingImageUploader from "./MappingImageUploader";
@@ -49,8 +49,21 @@ export default function MappingProjectWorkspace({
   const dataRef = useRef<WorkspacePayload | null>(null);
   const cacheKey = `dominic:project-snapshot:${projectId}`;
   const [snapshotSavedAt, setSnapshotSavedAt] = useState<Date | null>(null);
+  const [snapshotAvailable, setSnapshotAvailable] = useState(false);
 
   useEffect(() => { dataRef.current = data; }, [data]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return;
+      const cached = JSON.parse(raw) as { saved_at?: string };
+      setSnapshotAvailable(true);
+      setSnapshotSavedAt(cached.saved_at ? new Date(cached.saved_at) : null);
+    } catch {
+      setSnapshotAvailable(false);
+    }
+  }, [cacheKey]);
 
   const load = useCallback(async () => {
     if (!online) {
@@ -72,6 +85,7 @@ export default function MappingProjectWorkspace({
         const savedAt = new Date();
         localStorage.setItem(cacheKey, JSON.stringify({ saved_at: savedAt.toISOString(), payload: body }));
         setSnapshotSavedAt(savedAt);
+        setSnapshotAvailable(true);
       } catch {
         // Field snapshot caching is best-effort; live project loading still succeeds.
       }
@@ -110,6 +124,16 @@ export default function MappingProjectWorkspace({
     return () => clearInterval(interval);
   }, [data, load, online]);
 
+  function clearFieldSnapshot() {
+    try {
+      localStorage.removeItem(cacheKey);
+    } catch {
+      // Ignore storage cleanup failures; the live project remains unaffected.
+    }
+    setSnapshotAvailable(false);
+    setSnapshotSavedAt(null);
+  }
+
   function restoreFieldSnapshot() {
     try {
       const raw = localStorage.getItem(cacheKey);
@@ -136,7 +160,7 @@ export default function MappingProjectWorkspace({
         <button type="button" onClick={load} disabled={!online || refreshing} style={{ ...btnGhost, opacity: !online ? .5 : 1 }}>
           <RefreshCw size={13} /> Retry live project
         </button>
-        {!online ? (
+        {!online && snapshotAvailable ? (
           <button type="button" onClick={restoreFieldSnapshot} style={btnGhost}>
             Open saved field snapshot
           </button>
@@ -174,8 +198,19 @@ export default function MappingProjectWorkspace({
               title={`Offline field snapshot saved ${snapshotSavedAt.toLocaleString()}`}
               style={{ color: V.inkFaint, fontSize: 9, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}
             >
-              Snapshot saved
+              Snapshot saved {Math.max(0, Math.floor((Date.now() - snapshotSavedAt.getTime()) / 60000))}m ago
             </span>
+          ) : null}
+          {snapshotAvailable ? (
+            <button
+              type="button"
+              onClick={clearFieldSnapshot}
+              title="Clear saved offline field snapshot from this device"
+              aria-label="Clear saved field snapshot"
+              style={{ ...btnGhost, padding: "5px 7px", display: "inline-grid", placeItems: "center" }}
+            >
+              <Trash2 size={12} />
+            </button>
           ) : null}
           <button
             type="button"

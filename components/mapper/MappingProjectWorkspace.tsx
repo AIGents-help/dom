@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ImageIcon, Layers3, UploadCloud, CalendarDays, MapPin, Plane, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, ImageIcon, Layers3, UploadCloud, CalendarDays, MapPin, Plane, CheckCircle2, RefreshCw } from "lucide-react";
 import { V, btnGhost, statusPillStyle } from "./theme";
 import { MAPPING_PROJECT_STATUS_LABELS, formatBytes, canUploadImages } from "@/lib/mapperPipeline";
 import MappingImageUploader from "./MappingImageUploader";
@@ -45,6 +45,7 @@ export default function MappingProjectWorkspace({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const dataRef = useRef<WorkspacePayload | null>(null);
 
   useEffect(() => { dataRef.current = data; }, [data]);
@@ -57,13 +58,15 @@ export default function MappingProjectWorkspace({
       }
       return;
     }
+    setRefreshing(true);
     const res = await fetch(`/api/pilot/mapping/projects/${projectId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) { setError(body.error ?? "Could not load this project."); setLoading(false); return; }
+    if (!res.ok) { setError(body.error ?? "Could not load this project."); setLoading(false); setRefreshing(false); return; }
     setError(null);
     setData(body);
     setLastSyncedAt(new Date());
     setLoading(false);
+    setRefreshing(false);
   }, [accessToken, projectId, online]);
 
   useEffect(() => {
@@ -118,6 +121,16 @@ export default function MappingProjectWorkspace({
           <span style={{ color: online ? V.telemetry : V.warn, fontSize: 9, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase" }}>
             {online ? lastSyncedAt ? `Synced ${lastSyncedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Connecting" : lastSyncedAt ? `Offline · last sync ${lastSyncedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Offline"}
           </span>
+          <button
+            type="button"
+            onClick={load}
+            disabled={!online || refreshing}
+            title={!online ? "Reconnect to refresh project data" : "Refresh project data"}
+            aria-label="Refresh DOMINIC project data"
+            style={{ ...btnGhost, padding: "5px 7px", opacity: !online ? .45 : 1, cursor: !online ? "not-allowed" : "pointer", display: "inline-grid", placeItems: "center" }}
+          >
+            <RefreshCw size={13} style={{ transform: refreshing ? "rotate(90deg)" : "none", transition: "transform .2s ease" }} />
+          </button>
           <span style={{ color: V.inkFaint, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 5 }}><CalendarDays size={13} /> {new Date(project.created_at).toLocaleDateString()}</span>
           <span className="font-mono-ibm" style={{ ...statusPillStyle(STATUS_COLOR[project.status] ?? V.inkFaint), display: "inline-flex", alignItems: "center", gap: 5 }}>
             {project.status === "completed" && <CheckCircle2 size={11} />}

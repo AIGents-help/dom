@@ -19,6 +19,7 @@ import {
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import MappingTab from "@/components/mapper/MappingTab";
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
+import DominicMascotImage from "@/components/dominic/DominicMascotImage";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
@@ -205,13 +206,7 @@ export default function DominicApp() {
             }}
           >
             <div style={{ position: "relative", aspectRatio: "1 / 1", width: "100%", overflow: "hidden" }}>
-              <Image
-                src="/brand/dominic-mascot.webp"
-                alt="DOMINIC mascot"
-                fill
-                sizes="190px"
-                style={{ objectFit: "cover", objectPosition: "center" }}
-              />
+              <DominicMascotImage className="object-cover object-[48%_32%]" />
               <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 55%, rgba(9,13,17,.92) 100%)" }} />
             </div>
             <div style={{ padding: "0 12px 14px", marginTop: -16, position: "relative" }}>

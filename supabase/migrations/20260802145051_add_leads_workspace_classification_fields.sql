@@ -20,6 +20,9 @@ alter table public.leads
   add column if not exists next_action text;
 
 alter table public.leads
+  drop constraint if exists leads_industry_check;
+
+alter table public.leads
   add constraint leads_industry_check check (
     industry is null or industry in (
       'telecom_towers', 'refinery_petrochemical', 'utilities', 'construction',
@@ -27,6 +30,9 @@ alter table public.leads
       'municipal', 'public_safety', 'environmental', 'agriculture', 'other'
     )
   );
+
+alter table public.leads
+  drop constraint if exists leads_engagement_model_check;
 
 alter table public.leads
   add constraint leads_engagement_model_check check (
@@ -37,11 +43,17 @@ alter table public.leads
   );
 
 alter table public.leads
+  drop constraint if exists leads_opportunity_ownership_check;
+
+alter table public.leads
   add constraint leads_opportunity_ownership_check check (
     opportunity_ownership is null or opportunity_ownership in (
       'dom_owned', 'partner_owned', 'shared', 'unknown'
     )
   );
+
+alter table public.leads
+  drop constraint if exists leads_dji_permitted_check;
 
 alter table public.leads
   add constraint leads_dji_permitted_check check (

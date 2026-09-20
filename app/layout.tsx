@@ -78,7 +78,7 @@ export default function RootLayout({
         <main id="main-content" className="flex-1" tabIndex={-1}>{children}</main>
         <Footer />
         <CookieConsent />
-        <PwaRegistrar />
+        <PwaRegistrar buildId={process.env.VERCEL_GIT_COMMIT_SHA ?? process.env.VERCEL_DEPLOYMENT_ID ?? "local"} />
         <InstallAppBanner />
       </body>
     </html>

@@ -1,15 +1,12 @@
 "use client";
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
 
 export default function ClientLoginPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const requestedReturnTo = searchParams.get("returnTo");
-  const returnTo = requestedReturnTo?.startsWith("/client") && !requestedReturnTo.startsWith("//") ? requestedReturnTo : "/client";
   const [email, setEmail] = useState(""); const [password, setPassword] = useState("");
   const [activate, setActivate] = useState(false); const [error, setError] = useState<string|null>(null); const [loading, setLoading] = useState(false);
   async function submit() {
@@ -19,6 +16,8 @@ export default function ClientLoginPage() {
       const body = await res.json(); if (!res.ok) throw new Error(body.error);
       if (body.confirmationRequired) { setError("Check your email to confirm your account, then sign in."); setActivate(false); return; }
       await getSupabaseBrowser().auth.setSession({ access_token:body.session.access_token, refresh_token:body.session.refresh_token });
+      const requestedReturnTo = new URLSearchParams(window.location.search).get("returnTo");
+      const returnTo = requestedReturnTo?.startsWith("/client") && !requestedReturnTo.startsWith("//") ? requestedReturnTo : "/client";
       router.push(returnTo);
     } catch(e:any) { setError(e.message ?? "Access failed"); } finally { setLoading(false); }
   }

@@ -47,6 +47,7 @@ export default function MappingProjectWorkspace({
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const dataRef = useRef<WorkspacePayload | null>(null);
+  const cacheKey = `dominic:project-snapshot:${projectId}`;
 
   useEffect(() => { dataRef.current = data; }, [data]);
 
@@ -66,6 +67,11 @@ export default function MappingProjectWorkspace({
       setError(null);
       setData(body);
       setLastSyncedAt(new Date());
+      try {
+        sessionStorage.setItem(cacheKey, JSON.stringify({ saved_at: new Date().toISOString(), payload: body }));
+      } catch {
+        // Field snapshot caching is best-effort; live project loading still succeeds.
+      }
       setLoading(false);
     } catch {
       if (!dataRef.current) setError("Could not reach DOMINIC. Check connectivity and retry.");
@@ -73,7 +79,7 @@ export default function MappingProjectWorkspace({
     } finally {
       setRefreshing(false);
     }
-  }, [accessToken, projectId, online]);
+  }, [accessToken, projectId, online, cacheKey]);
 
   useEffect(() => {
     load();
@@ -101,8 +107,39 @@ export default function MappingProjectWorkspace({
     return () => clearInterval(interval);
   }, [data, load, online]);
 
+  function restoreFieldSnapshot() {
+    try {
+      const raw = sessionStorage.getItem(cacheKey);
+      if (!raw) { setError("No saved field snapshot is available for this project yet."); return; }
+      const cached = JSON.parse(raw) as { saved_at?: string; payload?: WorkspacePayload };
+      if (!cached.payload) { setError("The saved field snapshot is not valid."); return; }
+      setData(cached.payload);
+      dataRef.current = cached.payload;
+      setLastSyncedAt(cached.saved_at ? new Date(cached.saved_at) : null);
+      setError(null);
+      setLoading(false);
+    } catch {
+      setError("The saved field snapshot could not be opened.");
+    }
+  }
+
   if (loading) return <p style={{ color: V.inkDim }}>Opening project…</p>;
-  if (error || !data) return <p style={{ color: V.danger }}>{error ?? "Project not found."}</p>;
+  if (error || !data) return (
+    <div style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface, padding: 18 }}>
+      <p style={{ color: V.danger, fontSize: 13 }}>{error ?? "Project not found."}</p>
+      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+        <button type="button" onClick={load} disabled={!online || refreshing} style={{ ...btnGhost, opacity: !online ? .5 : 1 }}>
+          <RefreshCw size={13} /> Retry live project
+        </button>
+        {!online ? (
+          <button type="button" onClick={restoreFieldSnapshot} style={btnGhost}>
+            Open saved field snapshot
+          </button>
+        ) : null}
+      </div>
+      {!online ? <p style={{ color: V.inkFaint, fontSize: 10, marginTop: 9 }}>DOMINIC saves the most recent successful project sync in this browser session for read-only field reference.</p> : null}
+    </div>
+  );
 
   const { project, images, processingJobs, deliverables } = data;
   const latestJob = processingJobs[0] ?? null;

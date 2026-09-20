@@ -167,6 +167,7 @@ export default function PilotCreateMissionWizard({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not calculate a quote.");
       setQuote({ serviceLabel: data.quote.serviceLabel, totalCents: data.quote.totalCents, warnings: data.quote.warnings ?? [] });
+      setUninsuredConsent(false);
       setStep("quote");
     } catch (e: any) {
       setError(e.message);

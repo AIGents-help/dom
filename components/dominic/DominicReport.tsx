@@ -97,6 +97,13 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   }, [projectId, router]);
 
   useEffect(() => {
+    if (!data) return;
+    const previousTitle = document.title;
+    document.title = `DOMINIC - ${data.project.name} - Project Report`;
+    return () => { document.title = previousTitle; };
+  }, [data]);
+
+  useEffect(() => {
     const handleAfterPrint = () => setPrintCompleted(true);
     window.addEventListener("afterprint", handleAfterPrint);
     return () => window.removeEventListener("afterprint", handleAfterPrint);

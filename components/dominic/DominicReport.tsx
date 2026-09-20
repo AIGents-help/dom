@@ -97,16 +97,6 @@ export default function DominicReport({ projectId }: { projectId: string }) {
     return () => { active = false; };
   }, [projectId, router]);
 
-  if (error) return <div style={{ minHeight: "100vh", background: "#090D11", color: "#F05A5A", padding: 32 }}>{error}</div>;
-  if (!data) return <div style={{ minHeight: "100vh", background: "#090D11", color: "#B2BCC7", padding: 32 }}>Preparing report…</div>;
-
-  const project = data.project;
-  const passed = data.deliverables.filter((item) => item.qc_passed).length;
-  const approved = data.deliverables.filter((item) => item.client_status === "approved").length;
-  const revisions = data.deliverables.filter((item) => item.client_status === "revision_requested").length;
-  const reviewed = data.deliverables.filter((item) => ["approved", "revision_requested"].includes(item.client_status ?? "")).length;
-  const handoffComplete = passed > 0 && approved === passed;
-
   useEffect(() => {
     const handleAfterPrint = () => setPrintCompleted(true);
     window.addEventListener("afterprint", handleAfterPrint);
@@ -119,6 +109,16 @@ export default function DominicReport({ projectId }: { projectId: string }) {
     const timer = window.setTimeout(() => window.print(), 500);
     return () => window.clearTimeout(timer);
   }, [pdfMode, data, pdfReady, autoPrintStarted]);
+
+  if (error) return <div style={{ minHeight: "100vh", background: "#090D11", color: "#F05A5A", padding: 32 }}>{error}</div>;
+  if (!data) return <div style={{ minHeight: "100vh", background: "#090D11", color: "#B2BCC7", padding: 32 }}>Preparing report…</div>;
+
+  const project = data.project;
+  const passed = data.deliverables.filter((item) => item.qc_passed).length;
+  const approved = data.deliverables.filter((item) => item.client_status === "approved").length;
+  const revisions = data.deliverables.filter((item) => item.client_status === "revision_requested").length;
+  const reviewed = data.deliverables.filter((item) => ["approved", "revision_requested"].includes(item.client_status ?? "")).length;
+  const handoffComplete = passed > 0 && approved === passed;
 
   return (
     <div style={{ minHeight: "100vh", background: "#E9EDF1", padding: "24px 16px", color: "#172033" }}>

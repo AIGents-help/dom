@@ -17,14 +17,17 @@ jobs:
           url="https://droneopsman.com"
           for attempt in $(seq 1 30); do
             body="$(curl -fsSL --max-time 20 "$url" || true)"
-            if printf '%s' "$body" | grep -qi "Intelligent Mapping by DOM"; then
-              echo "DOMINIC homepage marker is live on production."
+            if printf '%s' "$body" | grep -qi "Intelligent Mapping by DOM" \
+              && printf '%s' "$body" | grep -qi "Safety-First Operations" \
+              && printf '%s' "$body" | grep -qi "Same Perspective. Higher Purpose." \
+              && printf '%s' "$body" | grep -qi "Map. Measure. Analyze. Deliver."; then
+              echo "Updated DOMINIC homepage layout is live on production."
               exit 0
             fi
             echo "Attempt $attempt/30: production has not exposed the DOMINIC marker yet."
             sleep 20
           done
-          echo "Production did not expose the DOMINIC homepage marker within 10 minutes."
+          echo "Production did not expose the updated DOMINIC homepage layout within 10 minutes."
           exit 1
 
       - name: Verify DOMINIC route responds

@@ -54,15 +54,19 @@ export default function MappingDeliverables({
     <div style={{ display: "grid", gap: 8 }}>
       {deliverables.map((d) => {
         const hasFile = deliverableHasFile(d);
+        const reviewTone = d.client_status === "approved" ? V.telemetry : d.client_status === "revision_requested" ? V.warn : V.inkFaint;
+        const reviewLabel = d.client_status === "approved" ? "CLIENT APPROVED" : d.client_status === "revision_requested" ? "REVISION REQUESTED" : d.qc_passed ? "AWAITING CLIENT REVIEW" : "PENDING QC";
         return (
           <div key={d.id} style={{ ...panelStyle, padding: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <div style={{ color: V.ink, fontSize: 13, fontWeight: 600 }}>{d.name}</div>
                 <div className="font-mono-ibm" style={{ color: V.inkFaint, fontSize: 11, marginTop: 3, textTransform: "uppercase", letterSpacing: ".05em" }}>
-                  {(d.type ?? "output").replace(/_/g, " ")} · {d.qc_passed ? "QC passed" : "Pending QC"}
+                  {(d.type ?? "output").replace(/_/g, " ")} · {d.qc_passed ? "QC passed" : "Pending QC"}{d.client_status ? ` · Client ${d.client_status.replace(/_/g, " ")}` : ""}
                 </div>
               </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <span className="font-mono-ibm" style={{ color: reviewTone, fontSize: 8, letterSpacing: ".06em" }}>{reviewLabel}</span>
               <button
                 onClick={() => download(d)}
                 disabled={!hasFile || loading === d.id}
@@ -70,7 +74,13 @@ export default function MappingDeliverables({
               >
                 {!hasFile ? "Unavailable" : loading === d.id ? "…" : "Download"}
               </button>
+              </div>
             </div>
+            {d.client_status === "revision_requested" && d.client_feedback ? (
+              <div style={{ marginTop: 8, padding: 8, borderRadius: 7, border: `1px solid ${V.warn}`, color: V.warn, fontSize: 11 }}>
+                Client revision: {d.client_feedback}
+              </div>
+            ) : null}
             {errors[d.id] && (
               <p style={{ color: V.danger, fontSize: 12, marginTop: 8 }}>{errors[d.id]}</p>
             )}

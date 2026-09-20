@@ -39,6 +39,11 @@ export default function DominicDeliverySummary({ deliverables, projectId }: { de
   }
   const qcPassed = deliverables.filter((item) => item.qc_passed).length;
   const pending = deliverables.length - qcPassed;
+  const clientApproved = deliverables.filter((item) => item.client_status === "approved").length;
+  const revisionRequested = deliverables.filter((item) => item.client_status === "revision_requested").length;
+  const clientPending = deliverables.filter((item) => item.qc_passed && !["approved", "revision_requested"].includes(item.client_status ?? "")).length;
+  const clientReviewed = clientApproved + revisionRequested;
+  const handoffComplete = qcPassed > 0 && clientApproved === qcPassed;
   const categories = new Set(deliverables.map((item) => item.type).filter(Boolean));
 
   return (
@@ -54,9 +59,40 @@ export default function DominicDeliverySummary({ deliverables, projectId }: { de
         <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
           <Stat value={deliverables.length} label="Outputs" />
           <Stat value={qcPassed} label="QC Passed" />
-          <Stat value={pending} label="Pending" />
+          <Stat value={pending} label="Pending QC" />
+          <Stat value={clientApproved} label="Client Approved" />
+          <Stat value={revisionRequested} label="Revision" />
         </div>
       </div>
+
+      {qcPassed > 0 ? (
+        <div style={{ marginTop: 13, border: `1px solid ${revisionRequested ? V.warn : V.line}`, borderRadius: 10, padding: 11, background: "#0B1117" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+            <div className="font-mono-ibm" style={{ color: V.inkFaint, fontSize: 9, textTransform: "uppercase", letterSpacing: ".08em" }}>Client Handoff</div>
+            <span className="font-mono-ibm" style={{ color: handoffComplete ? V.telemetry : revisionRequested ? V.warn : V.inkDim, fontSize: 9 }}>
+              {handoffComplete ? "HANDOFF COMPLETE" : revisionRequested ? "ACTION REQUIRED" : clientReviewed > 0 ? "IN REVIEW" : "AWAITING REVIEW"}
+            </span>
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 7, fontSize: 11 }}>
+            <span style={{ color: V.inkDim }}>{clientPending} awaiting client review</span>
+            <span style={{ color: V.telemetry }}>{clientApproved} approved</span>
+            {revisionRequested > 0 ? <span style={{ color: V.warn }}>{revisionRequested} revision requested</span> : null}
+          </div>
+          <div style={{ marginTop: 9, height: 4, borderRadius: 999, background: V.line, overflow: "hidden" }}>
+            <div style={{ width: `${qcPassed ? Math.round((clientReviewed / qcPassed) * 100) : 0}%`, height: "100%", background: handoffComplete ? V.telemetry : revisionRequested ? V.warn : V.signal }} />
+          </div>
+          {revisionRequested > 0 ? (
+            <div style={{ marginTop: 9, display: "grid", gap: 6 }}>
+              {deliverables.filter((item) => item.client_status === "revision_requested").map((item) => (
+                <div key={item.id} style={{ borderTop: `1px solid ${V.lineSoft}`, paddingTop: 7 }}>
+                  <strong style={{ color: V.ink, fontSize: 11 }}>{item.name}</strong>
+                  <div style={{ color: V.warn, fontSize: 10, marginTop: 2 }}>{item.client_feedback || "Client requested a revision."}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {categories.size > 0 ? (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 13 }}>

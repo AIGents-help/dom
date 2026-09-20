@@ -37,41 +37,25 @@ export default function HomePage() {
   return (
     <main className="bg-[#080c10] text-white">
       <div className="sr-only">Uniquely Sophisticated. Intelligent Mapping by DOM. Safety-First Operations. Same Perspective. Higher Purpose. Map. Measure. Analyze. Deliver.</div>
-      <section className="grid border-b border-[#f45a1e] bg-black lg:h-[420px] lg:grid-cols-2">
-        <div className="relative aspect-[768/420] overflow-hidden lg:aspect-auto lg:h-[420px]">
+      <section className="relative border-b border-[#f45a1e] bg-black">
+        <div className="relative mx-auto aspect-[2095/751] w-full max-w-[2095px] overflow-hidden">
           <Image
-            src="/brand/dom-home-hero-left.webp"
-            alt="DOM professional drone operations — Higher Insights, Real Results"
+            src="/brand/dom-safety-hero.jpg?v=20260920"
+            alt="DOM safety-first drone operation with separate protected pilot and aircraft zones"
             fill
             priority
-            sizes="(max-width: 1024px) 100vw, 50vw"
+            sizes="100vw"
             className="object-cover"
           />
           <Link
             href="/request-mission"
             aria-label="Request a Mission"
-            className="absolute left-[6.5%] top-[61.5%] h-[10.5%] w-[25%] rounded-md"
+            className="absolute left-[1.7%] top-[58.2%] h-[8.5%] w-[12.5%] rounded-md"
           />
           <Link
             href="/services"
             aria-label="Our Services"
-            className="absolute left-[33%] top-[61.5%] h-[10.5%] w-[18.5%] rounded-md"
-          />
-        </div>
-
-        <div className="relative aspect-[768/420] overflow-hidden lg:aspect-auto lg:h-[420px]">
-          <Image
-            src="/brand/dom-home-hero-right.webp"
-            alt="DOMINIC Intelligent Mapping by DOM"
-            fill
-            priority
-            sizes="(max-width: 1024px) 100vw, 50vw"
-            className="object-cover"
-          />
-          <Link
-            href="/dominic"
-            aria-label="See DOMINIC in Action"
-            className="absolute left-[67%] top-[76.5%] h-[9.5%] w-[28%] rounded-md"
+            className="absolute left-[15.3%] top-[58.2%] h-[8.5%] w-[9.5%] rounded-md"
           />
         </div>
       </section>

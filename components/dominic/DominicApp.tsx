@@ -24,7 +24,6 @@ const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
 const BG = "#090D11";
 const PANEL = "#10161D";
-const PANEL_2 = "#151C24";
 const LINE = "#25303B";
 const TEXT = "#F5F7FA";
 const MUTED = "#8F9CAA";

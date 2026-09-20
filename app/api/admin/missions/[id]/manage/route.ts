@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/authz";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { sendNotification } from "@/lib/resend/client";
+import { deliverableRevisionReady } from "@/lib/resend/templates";
 
 const PIPELINE = ["requested", "reviewing", "scoped", "quoted", "approved", "assigned", "scheduled", "in_progress", "delivered", "closed"] as const;
 const DELIVERABLE_TYPES = new Set(["orthomosaic", "3d_model", "dsm", "dtm", "point_cloud", "processing_report", "report", "raw_images", "video", "other"]);
@@ -21,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = await req.json().catch(() => null) as Record<string, unknown> | null;
   if (!body) return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   const action = typeof body.action === "string" ? body.action : "";
-  const { data: mission } = await auth.admin.from("mission_requests").select("id,status").eq("id", id).maybeSingle();
+  const { data: mission } = await auth.admin.from("mission_requests").select("id,status,requester_name,requester_email,company,client_id").eq("id", id).maybeSingle();
   if (!mission) return NextResponse.json({ error: "Mission not found" }, { status: 404 });
   const { data: job } = await auth.admin.from("jobs").select("id,status,delivery_responsibility").eq("mission_request_id", id).maybeSingle();
 
@@ -62,7 +64,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const deliverableId = typeof body.deliverableId === "string" ? body.deliverableId : "";
     const passed = body.passed === true;
     const { data: deliverable } = await auth.admin.from("deliverables")
-      .select("id,supersedes_deliverable_id")
+      .select("id,name,revision_number,supersedes_deliverable_id")
       .eq("id", deliverableId).eq("job_id", job.id).maybeSingle();
     if (!deliverable) return NextResponse.json({ error: "Deliverable not found for this mission" }, { status: 404 });
 
@@ -76,14 +78,67 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // until the correction itself passes DOM QC. This keeps the prior version
     // active and auditable throughout processing and quality review.
     if (passed && deliverable.supersedes_deliverable_id) {
-      const { error: supersedeError } = await auth.admin.from("deliverables")
+      const { data: priorRevision, error: supersedeError } = await auth.admin.from("deliverables")
         .update({ client_status: "superseded" })
         .eq("id", deliverable.supersedes_deliverable_id)
         .eq("job_id", job.id)
-        .eq("client_status", "revision_requested");
-      if (supersedeError) {
+        .eq("client_status", "revision_requested")
+        .select("id")
+        .maybeSingle();
+      if (supersedeError || !priorRevision) {
         await auth.admin.from("deliverables").update({ qc_passed: false, delivered_at: null }).eq("id", deliverable.id);
         return NextResponse.json({ error: "Corrected deliverable could not complete its revision handoff" }, { status: 500 });
+      }
+
+      await auth.admin.from("mission_activity_events").insert({
+        mission_request_id: mission.id,
+        job_id: job.id,
+        actor_user_id: auth.user.id,
+        actor_role: "admin",
+        visibility: "shared",
+        event_type: "deliverable_revision_ready",
+        summary: `Corrected deliverable passed DOM QC: ${deliverable.name}.`,
+        details: {
+          deliverable_id: deliverable.id,
+          supersedes_deliverable_id: deliverable.supersedes_deliverable_id,
+          revision_number: deliverable.revision_number ?? null,
+        },
+      });
+
+      let clientEmail: string | null = mission.requester_email;
+      let clientName = mission.requester_name ?? mission.company ?? "there";
+      if (mission.client_id) {
+        const { data: client } = await auth.admin.from("clients").select("email,contact_name").eq("id", mission.client_id).maybeSingle();
+        if (client?.email) clientEmail = client.email;
+        if (client?.contact_name) clientName = client.contact_name;
+      }
+      if (clientEmail) {
+        const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+        const deliverableUrl = `${siteUrl}/client/login?returnTo=${encodeURIComponent(`/client?job=${job.id}`)}`;
+        const { subject, html } = deliverableRevisionReady({
+          clientName,
+          missionTitle: mission.company ?? mission.requester_name ?? undefined,
+          deliverableName: deliverable.name,
+          revisionNumber: deliverable.revision_number ?? null,
+          deliverableUrl,
+        });
+        const notify = await sendNotification({
+          to: clientEmail,
+          emailType: "deliverable_ready",
+          recipientType: "customer",
+          recipientEntityId: mission.client_id ?? undefined,
+          missionRequestId: mission.id,
+          jobId: job.id,
+          subject,
+          html,
+          metadata: {
+            reason: "corrected_revision_ready",
+            deliverable_id: deliverable.id,
+            revision_number: deliverable.revision_number ?? null,
+          },
+          idempotencyKey: `dom-revision-ready-${deliverable.id}`,
+        });
+        if (!notify.success) console.error("corrected deliverable notification failed", notify.error);
       }
     }
     return NextResponse.json({ ok: true });

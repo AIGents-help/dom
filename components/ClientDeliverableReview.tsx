@@ -13,6 +13,8 @@ type Deliverable = {
   qc_passed: boolean;
   client_status: string;
   client_feedback?: string | null;
+  supersedes_deliverable_id?: string | null;
+  revision_number?: number | null;
 };
 
 const DOMINIC_TYPES = new Set([
@@ -39,7 +41,7 @@ export default function ClientDeliverableReview({ initial }: { initial: Delivera
   const [bulkSaving, setBulkSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const ready = items.filter((item) => item.qc_passed);
+  const ready = items.filter((item) => item.qc_passed && item.client_status !== "superseded");
   const approved = ready.filter((item) => item.client_status === "approved");
   const revisions = ready.filter((item) => item.client_status === "revision_requested");
   const pending = ready.filter((item) => !["approved", "revision_requested"].includes(item.client_status));
@@ -179,7 +181,7 @@ export default function ClientDeliverableReview({ initial }: { initial: Delivera
         <div key={item.id} style={{ padding: 12, border: `1px solid ${V.line}`, borderRadius: 10, background: V.raised }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
             <div>
-              <strong style={{ fontSize: 13 }}>{item.name}</strong>
+              <strong style={{ fontSize: 13 }}>{item.name}{(item.revision_number ?? 1) > 1 ? ` · Rev ${item.revision_number}` : ""}</strong>
               <div style={{ color: V.inkFaint, fontSize: 10, textTransform: "uppercase" }}>
                 {(item.type ?? "deliverable").replace(/_/g, " ")}
                 {dominicType(item.type) ? " · DOMINIC" : ""}

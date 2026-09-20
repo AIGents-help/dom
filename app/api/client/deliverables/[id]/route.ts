@@ -26,15 +26,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: deliverable } = await admin
     .from("deliverables")
-    .select("id, name, type, qc_passed, client_status, job:jobs!inner(id, client_id, mission_request_id)")
+    .select("id, name, type, qc_passed, client_status, client_feedback, client_reviewed_at, job:jobs!inner(id, client_id, mission_request_id)")
     .eq("id", id)
     .maybeSingle();
   const job = Array.isArray(deliverable?.job) ? deliverable.job[0] : deliverable?.job;
   if (!deliverable || !job || job.client_id !== client.id) return NextResponse.json({ error: "Deliverable not found" }, { status: 404 });
   if (!deliverable.qc_passed) return NextResponse.json({ error: "This deliverable is still in DOM quality review." }, { status: 409 });
+  if (deliverable.client_status === "superseded") return NextResponse.json({ error: "A corrected version of this deliverable is now the active version." }, { status: 409 });
 
   if (deliverable.client_status === "approved" && status === "revision_requested") {
     return NextResponse.json({ error: "This deliverable is already approved. Contact DOM if a new revision is required." }, { status: 409 });
+  }
+
+  const sameReview =
+    deliverable.client_status === status &&
+    (status === "approved" || (deliverable.client_feedback ?? "") === feedback);
+  if (sameReview) {
+    return NextResponse.json({
+      ok: true,
+      status,
+      feedback: deliverable.client_feedback ?? null,
+      reviewedAt: deliverable.client_reviewed_at ?? null,
+      unchanged: true,
+    });
   }
 
   const reviewedAt = new Date().toISOString();

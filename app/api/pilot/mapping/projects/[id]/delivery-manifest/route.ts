@@ -29,16 +29,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: deliverables } = await admin
     .from("deliverables")
-    .select("id, name, type, storage_url, storage_provider, external_file_id, qc_passed, client_status, client_feedback, client_reviewed_at, delivered_at, created_at")
+    .select("id, name, type, storage_url, storage_provider, external_file_id, qc_passed, client_status, client_feedback, client_reviewed_at, supersedes_deliverable_id, revision_number, delivered_at, created_at")
     .eq("job_id", project.job_id)
     .eq("qc_passed", true)
+    .or("client_status.is.null,client_status.neq.superseded")
     .order("created_at");
 
   const approved = deliverables ?? [];
   const rows = await Promise.all(approved.map(async (item) => {
     const download = await getDeliverableDownloadUrl(item, id);
     return {
-      name: item.name,
+      name: `${item.name}${Number(item.revision_number ?? 1) > 1 ? ` · Rev ${item.revision_number}` : ""}`,
       type: titleCase(item.type ?? "output"),
       deliveredAt: item.delivered_at,
       clientStatus: item.client_status ?? null,

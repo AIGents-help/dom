@@ -35,6 +35,8 @@ export interface MappingDeliverable {
   client_status?: string | null;
   client_feedback?: string | null;
   client_reviewed_at?: string | null;
+  supersedes_deliverable_id?: string | null;
+  revision_number?: number | null;
   delivered_at: string | null;
   created_at: string;
 }

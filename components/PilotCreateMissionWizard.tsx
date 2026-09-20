@@ -41,6 +41,31 @@ interface CreatedQuote {
   warnings: string[];
 }
 
+export interface PilotMissionDraft {
+  id: string;
+  client_name: string;
+  client_email: string;
+  client_company: string | null;
+  client_phone: string | null;
+  location: string;
+  latitude: number;
+  longitude: number;
+  airspace: AirspaceData | null;
+  travel_origin: string | null;
+  distance_miles: number;
+  service_type: string;
+  custom_mission_title: string | null;
+  custom_mission_scope: string | null;
+  custom_deliverables: string | null;
+  site_complexity: string;
+  urgency: string;
+  deliverable_tier: string;
+  billing_mode: "paid" | "no_charge";
+  no_charge_reason: string | null;
+  quote: QuoteData;
+  updated_at: string;
+}
+
 export default function PilotCreateMissionWizard({
   accessToken,
   subscriptionActive,
@@ -48,7 +73,9 @@ export default function PilotCreateMissionWizard({
   personalInsuranceCurrent,
   uninsuredSelfServiceEligible,
   homeAddress,
+  initialDraft = null,
   onCreated,
+  onDraftSaved,
 }: {
   accessToken: string;
   subscriptionActive: boolean;
@@ -56,7 +83,9 @@ export default function PilotCreateMissionWizard({
   personalInsuranceCurrent: boolean;
   uninsuredSelfServiceEligible: boolean;
   homeAddress: string | null;
+  initialDraft?: PilotMissionDraft | null;
   onCreated: () => void;
+  onDraftSaved?: () => void;
 }) {
   const [step, setStep] = useState<Step>("client");
   const [error, setError] = useState<string | null>(null);
@@ -95,11 +124,13 @@ export default function PilotCreateMissionWizard({
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<CreatedQuote | null>(null);
   const [uninsuredConsent, setUninsuredConsent] = useState(false);
+  const [draftId, setDraftId] = useState<string | null>(initialDraft?.id ?? null);
 
   useEffect(() => {
+    if (initialDraft) return;
     setTravelOrigin(homeAddress?.trim() ?? "");
     setDistanceVerified(false);
-  }, [homeAddress]);
+  }, [homeAddress, initialDraft]);
 
   const loadServices = useCallback(async () => {
     if (services.length) return;
@@ -115,6 +146,35 @@ export default function PilotCreateMissionWizard({
       // non-fatal — dropdown just shows the default option
     }
   }, [accessToken, services.length]);
+
+  useEffect(() => {
+    if (!initialDraft) return;
+    setDraftId(initialDraft.id);
+    setClientName(initialDraft.client_name);
+    setClientEmail(initialDraft.client_email);
+    setClientCompany(initialDraft.client_company ?? "");
+    setClientPhone(initialDraft.client_phone ?? "");
+    setAddress(initialDraft.location);
+    setLat(Number(initialDraft.latitude));
+    setLng(Number(initialDraft.longitude));
+    setAirspace(initialDraft.airspace ?? null);
+    setTravelOrigin(initialDraft.travel_origin ?? homeAddress?.trim() ?? "");
+    setDistanceMiles(Number(initialDraft.distance_miles));
+    setDistanceVerified(true);
+    setServiceType(initialDraft.service_type);
+    setCustomMissionTitle(initialDraft.custom_mission_title ?? "");
+    setCustomMissionScope(initialDraft.custom_mission_scope ?? "");
+    setCustomDeliverables(initialDraft.custom_deliverables ?? "");
+    setComplexity(initialDraft.site_complexity);
+    setUrgency(initialDraft.urgency);
+    setDeliverableTier(initialDraft.deliverable_tier);
+    setBillingMode(initialDraft.billing_mode);
+    setNoChargeReason(initialDraft.no_charge_reason ?? "");
+    setQuote(initialDraft.quote);
+    setUninsuredConsent(false);
+    setStep("quote");
+    void loadServices();
+  }, [initialDraft, homeAddress, loadServices]);
 
   const lookupLocation = useCallback(async () => {
     if (!address.trim()) return;
@@ -170,20 +230,53 @@ export default function PilotCreateMissionWizard({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not calculate a quote.");
       const referenceTotalCents = data.quote.totalCents;
-      setQuote({
+      const nextQuote: QuoteData = {
         serviceLabel: data.quote.serviceLabel,
         totalCents: billingMode === "no_charge" ? 0 : referenceTotalCents,
         referenceTotalCents,
         warnings: data.quote.warnings ?? [],
+      };
+
+      const draftRes = await fetch("/api/pilot/missions/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          draftId,
+          clientName,
+          clientEmail,
+          clientCompany,
+          clientPhone,
+          location: address,
+          latitude: lat,
+          longitude: lng,
+          airspace,
+          travelOrigin,
+          distanceMiles,
+          serviceType,
+          customMissionTitle: serviceType === "custom" ? customMissionTitle : undefined,
+          customMissionScope: serviceType === "custom" ? customMissionScope : undefined,
+          customDeliverables: serviceType === "custom" ? customDeliverables : undefined,
+          siteComplexity: complexity,
+          urgency,
+          deliverableTier,
+          billingMode,
+          noChargeReason: billingMode === "no_charge" ? noChargeReason.trim() : undefined,
+          quote: nextQuote,
+        }),
       });
+      const draftData = await draftRes.json();
+      if (!draftRes.ok) throw new Error(draftData.error ?? "Quote calculated, but the mission draft could not be saved.");
+      setDraftId(draftData.draft.id);
+      setQuote(nextQuote);
       setUninsuredConsent(false);
       setStep("quote");
+      onDraftSaved?.();
     } catch (e: any) {
       setError(e.message);
     } finally {
       setQuoting(false);
     }
-  }, [lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier, billingMode]);
+  }, [accessToken, draftId, clientName, clientEmail, clientCompany, clientPhone, address, lat, lng, airspace, travelOrigin, distanceMiles, serviceType, customMissionTitle, customMissionScope, customDeliverables, complexity, urgency, deliverableTier, billingMode, noChargeReason, personalInsuranceCurrent, onDraftSaved]);
 
   const submit = useCallback(async () => {
     if (lat == null || lng == null) return;
@@ -201,6 +294,9 @@ export default function PilotCreateMissionWizard({
           customMissionScope: serviceType === "custom" ? customMissionScope : undefined,
           customDeliverables: serviceType === "custom" ? customDeliverables : undefined,
           travelDistanceSource: "pilot_google_maps_verified",
+          billingMode,
+          noChargeReason: billingMode === "no_charge" ? noChargeReason.trim() : undefined,
+          draftId,
           uninsuredAcknowledged: !personalInsuranceCurrent ? uninsuredConsent : false,
         }),
       });
@@ -246,6 +342,7 @@ export default function PilotCreateMissionWizard({
             setAddress(""); setLat(null); setLng(null); setAirspace(null);
             setDistanceVerified(false);
             setQuote(null);
+            setDraftId(null);
             setBillingMode("paid");
             setNoChargeReason("");
             setUninsuredConsent(false);
@@ -478,7 +575,10 @@ export default function PilotCreateMissionWizard({
 
       {step === "quote" && quote && (
         <div style={panelStyle}>
-          <p style={{ fontSize: 13, color: V.inkDim }}>{quote.serviceLabel}</p>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <p style={{ fontSize: 13, color: V.inkDim }}>{quote.serviceLabel}</p>
+            {draftId && <span className="font-mono-ibm" style={{ fontSize: 10, color: V.telemetry, letterSpacing: ".08em", textTransform: "uppercase" }}>✓ Draft saved</span>}
+          </div>
           <p style={{ fontSize: 32, fontWeight: 700, color: V.telemetry, marginTop: 4 }}>
             ${(quote.totalCents / 100).toFixed(2)}
           </p>

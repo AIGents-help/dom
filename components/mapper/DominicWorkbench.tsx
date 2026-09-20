@@ -107,7 +107,7 @@ export default function DominicWorkbench({
                 { id: "compare" as const, label: "Compare", icon: Columns3, layer: null },
               ].map((view) => {
                 const active = viewerMode === view.id;
-                const ready = view.id === "compare" || available.some((layer) => layer.types.includes(view.layer ?? "") && layer.ready);
+                const ready = view.id !== "compare" && available.some((layer) => layer.types.includes(view.layer ?? "") && layer.ready);
                 return (
                   <button
                     key={view.id}

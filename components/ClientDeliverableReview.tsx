@@ -140,7 +140,7 @@ export default function ClientDeliverableReview({ initial }: { initial: Delivera
           }}
         >
           <div style={{ width: 60, height: 60, position: "relative", borderRadius: 10, overflow: "hidden" }}>
-            <DominicMascotImage alt="DOMINIC mascot" fill sizes="60px" style={{ objectFit: "cover" }} />
+            <DominicMascotImage className="object-cover" />
           </div>
           <div>
             <div style={{ color: V.signal, fontSize: 10, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>

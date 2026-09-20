@@ -86,7 +86,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
 
   const insurance = coverage(ctx);
   const [{ data: deliverables, error: deliverablesError }] = await Promise.all([
-    ctx.admin.from("deliverables").select("id,type,client_status").eq("job_id", ctx.assignment.job_id),
+    ctx.admin.from("deliverables").select("id,type,client_status,supersedes_deliverable_id").eq("job_id", ctx.assignment.job_id),
   ]);
   if (deliverablesError) return NextResponse.json({ error: "Field workflow could not be loaded." }, { status: 500 });
 
@@ -99,7 +99,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
   const submitted = ["submitted", "qc_passed", "paid"].includes(ctx.assignment.status);
   const currentDeliverables = (deliverables ?? []).filter((item) => item.client_status !== "superseded");
   const missingDeliverables = missingRequiredDeliverables(ctx.assignment.job.service_type, currentDeliverables.map((item) => item.type));
-  const deliverablesComplete = missingDeliverables.length === 0;
+  const unresolvedRevisions = currentDeliverables.filter((item) =>
+    item.client_status === "revision_requested"
+    && !currentDeliverables.some((child) => child.supersedes_deliverable_id === item.id),
+  );
+  const deliverablesComplete = missingDeliverables.length === 0 && unresolvedRevisions.length === 0;
   const automaticStates = [
     { key: "uav_assigned", completed: !!ctx.assignment.assigned_uav, notes: ctx.assignment.assigned_uav ? `Assigned aircraft: ${ctx.assignment.assigned_uav}` : "Assign a compatible UAV" },
     { key: "insurance_verified", completed: insurance.satisfied, notes: insurance.satisfied ? `${insurance.source}${insurance.reference ? ` · ${insurance.reference}` : ""}` : "Select an insurance or responsibility path" },
@@ -141,6 +145,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
     ...blockers,
     ...(!ctx.assignment.job.completed_at ? ["Mark field capture complete"] : []),
     ...missingDeliverables.map((item) => `Upload ${item.label}`),
+    ...unresolvedRevisions.map(() => "Upload the corrected deliverable requested by the client"),
     ...requiredIncomplete.map((item) => item.label),
   ];
   return NextResponse.json({
@@ -226,12 +231,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
   } else if (["submit_for_qc", "complete_mission"].includes(body.action)) {
     if (["submitted", "qc_passed", "paid"].includes(ctx.assignment.status)) return NextResponse.json({ ok: true });
     const [{ data: submittedDeliverables }, { data: incomplete }] = await Promise.all([
-      ctx.admin.from("deliverables").select("type,client_status").eq("job_id", ctx.assignment.job_id),
+      ctx.admin.from("deliverables").select("id,type,client_status,supersedes_deliverable_id").eq("job_id", ctx.assignment.job_id),
       ctx.admin.from("mission_checklist_items").select("label").eq("assignment_id", assignmentId).eq("required", true).eq("completed", false).neq("item_key", "mission_submitted"),
     ]);
+    const activeSubmittedDeliverables = (submittedDeliverables ?? []).filter((item) => item.client_status !== "superseded");
+    const unresolvedSubmittedRevisions = activeSubmittedDeliverables.filter((item) =>
+      item.client_status === "revision_requested"
+      && !activeSubmittedDeliverables.some((child) => child.supersedes_deliverable_id === item.id),
+    );
     const blockers = [
       ...(!ctx.assignment.job.completed_at ? ["Mark field capture complete"] : []),
-      ...missingRequiredDeliverables(ctx.assignment.job.service_type, (submittedDeliverables ?? []).filter((item) => item.client_status !== "superseded").map((item) => item.type)).map((item) => `Upload ${item.label}`),
+      ...missingRequiredDeliverables(ctx.assignment.job.service_type, activeSubmittedDeliverables.map((item) => item.type)).map((item) => `Upload ${item.label}`),
+      ...unresolvedSubmittedRevisions.map(() => "Upload the corrected deliverable requested by the client"),
       ...(incomplete ?? []).map((item) => item.label),
     ];
     if (blockers.length) return NextResponse.json({ error: "Complete the remaining steps before finishing this mission.", blockers: [...new Set(blockers)] }, { status: 409 });

@@ -32,6 +32,7 @@ export default function MappingResults({
   workbenchTool = "select",
   toolSet = "General",
   requestedLayer,
+  viewerMode = "map",
 }: {
   deliverables: MappingDeliverable[];
   accessToken: string;
@@ -39,10 +40,12 @@ export default function MappingResults({
   workbenchTool?: DominicWorkbenchTool;
   toolSet?: string;
   requestedLayer?: string | null;
+  viewerMode?: "map" | "3d" | "elevation" | "compare";
 }) {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [selectedLayer, setSelectedLayer] = useState<ViewerLayer>("orthomosaic");
+  const [compareLayer, setCompareLayer] = useState<ViewerLayer>("dsm");
 
   const deduped = useMemo(() => dedupeDeliverables(deliverables), [deliverables]);
   const byType = useMemo(() => new Map(deduped.filter((d) => d.type).map((d) => [d.type as string, d])), [deduped]);
@@ -96,6 +99,17 @@ export default function MappingResults({
   const active = byType.get(selectedLayer) ?? null;
   const isOrthomosaic = selectedLayer === "orthomosaic";
   const isElevation = selectedLayer === "dsm" || selectedLayer === "dtm";
+  const compareActive = byType.get(compareLayer) ?? null;
+
+
+  function renderViewer(layer: ViewerLayer, item: MappingDeliverable | null) {
+    if (!item) return <div style={{ minHeight: 260, display: "grid", placeItems: "center", color: V.inkFaint, border: `1px solid ${V.line}`, borderRadius: 10 }}>Layer unavailable</div>;
+    if (layer === "orthomosaic") return <OrthomosaicViewer signedUrl={signedUrls[item.id] ?? null} name={item.name} projectId={projectId} deliverableId={item.id} accessToken={accessToken} workbenchTool={workbenchTool} toolSet={toolSet} />;
+    if (layer === "dsm" || layer === "dtm") return <ElevationRasterViewer signedUrl={signedUrls[item.id] ?? null} name={item.name} label={layer === "dsm" ? "DSM" : "DTM"} />;
+    if (layer === "contours") return <ContourViewer signedUrl={signedUrls[item.id] ?? null} name={item.name} />;
+    if (layer === "3d_model") return <Model3DViewer signedUrl={signedUrls[item.id] ?? null} name={item.name} />;
+    return <PointCloudViewer signedUrl={signedUrls[item.id] ?? null} name={item.name} projectId={projectId} deliverableId={item.id} accessToken={accessToken} hasPotree={!!item.potree} />;
+  }
 
   return (
     <div>
@@ -124,39 +138,35 @@ export default function MappingResults({
             ))}
           </div>
 
-          <div style={{ position: "relative", marginBottom: 12 }}>
-            {active ? <div style={{ position: "absolute", right: 12, bottom: 12, zIndex: 30, pointerEvents: "none", border: `1px solid ${V.signal}`, borderRadius: 6, padding: "4px 7px", background: "rgba(9,13,17,.78)", color: V.signal, fontSize: 8, fontWeight: 900, letterSpacing: ".12em" }}>DOMINIC PREVIEW · DRONE OPERATION MANAGEMENT</div> : null}
-            {active && isOrthomosaic ? (
-              <OrthomosaicViewer
-                signedUrl={signedUrls[active.id] ?? null}
-                name={active.name}
-                projectId={projectId}
-                deliverableId={active.id}
-                accessToken={accessToken}
-                workbenchTool={workbenchTool}
-                toolSet={toolSet}
-              />
-            ) : null}
-            {active && isElevation ? (
-              <ElevationRasterViewer
-                signedUrl={signedUrls[active.id] ?? null}
-                name={active.name}
-                label={selectedLayer === "dsm" ? "DSM" : "DTM"}
-              />
-            ) : null}
-            {active && selectedLayer === "contours" ? <ContourViewer signedUrl={signedUrls[active.id] ?? null} name={active.name} /> : null}
-            {active && selectedLayer === "3d_model" ? <Model3DViewer signedUrl={signedUrls[active.id] ?? null} name={active.name} /> : null}
-            {active && selectedLayer === "point_cloud" ? (
-              <PointCloudViewer
-                signedUrl={signedUrls[active.id] ?? null}
-                name={active.name}
-                projectId={projectId}
-                deliverableId={active.id}
-                accessToken={accessToken}
-                hasPotree={!!active.potree}
-              />
-            ) : null}
-          </div>
+          {viewerMode === "compare" && availableLayers.length >= 2 ? (
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+                <select
+                  value={compareLayer}
+                  onChange={(event) => setCompareLayer(event.target.value as ViewerLayer)}
+                  style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.ink, borderRadius: 8, padding: "6px 9px", fontSize: 10 }}
+                  aria-label="Comparison layer"
+                >
+                  {availableLayers.filter((layer) => layer !== selectedLayer).map((layer) => (
+                    <option key={layer} value={layer}>{LAYER_LABELS[layer]}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8 }}>
+                <ViewerFrame label={LAYER_LABELS[selectedLayer]}>
+                  {renderViewer(selectedLayer, active)}
+                </ViewerFrame>
+                <ViewerFrame label={LAYER_LABELS[compareLayer]}>
+                  {renderViewer(compareLayer, compareActive)}
+                </ViewerFrame>
+              </div>
+            </div>
+          ) : (
+            <div style={{ position: "relative", marginBottom: 12 }}>
+              {active ? <div style={{ position: "absolute", right: 12, bottom: 12, zIndex: 30, pointerEvents: "none", border: `1px solid ${V.signal}`, borderRadius: 6, padding: "4px 7px", background: "rgba(9,13,17,.78)", color: V.signal, fontSize: 8, fontWeight: 900, letterSpacing: ".12em" }}>DOMINIC PREVIEW · DRONE OPERATION MANAGEMENT</div> : null}
+              {renderViewer(selectedLayer, active)}
+            </div>
+          )}
         </>
       )}
 
@@ -169,6 +179,16 @@ export default function MappingResults({
         All outputs
       </div>
       <MappingDeliverables deliverables={deduped} accessToken={accessToken} projectId={projectId} />
+    </div>
+  );
+}
+
+
+function ViewerFrame({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div style={{ minWidth: 0, border: `1px solid ${V.line}`, borderRadius: 10, overflow: "hidden", background: "#080C10" }}>
+      <div style={{ padding: "7px 9px", borderBottom: `1px solid ${V.line}`, color: V.inkDim, fontSize: 9, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase" }}>{label}</div>
+      <div style={{ minWidth: 0 }}>{children}</div>
     </div>
   );
 }

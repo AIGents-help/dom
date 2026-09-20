@@ -46,7 +46,9 @@ test("homepage exposes the approved DOMINIC layout", async () => {
 
   await page.getByText("Safety-First Operations", { exact: true }).waitFor();
   await page.getByText("Coming to DOM", { exact: true }).first().waitFor();
-  await page.getByText("Meet DOMINIC", { exact: true }).waitFor();
+  const dominicLinks = page.getByRole("link", { name: "Meet DOMINIC" });
+  assert.ok(await dominicLinks.count() >= 1, "homepage should expose at least one Meet DOMINIC link");
+  await dominicLinks.first().waitFor();
   await page.getByText("Same Perspective. Higher Purpose.", { exact: true }).waitFor();
   await page.getByText("Map. Measure. Analyze. Deliver.", { exact: true }).waitFor();
 

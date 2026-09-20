@@ -32,7 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     .select("id, name, type, storage_url, storage_provider, external_file_id, qc_passed, client_status, client_feedback, client_reviewed_at, supersedes_deliverable_id, revision_number, delivered_at, created_at")
     .eq("job_id", project.job_id)
     .eq("qc_passed", true)
-    .neq("client_status", "superseded")
+    .or("client_status.is.null,client_status.neq.superseded")
     .order("created_at");
 
   const approved = deliverables ?? [];

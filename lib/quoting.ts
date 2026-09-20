@@ -20,7 +20,7 @@ export const SERVICE_BASE_PRICES: Record<string, { label: string; cents: number 
   powerline_inspection: { label: "Powerline / Utility Inspection", cents: 95000 },
   real_estate_media: { label: "Real Estate Aerial Media", cents: 25000 },
   aerial_images: { label: "Aerial Images", cents: 20000 },
-  custom: { label: "Custom Mission", cents: 0 }, // manually priced
+  custom: { label: "Custom Mission", cents: 50000 }, // default custom anchor; pilot quote flow applies modifiers
 };
 
 // ── Modifier tables ──

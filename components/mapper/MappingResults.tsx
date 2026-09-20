@@ -97,8 +97,6 @@ export default function MappingResults({
   }, [availableLayers, byType, projectId, accessToken]);
 
   const active = byType.get(selectedLayer) ?? null;
-  const isOrthomosaic = selectedLayer === "orthomosaic";
-  const isElevation = selectedLayer === "dsm" || selectedLayer === "dtm";
   const compareActive = byType.get(compareLayer) ?? null;
 
 

@@ -29,7 +29,7 @@ export type PilotTab =
 
 const QUEUE_ENABLED = process.env.NEXT_PUBLIC_MISSION_QUEUE_ENABLED === "true";
 
-type SectionId = "missions" | "business" | "operations" | "help";
+type SectionId = "missions" | "dominic" | "business" | "operations" | "help";
 type Item = { id: PilotTab; label: string; icon: string; href?: string };
 type Section = { id: SectionId; label: string; icon: string; items: Item[] };
 
@@ -42,6 +42,15 @@ const SECTIONS: Section[] = [
       { id: "missions", label: "Mission Dashboard", icon: "•" },
       { id: "create", label: "Create New", icon: "+" },
       ...(QUEUE_ENABLED ? [{ id: "queue" as PilotTab, label: "Mission Queue", icon: "◫" }] : []),
+    ],
+  },
+  {
+    id: "dominic",
+    label: "DOMINIC",
+    icon: "◉",
+    items: [
+      { id: "mapping", label: "Open Workspace", icon: "◉", href: "/dominic" },
+      { id: "mapping", label: "New Project", icon: "+", href: "/dominic?new=1" },
     ],
   },
   {
@@ -75,7 +84,6 @@ const SECTIONS: Section[] = [
 ];
 
 const DIRECT_ITEMS: Item[] = [
-  { id: "mapping", label: "DOMINIC", icon: "◉", href: "/dominic" },
   { id: "profile", label: "Profile & Settings", icon: "◎" },
 ];
 
@@ -96,6 +104,7 @@ export default function PilotSidebar({
   const activeSection = useMemo(() => sectionForTab(tab), [tab]);
   const [openSections, setOpenSections] = useState<Record<SectionId, boolean>>({
     missions: true,
+    dominic: true,
     business: false,
     operations: false,
     help: false,
@@ -247,26 +256,15 @@ export default function PilotSidebar({
 
         {DIRECT_ITEMS.map((item) => {
           const active = tab === item.id;
-          const dominic = item.id === "mapping";
           return (
             <button
               key={item.id}
               onClick={() => go(item)}
               title={collapsed ? item.label : undefined}
-              style={{
-                ...navButtonStyle(active),
-                border: dominic && !collapsed ? "1px solid rgba(244,90,30,.28)" : "none",
-                background: dominic ? "rgba(244,90,30,.08)" : active ? "rgba(244,90,30,.22)" : "transparent",
-                color: dominic ? "#FFFFFF" : active ? V.signal : V.inkDim,
-              }}
+              style={navButtonStyle(active)}
             >
-              <span style={{ width: 18, textAlign: "center", fontSize: 15, color: dominic ? "#F45A1E" : "inherit" }}>{item.icon}</span>
-              {!collapsed && (
-                <span>
-                  {item.label}
-                  {dominic && <span style={{ display: "block", marginTop: 1, fontSize: 9, fontWeight: 600, letterSpacing: ".08em", color: "#F45A1E" }}>INTELLIGENT MAPPING</span>}
-                </span>
-              )}
+              <span style={{ width: 18, textAlign: "center", fontSize: 15 }}>{item.icon}</span>
+              {!collapsed && <span>{item.label}</span>}
             </button>
           );
         })}

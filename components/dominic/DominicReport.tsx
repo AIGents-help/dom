@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Download, Printer } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
@@ -55,7 +55,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   const [pdfMode, setPdfMode] = useState(false);
   const [reportGeneratedAt, setReportGeneratedAt] = useState<Date | null>(null);
   const [pdfReady, setPdfReady] = useState(false);
-  const [autoPrintStarted, setAutoPrintStarted] = useState(false);
+  const autoPrintStartedRef = useRef(false);
   const [printCompleted, setPrintCompleted] = useState(false);
 
   useEffect(() => {
@@ -104,11 +104,11 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   }, []);
 
   useEffect(() => {
-    if (!pdfMode || !data || !pdfReady || autoPrintStarted) return;
-    setAutoPrintStarted(true);
+    if (!pdfMode || !data || !pdfReady || autoPrintStartedRef.current) return;
+    autoPrintStartedRef.current = true;
     const timer = window.setTimeout(() => window.print(), 500);
     return () => window.clearTimeout(timer);
-  }, [pdfMode, data, pdfReady, autoPrintStarted]);
+  }, [pdfMode, data, pdfReady]);
 
   if (error) return <div style={{ minHeight: "100vh", background: "#090D11", color: "#F05A5A", padding: 32 }}>{error}</div>;
   if (!data) return <div style={{ minHeight: "100vh", background: "#090D11", color: "#B2BCC7", padding: 32 }}>Preparing report…</div>;

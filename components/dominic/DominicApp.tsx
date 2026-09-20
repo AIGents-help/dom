@@ -51,6 +51,8 @@ export default function DominicApp() {
   const router = useRouter();
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [activeModule, setActiveModule] = useState("Projects");
 
   useEffect(() => {
     let active = true;
@@ -160,27 +162,42 @@ export default function DominicApp() {
           </div>
 
           <nav style={{ display: "grid", gap: 4 }}>
-            {nav.map(({ label, icon: Icon }, index) => (
-              <div
+            {nav.map(({ label, icon: Icon }) => {
+              const projectRequired = label !== "Projects";
+              const disabled = projectRequired && !activeProjectId;
+              const active = activeModule === label;
+              return (
+              <button
                 key={label}
-                title={label}
+                type="button"
+                disabled={disabled}
+                title={disabled ? "Open a DOMINIC project first" : label}
+                onClick={() => {
+                  if (disabled) return;
+                  setActiveModule(label);
+                }}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 11,
                   borderRadius: 9,
                   padding: "10px 11px",
-                  color: index === 0 ? "#160A02" : "#A7B2BE",
-                  background: index === 0 ? `linear-gradient(90deg, ${ORANGE_DARK}, ${ORANGE})` : "transparent",
-                  border: index === 0 ? "1px solid rgba(244,90,30,.7)" : "1px solid transparent",
-                  fontWeight: index === 0 ? 900 : 500,
+                  color: active ? "#160A02" : disabled ? "#596573" : "#A7B2BE",
+                  background: active ? `linear-gradient(90deg, ${ORANGE_DARK}, ${ORANGE})` : "transparent",
+                  border: active ? "1px solid rgba(244,90,30,.7)" : "1px solid transparent",
+                  fontWeight: active ? 900 : 500,
+                  width: "100%",
+                  textAlign: "left",
+                  cursor: disabled ? "default" : "pointer",
+                  opacity: disabled ? .55 : 1,
                   fontSize: 13,
                 }}
               >
-                <Icon size={17} color={index === 0 ? "#160A02" : "#798694"} />
+                <Icon size={17} color={active ? "#160A02" : disabled ? "#596573" : "#798694"} />
                 {label}
-              </div>
-            ))}
+              </button>
+              );
+            })}
           </nav>
 
           <div style={{ marginTop: 18, borderTop: `1px solid ${LINE}`, paddingTop: 14 }}>
@@ -273,7 +290,14 @@ export default function DominicApp() {
               }}
             >
               <div style={{ padding: "12px 14px", color: TEXT, background: "#0B1117", minHeight: 680 }}>
-                <MappingTab accessToken={accessToken} />
+                <MappingTab
+                  accessToken={accessToken}
+                  focusModule={activeModule}
+                  onProjectChange={(projectId) => {
+                    setActiveProjectId(projectId);
+                    setActiveModule(projectId ? "Map Viewer" : "Projects");
+                  }}
+                />
               </div>
             </div>
           </section>

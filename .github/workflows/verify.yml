@@ -36,5 +36,8 @@ jobs:
       - name: Install mapper-worker dependencies
         run: npm ci --prefix services/mapper-worker
 
+      - name: Verify DOMINIC processing output contract
+        run: npm run verify:pipeline --prefix services/mapper-worker
+
       - name: Run complete verification
         run: npm run verify

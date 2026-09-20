@@ -12,8 +12,23 @@ export default function DominicComingSoon() {
   return (
     <section className="border-y border-white/10 bg-[#090D11] py-20 lg:py-28">
       <div className="container-app">
-        <div className="overflow-hidden rounded-3xl border border-[#F45A1E]/35 bg-[radial-gradient(circle_at_85%_15%,rgba(244,90,30,.20),transparent_30%),linear-gradient(135deg,#121922,#090D11)]">
-          <div className="grid gap-10 p-8 lg:grid-cols-[.85fr_1.15fr] lg:items-center lg:p-14">
+        <div className="overflow-hidden rounded-3xl border border-[#F45A1E]/35 bg-[radial-gradient(circle_at_78%_8%,rgba(244,90,30,.20),transparent_30%),linear-gradient(135deg,#121922,#090D11)]">
+          <div className="grid gap-8 p-7 lg:grid-cols-[.72fr_.9fr_1.08fr] lg:items-center lg:p-12">
+            <div className="relative min-h-[360px] overflow-hidden rounded-2xl border border-white/10 bg-black/25">
+              <Image
+                src="/brand/dominic-mascot.webp"
+                alt="DOMINIC mapping software mascot"
+                fill
+                sizes="(max-width:1024px) 100vw, 28vw"
+                className="object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+              <div className="absolute inset-x-0 bottom-0 p-5">
+                <p className="text-sm font-black text-white">Same Perspective. Higher Purpose.</p>
+                <p className="mt-1 text-[10px] font-black uppercase tracking-[.14em] text-[#F45A1E]">The official DOMINIC mascot</p>
+              </div>
+            </div>
+
             <div>
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#F45A1E]/40 bg-[#F45A1E]/10 px-4 py-2 text-[11px] font-black uppercase tracking-[.2em] text-[#F45A1E]">
                 <Sparkles className="h-4 w-4" /> Coming to DOM
@@ -32,6 +47,7 @@ export default function DominicComingSoon() {
                 DOMINIC is the mapping, photogrammetry and analysis environment being built directly into DOM — connecting the mission, pilot, processing, measurements, findings and final deliverables without breaking the workflow.
               </p>
               <p className="mt-6 text-sm font-black uppercase tracking-[.18em] text-[#F45A1E]">Map. Measure. Analyze. Deliver.</p>
+              <p className="mt-3 text-xs font-black uppercase tracking-[.18em] text-slate-500">Uniquely Sophisticated.</p>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-black/20 p-5 lg:p-7">

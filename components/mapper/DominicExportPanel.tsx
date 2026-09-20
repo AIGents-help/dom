@@ -62,7 +62,7 @@ export default function DominicExportPanel({
           </div>
           <div style={{ marginTop: 3, color: V.ink, fontSize: 14, fontWeight: 750 }}>Take DOMINIC data into the tools your client already uses.</div>
         </div>
-        <span style={{ color: V.inkFaint, fontSize: 10 }}>DWG conversion path staged next</span>
+        <span style={{ color: V.inkFaint, fontSize: 10 }}>Professional exchange formats</span>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 8 }}>

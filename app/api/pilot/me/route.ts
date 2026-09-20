@@ -176,6 +176,7 @@ export async function GET(req: NextRequest) {
         insurance_liability_cents: contractor.insurance_liability_cents,
         insurance_coi_path: contractor.insurance_coi_path,
         dom_gig_insurance_eligible: contractor.dom_gig_insurance_eligible,
+        uninsured_self_service_eligible: contractor.uninsured_self_service_eligible,
         stripe_payouts_enabled: contractor.stripe_payouts_enabled,
         stripe_connect_account_id: contractor.stripe_connect_account_id,
         service_area: contractor.service_area,

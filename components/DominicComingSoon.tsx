@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { Box, Layers3, MapPinned, Ruler, Sparkles } from "lucide-react";
+import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 
 const features = [
   [MapPinned, "Orthomosaics", "Turn mission imagery into georeferenced site maps."],
@@ -33,15 +34,7 @@ export default function DominicComingSoon() {
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#F45A1E]/40 bg-[#F45A1E]/10 px-4 py-2 text-[11px] font-black uppercase tracking-[.2em] text-[#F45A1E]">
                 <Sparkles className="h-4 w-4" /> Coming to DOM
               </div>
-              <div className="flex items-center gap-4">
-                <Image src="/brand/dom-propeller-3fin.png" alt="DOM propeller" width={76} height={76} />
-                <div>
-                  <h2 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
-                    DOM<span className="text-[#F45A1E]">INIC</span>
-                  </h2>
-                  <p className="mt-1 text-xs font-black uppercase tracking-[.2em] text-slate-400">Intelligent Mapping by DOM</p>
-                </div>
-              </div>
+              <DominicBrandLockup size="lg" />
               <h3 className="mt-8 text-3xl font-black leading-tight text-white lg:text-4xl">From captured imagery to client-ready intelligence. One platform.</h3>
               <p className="mt-5 max-w-xl text-base leading-7 text-slate-300">
                 DOMINIC is the mapping, photogrammetry and analysis environment being built directly into DOM — connecting the mission, pilot, processing, measurements, findings and final deliverables without breaking the workflow.

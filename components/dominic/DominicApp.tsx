@@ -392,6 +392,7 @@ export default function DominicApp() {
                   focusModule={activeModule}
                   showProjectsSignal={showProjectsSignal}
                   onProjectChange={handleProjectChange}
+                  online={online}
                 />
               </div>
             </div>

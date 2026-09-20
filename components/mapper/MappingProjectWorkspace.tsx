@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ImageIcon, Layers3, UploadCloud, CalendarDays, MapPin, Plane, CheckCircle2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronLeft, ImageIcon, Layers3, UploadCloud, CalendarDays, MapPin, Plane, CheckCircle2, RefreshCw, Trash2 } from "lucide-react";
 import { V, btnGhost, statusPillStyle } from "./theme";
 import { MAPPING_PROJECT_STATUS_LABELS, formatBytes, canUploadImages } from "@/lib/mapperPipeline";
 import MappingImageUploader from "./MappingImageUploader";
@@ -33,23 +33,70 @@ export default function MappingProjectWorkspace({
   projectId,
   onBack,
   focusModule,
+  online = true,
 }: {
   accessToken: string;
   projectId: string;
   onBack: () => void;
   focusModule?: string | null;
+  online?: boolean;
 }) {
   const [data, setData] = useState<WorkspacePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const dataRef = useRef<WorkspacePayload | null>(null);
+  const cacheKey = `dominic:project-snapshot:${projectId}`;
+  const [snapshotSavedAt, setSnapshotSavedAt] = useState<Date | null>(null);
+  const [snapshotAvailable, setSnapshotAvailable] = useState(false);
+
+  useEffect(() => { dataRef.current = data; }, [data]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) return;
+      const cached = JSON.parse(raw) as { saved_at?: string };
+      setSnapshotAvailable(true);
+      setSnapshotSavedAt(cached.saved_at ? new Date(cached.saved_at) : null);
+    } catch {
+      setSnapshotAvailable(false);
+    }
+  }, [cacheKey]);
 
   const load = useCallback(async () => {
-    const res = await fetch(`/api/pilot/mapping/projects/${projectId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) { setError(body.error ?? "Could not load this project."); setLoading(false); return; }
-    setData(body);
-    setLoading(false);
-  }, [accessToken, projectId]);
+    if (!online) {
+      if (!dataRef.current) {
+        setError("DOMINIC is offline. Reconnect to load this project.");
+        setLoading(false);
+      }
+      return;
+    }
+    setRefreshing(true);
+    try {
+      const res = await fetch(`/api/pilot/mapping/projects/${projectId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(body.error ?? "Could not load this project."); setLoading(false); return; }
+      setError(null);
+      setData(body);
+      setLastSyncedAt(new Date());
+      try {
+        const savedAt = new Date();
+        localStorage.setItem(cacheKey, JSON.stringify({ saved_at: savedAt.toISOString(), payload: body }));
+        setSnapshotSavedAt(savedAt);
+        setSnapshotAvailable(true);
+      } catch {
+        // Field snapshot caching is best-effort; live project loading still succeeds.
+      }
+      setLoading(false);
+    } catch {
+      if (!dataRef.current) setError("Could not reach DOMINIC. Check connectivity and retry.");
+      setLoading(false);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [accessToken, projectId, online, cacheKey]);
 
   useEffect(() => {
     load();
@@ -72,13 +119,56 @@ export default function MappingProjectWorkspace({
   }, [focusModule]);
 
   useEffect(() => {
-    if (!data || !["queued", "processing"].includes(data.project.status)) return;
+    if (!online || !data || !["queued", "processing"].includes(data.project.status)) return;
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
-  }, [data, load]);
+  }, [data, load, online]);
+
+  function clearFieldSnapshot() {
+    try {
+      localStorage.removeItem(cacheKey);
+    } catch {
+      // Ignore storage cleanup failures; the live project remains unaffected.
+    }
+    setSnapshotAvailable(false);
+    setSnapshotSavedAt(null);
+  }
+
+  function restoreFieldSnapshot() {
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (!raw) { setError("No saved field snapshot is available for this project yet."); return; }
+      const cached = JSON.parse(raw) as { saved_at?: string; payload?: WorkspacePayload };
+      if (!cached.payload) { setError("The saved field snapshot is not valid."); return; }
+      setData(cached.payload);
+      dataRef.current = cached.payload;
+      const savedAt = cached.saved_at ? new Date(cached.saved_at) : null;
+      setLastSyncedAt(savedAt);
+      setSnapshotSavedAt(savedAt);
+      setError(null);
+      setLoading(false);
+    } catch {
+      setError("The saved field snapshot could not be opened.");
+    }
+  }
 
   if (loading) return <p style={{ color: V.inkDim }}>Opening project…</p>;
-  if (error || !data) return <p style={{ color: V.danger }}>{error ?? "Project not found."}</p>;
+  if (error || !data) return (
+    <div style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface, padding: 18 }}>
+      <p style={{ color: V.danger, fontSize: 13 }}>{error ?? "Project not found."}</p>
+      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+        <button type="button" onClick={load} disabled={!online || refreshing} style={{ ...btnGhost, opacity: !online ? .5 : 1 }}>
+          <RefreshCw size={13} /> Retry live project
+        </button>
+        {!online && snapshotAvailable ? (
+          <button type="button" onClick={restoreFieldSnapshot} style={btnGhost}>
+            Open saved field snapshot
+          </button>
+        ) : null}
+      </div>
+      {!online ? <p style={{ color: V.inkFaint, fontSize: 10, marginTop: 9 }}>DOMINIC saves the most recent successful project sync on this device for read-only field reference.</p> : null}
+    </div>
+  );
 
   const { project, images, processingJobs, deliverables } = data;
   const latestJob = processingJobs[0] ?? null;
@@ -99,7 +189,39 @@ export default function MappingProjectWorkspace({
             {project.latitude != null && project.longitude != null && <span>· {project.latitude.toFixed(5)}, {project.longitude.toFixed(5)}</span>}
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <span style={{ color: online ? V.telemetry : V.warn, fontSize: 9, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase" }}>
+            {online ? lastSyncedAt ? `Synced ${lastSyncedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Connecting" : lastSyncedAt ? `Offline · last sync ${lastSyncedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Offline"}
+          </span>
+          {snapshotSavedAt ? (
+            <span
+              title={`Offline field snapshot saved ${snapshotSavedAt.toLocaleString()}`}
+              style={{ color: V.inkFaint, fontSize: 9, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}
+            >
+              Snapshot saved {snapshotSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+            </span>
+          ) : null}
+          {snapshotAvailable ? (
+            <button
+              type="button"
+              onClick={clearFieldSnapshot}
+              title="Clear saved offline field snapshot from this device"
+              aria-label="Clear saved field snapshot"
+              style={{ ...btnGhost, padding: "5px 7px", display: "inline-grid", placeItems: "center" }}
+            >
+              <Trash2 size={12} />
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={load}
+            disabled={!online || refreshing}
+            title={!online ? "Reconnect to refresh project data" : "Refresh project data"}
+            aria-label="Refresh DOMINIC project data"
+            style={{ ...btnGhost, padding: "5px 7px", opacity: !online ? .45 : 1, cursor: !online ? "not-allowed" : "pointer", display: "inline-grid", placeItems: "center" }}
+          >
+            <RefreshCw size={13} style={{ transform: refreshing ? "rotate(90deg)" : "none", transition: "transform .2s ease" }} />
+          </button>
           <span style={{ color: V.inkFaint, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 5 }}><CalendarDays size={13} /> {new Date(project.created_at).toLocaleDateString()}</span>
           <span className="font-mono-ibm" style={{ ...statusPillStyle(STATUS_COLOR[project.status] ?? V.inkFaint), display: "inline-flex", alignItems: "center", gap: 5 }}>
             {project.status === "completed" && <CheckCircle2 size={11} />}
@@ -143,10 +265,13 @@ export default function MappingProjectWorkspace({
           <MappingImageUploader
             accessToken={accessToken}
             projectId={project.id}
-            disabled={!canUploadImages(project)}
+            disabled={!online || !canUploadImages(project)}
+            online={online}
             onUploaded={load}
           />
-          {!canUploadImages(project) && (
+          {!online ? (
+            <p style={{ color: V.warn, fontSize: 11, marginTop: 8 }}>Offline — imagery upload will be available when connectivity returns.</p>
+          ) : !canUploadImages(project) && (
             <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 8 }}>
               Uploads close once processing is queued.
             </p>
@@ -160,7 +285,7 @@ export default function MappingProjectWorkspace({
         </section>
 
         <section id="dominic-processing" style={{ scrollMarginTop: 96 }}>
-          <MappingProcessingStatus accessToken={accessToken} project={project} latestJob={latestJob} onQueued={load} />
+          <MappingProcessingStatus accessToken={accessToken} project={project} latestJob={latestJob} onQueued={load} online={online} />
         </section>
       </div>
 

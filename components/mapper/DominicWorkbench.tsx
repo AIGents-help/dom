@@ -107,7 +107,7 @@ export default function DominicWorkbench({
                 { id: "compare" as const, label: "Compare", icon: Columns3, layer: null },
               ].map((view) => {
                 const active = viewerMode === view.id;
-                const ready = view.id !== "compare" && available.some((layer) => layer.types.includes(view.layer ?? "") && layer.ready);
+                const ready = view.id === "compare" ? available.filter((layer) => layer.ready).length >= 2 : available.some((layer) => layer.types.includes(view.layer ?? "") && layer.ready);
                 return (
                   <button
                     key={view.id}
@@ -149,7 +149,7 @@ export default function DominicWorkbench({
               {["General", "Roof", "Solar", "Construction", "Infrastructure", "Property", "Thermal"].map((set) => <option key={set}>{set}</option>)}
             </select>
           </div>
-          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} requestedLayer={requestedLayer} />
+          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} requestedLayer={requestedLayer} viewerMode={viewerMode} />
         </main>
 
         <aside style={{ borderLeft: `1px solid ${V.line}`, background: "#0B1016", padding: 12, display: "flex", flexDirection: "column" }}>

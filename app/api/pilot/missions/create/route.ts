@@ -31,6 +31,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid session" }, { status: 401 });
     }
 
+    const body = await req.json();
+    const {
+      clientName,
+      clientEmail,
+      clientCompany,
+      clientPhone,
+      location,
+      latitude,
+      longitude,
+      serviceType,
+      distanceMiles,
+      siteComplexity,
+      urgency,
+      deliverableTier,
+      customMissionTitle,
+      customMissionScope,
+      customDeliverables,
+      customBaseCents,
+      travelDistanceSource,
+      uninsuredAcknowledged,
+    } = body;
+
     const admin = getSupabaseAdmin();
     const { data: contractor } = await admin
       .from("contractors")
@@ -63,28 +85,6 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-
-    const body = await req.json();
-    const {
-      clientName,
-      clientEmail,
-      clientCompany,
-      clientPhone,
-      location,
-      latitude,
-      longitude,
-      serviceType,
-      distanceMiles,
-      siteComplexity,
-      urgency,
-      deliverableTier,
-      customMissionTitle,
-      customMissionScope,
-      customDeliverables,
-      customBaseCents,
-      travelDistanceSource,
-      uninsuredAcknowledged,
-    } = body;
 
     if (!clientName || !clientEmail || latitude == null || longitude == null || !serviceType) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });

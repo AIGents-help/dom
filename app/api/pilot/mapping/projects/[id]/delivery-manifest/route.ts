@@ -46,9 +46,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }));
 
   const generated = new Date().toISOString();
-  const job = Array.isArray(project.job) ? project.job[0] : project.job;
-  const missionTitle = job && typeof job === "object" && "title" in job ? String(job.title ?? "—") : "—";
-  const missionLocation = job && typeof job === "object" && "location" in job ? (job.location ? String(job.location) : null) : null;
+  const jobRows = project.job as unknown as Array<{ title?: string | null; location?: string | null }> | { title?: string | null; location?: string | null } | null;
+  const job = Array.isArray(jobRows) ? jobRows[0] : jobRows;
+  const missionTitle = job?.title ?? "—";
+  const missionLocation = job?.location ?? null;
   const manifest = [
     "DOMINIC — DELIVERY MANIFEST",
     "Drone Operation Management",

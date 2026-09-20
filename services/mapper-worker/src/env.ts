@@ -67,6 +67,8 @@ export const env = {
   // original GeoTIFF is still uploaded and downloadable either way.
   gdalTranslatePath: process.env.GDAL_TRANSLATE_PATH || "gdal_translate",
   gdalAddoPath: process.env.GDAL_ADDO_PATH || "gdaladdo",
+  gdalContourPath: process.env.GDAL_CONTOUR_PATH || "gdal_contour",
+  ogr2ogrPath: process.env.OGR2OGR_PATH || "ogr2ogr",
 };
 
 export function nodeOdmBaseUrl(): string {

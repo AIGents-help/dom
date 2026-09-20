@@ -180,6 +180,23 @@ resolution/tiles it needs instead of the whole file. Missing means the
 original GeoTIFF is uploaded as-is (still fully downloadable, just without
 fast partial-resolution loading in the viewer for very large files).
 
+## Elevation contours + GIS/CAD exports
+
+Survey processing can now derive contour lines from the DTM (preferred) or
+DSM using `gdal_contour`. The pilot chooses the interval in DOMINIC before
+queueing the Survey profile. The worker registers the source contour layer as
+GeoJSON, then uses `ogr2ogr` to derive three additional exchange files:
+
+- zipped ESRI Shapefile (`.shp/.shx/.dbf/.prj`)
+- KML reprojected to WGS84 for Google Earth/GIS exchange
+- DXF for CAD workflows
+
+Set `GDAL_CONTOUR_PATH` and `OGR2OGR_PATH` if those binaries are not on PATH.
+Both steps are derivative-only: a missing binary is logged and skipped rather
+than failing the mapping job. DWG is intentionally not generated through GDAL
+because reliable DWG writing requires a dedicated licensed/conversion tool;
+DXF is the current CAD master for a later controlled DWG conversion stage.
+
 ## Running
 
 - `npm start` — run once, polling every `MAPPER_POLL_INTERVAL_MS` (default 10s) for queued work.

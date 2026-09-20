@@ -17,6 +17,9 @@ import { getProjectDriveContext } from "./projectContext";
 import { convertPointCloud } from "./convertPointCloud";
 import { uploadPotreeOctree } from "./uploadPotree";
 import { buildCogOrthomosaic } from "./buildCogOrthomosaic";
+import { generateContours } from "./generateContours";
+import { generateVectorExports } from "./generateVectorExports";
+import { dominicDeliverableFilename } from "./deliverableBranding";
 import type { ExtractedOutput } from "./extractOutputs";
 
 const POLL_ODM_INTERVAL_MS = 5000;
@@ -26,6 +29,10 @@ const DRIVE_OUTPUT_FOLDER: Record<ExtractedOutput["type"], keyof DriveFolderTree
   "3d_model": "model_3d",
   dsm: "elevation",
   dtm: "elevation",
+  contours: "elevation",
+  contours_shapefile: "elevation",
+  contours_kml: "elevation",
+  contours_dxf: "elevation",
   point_cloud: "point_cloud",
 };
 
@@ -93,8 +100,11 @@ export async function processJob(job: ProcessingJob): Promise<void> {
 
     // 3. Uploading to Processor — submit to NodeODM.
     await updateProgress(job.id, project.id, 20, "Uploading to Processor");
-    const options = Array.isArray(job.options) ? (job.options as { name: string; value: unknown }[]) : [];
-    const taskUuid = await initTask(project.name, options);
+    const allOptions = Array.isArray(job.options) ? (job.options as { name: string; value: unknown }[]) : [];
+    const contourSetting = allOptions.find((option) => option.name === "__dom_contour_interval_m");
+    const contourIntervalM = typeof contourSetting?.value === "number" ? contourSetting.value : 0.5;
+    const odmOptions = allOptions.filter((option) => !option.name.startsWith("__dom_"));
+    const taskUuid = await initTask(project.name, odmOptions);
     await uploadImagesToTask(taskUuid, localImagePaths);
     await commitTask(taskUuid);
     await logEvent(project.id, "nodeodm_task_submitted", `NodeODM task ${taskUuid} submitted (${images.length} images).`, { taskUuid });
@@ -137,6 +147,46 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     await downloadAllOutputs(taskUuid, zipPath);
     extractAllZip(zipPath, workspace.outputDir);
     const outputs = locateOutputs(workspace.outputDir);
+
+    // DOMINIC elevation derivative: when a Survey run produced DTM or DSM,
+    // generate a GeoJSON contour layer locally with GDAL. Prefer bare-earth
+    // DTM; fall back to DSM when DTM is unavailable.
+    if (!outputs.some((output) => output.type === "contours")) {
+      const elevationSource = outputs.find((output) => output.type === "dtm") ?? outputs.find((output) => output.type === "dsm");
+      if (elevationSource) {
+        try {
+          const contourPath = join(workspace.outputDir, "dominic_contours.geojson");
+          const contours = await generateContours(elevationSource.localPath, contourPath, contourIntervalM);
+          if (contours) {
+            outputs.push(contours);
+            await logEvent(project.id, "contours_generated", `Generated contours at ${contourIntervalM} m interval from ${elevationSource.type.toUpperCase()}.`, {
+              contourIntervalM,
+              sourceType: elevationSource.type,
+            });
+          }
+        } catch (contourErr) {
+          console.error(`[processJob] Job ${job.id}: contour generation skipped:`, contourErr instanceof Error ? contourErr.message : contourErr);
+        }
+      }
+    }
+
+    const contourSource = outputs.find((output) => output.type === "contours");
+    if (contourSource) {
+      try {
+        const vectorDir = join(workspace.outputDir, "dominic_vector_exports");
+        const vectorExports = await generateVectorExports(contourSource.localPath, vectorDir);
+        outputs.push(...vectorExports);
+        if (vectorExports.length > 0) {
+          await logEvent(
+            project.id,
+            "vector_exports_generated",
+            `Generated ${vectorExports.length} GIS/CAD contour export(s): ${vectorExports.map((output) => output.type).join(", ")}.`
+          );
+        }
+      } catch (vectorErr) {
+        console.error(`[processJob] Job ${job.id}: GIS/CAD export generation skipped:`, vectorErr instanceof Error ? vectorErr.message : vectorErr);
+      }
+    }
     if (outputs.length === 0) {
       throw new Error("NodeODM finished but no recognizable output files were found in all.zip.");
     }
@@ -171,13 +221,22 @@ export async function processJob(job: ProcessingJob): Promise<void> {
           }
         }
 
+        // Client-facing files carry DOMINIC identity in the filename. We do
+        // not burn a watermark into GeoTIFF/vector/point-cloud source data:
+        // altering professional geospatial pixels/geometry would compromise
+        // the deliverable. Visual reports/previews carry the visible brand.
+        const brandedOutput = {
+          ...uploadOutput_,
+          filename: dominicDeliverableFilename(project.name, uploadOutput_),
+        };
+
         let location: DeliverableLocation;
         if (driveEnabled && driveFolders) {
           const folderId = driveFolders[DRIVE_OUTPUT_FOLDER[output.type]];
-          const externalFileId = await uploadFile(uploadOutput_.localPath, uploadOutput_.filename, folderId);
+          const externalFileId = await uploadFile(brandedOutput.localPath, brandedOutput.filename, folderId);
           location = { provider: "google_drive", externalFileId };
         } else {
-          const storagePath = await uploadOutput(project.job_id, uploadOutput_);
+          const storagePath = await uploadOutput(project.job_id, brandedOutput);
           location = { provider: "supabase", storagePath };
         }
 

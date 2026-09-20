@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 
 // Pilot counterpart to AdminSidebar. It intentionally uses the same full-
 // height rail geometry, spacing, collapse behavior, colors, and footer so
@@ -20,20 +21,13 @@ export type PilotTab = "missions" | "crm" | "support" | "queue" | "create" | "ma
 // turn it on; no redeploy of logic needed.
 const QUEUE_ENABLED = process.env.NEXT_PUBLIC_MISSION_QUEUE_ENABLED === "true";
 
-// DOM Mapper — same "ship dark, flip flag" pattern as the Queue tab above.
-// The processing worker (services/mapper-worker) needs to actually be
-// running against a real NodeODM instance before this is useful to pilots;
-// until then it stays out of the nav. Flip NEXT_PUBLIC_MAPPER_ENABLED=true
-// once that's set up.
-const MAPPER_ENABLED = process.env.NEXT_PUBLIC_MAPPER_ENABLED === "true";
-
 const ITEMS: { id: PilotTab; label: string; icon: string }[] = [
   { id: "missions", label: "Missions", icon: "▤" },
   { id: "crm", label: "My CRM", icon: "☍" },
   { id: "support", label: "Pilot Support", icon: "✚" },
   ...(QUEUE_ENABLED ? [{ id: "queue" as PilotTab, label: "Queue", icon: "◫" }] : []),
   { id: "create", label: "Create Mission", icon: "✎" },
-  ...(MAPPER_ENABLED ? [{ id: "mapping" as PilotTab, label: "Mapping", icon: "▦" }] : []),
+  { id: "mapping", label: "DOMINIC", icon: "◉" },
   { id: "assets", label: "Assets", icon: "✈" },
   { id: "publicprofile", label: "Public Profile", icon: "◈" },
   { id: "resources", label: "Resources", icon: "⬡" },
@@ -52,6 +46,7 @@ export default function PilotSidebar({
   onSignOut: () => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const stored = window.localStorage.getItem("dom_pilot_sidebar_collapsed");
@@ -102,7 +97,7 @@ export default function PilotSidebar({
           return (
             <button
               key={item.id}
-              onClick={() => setTab(item.id)}
+              onClick={() => item.id === "mapping" ? router.push("/dominic") : setTab(item.id)}
               title={collapsed ? item.label : undefined}
               style={{
                 display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8,

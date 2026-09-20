@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Map, Radio, Database, Camera, Thermometer, ClipboardCheck, ShieldCheck, CheckCircle2 } from "lucide-react";
+import DominicComingSoon from "@/components/DominicComingSoon";
 
 const services = [
   { icon: Map, title: "Mapping & Surveying", copy: "Orthomosaics, 3D models, point clouds, and measurable site intelligence.", image: "/images/construction-aerial.jpg", href: "/services/mapping-surveying" },
@@ -131,6 +132,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      <DominicComingSoon />
 
       <section className="container-app py-20 lg:py-28">
         <div className="mb-12">

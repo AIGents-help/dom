@@ -1,40 +1,70 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { dedupeDeliverables } from "@/lib/mapperPipeline";
-import { V } from "./theme";
+import { V, btnGhost } from "./theme";
 import OrthomosaicViewer from "./OrthomosaicViewer";
 import Model3DViewer from "./Model3DViewer";
 import PointCloudViewer from "./PointCloudViewer";
+import ElevationRasterViewer from "./ElevationRasterViewer";
+import ContourViewer from "./ContourViewer";
+import DominicExportPanel from "./DominicExportPanel";
+import DominicDeliverySummary from "./DominicDeliverySummary";
 import MappingDeliverables from "./MappingDeliverables";
 import type { MappingDeliverable } from "./types";
+import type { DominicWorkbenchTool } from "./workbenchTypes";
 
-// Orchestrates the three output viewers (each structure-only this pass —
-// see their own files) plus the full deliverables list. Picks the most
-// recent, most-trustworthy deliverable of each relevant type (see
-// dedupeDeliverables — a worker retry can register more than one row for
-// the same underlying output) and resolves a download URL for it
-// server-side, same route as MappingDeliverables.
+type ViewerLayer = "orthomosaic" | "dsm" | "dtm" | "contours" | "3d_model" | "point_cloud";
+
+const LAYER_LABELS: Record<ViewerLayer, string> = {
+  orthomosaic: "Orthomosaic",
+  dsm: "DSM",
+  dtm: "DTM",
+  contours: "Contours",
+  "3d_model": "3D Model",
+  point_cloud: "Point Cloud",
+};
+
 export default function MappingResults({
   deliverables,
   accessToken,
   projectId,
+  workbenchTool = "select",
+  toolSet = "General",
+  requestedLayer,
 }: {
   deliverables: MappingDeliverable[];
   accessToken: string;
   projectId: string;
+  workbenchTool?: DominicWorkbenchTool;
+  toolSet?: string;
+  requestedLayer?: string | null;
 }) {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [selectedLayer, setSelectedLayer] = useState<ViewerLayer>("orthomosaic");
 
-  const deduped = dedupeDeliverables(deliverables);
-  const orthomosaic = deduped.find((d) => d.type === "orthomosaic") ?? null;
-  const model3d = deduped.find((d) => d.type === "3d_model") ?? null;
-  const pointCloud = deduped.find((d) => d.type === "point_cloud") ?? null;
+  const deduped = useMemo(() => dedupeDeliverables(deliverables), [deliverables]);
+  const byType = useMemo(() => new Map(deduped.filter((d) => d.type).map((d) => [d.type as string, d])), [deduped]);
+  const availableLayers = useMemo(
+    () => (["orthomosaic", "dsm", "dtm", "contours", "3d_model", "point_cloud"] as ViewerLayer[]).filter((type) => byType.has(type)),
+    [byType]
+  );
 
   useEffect(() => {
-    const targets = [orthomosaic, model3d, pointCloud].filter((d): d is MappingDeliverable => !!d?.storage_url || !!d?.external_file_id);
+    if (requestedLayer && availableLayers.includes(requestedLayer as ViewerLayer)) {
+      setSelectedLayer(requestedLayer as ViewerLayer);
+      return;
+    }
+    if (!availableLayers.includes(selectedLayer) && availableLayers.length > 0) setSelectedLayer(availableLayers[0]);
+  }, [requestedLayer, availableLayers, selectedLayer]);
+
+  useEffect(() => {
+    const targets = availableLayers
+      .map((type) => byType.get(type))
+      .filter((d): d is MappingDeliverable => !!d && (!!d.storage_url || !!d.external_file_id));
     if (targets.length === 0) return;
+    let cancelled = false;
     (async () => {
       setPreviewError(null);
       const failures: string[] = [];
@@ -56,50 +86,86 @@ export default function MappingResults({
           }
         })
       );
+      if (cancelled) return;
       setSignedUrls(Object.fromEntries(entries.filter(([, url]) => url)));
       if (failures.length > 0) setPreviewError(failures.join(" · "));
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orthomosaic?.id, model3d?.id, pointCloud?.id, projectId, accessToken]);
+    return () => { cancelled = true; };
+  }, [availableLayers, byType, projectId, accessToken]);
 
-  const hasAnyOutput = orthomosaic || model3d || pointCloud;
+  const active = byType.get(selectedLayer) ?? null;
+  const isOrthomosaic = selectedLayer === "orthomosaic";
+  const isElevation = selectedLayer === "dsm" || selectedLayer === "dtm";
 
   return (
     <div>
-      {!hasAnyOutput ? (
+      {availableLayers.length === 0 ? (
         <p style={{ color: V.inkFaint, fontSize: 13, marginBottom: 16 }}>
-          No processed outputs yet — they'll appear here once the worker finishes and registers deliverables for this job.
+          No processed outputs yet — they&apos;ll appear here once DOMINIC finishes processing this mission.
         </p>
       ) : (
-        <div style={{ display: "grid", gap: 12, marginBottom: 12 }}>
-          {orthomosaic && (
-            <OrthomosaicViewer
-              signedUrl={signedUrls[orthomosaic.id] ?? null}
-              name={orthomosaic.name}
-              projectId={projectId}
-              deliverableId={orthomosaic.id}
-              accessToken={accessToken}
-            />
-          )}
-          {model3d && <Model3DViewer signedUrl={signedUrls[model3d.id] ?? null} name={model3d.name} />}
-          {pointCloud && (
-            <PointCloudViewer
-              signedUrl={signedUrls[pointCloud.id] ?? null}
-              name={pointCloud.name}
-              projectId={projectId}
-              deliverableId={pointCloud.id}
-              accessToken={accessToken}
-              hasPotree={!!pointCloud.potree}
-            />
-          )}
-        </div>
+        <>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 9 }}>
+            {availableLayers.map((layer) => (
+              <button
+                key={layer}
+                onClick={() => setSelectedLayer(layer)}
+                style={{
+                  ...btnGhost,
+                  padding: "6px 10px",
+                  fontSize: 10,
+                  borderColor: selectedLayer === layer ? V.signal : V.line,
+                  color: selectedLayer === layer ? V.signal : V.inkDim,
+                  background: selectedLayer === layer ? "rgba(244,90,30,.10)" : "#0D1319",
+                }}
+              >
+                {LAYER_LABELS[layer]}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ position: "relative", marginBottom: 12 }}>
+            {active ? <div style={{ position: "absolute", right: 12, bottom: 12, zIndex: 30, pointerEvents: "none", border: `1px solid ${V.signal}`, borderRadius: 6, padding: "4px 7px", background: "rgba(9,13,17,.78)", color: V.signal, fontSize: 8, fontWeight: 900, letterSpacing: ".12em" }}>DOMINIC PREVIEW · DRONE OPERATION MANAGEMENT</div> : null}
+            {active && isOrthomosaic ? (
+              <OrthomosaicViewer
+                signedUrl={signedUrls[active.id] ?? null}
+                name={active.name}
+                projectId={projectId}
+                deliverableId={active.id}
+                accessToken={accessToken}
+                workbenchTool={workbenchTool}
+                toolSet={toolSet}
+              />
+            ) : null}
+            {active && isElevation ? (
+              <ElevationRasterViewer
+                signedUrl={signedUrls[active.id] ?? null}
+                name={active.name}
+                label={selectedLayer === "dsm" ? "DSM" : "DTM"}
+              />
+            ) : null}
+            {active && selectedLayer === "contours" ? <ContourViewer signedUrl={signedUrls[active.id] ?? null} name={active.name} /> : null}
+            {active && selectedLayer === "3d_model" ? <Model3DViewer signedUrl={signedUrls[active.id] ?? null} name={active.name} /> : null}
+            {active && selectedLayer === "point_cloud" ? (
+              <PointCloudViewer
+                signedUrl={signedUrls[active.id] ?? null}
+                name={active.name}
+                projectId={projectId}
+                deliverableId={active.id}
+                accessToken={accessToken}
+                hasPotree={!!active.potree}
+              />
+            ) : null}
+          </div>
+        </>
       )}
 
-      {previewError && (
-        <p style={{ color: V.danger, fontSize: 12, marginBottom: 20 }}>{previewError}</p>
-      )}
+      {previewError && <p style={{ color: V.danger, fontSize: 12, marginBottom: 20 }}>{previewError}</p>}
 
-      <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".08em", color: V.inkFaint, textTransform: "uppercase", marginBottom: 10, marginTop: hasAnyOutput ? 0 : 8 }}>
+      <DominicDeliverySummary deliverables={deduped} projectId={projectId} />
+      <DominicExportPanel deliverables={deduped} accessToken={accessToken} projectId={projectId} />
+
+      <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".08em", color: V.inkFaint, textTransform: "uppercase", marginBottom: 10, marginTop: availableLayers.length > 0 ? 0 : 8 }}>
         All outputs
       </div>
       <MappingDeliverables deliverables={deduped} accessToken={accessToken} projectId={projectId} />

@@ -102,7 +102,7 @@ export type ProcessingJobStatus = (typeof PROCESSING_JOB_STATUS_OPTIONS)[number]
 // no DB constraint (verified live) — this is purely the app-level list,
 // kept here as the single source of truth so the admin missions page and
 // any mapper UI reference the same vocabulary instead of drifting.
-export const MAPPER_DELIVERABLE_TYPES = ["orthomosaic", "3d_model", "dsm", "dtm", "point_cloud", "processing_report"] as const;
+export const MAPPER_DELIVERABLE_TYPES = ["orthomosaic", "3d_model", "dsm", "dtm", "contours", "contours_shapefile", "contours_kml", "contours_dxf", "point_cloud", "processing_report"] as const;
 
 // mission_assignments.status values that represent "this contractor has (or
 // had) a real, confirmed working relationship to this job" — i.e. anything

@@ -60,7 +60,7 @@ export default function MappingDeliverables({
               <div>
                 <div style={{ color: V.ink, fontSize: 13, fontWeight: 600 }}>{d.name}</div>
                 <div className="font-mono-ibm" style={{ color: V.inkFaint, fontSize: 11, marginTop: 3, textTransform: "uppercase", letterSpacing: ".05em" }}>
-                  {(d.type ?? "output").replace(/_/g, " ")} · {d.qc_passed ? "QC passed" : "Pending QC"}
+                  {(d.type ?? "output").replace(/_/g, " ")} · {d.qc_passed ? "QC passed" : "Pending QC"}{d.client_status ? ` · Client ${d.client_status.replace(/_/g, " ")}` : ""}
                 </div>
               </div>
               <button
@@ -71,6 +71,11 @@ export default function MappingDeliverables({
                 {!hasFile ? "Unavailable" : loading === d.id ? "…" : "Download"}
               </button>
             </div>
+            {d.client_status === "revision_requested" && d.client_feedback ? (
+              <div style={{ marginTop: 8, padding: 8, borderRadius: 7, border: `1px solid ${V.warn}`, color: V.warn, fontSize: 11 }}>
+                Client revision: {d.client_feedback}
+              </div>
+            ) : null}
             {errors[d.id] && (
               <p style={{ color: V.danger, fontSize: 12, marginTop: 8 }}>{errors[d.id]}</p>
             )}

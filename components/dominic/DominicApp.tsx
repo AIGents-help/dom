@@ -60,6 +60,7 @@ export default function DominicApp() {
   const [showProjectsSignal, setShowProjectsSignal] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [compactViewport, setCompactViewport] = useState(false);
 
   const handleProjectChange = useCallback((projectId: string | null) => {
     setActiveProjectId(projectId);
@@ -70,6 +71,17 @@ export default function DominicApp() {
     const onFullscreen = () => setFullscreen(Boolean(document.fullscreenElement));
     document.addEventListener("fullscreenchange", onFullscreen);
     return () => document.removeEventListener("fullscreenchange", onFullscreen);
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 980px)");
+    const syncViewport = () => {
+      setCompactViewport(media.matches);
+      if (media.matches) setSidebarCollapsed(true);
+    };
+    syncViewport();
+    media.addEventListener("change", syncViewport);
+    return () => media.removeEventListener("change", syncViewport);
   }, []);
 
   useEffect(() => {
@@ -127,7 +139,7 @@ export default function DominicApp() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ textAlign: "right", lineHeight: 1.15 }}>
+          <div style={{ textAlign: "right", lineHeight: 1.15, display: compactViewport ? "none" : "block" }}>
             <div style={{ color: TEXT, fontSize: 12, fontWeight: 800 }}>DOM Pilot Workspace</div>
             <div style={{ color: MUTED, fontSize: 9, letterSpacing: ".08em", marginTop: 3 }}>DRONE OPERATION MANAGEMENT</div>
           </div>
@@ -169,7 +181,7 @@ export default function DominicApp() {
               gap: 7,
             }}
           >
-            <LogOut size={15} /> Exit DOMINIC
+            <LogOut size={15} /> {!compactViewport ? "Exit DOMINIC" : null}
           </button>
         </div>
       </header>
@@ -292,7 +304,7 @@ export default function DominicApp() {
               background: "#0E141A",
               padding: sidebarCollapsed ? "10px 12px" : "12px 18px",
               display: "grid",
-              gridTemplateColumns: "repeat(5, minmax(130px, 1fr))",
+              gridTemplateColumns: compactViewport ? "repeat(5, minmax(112px, 1fr))" : "repeat(5, minmax(130px, 1fr))",
               gap: 8,
               overflowX: "auto",
             }}
@@ -333,7 +345,7 @@ export default function DominicApp() {
             ))}
           </section>
 
-          <section style={{ padding: "12px 14px 18px" }}>
+          <section style={{ padding: compactViewport ? "8px" : "12px 14px 18px" }}>
             <div
               style={{
                 border: `1px solid ${LINE}`,

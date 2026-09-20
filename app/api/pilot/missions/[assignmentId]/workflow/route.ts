@@ -86,7 +86,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
 
   const insurance = coverage(ctx);
   const [{ data: deliverables, error: deliverablesError }] = await Promise.all([
-    ctx.admin.from("deliverables").select("id,type").eq("job_id", ctx.assignment.job_id),
+    ctx.admin.from("deliverables").select("id,type,client_status").eq("job_id", ctx.assignment.job_id),
   ]);
   if (deliverablesError) return NextResponse.json({ error: "Field workflow could not be loaded." }, { status: 500 });
 
@@ -97,7 +97,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
     ctx.assignment.job.delivery_responsibility,
   );
   const submitted = ["submitted", "qc_passed", "paid"].includes(ctx.assignment.status);
-  const missingDeliverables = missingRequiredDeliverables(ctx.assignment.job.service_type, (deliverables ?? []).map((item) => item.type));
+  const currentDeliverables = (deliverables ?? []).filter((item) => item.client_status !== "superseded");
+  const missingDeliverables = missingRequiredDeliverables(ctx.assignment.job.service_type, currentDeliverables.map((item) => item.type));
   const deliverablesComplete = missingDeliverables.length === 0;
   const automaticStates = [
     { key: "uav_assigned", completed: !!ctx.assignment.assigned_uav, notes: ctx.assignment.assigned_uav ? `Assigned aircraft: ${ctx.assignment.assigned_uav}` : "Assign a compatible UAV" },
@@ -151,7 +152,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
     ownership: { completionMode, pilotOwned: completionMode !== "dom_qc", ownerIsCurrentPilot: completionMode === "owner_delivery" },
     deliverablePlan: deliverablePlanFor(ctx.assignment.job.service_type).map((item) => ({
       ...item,
-      uploaded: (deliverables ?? []).some((deliverable) => deliverable.type === item.type),
+      uploaded: currentDeliverables.some((deliverable) => deliverable.type === item.type),
     })),
     readiness: {
       level: blockers.length ? "no_go" : cautions.length ? "caution" : "go",
@@ -225,12 +226,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
   } else if (["submit_for_qc", "complete_mission"].includes(body.action)) {
     if (["submitted", "qc_passed", "paid"].includes(ctx.assignment.status)) return NextResponse.json({ ok: true });
     const [{ data: submittedDeliverables }, { data: incomplete }] = await Promise.all([
-      ctx.admin.from("deliverables").select("type").eq("job_id", ctx.assignment.job_id),
+      ctx.admin.from("deliverables").select("type,client_status").eq("job_id", ctx.assignment.job_id),
       ctx.admin.from("mission_checklist_items").select("label").eq("assignment_id", assignmentId).eq("required", true).eq("completed", false).neq("item_key", "mission_submitted"),
     ]);
     const blockers = [
       ...(!ctx.assignment.job.completed_at ? ["Mark field capture complete"] : []),
-      ...missingRequiredDeliverables(ctx.assignment.job.service_type, (submittedDeliverables ?? []).map((item) => item.type)).map((item) => `Upload ${item.label}`),
+      ...missingRequiredDeliverables(ctx.assignment.job.service_type, (submittedDeliverables ?? []).filter((item) => item.client_status !== "superseded").map((item) => item.type)).map((item) => `Upload ${item.label}`),
       ...(incomplete ?? []).map((item) => item.label),
     ];
     if (blockers.length) return NextResponse.json({ error: "Complete the remaining steps before finishing this mission.", blockers: [...new Set(blockers)] }, { status: 409 });

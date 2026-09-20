@@ -85,7 +85,9 @@ export default function MappingProjectList({
               <Plus size={16} /> New DOMINIC Project
             </button>
           </div>
-          <Image src="/brand/dom-propeller-3fin.png" alt="" width={116} height={116} style={{ opacity: .94, flexShrink: 0 }} />
+          <div style={{ width: 150, height: 150, position: "relative", flexShrink: 0, borderRadius: 18, overflow: "hidden", border: `1px solid ${V.line}`, boxShadow: "0 16px 40px rgba(0,0,0,.28)" }}>
+            <Image src="/brand/dominic-mascot.webp" alt="DOMINIC mascot" fill sizes="150px" style={{ objectFit: "cover" }} />
+          </div>
         </div>
 
         <div style={{ ...panelStyle, display: "grid", alignContent: "center", gap: 12 }}>

@@ -61,11 +61,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (action === "set_deliverable_qc") {
     const deliverableId = typeof body.deliverableId === "string" ? body.deliverableId : "";
     const passed = body.passed === true;
-    const { data, error } = await auth.admin.from("deliverables").update({
-      qc_passed: passed, delivered_at: passed ? new Date().toISOString() : null,
-    }).eq("id", deliverableId).eq("job_id", job.id).select("id").maybeSingle();
+    const { data: deliverable } = await auth.admin.from("deliverables")
+      .select("id,supersedes_deliverable_id")
+      .eq("id", deliverableId).eq("job_id", job.id).maybeSingle();
+    if (!deliverable) return NextResponse.json({ error: "Deliverable not found for this mission" }, { status: 404 });
+
+    const deliveredAt = passed ? new Date().toISOString() : null;
+    const { error } = await auth.admin.from("deliverables").update({
+      qc_passed: passed, delivered_at: deliveredAt,
+    }).eq("id", deliverable.id);
     if (error) return NextResponse.json({ error: "Deliverable QC could not be updated" }, { status: 500 });
-    if (!data) return NextResponse.json({ error: "Deliverable not found for this mission" }, { status: 404 });
+
+    // A corrected DOMINIC output does not replace the client-requested revision
+    // until the correction itself passes DOM QC. This keeps the prior version
+    // active and auditable throughout processing and quality review.
+    if (passed && deliverable.supersedes_deliverable_id) {
+      const { error: supersedeError } = await auth.admin.from("deliverables")
+        .update({ client_status: "superseded" })
+        .eq("id", deliverable.supersedes_deliverable_id)
+        .eq("job_id", job.id)
+        .eq("client_status", "revision_requested");
+      if (supersedeError) {
+        await auth.admin.from("deliverables").update({ qc_passed: false, delivered_at: null }).eq("id", deliverable.id);
+        return NextResponse.json({ error: "Corrected deliverable could not complete its revision handoff" }, { status: 500 });
+      }
+    }
     return NextResponse.json({ ok: true });
   }
 

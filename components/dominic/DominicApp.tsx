@@ -194,17 +194,28 @@ export default function DominicApp() {
             style={{
               marginTop: 28,
               border: `1px solid ${LINE}`,
-              borderRadius: 12,
-              padding: 14,
-              background: "radial-gradient(circle at 50% 0%, rgba(244,90,30,.16), transparent 62%)",
+              borderRadius: 14,
+              overflow: "hidden",
+              background: "radial-gradient(circle at 50% 0%, rgba(244,90,30,.16), transparent 62%), #0A0F14",
               textAlign: "center",
             }}
           >
-            <Image src="/brand/dom-propeller-3fin.png" alt="" width={76} height={76} />
-            <div style={{ fontFamily: "Saira, sans-serif", fontSize: 18, fontWeight: 800, marginTop: 4 }}>
-              DOM<span style={{ color: ORANGE }}>INIC</span>
+            <div style={{ position: "relative", aspectRatio: "1 / 1", width: "100%", overflow: "hidden" }}>
+              <Image
+                src="/brand/dominic-mascot.webp"
+                alt="DOMINIC mascot"
+                fill
+                sizes="190px"
+                style={{ objectFit: "cover", objectPosition: "center" }}
+              />
+              <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 55%, rgba(9,13,17,.92) 100%)" }} />
             </div>
-            <div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>Same Higher Perspective.</div>
+            <div style={{ padding: "0 12px 14px", marginTop: -16, position: "relative" }}>
+              <div style={{ fontFamily: "Saira, sans-serif", fontSize: 18, fontWeight: 800 }}>
+                DOM<span style={{ color: ORANGE }}>INIC</span>
+              </div>
+              <div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>Same Perspective. Higher Purpose.</div>
+            </div>
           </div>
         </aside>
 

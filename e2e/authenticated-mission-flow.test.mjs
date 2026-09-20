@@ -274,6 +274,58 @@ test("admin-authorized uninsured pilot creates a ready self-service mission", { 
     assert.ok(customMissionBody.jobId);
     assert.ok(customMissionBody.quote.totalCents > 0);
 
+    const missingFreeReason = await api.post("/api/pilot/missions/create", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        ...missionPayload,
+        clientEmail: `free-missing-reason-${stamp}@e2e.dom.invalid`,
+        billingMode: "no_charge",
+        uninsuredAcknowledged: true,
+      },
+      failOnStatusCode: false,
+    });
+    assert.equal(missingFreeReason.status(), 400);
+
+    const freeMission = await api.post("/api/pilot/missions/create", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        ...missionPayload,
+        clientEmail: `free-client-${stamp}@e2e.dom.invalid`,
+        billingMode: "no_charge",
+        noChargeReason: "demo_portfolio",
+        uninsuredAcknowledged: true,
+      },
+      failOnStatusCode: false,
+    });
+    const freeMissionBody = await freeMission.json().catch(() => ({}));
+    assert.equal(freeMission.status(), 200, JSON.stringify(freeMissionBody));
+    assert.ok(freeMissionBody.jobId);
+    assert.equal(freeMissionBody.quote.totalCents, 0);
+    assert.ok(freeMissionBody.quote.referenceTotalCents > 0);
+    assert.equal(freeMissionBody.quote.contractorCents, 0);
+    assert.equal(freeMissionBody.quote.commissionCents, 0);
+    assert.equal(freeMissionBody.quote.billingMode, "no_charge");
+
+    const { data: freeAssignment, error: freeAssignmentError } = await admin.from("mission_assignments")
+      .select("id,mission_price_cents,contractor_payout_cents,dom_commission_cents")
+      .eq("job_id", freeMissionBody.jobId)
+      .eq("contractor_id", pilot.id)
+      .single();
+    assert.ifError(freeAssignmentError);
+    assert.equal(freeAssignment.mission_price_cents, 0);
+    assert.equal(freeAssignment.contractor_payout_cents, 0);
+    assert.equal(freeAssignment.dom_commission_cents, 0);
+
+    const { data: freeAudit, error: freeAuditError } = await admin.from("mission_activity_events")
+      .select("event_type,details")
+      .eq("assignment_id", freeAssignment.id)
+      .eq("event_type", "no_charge_mission_created")
+      .single();
+    assert.ifError(freeAuditError);
+    assert.equal(freeAudit.event_type, "no_charge_mission_created");
+    assert.equal(freeAudit.details.reason, "demo_portfolio");
+    assert.ok(freeAudit.details.reference_total_cents > 0);
+
     const accepted = await api.post("/api/pilot/missions/create", {
       headers: { Authorization: `Bearer ${token}` },
       data: { ...missionPayload, uninsuredAcknowledged: true },

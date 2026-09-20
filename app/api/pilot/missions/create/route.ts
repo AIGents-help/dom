@@ -50,6 +50,8 @@ export async function POST(req: NextRequest) {
       customDeliverables,
       customBaseCents,
       travelDistanceSource,
+      billingMode = "paid",
+      noChargeReason,
       uninsuredAcknowledged,
     } = body;
 
@@ -100,6 +102,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Custom missions require a title and mission objective." }, { status: 400 });
     }
 
+    if (billingMode !== "paid" && billingMode !== "no_charge") {
+      return NextResponse.json({ error: "Invalid billing mode." }, { status: 400 });
+    }
+
+    if (billingMode === "no_charge" && !noChargeReason?.trim()) {
+      return NextResponse.json({ error: "No-charge missions require a reason." }, { status: 400 });
+    }
+
     const airspaceResult = await classifyAirspace(latitude, longitude);
     const quoteInput: QuoteInput = {
       serviceType,
@@ -110,7 +120,27 @@ export async function POST(req: NextRequest) {
       deliverableTier: deliverableTier ?? "standard",
       customBaseCents: serviceType === "custom" && Number.isFinite(customBaseCents) && customBaseCents > 0 ? customBaseCents : undefined,
     };
-    const quote = calculateQuote(quoteInput);
+    const referenceQuote = calculateQuote(quoteInput);
+    if (!referenceQuote.canOperate) {
+      return NextResponse.json(
+        { error: referenceQuote.warnings[0] ?? "This mission cannot be operated at the selected location." },
+        { status: 409 }
+      );
+    }
+
+    const isNoCharge = billingMode === "no_charge";
+    const quote = isNoCharge
+      ? {
+          ...referenceQuote,
+          totalCents: 0,
+          commissionCents: 0,
+          contractorPayoutCents: 0,
+          warnings: [
+            ...referenceQuote.warnings,
+            `No-charge mission: ${noChargeReason.trim().replaceAll("_", " ")}.`,
+          ],
+        }
+      : referenceQuote;
 
     // The service-only transaction receives the verified actor ID from this
     // route; the browser cannot invoke it or choose another actor.
@@ -140,6 +170,9 @@ export async function POST(req: NextRequest) {
         combinedMultiplier: quote.combinedMultiplier,
         totalCents: quote.totalCents,
         warnings: quote.warnings,
+        billingMode,
+        noChargeReason: isNoCharge ? noChargeReason.trim() : null,
+        referenceTotalCents: referenceQuote.totalCents,
         travelDistanceMiles: distanceMiles,
         travelDistanceSource,
         uninsuredAcknowledged: !personalInsuranceCurrent && uninsuredAcknowledged === true,
@@ -163,6 +196,9 @@ export async function POST(req: NextRequest) {
       quote: {
         serviceLabel: quote.serviceLabel,
         totalCents: quote.totalCents,
+        referenceTotalCents: referenceQuote.totalCents,
+        billingMode,
+        noChargeReason: isNoCharge ? noChargeReason.trim() : null,
         contractorCents: assignment?.contractor_payout_cents ?? null,
         commissionCents: assignment?.dom_commission_cents ?? null,
         commissionBps: assignment?.commission_bps_applied ?? null,

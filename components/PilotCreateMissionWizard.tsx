@@ -29,6 +29,7 @@ interface AirspaceData {
 interface QuoteData {
   serviceLabel: string;
   totalCents: number;
+  referenceTotalCents?: number;
   warnings: string[];
 }
 
@@ -85,6 +86,8 @@ export default function PilotCreateMissionWizard({
   const [urgency, setUrgency] = useState("standard");
   const [deliverableTier, setDeliverableTier] = useState("standard");
   const [distanceMiles, setDistanceMiles] = useState(15);
+  const [billingMode, setBillingMode] = useState<"paid" | "no_charge">("paid");
+  const [noChargeReason, setNoChargeReason] = useState("");
 
   // Quote + submit
   const [quote, setQuote] = useState<QuoteData | null>(null);
@@ -159,12 +162,20 @@ export default function PilotCreateMissionWizard({
           serviceType, lat, lng, distanceMiles,
           siteComplexity: complexity, urgency, deliverableTier,
           travelDistanceSource: "pilot_google_maps_verified",
+          billingMode,
+          noChargeReason: billingMode === "no_charge" ? noChargeReason.trim() : undefined,
           uninsuredAcknowledged: !personalInsuranceCurrent ? uninsuredConsent : false,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not calculate a quote.");
-      setQuote({ serviceLabel: data.quote.serviceLabel, totalCents: data.quote.totalCents, warnings: data.quote.warnings ?? [] });
+      const referenceTotalCents = data.quote.totalCents;
+      setQuote({
+        serviceLabel: data.quote.serviceLabel,
+        totalCents: billingMode === "no_charge" ? 0 : referenceTotalCents,
+        referenceTotalCents,
+        warnings: data.quote.warnings ?? [],
+      });
       setUninsuredConsent(false);
       setStep("quote");
     } catch (e: any) {
@@ -172,7 +183,7 @@ export default function PilotCreateMissionWizard({
     } finally {
       setQuoting(false);
     }
-  }, [lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier]);
+  }, [lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier, billingMode]);
 
   const submit = useCallback(async () => {
     if (lat == null || lng == null) return;
@@ -208,7 +219,7 @@ export default function PilotCreateMissionWizard({
     } finally {
       setSubmitting(false);
     }
-  }, [accessToken, clientName, clientEmail, clientCompany, clientPhone, address, lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier, customMissionTitle, customMissionScope, customDeliverables, personalInsuranceCurrent, uninsuredConsent, onCreated]);
+  }, [accessToken, clientName, clientEmail, clientCompany, clientPhone, address, lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier, customMissionTitle, customMissionScope, customDeliverables, billingMode, noChargeReason, personalInsuranceCurrent, uninsuredConsent, onCreated]);
 
   if (created) {
     return (
@@ -235,6 +246,8 @@ export default function PilotCreateMissionWizard({
             setAddress(""); setLat(null); setLng(null); setAirspace(null);
             setDistanceVerified(false);
             setQuote(null);
+            setBillingMode("paid");
+            setNoChargeReason("");
             setUninsuredConsent(false);
           }}
           style={{ ...btnGhost, marginTop: 16 }}
@@ -382,6 +395,43 @@ export default function PilotCreateMissionWizard({
                 </div>
               </div>
             )}
+            <div style={{ padding: 14, border: `1px solid ${V.line}`, borderRadius: 10, background: V.raised }}>
+              <div className="font-saira" style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Billing</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={() => { setBillingMode("paid"); setQuote(null); }}
+                  style={{ ...(billingMode === "paid" ? btnPrimary : btnGhost), flex: 1, minWidth: 140 }}
+                >
+                  Paid Mission
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setBillingMode("no_charge"); setQuote(null); }}
+                  style={{ ...(billingMode === "no_charge" ? btnPrimary : btnGhost), flex: 1, minWidth: 140 }}
+                >
+                  No-Charge Mission
+                </button>
+              </div>
+              {billingMode === "no_charge" && (
+                <div style={{ marginTop: 10 }}>
+                  <label style={labelStyle}>Reason for no-charge mission *</label>
+                  <select value={noChargeReason} onChange={(e) => { setNoChargeReason(e.target.value); setQuote(null); }} style={inputStyle}>
+                    <option value="">Select a reason</option>
+                    <option value="demo_portfolio">Demo / Portfolio</option>
+                    <option value="training">Training / Practice</option>
+                    <option value="goodwill">Goodwill / Courtesy</option>
+                    <option value="warranty_rework">Warranty / Rework</option>
+                    <option value="nonprofit">Nonprofit / Community</option>
+                    <option value="internal_test">Internal Test</option>
+                    <option value="other">Other</option>
+                  </select>
+                  <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 5 }}>
+                    DOM will still calculate and retain the normal reference value for reporting, but the client price, DOM commission, and pilot payout for this mission will be $0.
+                  </p>
+                </div>
+              )}
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <label style={labelStyle}>Complexity</label>
@@ -417,7 +467,7 @@ export default function PilotCreateMissionWizard({
             <button onClick={() => setStep("location")} style={btnGhost}>← Back</button>
             <button
               onClick={generateQuote}
-              disabled={quoting || (serviceType === "custom" && (!customMissionTitle.trim() || !customMissionScope.trim()))}
+              disabled={quoting || (serviceType === "custom" && (!customMissionTitle.trim() || !customMissionScope.trim())) || (billingMode === "no_charge" && !noChargeReason.trim())}
               style={{ ...btnPrimary, flex: 1 }}
             >
               {quoting ? "Calculating…" : "Get quote →"}
@@ -433,9 +483,11 @@ export default function PilotCreateMissionWizard({
             ${(quote.totalCents / 100).toFixed(2)}
           </p>
           <p style={{ fontSize: 12, color: V.inkFaint, marginTop: 8 }}>
-            {subscriptionActive
-              ? "You're subscribed — you'll keep the full total, no DOM commission."
-              : "Your exact payout after DOM's commission will be shown once the mission is created."}
+            {billingMode === "no_charge"
+              ? `No-charge mission · reference value ${((quote.referenceTotalCents ?? 0) / 100).toLocaleString("en-US", { style: "currency", currency: "USD" })} · reason: ${noChargeReason.replaceAll("_", " ")}`
+              : subscriptionActive
+                ? "You're subscribed — you'll keep the full total, no DOM commission."
+                : "Your exact payout after DOM's commission will be shown once the mission is created."}
           </p>
           {quote.warnings.length > 0 && (
             <div style={{ marginTop: 12, padding: 10, borderRadius: 8, background: "rgba(229,112,31,.08)" }}>

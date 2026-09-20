@@ -7,7 +7,8 @@ import { deliverableReady } from "@/lib/resend/templates";
 // POST /api/notify/deliverable-ready  { missionRequestId }
 // Fired from app/admin/missions/[id]/page.tsx's advanceStatus() when the
 // generic pipeline-advance button reaches 'delivered' — same pattern as
-// booking-confirmed on 'approved'. Links to /deliverables/[jobId] when at
+// booking-confirmed on 'approved'. Links through authenticated client login with a
+// job-specific return target when at
 // least one QC-passed deliverable exists for the mission's job; otherwise
 // omits deliverableUrl and the email just won't render a button — e.g. if
 // admin advances the pipeline before uploading anything.
@@ -64,7 +65,7 @@ export async function POST(req: NextRequest) {
         .eq("qc_passed", true);
       if (count && count > 0) {
         const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
-        deliverableUrl = `${siteUrl}/deliverables/${job.id}`;
+        deliverableUrl = `${siteUrl}/client/login?returnTo=${encodeURIComponent(`/client?job=${job.id}`)}`;
       }
     }
 

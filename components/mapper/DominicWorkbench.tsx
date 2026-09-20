@@ -91,15 +91,15 @@ export default function DominicWorkbench({
                   background: active ? "rgba(244,90,30,.13)" : "transparent",
                   color: active ? V.signal : V.inkDim,
                   borderRadius: 9,
-                  padding: "8px 3px",
+                  padding: compactWorkbench ? "10px 2px" : "8px 3px",
                   display: "grid",
                   justifyItems: "center",
                   gap: 4,
                   cursor: "pointer",
-                  fontSize: 9,
+                  fontSize: compactWorkbench ? 8 : 9,
                 }}
               >
-                <Icon size={18} />
+                <Icon size={compactWorkbench ? 20 : 18} />
                 <span>{label}</span>
               </button>
             );
@@ -133,7 +133,7 @@ export default function DominicWorkbench({
                       border: 0,
                       borderBottom: active ? `2px solid ${V.signal}` : "2px solid transparent",
                       background: "transparent",
-                      padding: "6px 8px",
+                      padding: compactWorkbench ? "9px 8px" : "6px 8px",
                       color: active ? V.ink : ready ? V.inkDim : V.inkFaint,
                       fontSize: 10,
                       fontWeight: active ? 800 : 600,

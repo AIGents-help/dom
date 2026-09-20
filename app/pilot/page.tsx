@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
-import PilotCreateMissionWizard from "@/components/PilotCreateMissionWizard";
+import PilotCreateMissionWizard, { type PilotMissionDraft } from "@/components/PilotCreateMissionWizard";
 import PilotMissionLog from "@/components/PilotMissionLog";
 import PilotSidebar, { type PilotTab } from "@/components/PilotSidebar";
 import PilotProfileEditor from "@/components/PilotProfileEditor";
@@ -101,6 +101,8 @@ export default function PilotDashboard() {
   const [sopMissionServiceType, setSopMissionServiceType] = useState<string | null>(null);
   const [missionSort, setMissionSort] = useState("action");
   const [missionFilter, setMissionFilter] = useState("all");
+  const [missionDrafts, setMissionDrafts] = useState<PilotMissionDraft[]>([]);
+  const [draftToResume, setDraftToResume] = useState<PilotMissionDraft | null>(null);
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -125,6 +127,8 @@ export default function PilotDashboard() {
     setRequestsForMe(body.requestsForMe ?? []);
     const nextAssignments = (body.assignments ?? []) as Assignment[];
     setAssignments(nextAssignments);
+    setMissionDrafts(body.missionDrafts ?? []);
+    setDraftToResume((current) => current ? (body.missionDrafts ?? []).find((draft: PilotMissionDraft) => draft.id === current.id) ?? current : null);
     setMissionLogAssignment((current) => current ? nextAssignments.find((assignment) => assignment.id === current.id) ?? null : null);
     setPayouts(body.payouts ?? []);
     setSops(body.sops ?? []);
@@ -385,7 +389,9 @@ export default function PilotDashboard() {
             personalInsuranceCurrent={authorization.personalInsuranceCurrent}
             uninsuredSelfServiceEligible={profile.uninsured_self_service_eligible}
             homeAddress={profile.home_address}
-            onCreated={load}
+            initialDraft={draftToResume}
+            onCreated={async () => { setDraftToResume(null); await load(); }}
+            onDraftSaved={load}
           />
         </>
       )}
@@ -425,6 +431,62 @@ export default function PilotDashboard() {
 
       {tab === "missions" && !missionLogAssignment && (
         <div style={{ display: "grid", gap: 10 }}>
+          {missionDrafts.length > 0 && (
+            <div style={{ ...panelStyle, borderColor: "rgba(244,90,30,.35)", background: "rgba(244,90,30,.04)" }}>
+              <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>
+                Draft Missions ({missionDrafts.length})
+              </div>
+              <p style={{ color: V.inkDim, fontSize: 12, marginTop: 6 }}>
+                Get Quote now saves your work here. Drafts survive refreshes, sign-outs, and deployments until you create or discard the mission.
+              </p>
+              <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                {missionDrafts.map((draft) => (
+                  <div key={draft.id} style={{ border: `1px solid ${V.line}`, borderRadius: 10, padding: 12, background: V.surface, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                    <div>
+                      <div className="font-saira" style={{ fontWeight: 600, color: V.ink }}>
+                        {draft.custom_mission_title || draft.client_company || draft.client_name || "Mission draft"}
+                      </div>
+                      <div style={{ color: V.inkFaint, fontSize: 12, marginTop: 3 }}>
+                        {draft.service_type.replace(/_/g, " ")} · {draft.location}
+                      </div>
+                      <div className="font-mono-ibm" style={{ color: V.inkFaint, fontSize: 10, marginTop: 4 }}>
+                        Saved {new Date(draft.updated_at).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        onClick={() => { setDraftToResume(draft); setTab("create"); }}
+                        style={btnPrimary}
+                      >
+                        Resume Draft →
+                      </button>
+                      <button
+                        onClick={async () => {
+                          if (!accessToken) return;
+                          setError(null);
+                          try {
+                            const res = await fetch(`/api/pilot/missions/draft?id=${encodeURIComponent(draft.id)}`, {
+                              method: "DELETE",
+                              headers: { Authorization: `Bearer ${accessToken}` },
+                            });
+                            const body = await res.json();
+                            if (!res.ok) throw new Error(body.error ?? "Could not discard draft");
+                            if (draftToResume?.id === draft.id) setDraftToResume(null);
+                            await load();
+                          } catch (e: any) {
+                            setError(e.message ?? "Could not discard draft");
+                          }
+                        }}
+                        style={btnGhost}
+                      >
+                        Discard
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, flexWrap: "wrap" }}>
             <label style={{ color: V.inkDim, fontSize: 12 }}>Show{" "}<select value={missionFilter} onChange={(e) => setMissionFilter(e.target.value)} style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink }}><option value="all">All missions</option><option value="action">Active / action needed</option><option value="complete">Completed / paid</option><option value="inactive">Declined / cancelled</option></select></label>
             <label style={{ color: V.inkDim, fontSize: 12 }}>Sort{" "}<select value={missionSort} onChange={(e) => setMissionSort(e.target.value)} style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink }}><option value="action">Action needed</option><option value="scheduled">Scheduled soonest</option><option value="newest">Newest offered</option><option value="payout">Highest payout</option></select></label>

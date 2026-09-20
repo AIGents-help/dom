@@ -375,7 +375,7 @@ export default function DominicApp() {
             ))}
           </section>
 
-          <section style={{ padding: compactViewport ? "8px" : "12px 14px 18px" }}>
+          <section style={{ padding: compactViewport ? "8px 8px 86px" : "12px 14px 18px" }}>
             <div
               style={{
                 border: `1px solid ${LINE}`,

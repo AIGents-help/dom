@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { Download, FileText, PackageCheck } from "lucide-react";
 import { V, panelStyle } from "./theme";
 import type { MappingDeliverable } from "./types";
@@ -12,6 +13,26 @@ function labelFor(type: string | null) {
 
 export default function DominicDeliverySummary({ deliverables, projectId }: { deliverables: MappingDeliverable[]; projectId: string }) {
   const router = useRouter();
+  const [manifestBusy, setManifestBusy] = useState(false);
+
+  async function downloadManifest() {
+    setManifestBusy(true);
+    try {
+      const res = await fetch(`/api/pilot/mapping/projects/${projectId}/delivery-manifest`, { credentials: "include" });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const disposition = res.headers.get("content-disposition") ?? "";
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? "DOMINIC_Delivery-Manifest.txt";
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setManifestBusy(false);
+    }
+  }
   const qcPassed = deliverables.filter((item) => item.qc_passed).length;
   const pending = deliverables.length - qcPassed;
   const categories = new Set(deliverables.map((item) => item.type).filter(Boolean));
@@ -45,7 +66,7 @@ export default function DominicDeliverySummary({ deliverables, projectId }: { de
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 8, marginTop: 14 }}>
         <Roadmap icon={FileText} title="Project Report" copy="Measurements, findings, project details and deliverables in a client-ready printable report." live onClick={() => router.push(`/dominic/report/${projectId}`)} />
-        <Roadmap icon={PackageCheck} title="Delivery Bundle" copy="One packaged download containing the approved mission deliverables." />
+        <Roadmap icon={PackageCheck} title="Delivery Manifest" copy="Branded handoff manifest containing only QC-approved outputs and fresh secure download links." live onClick={downloadManifest} status={manifestBusy ? "PREPARING" : "LIVE"} />
         <Roadmap icon={Download} title="Direct Exports" copy="GeoTIFF, GIS, CAD, point-cloud and model files stay individually downloadable." live />
       </div>
     </section>
@@ -61,12 +82,12 @@ function Stat({ value, label }: { value: number; label: string }) {
   );
 }
 
-function Roadmap({ icon: Icon, title, copy, live = false, onClick }: { icon: typeof FileText; title: string; copy: string; live?: boolean; onClick?: () => void }) {
+function Roadmap({ icon: Icon, title, copy, live = false, onClick, status }: { icon: typeof FileText; title: string; copy: string; live?: boolean; onClick?: () => void; status?: string }) {
   return (
     <button onClick={onClick} disabled={!onClick} style={{ width: "100%", border: `1px solid ${V.line}`, borderRadius: 9, padding: 11, background: "#0B1117", textAlign: "left", cursor: onClick ? "pointer" : "default" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <Icon size={15} color={V.signal} />
-        <span className="font-mono-ibm" style={{ color: live ? V.telemetry : V.inkFaint, fontSize: 8 }}>{live ? "LIVE" : "NEXT"}</span>
+        <span className="font-mono-ibm" style={{ color: live ? V.telemetry : V.inkFaint, fontSize: 8 }}>{status ?? (live ? "LIVE" : "NEXT")}</span>
       </div>
       <div style={{ color: V.ink, fontSize: 12, fontWeight: 800, marginTop: 8 }}>{title}</div>
       <div style={{ color: V.inkFaint, fontSize: 10, lineHeight: 1.45, marginTop: 4 }}>{copy}</div>

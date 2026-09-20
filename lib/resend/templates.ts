@@ -149,6 +149,27 @@ export function deliverableReady(params: {
   };
 }
 
+export function deliverableRevisionReady(params: {
+  clientName: string;
+  missionTitle?: string;
+  deliverableName: string;
+  revisionNumber?: number | null;
+  deliverableUrl?: string;
+}): TemplateResult {
+  const revisionLabel = params.revisionNumber && params.revisionNumber > 1 ? ` revision ${params.revisionNumber}` : " corrected revision";
+  return {
+    subject: `Corrected Deliverable Ready — ${params.missionTitle ?? "Your Mission"}`,
+    html: shell(
+      "Your corrected deliverable is ready for review",
+      `
+        <p style="color:#444; line-height:1.5;">Hi ${escapeHtml(params.clientName)}, the requested correction to <strong>${escapeHtml(params.deliverableName)}</strong> has passed DOM quality review.</p>
+        <p style="color:#444; line-height:1.5;">The${escapeHtml(revisionLabel)} is now the active version and is ready for your approval.</p>
+        ${params.deliverableUrl ? button("Review Corrected Deliverable", params.deliverableUrl) : ""}
+      `
+    ),
+  };
+}
+
 export function invoiceSent(params: {
   clientName: string;
   amountCents: number;

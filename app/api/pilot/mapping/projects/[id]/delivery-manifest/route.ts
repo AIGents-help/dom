@@ -46,6 +46,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }));
 
   const generated = new Date().toISOString();
+  const job = Array.isArray(project.job) ? project.job[0] : project.job;
+  const missionTitle = job && typeof job === "object" && "title" in job ? String(job.title ?? "—") : "—";
+  const missionLocation = job && typeof job === "object" && "location" in job ? (job.location ? String(job.location) : null) : null;
   const manifest = [
     "DOMINIC — DELIVERY MANIFEST",
     "Drone Operation Management",
@@ -54,8 +57,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     "",
     `Project: ${project.name}`,
     `Project ID: ${project.id}`,
-    `Mission: ${Array.isArray(project.job) ? project.job[0]?.title ?? "—" : project.job?.title ?? "—"}`,
-    `Location: ${project.location_snapshot ?? (Array.isArray(project.job) ? project.job[0]?.location : project.job?.location) ?? "—"}`,
+    `Mission: ${missionTitle}`,
+    `Location: ${project.location_snapshot ?? missionLocation ?? "—"}`,
     `Source images: ${project.image_count ?? 0}`,
     `Processing completed: ${project.processing_completed_at ?? "—"}`,
     `Manifest generated: ${generated}`,

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import MappingTab from "@/components/mapper/MappingTab";
+import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
@@ -98,14 +99,8 @@ export default function DominicApp() {
           zIndex: 40,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 280 }}>
-          <Image src="/brand/dom-propeller-3fin.png" alt="DOM propeller" width={52} height={52} priority />
-          <div>
-            <div style={{ fontFamily: "Saira, Inter, sans-serif", fontWeight: 800, fontSize: 28, letterSpacing: ".03em", lineHeight: 1 }}>
-              DOM<span style={{ color: ORANGE }}>INIC</span>
-            </div>
-            <div style={{ color: MUTED, fontSize: 10, letterSpacing: ".22em", marginTop: 5 }}>INTELLIGENT MAPPING BY DOM</div>
-          </div>
+        <div style={{ minWidth: 280 }}>
+          <DominicBrandLockup size="md" />
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 22, color: "#E8EDF2", fontSize: 15, whiteSpace: "nowrap" }}>
@@ -211,8 +206,8 @@ export default function DominicApp() {
               <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 55%, rgba(9,13,17,.92) 100%)" }} />
             </div>
             <div style={{ padding: "0 12px 14px", marginTop: -16, position: "relative" }}>
-              <div style={{ fontFamily: "Saira, sans-serif", fontSize: 18, fontWeight: 800 }}>
-                DOM<span style={{ color: ORANGE }}>INIC</span>
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <DominicBrandLockup size="sm" showTagline={false} compact />
               </div>
               <div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>Same Perspective. Higher Purpose.</div>
             </div>

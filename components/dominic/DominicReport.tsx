@@ -39,6 +39,9 @@ interface ProjectPayload {
     name: string;
     type: string | null;
     qc_passed: boolean | null;
+    client_status?: string | null;
+    client_feedback?: string | null;
+    client_reviewed_at?: string | null;
     delivered_at: string | null;
   }>;
 }
@@ -91,16 +94,20 @@ export default function DominicReport({ projectId }: { projectId: string }) {
 
   const project = data.project;
   const passed = data.deliverables.filter((item) => item.qc_passed).length;
+  const approved = data.deliverables.filter((item) => item.client_status === "approved").length;
+  const revisions = data.deliverables.filter((item) => item.client_status === "revision_requested").length;
+  const reviewed = data.deliverables.filter((item) => ["approved", "revision_requested"].includes(item.client_status ?? "")).length;
+  const handoffComplete = passed > 0 && approved === passed;
 
   return (
     <div style={{ minHeight: "100vh", background: "#E9EDF1", padding: "24px 16px", color: "#172033" }}>
-      <style>{`@media print { .dominic-report-actions { display:none !important; } body { background:#fff !important; } }`}</style>
+      <style>{`@media print { .dominic-report-actions { display:none !important; } body { background:#fff !important; } @page { margin: 12mm; } .dominic-report-sheet { box-shadow:none !important; border-radius:0 !important; } tr, .dominic-report-keep { break-inside: avoid; page-break-inside: avoid; } h2 { break-after: avoid; page-break-after: avoid; } }`}</style>
       <div className="dominic-report-actions" style={{ maxWidth: 980, margin: "0 auto 12px", display: "flex", justifyContent: "space-between", gap: 10 }}>
         <button onClick={() => router.push("/dominic")} style={actionStyle}><ArrowLeft size={15} /> Back to DOMINIC</button>
         <button onClick={() => window.print()} style={{ ...actionStyle, background: "#F45A1E", borderColor: "#F45A1E", color: "#fff" }}><Printer size={15} /> Print / Save PDF</button>
       </div>
 
-      <main style={{ position: "relative", maxWidth: 980, margin: "0 auto", background: "#fff", borderRadius: 18, overflow: "hidden", boxShadow: "0 20px 70px rgba(0,0,0,.12)" }}>
+      <main className="dominic-report-sheet" style={{ position: "relative", maxWidth: 980, margin: "0 auto", background: "#fff", borderRadius: 18, overflow: "hidden", boxShadow: "0 20px 70px rgba(0,0,0,.12)" }}>
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", overflow: "hidden", zIndex: 0 }}>
           <div style={{ transform: "rotate(-32deg)", fontSize: 82, fontWeight: 950, letterSpacing: ".08em", color: "rgba(244,90,30,.035)", whiteSpace: "nowrap" }}>DOMINIC · DRONE OPERATION MANAGEMENT</div>
         </div>
@@ -120,11 +127,27 @@ export default function DominicReport({ projectId }: { projectId: string }) {
         </header>
 
         <section style={{ position: "relative", zIndex: 1, padding: 32 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 26 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10, marginBottom: 26 }}>
             <Metric label="Source Images" value={String(project.image_count)} />
             <Metric label="Measurements" value={String(measurements.length)} />
             <Metric label="Findings / Markups" value={String(markups.length)} />
             <Metric label="QC-Passed Outputs" value={`${passed}/${data.deliverables.length}`} />
+            <Metric label="Client Approved" value={`${approved}/${passed}`} />
+          </div>
+
+          <div className="dominic-report-keep" style={{ marginBottom: 26, padding: 14, borderRadius: 10, border: `1px solid ${handoffComplete ? "#2DAA74" : revisions ? "#C9822B" : "#D9E0E6"}`, background: "#F8FAFB" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 9, color: "#697584", textTransform: "uppercase", letterSpacing: ".07em" }}>Client Handoff</div>
+                <div style={{ fontSize: 14, fontWeight: 850, marginTop: 3 }}>
+                  {handoffComplete ? "Handoff complete" : revisions ? "Revision action required" : reviewed > 0 ? "Client review in progress" : "Awaiting client review"}
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: "#697584" }}>{reviewed}/{passed} QC-approved outputs reviewed</div>
+            </div>
+            <div style={{ height: 5, background: "#E5E9ED", borderRadius: 999, overflow: "hidden", marginTop: 10 }}>
+              <div style={{ width: `${passed ? Math.min(100, Math.round((reviewed / passed) * 100)) : 0}%`, height: "100%", background: handoffComplete ? "#2DAA74" : revisions ? "#C9822B" : "#F45A1E" }} />
+            </div>
           </div>
 
           <SectionTitle>Project Summary</SectionTitle>
@@ -134,6 +157,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
               <Row k="Location" v={project.location_snapshot ?? project.job?.location ?? "—"} />
               <Row k="Coordinates" v={project.latitude != null && project.longitude != null ? `${project.latitude.toFixed(6)}, ${project.longitude.toFixed(6)}` : "—"} />
               <Row k="Processing completed" v={project.processing_completed_at ? new Date(project.processing_completed_at).toLocaleString() : "—"} />
+              <Row k="DOMINIC Project ID" v={project.id} />
             </tbody>
           </table>
 
@@ -160,15 +184,27 @@ export default function DominicReport({ projectId }: { projectId: string }) {
           <SectionTitle>Deliverables</SectionTitle>
           {data.deliverables.length === 0 ? <Empty>No processed deliverables registered.</Empty> : (
             <table style={tableStyle}>
-              <thead><tr><Th>Deliverable</Th><Th>Type</Th><Th>QC</Th></tr></thead>
+              <thead><tr><Th>Deliverable</Th><Th>Type</Th><Th>QC</Th><Th>Client Review</Th><Th>Reviewed</Th></tr></thead>
               <tbody>{data.deliverables.map((item) => (
-                <tr key={item.id}><Td>{item.name}</Td><Td>{titleCase(item.type ?? "output")}</Td><Td>{item.qc_passed ? "Passed" : "Pending"}</Td></tr>
+                <tr key={item.id}><Td>{item.name}</Td><Td>{titleCase(item.type ?? "output")}</Td><Td>{item.qc_passed ? "Passed" : "Pending"}</Td><Td>{item.client_status ? titleCase(item.client_status) : item.qc_passed ? "Awaiting Review" : "—"}</Td><Td>{item.client_reviewed_at ? new Date(item.client_reviewed_at).toLocaleString() : "—"}</Td></tr>
               ))}</tbody>
             </table>
           )}
 
+          {revisions > 0 ? (
+            <>
+              <SectionTitle>Client Revision Requests</SectionTitle>
+              <table style={tableStyle}>
+                <thead><tr><Th>Deliverable</Th><Th>Client Instructions</Th><Th>Reviewed</Th></tr></thead>
+                <tbody>{data.deliverables.filter((item) => item.client_status === "revision_requested").map((item) => (
+                  <tr key={item.id}><Td>{item.name}</Td><Td>{item.client_feedback ?? "Revision requested"}</Td><Td>{item.client_reviewed_at ? new Date(item.client_reviewed_at).toLocaleString() : "—"}</Td></tr>
+                ))}</tbody>
+              </table>
+            </>
+          ) : null}
+
           <div style={{ marginTop: 30, paddingTop: 18, borderTop: "1px solid #D9E0E6", color: "#697584", fontSize: 10, lineHeight: 1.5 }}>
-            DOMINIC™ · Drone Operation Management · Uniquely Sophisticated · DroneOpsMan.com · Project ID {project.id}. Generated by DOMINIC — Intelligent Mapping by DOM. Measurements and mapping outputs reflect the project data available at the time this report was generated. Survey-grade use depends on capture method, control, coordinate reference system, validation, and applicable professional requirements.
+            DOMINIC™ · Drone Operation Management · Uniquely Sophisticated · DroneOpsMan.com · Project ID {project.id}. Report generated {new Date().toLocaleString()}. Generated by DOMINIC — Intelligent Mapping by DOM. Measurements and mapping outputs reflect the project data available at the time this report was generated. Survey-grade use depends on capture method, control, coordinate reference system, validation, and applicable professional requirements.
           </div>
         </section>
       </main>

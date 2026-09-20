@@ -52,15 +52,14 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [markups, setMarkups] = useState<Markup[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [pdfMode, setPdfMode] = useState(false);
+  const [pdfMode] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("pdf") === "1");
   const [reportGeneratedAt, setReportGeneratedAt] = useState<Date | null>(null);
   const [pdfReady, setPdfReady] = useState(false);
   const autoPrintStartedRef = useRef(false);
   const [printCompleted, setPrintCompleted] = useState(false);
 
   useEffect(() => {
-    setPdfMode(new URLSearchParams(window.location.search).get("pdf") === "1");
-    setReportGeneratedAt(new Date());
+    const startedAt = window.setTimeout(() => setReportGeneratedAt(new Date()), 0);
     let active = true;
     (async () => {
       const { data: sessionData } = await getSupabaseBrowser().auth.getSession();
@@ -94,7 +93,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
       setPdfReady(true);
     })();
 
-    return () => { active = false; };
+    return () => { active = false; window.clearTimeout(startedAt); };
   }, [projectId, router]);
 
   useEffect(() => {

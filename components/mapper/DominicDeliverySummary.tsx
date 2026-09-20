@@ -15,6 +15,7 @@ function labelFor(type: string | null) {
 export default function DominicDeliverySummary({ deliverables, projectId }: { deliverables: MappingDeliverable[]; projectId: string }) {
   const router = useRouter();
   const [manifestBusy, setManifestBusy] = useState(false);
+  const [packageBusy, setPackageBusy] = useState(false);
 
   async function downloadManifest() {
     setManifestBusy(true);
@@ -35,6 +36,29 @@ export default function DominicDeliverySummary({ deliverables, projectId }: { de
       URL.revokeObjectURL(url);
     } finally {
       setManifestBusy(false);
+    }
+  }
+  async function downloadPackage() {
+    setPackageBusy(true);
+    try {
+      const { data } = await getSupabaseBrowser().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+      const res = await fetch(`/api/pilot/mapping/projects/${projectId}/delivery-package`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const disposition = res.headers.get("content-disposition") ?? "";
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? "DOMINIC_Delivery-Package.json";
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setPackageBusy(false);
     }
   }
   const currentDeliverables = deliverables.filter((item) => item.client_status !== "superseded");
@@ -108,7 +132,7 @@ export default function DominicDeliverySummary({ deliverables, projectId }: { de
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 8, marginTop: 14 }}>
         <Roadmap icon={FileText} title="Project Report" copy="Measurements, findings, project details and deliverables in a client-ready printable report." live onClick={() => router.push(`/dominic/report/${projectId}`)} />
         <Roadmap icon={PackageCheck} title="Delivery Manifest" copy="Branded handoff manifest containing only QC-approved outputs and fresh secure download links." live onClick={downloadManifest} status={manifestBusy ? "PREPARING" : "LIVE"} />
-        <Roadmap icon={Download} title="Direct Exports" copy="GeoTIFF, GIS, CAD, point-cloud and model files stay individually downloadable." live />
+        <Roadmap icon={Download} title="Delivery Package" copy="Machine-readable branded package index with current QC-approved files, revision status and fresh secure download links." live onClick={downloadPackage} status={packageBusy ? "PREPARING" : "LIVE"} />
       </div>
     </section>
   );

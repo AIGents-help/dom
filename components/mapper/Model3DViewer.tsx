@@ -5,6 +5,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { V, panelStyle, btnGhost } from "./theme";
+import { Box, LoaderCircle, TriangleAlert } from "lucide-react";
 import { createWebGLRenderer } from "./webgl";
 
 // Real three.js glTF/GLB viewer for the worker's odm_textured_model_geo.glb
@@ -157,17 +158,17 @@ export default function Model3DViewer({ signedUrl, name }: { signedUrl: string |
       <div style={{ position: "relative", aspectRatio: fullscreen ? undefined : "16 / 9", height: fullscreen ? "calc(100% - 45px)" : undefined, background: "#0B0F16" }}>
         {!signedUrl && (
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <p style={{ color: V.inkFaint, fontSize: 13 }}>3D model not ready yet.</p>
+            <div style={{ textAlign: "center", maxWidth: 320 }}><Box size={34} color={V.signal} style={{ margin: "0 auto 10px" }} /><div style={{ color: V.ink, fontSize: 13, fontWeight: 800 }}>3D model is not ready</div><p style={{ color: V.inkFaint, fontSize: 11, lineHeight: 1.5, marginTop: 5 }}>DOMINIC will activate this workspace when a textured model is available for the project.</p></div>
           </div>
         )}
         {signedUrl && state === "loading" && (
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <p style={{ color: "#AEB7C4", fontSize: 13 }}>Loading {name}…</p>
+            <div style={{ textAlign: "center" }}><LoaderCircle size={28} color={V.signal} style={{ margin: "0 auto 9px" }} /><div style={{ color: "#AEB7C4", fontSize: 12, fontWeight: 700 }}>Preparing 3D workspace</div><p style={{ color: V.inkFaint, fontSize: 10, marginTop: 4 }}>Loading {name}…</p></div>
           </div>
         )}
         {signedUrl && state === "error" && (
           <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, textAlign: "center" }}>
-            <p style={{ color: V.danger, fontSize: 13 }}>{error}</p>
+            <div style={{ maxWidth: 380 }}><TriangleAlert size={30} color={V.danger} style={{ margin: "0 auto 9px" }} /><div style={{ color: V.ink, fontSize: 13, fontWeight: 800 }}>3D preview could not be opened</div><p style={{ color: V.danger, fontSize: 11, lineHeight: 1.5, marginTop: 5 }}>{error}</p><p style={{ color: V.inkFaint, fontSize: 10, marginTop: 6 }}>The source deliverable remains available from the project outputs.</p></div>
           </div>
         )}
         <div ref={canvasHostRef} style={{ position: "absolute", inset: 0, visibility: signedUrl && state === "ready" ? "visible" : "hidden" }} />

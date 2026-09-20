@@ -26,12 +26,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { data: deliverable } = await admin
     .from("deliverables")
-    .select("id, name, qc_passed, job:jobs!inner(id, client_id, mission_request_id)")
+    .select("id, name, type, qc_passed, client_status, job:jobs!inner(id, client_id, mission_request_id)")
     .eq("id", id)
     .maybeSingle();
   const job = Array.isArray(deliverable?.job) ? deliverable.job[0] : deliverable?.job;
   if (!deliverable || !job || job.client_id !== client.id) return NextResponse.json({ error: "Deliverable not found" }, { status: 404 });
   if (!deliverable.qc_passed) return NextResponse.json({ error: "This deliverable is still in DOM quality review." }, { status: 409 });
+
+  if (deliverable.client_status === "approved" && status === "revision_requested") {
+    return NextResponse.json({ error: "This deliverable is already approved. Contact DOM if a new revision is required." }, { status: 409 });
+  }
 
   const reviewedAt = new Date().toISOString();
   const { error } = await admin.from("deliverables").update({ client_status: status, client_feedback: feedback || null, client_reviewed_at: reviewedAt }).eq("id", id);
@@ -46,7 +50,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       event_type: status === "approved" ? "deliverable_approved" : "deliverable_revision_requested",
       summary: status === "approved" ? `Client approved ${deliverable.name}.` : `Client requested a revision to ${deliverable.name}.`,
       visibility: "shared",
-      details: feedback ? { feedback } : {},
+      details: { ...(feedback ? { feedback } : {}), deliverable_id: deliverable.id, deliverable_type: deliverable.type, client_status: status, reviewed_at: reviewedAt },
     });
   }
 

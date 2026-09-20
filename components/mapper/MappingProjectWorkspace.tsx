@@ -32,10 +32,12 @@ export default function MappingProjectWorkspace({
   accessToken,
   projectId,
   onBack,
+  focusModule,
 }: {
   accessToken: string;
   projectId: string;
   onBack: () => void;
+  focusModule?: string | null;
 }) {
   const [data, setData] = useState<WorkspacePayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,22 @@ export default function MappingProjectWorkspace({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!focusModule) return;
+    const targetMap: Record<string, string> = {
+      "Map Viewer": "dominic-workbench",
+      "Measure & Markup": "dominic-workbench",
+      "Analysis": "dominic-workbench",
+      "3D & Point Cloud": "dominic-workbench",
+      "Deliverables": "dominic-workbench",
+      "Processing": "dominic-processing",
+      "Data Library": "dominic-source-imagery",
+    };
+    const id = targetMap[focusModule];
+    if (!id) return;
+    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [focusModule]);
 
   useEffect(() => {
     if (!data || !["queued", "processing"].includes(data.project.status)) return;
@@ -109,7 +127,7 @@ export default function MappingProjectWorkspace({
       </div>
 
       {processed && (
-        <section style={{ marginBottom: 16 }}>
+        <section id="dominic-workbench" style={{ marginBottom: 16, scrollMarginTop: 96 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8, color: V.inkFaint, fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase" }}>
             <Layers3 size={14} color={V.signal} /> Map · Measure · Analyze
           </div>
@@ -118,7 +136,7 @@ export default function MappingProjectWorkspace({
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: processed ? "minmax(0, .78fr) minmax(0, 1.22fr)" : "1fr", gap: 14, alignItems: "start" }}>
-        <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface, padding: 15 }}>
+        <section id="dominic-source-imagery" style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface, padding: 15, scrollMarginTop: 96 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10, color: V.inkFaint, fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase" }}>
             <UploadCloud size={14} color={V.signal} /> Source Imagery
           </div>
@@ -141,7 +159,7 @@ export default function MappingProjectWorkspace({
           )}
         </section>
 
-        <section>
+        <section id="dominic-processing" style={{ scrollMarginTop: 96 }}>
           <MappingProcessingStatus accessToken={accessToken} project={project} latestJob={latestJob} onQueued={load} />
         </section>
       </div>

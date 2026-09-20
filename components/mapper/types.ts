@@ -32,6 +32,9 @@ export interface MappingDeliverable {
   external_file_id?: string | null;
   potree?: PotreeLocation | null;
   qc_passed: boolean | null;
+  client_status?: string | null;
+  client_feedback?: string | null;
+  client_reviewed_at?: string | null;
   delivered_at: string | null;
   created_at: string;
 }

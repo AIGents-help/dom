@@ -23,10 +23,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .maybeSingle();
   if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
 
-  const guard = canQueueProcessing(project);
-  if (!guard.ok) return NextResponse.json({ error: guard.reason }, { status: 409 });
-
   const body = await req.json().catch(() => ({}));
+  const revisionRequested = body?.revision === true;
+  if (revisionRequested) {
+    if (project.status !== "completed") return NextResponse.json({ error: "Revision processing can only start from a completed project." }, { status: 409 });
+    const { data: revisions } = await admin.from("deliverables").select("id, type, client_feedback").eq("job_id", project.job_id).eq("client_status", "revision_requested");
+    if (!revisions?.length) return NextResponse.json({ error: "No client revision request is open for this project." }, { status: 409 });
+  } else {
+    const guard = canQueueProcessing(project);
+    if (!guard.ok) return NextResponse.json({ error: guard.reason }, { status: 409 });
+  }
+
+
   const requestedProfile = typeof body?.profile === "string" ? body.profile : "standard";
   const profile = PROCESSING_PROFILES.some((p) => p.value === requestedProfile) ? requestedProfile : "standard";
   const requestedContourInterval = Number(body?.contour_interval_m);
@@ -52,12 +60,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .update({ status: "queued", error_message: null })
     .eq("id", project.id);
 
+  if (revisionRequested) {
+    const { data: openRevisions } = await admin.from("deliverables")
+      .select("id, type, client_feedback")
+      .eq("job_id", project.job_id)
+      .eq("client_status", "revision_requested");
+    await admin.from("mapping_events").insert({
+      mapping_project_id: project.id,
+      actor_type: "pilot",
+      actor_id: auth.contractor.id,
+      event_type: "revision_scope",
+      message: `Corrected processing requested for ${openRevisions?.length ?? 0} client revision item(s).`,
+      metadata: { deliverables: openRevisions ?? [] },
+    });
+  }
+
   await admin.from("mapping_events").insert({
     mapping_project_id: project.id,
     actor_type: "pilot",
     actor_id: auth.contractor.id,
-    event_type: "queued",
-    message: `Queued for processing (${project.image_count} images).`,
+    event_type: revisionRequested ? "revision_queued" : "queued",
+    message: revisionRequested ? `Queued corrected output processing (${project.image_count} images).` : `Queued for processing (${project.image_count} images).`,
+    metadata: revisionRequested ? { reason: "client_revision_requested" } : null,
   });
 
   return NextResponse.json({ ok: true });

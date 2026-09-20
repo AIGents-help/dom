@@ -285,7 +285,7 @@ export default function MappingProjectWorkspace({
         </section>
 
         <section id="dominic-processing" style={{ scrollMarginTop: 96 }}>
-          <MappingProcessingStatus accessToken={accessToken} project={project} latestJob={latestJob} onQueued={load} online={online} />
+          <MappingProcessingStatus accessToken={accessToken} project={project} latestJob={latestJob} deliverables={deliverables} onQueued={load} online={online} />
         </section>
       </div>
 

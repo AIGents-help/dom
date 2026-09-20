@@ -21,6 +21,7 @@ import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 import MissionMapThumbnail from "@/components/MissionMapThumbnail";
 import PilotCRM from "@/components/PilotCRM";
 import PilotSupportCenter from "@/components/PilotSupportCenter";
+import { getPilotAuthorizationState } from "@/lib/pilotAuthorization";
 
 interface Profile {
   id: string; full_name: string; email: string; phone: string | null; status: string;
@@ -28,6 +29,7 @@ interface Profile {
   insurance_verified: boolean; insurance_requested: boolean; stripe_payouts_enabled: boolean;
   insurance_provider: string | null; insurance_policy_number: string | null; insurance_expires_on: string | null;
   insurance_liability_cents: number | null; insurance_coi_path: string | null; dom_gig_insurance_eligible: boolean;
+  uninsured_self_service_eligible: boolean;
   stripe_connect_account_id: string | null;
   service_area: string | null; home_address: string | null; equipment: string | null;
   missions_completed: number; rating: number | null;
@@ -274,7 +276,8 @@ export default function PilotDashboard() {
   if (loading) return <Shell><p style={{ color: V.inkDim }}>Loading your dashboard…</p></Shell>;
   if (!profile) return <Shell><p style={{ color: V.danger }}>Could not load profile.</p></Shell>;
 
-  const cleared = profile.part107_verified && profile.insurance_verified;
+  const authorization = getPilotAuthorizationState(profile);
+  const cleared = authorization.baseCredentialsCurrent;
   const activeAssignments = assignments.filter((a) => !["paid", "cancelled"].includes(a.status));
   const sortedAssignments = assignments.filter((a) => {
     if (missionFilter === "action") return ["offered", "accepted", "scheduled", "in_progress", "submitted"].includes(a.status);
@@ -304,22 +307,38 @@ export default function PilotDashboard() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <CredBadge label="Part 107" ok={profile.part107_verified} />
-          <CredBadge label="Insurance" ok={profile.insurance_verified} />
+          <CredBadge label="Personal Insurance" ok={authorization.personalInsuranceCurrent} />
+          <CredBadge label="Mission Auth" ok={authorization.selfServiceAuthorized} />
           <CredBadge label="Payouts" ok={profile.stripe_payouts_enabled} />
         </div>
       </div>
 
       {!cleared && (
         <div style={{ ...panelStyle, borderColor: "rgba(229,112,31,.4)", marginBottom: 18, background: "rgba(229,112,31,.05)" }}>
-          <p style={{ color: V.warn, fontSize: 14 }}>Your credentials are not fully verified yet. DOM verifies Part 107 and insurance before assigning paid missions.{!profile.stripe_payouts_enabled && " Complete Stripe payout setup to receive payments."}</p>
-          {!profile.insurance_verified && (
-            profile.insurance_requested ? (
-              <p style={{ color: V.inkDim, fontSize: 13, marginTop: 10 }}>Insurance requested — pending confirmation.</p>
-            ) : (
-              <button onClick={requestInsurance} disabled={subActionLoading} style={{ ...btnGhost, marginTop: 10 }}>
-                {subActionLoading ? "…" : "Request Insurance via SkyWatch →"}
-              </button>
-            )
+          <p style={{ color: V.warn, fontSize: 14 }}>Your pilot credentials still need attention before field operations. {!profile.part107_verified ? "Part 107 verification is not current. " : ""}{profile.status !== "active" ? "Your pilot account is not active. " : ""}{!profile.stripe_payouts_enabled ? "Complete Stripe payout setup to receive payments." : ""}</p>
+        </div>
+      )}
+
+      {cleared && !authorization.selfServiceAuthorized && (
+        <div style={{ ...panelStyle, borderColor: "rgba(229,112,31,.4)", marginBottom: 18, background: "rgba(229,112,31,.05)" }}>
+          <p style={{ color: V.warn, fontSize: 14, fontWeight: 600 }}>Self-service mission creation needs a coverage path.</p>
+          <p style={{ color: V.inkDim, fontSize: 12, marginTop: 6 }}>Your core pilot credentials are current, but you need either a current verified personal policy or Admin authorization for the uninsured self-service path before creating pilot-owned missions.</p>
+          {!profile.insurance_requested && (
+            <button onClick={requestInsurance} disabled={subActionLoading} style={{ ...btnGhost, marginTop: 10 }}>
+              {subActionLoading ? "…" : "Request Insurance via SkyWatch →"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {cleared && !authorization.personalInsuranceCurrent && authorization.uninsuredAuthorized && (
+        <div style={{ ...panelStyle, borderColor: "rgba(22,163,74,.35)", marginBottom: 18, background: "rgba(22,163,74,.05)" }}>
+          <p style={{ color: V.telemetry, fontSize: 14, fontWeight: 600 }}>✓ Pilot credentials verified · Self-service mission authorization active</p>
+          <p style={{ color: V.inkDim, fontSize: 12, marginTop: 6 }}>No current personal policy is verified on your profile. DOM Admin has authorized your uninsured self-service path, so you may create pilot-owned missions after accepting the per-mission responsibility acknowledgement. DOM-assigned work still requires an approved insurance path.</p>
+          {!profile.insurance_requested && (
+            <button onClick={requestInsurance} disabled={subActionLoading} style={{ ...btnGhost, marginTop: 10 }}>
+              {subActionLoading ? "…" : "Optional: Request Insurance via SkyWatch →"}
+            </button>
           )}
         </div>
       )}
@@ -362,7 +381,9 @@ export default function PilotDashboard() {
           <PilotCreateMissionWizard
             accessToken={accessToken}
             subscriptionActive={profile.subscription_active}
-            canFinalize={profile.can_create_missions}
+            canFinalize={authorization.selfServiceAuthorized}
+            personalInsuranceCurrent={authorization.personalInsuranceCurrent}
+            uninsuredSelfServiceEligible={profile.uninsured_self_service_eligible}
             homeAddress={profile.home_address}
             onCreated={load}
           />

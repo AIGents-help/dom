@@ -44,12 +44,16 @@ export default function PilotCreateMissionWizard({
   accessToken,
   subscriptionActive,
   canFinalize,
+  personalInsuranceCurrent,
+  uninsuredSelfServiceEligible,
   homeAddress,
   onCreated,
 }: {
   accessToken: string;
   subscriptionActive: boolean;
   canFinalize: boolean;
+  personalInsuranceCurrent: boolean;
+  uninsuredSelfServiceEligible: boolean;
   homeAddress: string | null;
   onCreated: () => void;
 }) {
@@ -88,6 +92,7 @@ export default function PilotCreateMissionWizard({
   const [quoting, setQuoting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<CreatedQuote | null>(null);
+  const [uninsuredConsent, setUninsuredConsent] = useState(false);
 
   useEffect(() => {
     setTravelOrigin(homeAddress?.trim() ?? "");
@@ -156,11 +161,13 @@ export default function PilotCreateMissionWizard({
           siteComplexity: complexity, urgency, deliverableTier,
           customBaseCents: serviceType === "custom" ? Math.round(Number(customBaseDollars) * 100) : undefined,
           travelDistanceSource: "pilot_google_maps_verified",
+          uninsuredAcknowledged: !personalInsuranceCurrent ? uninsuredConsent : false,
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not calculate a quote.");
       setQuote({ serviceLabel: data.quote.serviceLabel, totalCents: data.quote.totalCents, warnings: data.quote.warnings ?? [] });
+      setUninsuredConsent(false);
       setStep("quote");
     } catch (e: any) {
       setError(e.message);
@@ -203,7 +210,7 @@ export default function PilotCreateMissionWizard({
     } finally {
       setSubmitting(false);
     }
-  }, [accessToken, clientName, clientEmail, clientCompany, clientPhone, address, lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier, customMissionTitle, customMissionScope, customDeliverables, customBaseDollars, onCreated]);
+  }, [accessToken, clientName, clientEmail, clientCompany, clientPhone, address, lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier, customMissionTitle, customMissionScope, customDeliverables, customBaseDollars, personalInsuranceCurrent, uninsuredConsent, onCreated]);
 
   if (created) {
     return (
@@ -230,6 +237,7 @@ export default function PilotCreateMissionWizard({
             setAddress(""); setLat(null); setLng(null); setAirspace(null);
             setDistanceVerified(false);
             setQuote(null);
+            setUninsuredConsent(false);
           }}
           style={{ ...btnGhost, marginTop: 16 }}
         >
@@ -441,21 +449,37 @@ export default function PilotCreateMissionWizard({
               {quote.warnings.map((w, i) => <p key={i} style={{ color: V.warn, fontSize: 12 }}>⚠ {w}</p>)}
             </div>
           )}
+          {!personalInsuranceCurrent && uninsuredSelfServiceEligible && (
+            <div style={{ marginTop: 14, padding: 12, borderRadius: 9, border: `1px solid ${V.warn}`, background: "rgba(245,158,11,.08)" }}>
+              <strong style={{ color: V.warn, fontSize: 12 }}>Per-mission insurance responsibility</strong>
+              <p style={{ color: V.inkDim, fontSize: 11, marginTop: 5 }}>
+                DOM Admin has authorized your uninsured self-service path. This authorization does not create insurance coverage. To create this mission, you must explicitly accept responsibility for this mission.
+              </p>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, color: V.ink, fontSize: 12, marginTop: 10 }}>
+                <input type="checkbox" checked={uninsuredConsent} onChange={(event) => setUninsuredConsent(event.target.checked)} />
+                <span>I elect to proceed without a verified insurance policy for this pilot-owned mission. I remain responsible for all legal, client, property-owner, and site insurance requirements and for my independent flight operations.</span>
+              </label>
+            </div>
+          )}
+          {!personalInsuranceCurrent && !uninsuredSelfServiceEligible && (
+            <p style={{ fontSize: 12, color: V.warn, marginTop: 12 }}>
+              A current verified insurance policy or Admin-authorized uninsured self-service path is required before this mission can be created.
+            </p>
+          )}
           {!canFinalize && (
             <p style={{ fontSize: 12, color: V.warn, marginTop: 12 }}>
-              This is a preview — your account isn't yet approved for self-service, so this mission can't be
-              finalized. Ask DOM admin to approve you once you're ready.
+              This is a preview — your account is not currently authorized to finalize self-service missions.
             </p>
           )}
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
             <button onClick={() => setStep("scope")} style={btnGhost}>← Adjust</button>
             <button
               onClick={submit}
-              disabled={submitting || !canFinalize}
-              title={canFinalize ? undefined : "Not yet approved for self-service mission creation"}
-              style={{ ...btnPrimary, flex: 1, ...(canFinalize ? {} : { opacity: 0.5, cursor: "not-allowed" }) }}
+              disabled={submitting || !canFinalize || (!personalInsuranceCurrent && !uninsuredConsent)}
+              title={!canFinalize ? "Not authorized for self-service mission creation" : (!personalInsuranceCurrent && !uninsuredConsent) ? "Accept the uninsured responsibility acknowledgement to continue" : undefined}
+              style={{ ...btnPrimary, flex: 1, ...((canFinalize && (personalInsuranceCurrent || uninsuredConsent)) ? {} : { opacity: 0.5, cursor: "not-allowed" }) }}
             >
-              {submitting ? "Creating…" : canFinalize ? "Create mission →" : "Pending admin approval"}
+              {submitting ? "Creating…" : !canFinalize ? "Authorization required" : (!personalInsuranceCurrent && !uninsuredConsent) ? "Accept responsibility to create" : "Create mission →"}
             </button>
           </div>
         </div>

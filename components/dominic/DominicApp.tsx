@@ -107,20 +107,29 @@ export default function DominicApp() {
           <span>Map</span><span>Measure</span><span>Analyze</span><span>Deliver</span>
         </div>
 
-        <button
-          onClick={() => router.push("/pilot")}
-          style={{
-            border: `1px solid ${LINE}`,
-            background: PANEL,
-            color: TEXT,
-            borderRadius: 10,
-            padding: "10px 14px",
-            cursor: "pointer",
-            fontWeight: 700,
-          }}
-        >
-          Back to DOM
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <Image
+            src="/brand/dom-lockup-horizontal.png"
+            alt="Drone Operation Management"
+            width={126}
+            height={42}
+            style={{ width: 126, height: "auto", objectFit: "contain" }}
+          />
+          <button
+            onClick={() => router.push("/pilot")}
+            style={{
+              border: `1px solid ${LINE}`,
+              background: PANEL,
+              color: TEXT,
+              borderRadius: 10,
+              padding: "10px 14px",
+              cursor: "pointer",
+              fontWeight: 700,
+            }}
+          >
+            Back to DOM
+          </button>
+        </div>
       </header>
 
       <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", minHeight: "calc(100vh - 78px)" }}>

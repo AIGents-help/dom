@@ -59,6 +59,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   const [pdfReady, setPdfReady] = useState(false);
   const autoPrintStartedRef = useRef(false);
   const [printCompleted, setPrintCompleted] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   useEffect(() => {
     const startedAt = window.setTimeout(() => setReportGeneratedAt(new Date()), 0);
@@ -118,6 +119,32 @@ export default function DominicReport({ projectId }: { projectId: string }) {
     return () => window.clearTimeout(timer);
   }, [pdfMode, data, pdfReady]);
 
+  async function downloadGeneratedPdf() {
+    setDownloadingPdf(true);
+    try {
+      const { data: sessionData } = await getSupabaseBrowser().auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) { router.replace("/pilot/login"); return; }
+      const response = await fetch(`/api/pilot/mapping/projects/${projectId}/report`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) throw new Error("PDF report could not be generated.");
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const match = disposition.match(/filename="([^"]+)"/);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = match?.[1] ?? "DOMINIC_Project-Report.pdf";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (downloadError) {
+      setError(downloadError instanceof Error ? downloadError.message : "PDF report could not be generated.");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
   if (error) return <div style={{ minHeight: "100vh", background: "#090D11", color: "#F05A5A", padding: 32 }}>{error}</div>;
   if (!data) return <div style={{ minHeight: "100vh", background: "#090D11", color: "#B2BCC7", padding: 32 }}>Preparing report…</div>;
 
@@ -134,7 +161,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
       <style>{`@media print { .dominic-report-actions { display:none !important; } body { background:#fff !important; } @page { margin: 12mm; } .dominic-report-sheet { box-shadow:none !important; border-radius:0 !important; } tr, .dominic-report-keep { break-inside: avoid; page-break-inside: avoid; } h2 { break-after: avoid; page-break-after: avoid; } }`}</style>
       <div className="dominic-report-actions" style={{ maxWidth: 980, margin: "0 auto 12px", display: pdfMode ? "none" : "flex", justifyContent: "space-between", gap: 10 }}>
         <button onClick={() => router.push("/dominic")} style={actionStyle}><ArrowLeft size={15} /> Back to DOMINIC</button>
-        <div style={{ display: "flex", gap: 8 }}><button onClick={() => { const url = new URL(window.location.href); url.searchParams.set("pdf", "1"); window.open(url.toString(), "_blank", "noopener,noreferrer"); }} style={actionStyle}><Download size={15} /> Clean PDF View</button><button onClick={() => window.print()} style={{ ...actionStyle, background: "#F45A1E", borderColor: "#F45A1E", color: "#fff" }}><Printer size={15} /> Print / Save PDF</button></div>
+        <div style={{ display: "flex", gap: 8 }}><button onClick={downloadGeneratedPdf} disabled={downloadingPdf} style={actionStyle}><Download size={15} /> {downloadingPdf ? "Generating PDF…" : "Download PDF"}</button><button onClick={() => window.print()} style={{ ...actionStyle, background: "#F45A1E", borderColor: "#F45A1E", color: "#fff" }}><Printer size={15} /> Print</button></div>
       </div>
 
       <main className="dominic-report-sheet" data-pdf-ready={pdfReady ? "true" : "false"} data-pdf-print-complete={printCompleted ? "true" : "false"} data-project-id={project.id} style={{ position: "relative", maxWidth: 980, margin: "0 auto", background: "#fff", borderRadius: 18, overflow: "hidden", boxShadow: "0 20px 70px rgba(0,0,0,.12)" }}>

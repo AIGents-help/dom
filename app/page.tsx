@@ -34,18 +34,18 @@ export default function HomePage() {
           <div className="grid w-full gap-12 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
             <div className="max-w-4xl">
               <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-white/15 bg-black/25 px-4 py-2 text-xs font-black uppercase tracking-[.2em] text-white backdrop-blur">
-                <span className="h-2 w-2 rounded-full bg-accent" /> FAA Part 107 Commercial UAS Operations
+                <span className="h-2 w-2 rounded-full bg-accent" /> Drone Operation Management · DOMINIC
               </div>
               <h1 className="text-5xl font-black leading-[.95] tracking-tight text-white sm:text-6xl lg:text-7xl xl:text-8xl">
-                Aerial missions.
-                <span className="block text-accent">Run like operations.</span>
+                Drone operations.
+                <span className="block text-accent">Uniquely Sophisticated.</span>
               </h1>
               <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300 lg:text-xl">
-                DOM turns drone flights into usable intelligence — mapping, inspections, imagery, models, measurements, and documented deliverables built around the actual mission objective.
+                One operating platform from mission request to final delivery. Plan, fly, document, process, measure, analyze, and deliver — with DOMINIC bringing intelligent mapping and data workflows directly into DOM.
               </p>
               <div className="mt-9 flex flex-wrap gap-4">
                 <Link href="/request-mission" className="inline-flex items-center gap-2 rounded-lg bg-accent px-7 py-4 text-sm font-black text-white transition hover:bg-accent-dim">Request a Mission <ArrowRight className="h-4 w-4" /></Link>
-                <Link href="/services" className="inline-flex items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-7 py-4 text-sm font-bold text-white backdrop-blur transition hover:border-accent/70 hover:bg-white/15">View Capabilities</Link>
+                <Link href="/dominic" className="inline-flex items-center gap-2 rounded-lg border border-accent/60 bg-black/30 px-7 py-4 text-sm font-black text-white backdrop-blur transition hover:bg-accent/10">Meet DOMINIC <ArrowRight className="h-4 w-4" /></Link>
               </div>
             </div>
 
@@ -67,9 +67,9 @@ export default function HomePage() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/15 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 z-10 p-5">
                   <div className="rounded-2xl border border-[#F45A1E]/40 bg-black/80 p-4 backdrop-blur-md">
-                    <p className="text-[9px] font-black uppercase tracking-[.18em] text-[#F45A1E]">Coming to DOM</p>
+                    <p className="text-[9px] font-black uppercase tracking-[.18em] text-[#F45A1E]">DOMINIC · Coming Soon</p>
                     <div className="mt-2"><DominicBrandLockup size="sm" /></div>
-                    <p className="mt-3 text-sm leading-5 text-slate-200">Turn imagery into orthomosaics, elevation, measurements, analysis, and professional deliverables inside the same mission workflow.</p>
+                    <p className="mt-3 text-sm leading-5 text-slate-200">Intelligent mapping, 3D reconstruction, measurements, analysis, revision-aware QC, and professional deliverables — connected to the mission instead of scattered across separate software.</p>
                     <Link href="/pilot/login" className="mt-4 inline-flex items-center gap-2 text-xs font-black text-[#F45A1E]">Meet DOMINIC <ArrowRight className="h-3.5 w-3.5" /></Link>
                   </div>
                 </div>
@@ -94,6 +94,8 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      <DominicComingSoon />
 
       <section className="container-app py-20 lg:py-28">
         <div className="mb-12 flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
@@ -152,7 +154,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <DominicComingSoon />
+      
 
       <section className="container-app py-20 lg:py-28">
         <div className="mb-12">

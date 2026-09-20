@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
@@ -53,6 +53,12 @@ export default function DominicApp() {
   const [loading, setLoading] = useState(true);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState("Projects");
+  const [showProjectsSignal, setShowProjectsSignal] = useState(0);
+
+  const handleProjectChange = useCallback((projectId: string | null) => {
+    setActiveProjectId(projectId);
+    setActiveModule(projectId ? "Map Viewer" : "Projects");
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -175,6 +181,7 @@ export default function DominicApp() {
                 onClick={() => {
                   if (disabled) return;
                   setActiveModule(label);
+                  if (label === "Projects") setShowProjectsSignal((value) => value + 1);
                 }}
                 style={{
                   display: "flex",
@@ -293,10 +300,8 @@ export default function DominicApp() {
                 <MappingTab
                   accessToken={accessToken}
                   focusModule={activeModule}
-                  onProjectChange={(projectId) => {
-                    setActiveProjectId(projectId);
-                    setActiveModule(projectId ? "Map Viewer" : "Projects");
-                  }}
+                  showProjectsSignal={showProjectsSignal}
+                  onProjectChange={handleProjectChange}
                 />
               </div>
             </div>

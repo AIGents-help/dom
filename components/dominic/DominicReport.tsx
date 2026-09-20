@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Download, Printer } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 
@@ -52,8 +52,10 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [markups, setMarkups] = useState<Markup[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [pdfMode, setPdfMode] = useState(false);
 
   useEffect(() => {
+    setPdfMode(new URLSearchParams(window.location.search).get("pdf") === "1");
     let active = true;
     (async () => {
       const { data: sessionData } = await getSupabaseBrowser().auth.getSession();
@@ -99,12 +101,18 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   const reviewed = data.deliverables.filter((item) => ["approved", "revision_requested"].includes(item.client_status ?? "")).length;
   const handoffComplete = passed > 0 && approved === passed;
 
+  useEffect(() => {
+    if (!pdfMode || !data) return;
+    const timer = window.setTimeout(() => window.print(), 250);
+    return () => window.clearTimeout(timer);
+  }, [pdfMode, data]);
+
   return (
     <div style={{ minHeight: "100vh", background: "#E9EDF1", padding: "24px 16px", color: "#172033" }}>
       <style>{`@media print { .dominic-report-actions { display:none !important; } body { background:#fff !important; } @page { margin: 12mm; } .dominic-report-sheet { box-shadow:none !important; border-radius:0 !important; } tr, .dominic-report-keep { break-inside: avoid; page-break-inside: avoid; } h2 { break-after: avoid; page-break-after: avoid; } }`}</style>
-      <div className="dominic-report-actions" style={{ maxWidth: 980, margin: "0 auto 12px", display: "flex", justifyContent: "space-between", gap: 10 }}>
+      <div className="dominic-report-actions" style={{ maxWidth: 980, margin: "0 auto 12px", display: pdfMode ? "none" : "flex", justifyContent: "space-between", gap: 10 }}>
         <button onClick={() => router.push("/dominic")} style={actionStyle}><ArrowLeft size={15} /> Back to DOMINIC</button>
-        <button onClick={() => window.print()} style={{ ...actionStyle, background: "#F45A1E", borderColor: "#F45A1E", color: "#fff" }}><Printer size={15} /> Print / Save PDF</button>
+        <div style={{ display: "flex", gap: 8 }}><button onClick={() => { const url = new URL(window.location.href); url.searchParams.set("pdf", "1"); window.open(url.toString(), "_blank", "noopener,noreferrer"); }} style={actionStyle}><Download size={15} /> Clean PDF View</button><button onClick={() => window.print()} style={{ ...actionStyle, background: "#F45A1E", borderColor: "#F45A1E", color: "#fff" }}><Printer size={15} /> Print / Save PDF</button></div>
       </div>
 
       <main className="dominic-report-sheet" style={{ position: "relative", maxWidth: 980, margin: "0 auto", background: "#fff", borderRadius: 18, overflow: "hidden", boxShadow: "0 20px 70px rgba(0,0,0,.12)" }}>

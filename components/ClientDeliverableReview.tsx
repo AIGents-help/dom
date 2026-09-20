@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 import { CheckCircle2, Download, RotateCcw } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V } from "@/lib/theme";
+import DominicMascotImage from "@/components/dominic/DominicMascotImage";
 
 type Deliverable = {
   id: string;
@@ -140,7 +140,7 @@ export default function ClientDeliverableReview({ initial }: { initial: Delivera
           }}
         >
           <div style={{ width: 60, height: 60, position: "relative", borderRadius: 10, overflow: "hidden" }}>
-            <Image src="/brand/dominic-mascot.webp" alt="DOMINIC mascot" fill sizes="60px" style={{ objectFit: "cover" }} />
+            <DominicMascotImage className="object-cover" />
           </div>
           <div>
             <div style={{ color: V.signal, fontSize: 10, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>

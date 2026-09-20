@@ -48,5 +48,14 @@ export async function GET(req: NextRequest) {
     admin.from("mission_change_orders").select("id, mission_request_id, title, reason, scope_delta, amount_delta_cents, status, sent_at, responded_at, client_response_notes, created_at").in("mission_request_id", missionIds).order("created_at", { ascending: false }),
     admin.from("quotes").select("id, mission_request_id, service_type, total_cents, status, version_number, sent_at, accepted_at, rejected_at, expires_at, client_response_notes, created_at").in("mission_request_id", missionIds).neq("status", "draft").order("version_number", { ascending: false }),
   ]) : [{ data: [] }, { data: [] }];
-  return NextResponse.json({ client, jobs: jobs ?? [], activity: activity ?? [], changeOrders: changes ?? [], quotes: quotes ?? [] });
+  const clientJobs = (jobs ?? []).map((job: any) => ({
+    ...job,
+    // Never expose pre-QC corrections or superseded revision history in the
+    // active client handoff. History remains available to DOM internally.
+    deliverables: (job.deliverables ?? []).filter(
+      (deliverable: any) => deliverable.qc_passed === true && deliverable.client_status !== "superseded"
+    ),
+  }));
+
+  return NextResponse.json({ client, jobs: clientJobs, activity: activity ?? [], changeOrders: changes ?? [], quotes: quotes ?? [] });
 }

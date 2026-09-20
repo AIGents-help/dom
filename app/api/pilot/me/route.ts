@@ -65,6 +65,14 @@ export async function GET(req: NextRequest) {
       .eq("contractor_id", contractor.id)
       .order("created_at", { ascending: false });
 
+    // Durable self-service drafts saved at Get Quote so a refresh or deployment
+    // cannot make a pilot's in-progress mission disappear.
+    const { data: missionDrafts } = await admin
+      .from("pilot_mission_drafts")
+      .select("*")
+      .eq("contractor_id", contractor.id)
+      .order("updated_at", { ascending: false });
+
     // Get payout history
     const { data: payouts } = await admin
       .from("payments")
@@ -200,6 +208,7 @@ export async function GET(req: NextRequest) {
       },
       resourcesLocked,
       assignments: assignments ?? [],
+      missionDrafts: missionDrafts ?? [],
       payouts: payouts ?? [],
       sops: sops ?? [],
       tutorials: tutorials ?? [],

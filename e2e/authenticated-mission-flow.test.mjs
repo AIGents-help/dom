@@ -255,6 +255,50 @@ test("admin-authorized uninsured pilot creates a ready self-service mission", { 
     assert.equal(customQuote.status(), 200, JSON.stringify(customQuoteBody));
     assert.ok(customQuoteBody.quote.totalCents > 0, "custom mission should receive a system-generated quote");
 
+    const draftSave = await api.post("/api/pilot/missions/draft", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        clientName: missionPayload.clientName,
+        clientEmail: `custom-client-${stamp}@e2e.dom.invalid`,
+        clientCompany: missionPayload.clientCompany,
+        clientPhone: "555-0100",
+        location: missionPayload.location,
+        latitude: missionPayload.latitude,
+        longitude: missionPayload.longitude,
+        airspace: { airspace_class: "G", authorization_summary: "No authorization required", nearest_airport: null },
+        travelOrigin: "E2E dispatch point",
+        distanceMiles: missionPayload.distanceMiles,
+        serviceType: "custom",
+        customMissionTitle: "E2E Custom 3D Object",
+        customMissionScope: "Create a detailed 3D model of a test object.",
+        customDeliverables: "",
+        siteComplexity: missionPayload.siteComplexity,
+        urgency: missionPayload.urgency,
+        deliverableTier: "enhanced",
+        billingMode: "paid",
+        quote: {
+          serviceLabel: customQuoteBody.quote.serviceLabel,
+          totalCents: customQuoteBody.quote.totalCents,
+          referenceTotalCents: customQuoteBody.quote.totalCents,
+          warnings: customQuoteBody.quote.warnings ?? [],
+        },
+      },
+      failOnStatusCode: false,
+    });
+    const draftSaveBody = await draftSave.json().catch(() => ({}));
+    assert.equal(draftSave.status(), 200, JSON.stringify(draftSaveBody));
+    assert.ok(draftSaveBody.draft?.id);
+
+    const { data: persistedDraft, error: persistedDraftError } = await admin.from("pilot_mission_drafts")
+      .select("id,contractor_id,service_type,custom_mission_title,quote")
+      .eq("id", draftSaveBody.draft.id)
+      .single();
+    assert.ifError(persistedDraftError);
+    assert.equal(persistedDraft.contractor_id, pilot.id);
+    assert.equal(persistedDraft.service_type, "custom");
+    assert.equal(persistedDraft.custom_mission_title, "E2E Custom 3D Object");
+    assert.equal(persistedDraft.quote.totalCents, customQuoteBody.quote.totalCents);
+
     const customMission = await api.post("/api/pilot/missions/create", {
       headers: { Authorization: `Bearer ${token}` },
       data: {
@@ -265,6 +309,8 @@ test("admin-authorized uninsured pilot creates a ready self-service mission", { 
         customMissionScope: "Create a detailed 3D model of a test object.",
         customDeliverables: "",
         deliverableTier: "enhanced",
+        billingMode: "paid",
+        draftId: draftSaveBody.draft.id,
         uninsuredAcknowledged: true,
       },
       failOnStatusCode: false,
@@ -273,6 +319,13 @@ test("admin-authorized uninsured pilot creates a ready self-service mission", { 
     assert.equal(customMission.status(), 200, JSON.stringify(customMissionBody));
     assert.ok(customMissionBody.jobId);
     assert.ok(customMissionBody.quote.totalCents > 0);
+
+    const { data: deletedDraft, error: deletedDraftError } = await admin.from("pilot_mission_drafts")
+      .select("id")
+      .eq("id", draftSaveBody.draft.id)
+      .maybeSingle();
+    assert.ifError(deletedDraftError);
+    assert.equal(deletedDraft, null, "draft should be removed only after mission creation succeeds");
 
     const missingFreeReason = await api.post("/api/pilot/missions/create", {
       headers: { Authorization: `Bearer ${token}` },

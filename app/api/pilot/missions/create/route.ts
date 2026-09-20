@@ -52,6 +52,7 @@ export async function POST(req: NextRequest) {
       travelDistanceSource,
       billingMode = "paid",
       noChargeReason,
+      draftId,
       uninsuredAcknowledged,
     } = body;
 
@@ -190,6 +191,21 @@ export async function POST(req: NextRequest) {
       .select("contractor_payout_cents, dom_commission_cents, commission_bps_applied")
       .eq("job_id", jobId)
       .single();
+
+    if (draftId) {
+      const { error: draftDeleteError } = await admin
+        .from("pilot_mission_drafts")
+        .delete()
+        .eq("id", draftId)
+        .eq("contractor_id", contractor.id);
+      if (draftDeleteError) {
+        console.error("[pilot mission create] mission created but draft cleanup failed", {
+          draftId,
+          contractorId: contractor.id,
+          error: draftDeleteError.message,
+        });
+      }
+    }
 
     return NextResponse.json({
       jobId,

@@ -15,11 +15,13 @@ export default function MappingProcessingStatus({
   project,
   latestJob,
   onQueued,
+  online = true,
 }: {
   accessToken: string;
   project: Pick<MappingProject, "id" | "status" | "image_count" | "processing_progress" | "processing_stage" | "error_message">;
   latestJob: MappingProcessingJob | null;
   onQueued: () => void;
+  online?: boolean;
 }) {
   const [queuing, setQueuing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,7 +101,8 @@ export default function MappingProcessingStatus({
               </select>
             </div>
           )}
-          <button onClick={queueProcessing} disabled={queuing} style={btnPrimary}>
+          {!online && <p style={{ color: V.warn, fontSize: 11, marginBottom: 10 }}>Offline — processing requires a network connection.</p>}
+          <button onClick={queueProcessing} disabled={queuing || !online} style={{ ...btnPrimary, opacity: !online ? .55 : 1, cursor: !online ? "not-allowed" : "pointer" }}>
             {queuing ? "Queuing…" : project.status === "failed" ? "Retry Processing" : "Queue Processing"}
           </button>
         </div>

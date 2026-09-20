@@ -28,6 +28,10 @@ const DOMINIC_TYPES = new Set([
   "processing_report",
 ]);
 
+function dominicType(type: string | null) {
+  return Boolean(type && DOMINIC_TYPES.has(type));
+}
+
 export default function ClientDeliverableReview({ initial }: { initial: Deliverable[] }) {
   const [items, setItems] = useState(initial);
   const [feedback, setFeedback] = useState<Record<string, string>>({});
@@ -39,7 +43,9 @@ export default function ClientDeliverableReview({ initial }: { initial: Delivera
   const approved = ready.filter((item) => item.client_status === "approved");
   const revisions = ready.filter((item) => item.client_status === "revision_requested");
   const pending = ready.filter((item) => !["approved", "revision_requested"].includes(item.client_status));
-  const dominicCount = ready.filter((item) => item.type && DOMINIC_TYPES.has(item.type)).length;
+  const dominicCount = ready.filter((item) => dominicType(item.type)).length;
+  const dominicApproved = ready.filter((item) => dominicType(item.type) && item.client_status === "approved").length;
+  const dominicRevisions = ready.filter((item) => dominicType(item.type) && item.client_status === "revision_requested").length;
 
   if (!ready.length) {
     return <p style={{ color: V.inkDim, fontSize: 12 }}>Deliverables will appear after DOM quality review.</p>;
@@ -144,6 +150,11 @@ export default function ClientDeliverableReview({ initial }: { initial: Delivera
             <div style={{ color: V.inkFaint, fontSize: 10, marginTop: 3 }}>
               Intelligent Mapping by DOM · Uniquely Sophisticated
             </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 7, fontSize: 9, textTransform: "uppercase", letterSpacing: ".05em" }}>
+              <span style={{ color: V.telemetry }}>{dominicApproved} approved</span>
+              <span style={{ color: dominicRevisions ? V.warn : V.inkFaint }}>{dominicRevisions} revision</span>
+              <span style={{ color: V.inkDim }}>{Math.max(0, dominicCount - dominicApproved - dominicRevisions)} awaiting review</span>
+            </div>
           </div>
         </div>
       ) : null}
@@ -171,7 +182,7 @@ export default function ClientDeliverableReview({ initial }: { initial: Delivera
               <strong style={{ fontSize: 13 }}>{item.name}</strong>
               <div style={{ color: V.inkFaint, fontSize: 10, textTransform: "uppercase" }}>
                 {(item.type ?? "deliverable").replace(/_/g, " ")}
-                {item.type && DOMINIC_TYPES.has(item.type) ? " · DOMINIC" : ""}
+                {dominicType(item.type) ? " · DOMINIC" : ""}
               </div>
             </div>
             <span
@@ -203,7 +214,7 @@ export default function ClientDeliverableReview({ initial }: { initial: Delivera
                 onChange={(event) =>
                   setFeedback((current) => ({ ...current, [item.id]: event.target.value }))
                 }
-                placeholder="Optional feedback for approval; required when requesting a revision"
+                placeholder="Optional approval note. For a revision, describe exactly what should change."
                 style={{
                   width: "100%",
                   minHeight: 68,
@@ -220,7 +231,12 @@ export default function ClientDeliverableReview({ initial }: { initial: Delivera
                 <button disabled={saving === item.id} onClick={() => review(item.id, "approved")} style={primary}>
                   <CheckCircle2 size={12} /> Approve
                 </button>
-                <button disabled={saving === item.id} onClick={() => review(item.id, "revision_requested")} style={ghost}>
+                <button
+                  disabled={saving === item.id || !(feedback[item.id] ?? item.client_feedback ?? "").trim()}
+                  title={!(feedback[item.id] ?? item.client_feedback ?? "").trim() ? "Enter revision instructions first" : "Send revision instructions to the pilot"}
+                  onClick={() => review(item.id, "revision_requested")}
+                  style={{ ...ghost, opacity: !(feedback[item.id] ?? item.client_feedback ?? "").trim() ? .5 : 1 }}
+                >
                   <RotateCcw size={12} /> Request revision
                 </button>
               </div>

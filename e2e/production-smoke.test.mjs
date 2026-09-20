@@ -38,6 +38,23 @@ test("public entry points render without browser crashes", async () => {
   for (const path of ["/", "/contact", "/pilot", "/admin"]) await openStablePage(path);
 });
 
+
+test("homepage exposes the approved DOMINIC layout", async () => {
+  const page = await browser.newPage();
+  const response = await page.goto(`${baseURL}/`, { waitUntil: "networkidle", timeout: 45_000 });
+  assert.ok(response && response.status() < 400, `homepage returned ${response?.status()}`);
+
+  await page.getByText("Safety-First Operations", { exact: true }).waitFor();
+  await page.getByText("Coming to DOM", { exact: true }).first().waitFor();
+  await page.getByText("Meet DOMINIC", { exact: true }).waitFor();
+  await page.getByText("Same Perspective. Higher Purpose.", { exact: true }).waitFor();
+  await page.getByText("Map. Measure. Analyze. Deliver.", { exact: true }).waitFor();
+
+  const mascots = page.getByAltText("DOMINIC mapping software mascot");
+  assert.ok(await mascots.count() >= 2, "homepage should render the approved DOMINIC mascot in both hero and feature promotion");
+  await page.close();
+});
+
 test("privileged workflow APIs reject anonymous callers", async () => {
   const context = await browser.newContext();
   const checks = [

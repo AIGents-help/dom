@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ImageIcon, Layers3, UploadCloud, CalendarDays, MapPin, Plane, CheckCircle2 } from "lucide-react";
 import { V, btnGhost, statusPillStyle } from "./theme";
 import { MAPPING_PROJECT_STATUS_LABELS, formatBytes, canUploadImages } from "@/lib/mapperPipeline";
@@ -44,14 +44,27 @@ export default function MappingProjectWorkspace({
   const [data, setData] = useState<WorkspacePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const dataRef = useRef<WorkspacePayload | null>(null);
+
+  useEffect(() => { dataRef.current = data; }, [data]);
 
   const load = useCallback(async () => {
+    if (!online) {
+      if (!dataRef.current) {
+        setError("DOMINIC is offline. Reconnect to load this project.");
+        setLoading(false);
+      }
+      return;
+    }
     const res = await fetch(`/api/pilot/mapping/projects/${projectId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) { setError(body.error ?? "Could not load this project."); setLoading(false); return; }
+    setError(null);
     setData(body);
+    setLastSyncedAt(new Date());
     setLoading(false);
-  }, [accessToken, projectId]);
+  }, [accessToken, projectId, online]);
 
   useEffect(() => {
     load();
@@ -74,10 +87,10 @@ export default function MappingProjectWorkspace({
   }, [focusModule]);
 
   useEffect(() => {
-    if (!data || !["queued", "processing"].includes(data.project.status)) return;
+    if (!online || !data || !["queued", "processing"].includes(data.project.status)) return;
     const interval = setInterval(load, 5000);
     return () => clearInterval(interval);
-  }, [data, load]);
+  }, [data, load, online]);
 
   if (loading) return <p style={{ color: V.inkDim }}>Opening project…</p>;
   if (error || !data) return <p style={{ color: V.danger }}>{error ?? "Project not found."}</p>;
@@ -101,7 +114,10 @@ export default function MappingProjectWorkspace({
             {project.latitude != null && project.longitude != null && <span>· {project.latitude.toFixed(5)}, {project.longitude.toFixed(5)}</span>}
           </p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <span style={{ color: online ? V.telemetry : V.warn, fontSize: 9, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase" }}>
+            {online ? lastSyncedAt ? `Synced ${lastSyncedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Connecting" : lastSyncedAt ? `Offline · last sync ${lastSyncedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Offline"}
+          </span>
           <span style={{ color: V.inkFaint, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 5 }}><CalendarDays size={13} /> {new Date(project.created_at).toLocaleDateString()}</span>
           <span className="font-mono-ibm" style={{ ...statusPillStyle(STATUS_COLOR[project.status] ?? V.inkFaint), display: "inline-flex", alignItems: "center", gap: 5 }}>
             {project.status === "completed" && <CheckCircle2 size={11} />}

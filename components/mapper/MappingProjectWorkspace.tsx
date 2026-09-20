@@ -59,14 +59,20 @@ export default function MappingProjectWorkspace({
       return;
     }
     setRefreshing(true);
-    const res = await fetch(`/api/pilot/mapping/projects/${projectId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) { setError(body.error ?? "Could not load this project."); setLoading(false); setRefreshing(false); return; }
-    setError(null);
-    setData(body);
-    setLastSyncedAt(new Date());
-    setLoading(false);
-    setRefreshing(false);
+    try {
+      const res = await fetch(`/api/pilot/mapping/projects/${projectId}`, { headers: { Authorization: `Bearer ${accessToken}` } });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) { setError(body.error ?? "Could not load this project."); setLoading(false); return; }
+      setError(null);
+      setData(body);
+      setLastSyncedAt(new Date());
+      setLoading(false);
+    } catch {
+      if (!dataRef.current) setError("Could not reach DOMINIC. Check connectivity and retry.");
+      setLoading(false);
+    } finally {
+      setRefreshing(false);
+    }
   }, [accessToken, projectId, online]);
 
   useEffect(() => {

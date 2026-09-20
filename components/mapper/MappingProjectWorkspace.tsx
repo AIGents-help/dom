@@ -146,6 +146,7 @@ export default function MappingProjectWorkspace({
             accessToken={accessToken}
             projectId={project.id}
             disabled={!online || !canUploadImages(project)}
+            online={online}
             onUploaded={load}
           />
           {!online ? (

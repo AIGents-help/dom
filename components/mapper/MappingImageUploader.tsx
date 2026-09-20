@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as tus from "tus-js-client";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { V, panelStyle, btnGhost } from "./theme";
@@ -65,17 +65,24 @@ export default function MappingImageUploader({
   accessToken,
   projectId,
   disabled,
+  online = true,
   onUploaded,
 }: {
   accessToken: string;
   projectId: string;
   disabled?: boolean;
+  online?: boolean;
   onUploaded: () => void;
 }) {
   const [files, setFiles] = useState<TrackedFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadsInFlight = useRef(0);
+  const filesRef = useRef<TrackedFile[]>([]);
+  const onlineRef = useRef(online);
+
+  useEffect(() => { filesRef.current = files; }, [files]);
+  useEffect(() => { onlineRef.current = online; }, [online]);
 
   const updateFile = useCallback((clientId: string, patch: Partial<TrackedFile>) => {
     setFiles((prev) => prev.map((f) => (f.clientId === clientId ? { ...f, ...patch } : f)));
@@ -83,6 +90,10 @@ export default function MappingImageUploader({
 
   const runUpload = useCallback(
     async (tracked: TrackedFile) => {
+      if (!onlineRef.current) {
+        updateFile(tracked.clientId, { status: "queued", error: "Paused until connectivity returns." });
+        return;
+      }
       const projectRef = projectRefFromSupabaseUrl();
       if (!projectRef || !tracked.path || !tracked.token) {
         updateFile(tracked.clientId, { status: "error", error: "Upload could not be authorized." });
@@ -113,7 +124,8 @@ export default function MappingImageUploader({
           },
           chunkSize: CHUNK_SIZE,
           onError: (err) => {
-            updateFile(tracked.clientId, { status: "error", error: err.message ?? "Upload failed." });
+            if (!onlineRef.current) updateFile(tracked.clientId, { status: "queued", error: "Paused until connectivity returns." });
+            else updateFile(tracked.clientId, { status: "error", error: err.message ?? "Upload failed." });
             resolve();
           },
           onProgress: (bytesUploaded, bytesTotal) => {
@@ -241,6 +253,14 @@ export default function MappingImageUploader({
     [accessToken, projectId, updateFile, drainQueue]
   );
 
+  useEffect(() => {
+    if (!online) return;
+    const paused = filesRef.current.filter((f) => f.status === "queued" && f.path && f.token && f.error === "Paused until connectivity returns.");
+    if (paused.length === 0) return;
+    paused.forEach((f) => updateFile(f.clientId, { error: null }));
+    drainQueue(paused);
+  }, [online, drainQueue, updateFile]);
+
   function retry(clientId: string) {
     const target = files.find((f) => f.clientId === clientId);
     if (!target) return;
@@ -303,7 +323,9 @@ export default function MappingImageUploader({
                 <span style={{ flex: 1, color: V.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.file.name}</span>
                 <span style={{ color: V.inkFaint, width: 70, textAlign: "right" }}>{formatBytes(f.file.size)}</span>
                 <span style={{ width: 110, textAlign: "right" }}>
-                  {f.status === "uploading" || f.status === "confirming" ? (
+                  {f.status === "queued" && f.error ? (
+                    <span style={{ color: V.signal }} title={f.error}>Paused</span>
+                  ) : f.status === "uploading" || f.status === "confirming" ? (
                     <span style={{ color: V.signal }}>{f.progress}%</span>
                   ) : f.status === "done" ? (
                     <span style={{ color: V.telemetry }}>Done</span>

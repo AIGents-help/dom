@@ -16,6 +16,8 @@ import {
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import MappingTab from "@/components/mapper/MappingTab";
@@ -57,10 +59,17 @@ export default function DominicApp() {
   const [activeModule, setActiveModule] = useState("Projects");
   const [showProjectsSignal, setShowProjectsSignal] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const handleProjectChange = useCallback((projectId: string | null) => {
     setActiveProjectId(projectId);
     setActiveModule(projectId ? "Map Viewer" : "Projects");
+  }, []);
+
+  useEffect(() => {
+    const onFullscreen = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFullscreen);
+    return () => document.removeEventListener("fullscreenchange", onFullscreen);
   }, []);
 
   useEffect(() => {
@@ -122,6 +131,28 @@ export default function DominicApp() {
             <div style={{ color: TEXT, fontSize: 12, fontWeight: 800 }}>DOM Pilot Workspace</div>
             <div style={{ color: MUTED, fontSize: 9, letterSpacing: ".08em", marginTop: 3 }}>DRONE OPERATION MANAGEMENT</div>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (document.fullscreenElement) document.exitFullscreen();
+              else document.documentElement.requestFullscreen();
+            }}
+            aria-label={fullscreen ? "Exit full screen" : "Open DOMINIC full screen"}
+            title={fullscreen ? "Exit full screen" : "Full-screen field mode"}
+            style={{
+              border: `1px solid ${LINE}`,
+              background: PANEL,
+              color: TEXT,
+              borderRadius: 10,
+              width: 40,
+              height: 40,
+              cursor: "pointer",
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
           <button
             onClick={() => router.push("/pilot")}
             aria-label="Exit DOMINIC and return to DOM pilot workspace"

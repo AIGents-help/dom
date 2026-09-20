@@ -18,6 +18,8 @@ import {
   PanelLeftOpen,
   Maximize2,
   Minimize2,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import MappingTab from "@/components/mapper/MappingTab";
@@ -61,6 +63,7 @@ export default function DominicApp() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [compactViewport, setCompactViewport] = useState(false);
+  const [online, setOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
 
   const handleProjectChange = useCallback((projectId: string | null) => {
     setActiveProjectId(projectId);
@@ -82,6 +85,17 @@ export default function DominicApp() {
     syncViewport();
     media.addEventListener("change", syncViewport);
     return () => media.removeEventListener("change", syncViewport);
+  }, []);
+
+  useEffect(() => {
+    const goOnline = () => setOnline(true);
+    const goOffline = () => setOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
   }, []);
 
   useEffect(() => {
@@ -142,6 +156,22 @@ export default function DominicApp() {
           <div style={{ textAlign: "right", lineHeight: 1.15, display: compactViewport ? "none" : "block" }}>
             <div style={{ color: TEXT, fontSize: 12, fontWeight: 800 }}>DOM Pilot Workspace</div>
             <div style={{ color: MUTED, fontSize: 9, letterSpacing: ".08em", marginTop: 3 }}>DRONE OPERATION MANAGEMENT</div>
+          </div>
+          <div
+            title={online ? "Network connection available" : "Offline — uploads and cloud processing require connectivity"}
+            style={{
+              display: compactViewport ? "none" : "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              color: online ? "#70D6A0" : "#FFB86B",
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: ".06em",
+              textTransform: "uppercase",
+            }}
+          >
+            {online ? <Wifi size={13} /> : <WifiOff size={13} />}
+            {online ? "Online" : "Offline"}
           </div>
           <button
             type="button"
@@ -368,6 +398,68 @@ export default function DominicApp() {
           </section>
         </main>
       </div>
+
+      {compactViewport ? (
+        <nav
+          aria-label="DOMINIC field navigation"
+          style={{
+            position: "fixed",
+            left: 8,
+            right: 8,
+            bottom: "max(8px, env(safe-area-inset-bottom))",
+            zIndex: 60,
+            display: "grid",
+            gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+            gap: 6,
+            padding: 6,
+            border: `1px solid ${LINE}`,
+            borderRadius: 14,
+            background: "rgba(9,13,17,.94)",
+            backdropFilter: "blur(14px)",
+            boxShadow: "0 14px 36px rgba(0,0,0,.45)",
+          }}
+        >
+          {[
+            { label: "Projects", icon: FolderKanban },
+            { label: "Map Viewer", icon: Map },
+            { label: "Measure & Markup", icon: Ruler },
+            { label: "Deliverables", icon: Layers3 },
+          ].map(({ label, icon: DockIcon }) => {
+            const requiresProject = label !== "Projects";
+            const disabled = requiresProject && !activeProjectId;
+            const active = activeModule === label;
+            return (
+              <button
+                key={label}
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  if (disabled) return;
+                  setActiveModule(label);
+                  if (label === "Projects") setShowProjectsSignal((value) => value + 1);
+                }}
+                style={{
+                  minHeight: 48,
+                  border: active ? "1px solid rgba(244,90,30,.7)" : "1px solid transparent",
+                  borderRadius: 10,
+                  background: active ? "rgba(244,90,30,.16)" : "transparent",
+                  color: active ? ORANGE : disabled ? "#58626D" : TEXT,
+                  display: "grid",
+                  justifyItems: "center",
+                  alignContent: "center",
+                  gap: 3,
+                  fontSize: 8,
+                  fontWeight: 800,
+                  cursor: disabled ? "default" : "pointer",
+                }}
+              >
+                <DockIcon size={17} />
+                <span>{label === "Measure & Markup" ? "Measure" : label === "Map Viewer" ? "Map" : label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      ) : null}
     </div>
   );
 }

@@ -27,7 +27,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const revisionRequested = body?.revision === true;
   if (revisionRequested) {
     if (project.status !== "completed") return NextResponse.json({ error: "Revision processing can only start from a completed project." }, { status: 409 });
-    const { data: revisions } = await admin.from("deliverables").select("id").eq("job_id", project.job_id).eq("client_status", "revision_requested").limit(1);
+    const { data: revisions } = await admin.from("deliverables").select("id, type, client_feedback").eq("job_id", project.job_id).eq("client_status", "revision_requested");
     if (!revisions?.length) return NextResponse.json({ error: "No client revision request is open for this project." }, { status: 409 });
   } else {
     const guard = canQueueProcessing(project);
@@ -59,6 +59,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .from("mapping_projects")
     .update({ status: "queued", error_message: null })
     .eq("id", project.id);
+
+  if (revisionRequested) {
+    const { data: openRevisions } = await admin.from("deliverables")
+      .select("id, type, client_feedback")
+      .eq("job_id", project.job_id)
+      .eq("client_status", "revision_requested");
+    await admin.from("mapping_events").insert({
+      mapping_project_id: project.id,
+      actor_type: "pilot",
+      actor_id: auth.contractor.id,
+      event_type: "revision_scope",
+      message: `Corrected processing requested for ${openRevisions?.length ?? 0} client revision item(s).`,
+      metadata: { deliverables: openRevisions ?? [] },
+    });
+  }
 
   await admin.from("mapping_events").insert({
     mapping_project_id: project.id,

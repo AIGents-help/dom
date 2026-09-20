@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { Box, Layers3, MapPinned, Ruler, Sparkles } from "lucide-react";
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 import DominicMascotImage from "@/components/dominic/DominicMascotImage";

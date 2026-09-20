@@ -35,11 +35,21 @@ jobs:
         run: |
           set -euo pipefail
           asset="https://droneopsman.com/brand/dominic-mascot.webp"
-          headers="$(curl -fsSI --max-time 20 "$asset")"
-          printf '%s' "$headers" | grep -qi '^content-type: image/webp'
-          bytes="$(curl -fsSL --max-time 20 "$asset" | wc -c | tr -d ' ')"
+          curl -fsSL --max-time 20 "$asset" -o /tmp/dominic-mascot.webp
+          bytes="$(wc -c < /tmp/dominic-mascot.webp | tr -d ' ')"
           test "$bytes" -gt 1000
-          echo "DOMINIC mascot asset is live ($bytes bytes)."
+          magic="$(dd if=/tmp/dominic-mascot.webp bs=1 count=12 2>/dev/null)"
+          printf '%s' "$magic" | grep -q '^RIFF....WEBP
+      - name: Verify DOMINIC route responds
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$(curl -L -sS -o /tmp/dominic.html -w '%{http_code}' --max-time 20 https://droneopsman.com/dominic)"
+          test "$code" = "200"
+          grep -qi "DOMINIC" /tmp/dominic.html
+          echo "DOMINIC route is live and contains the product shell marker."
+
+          echo "DOMINIC mascot WebP is live ($bytes bytes)."
 
       - name: Verify DOMINIC route responds
         shell: bash

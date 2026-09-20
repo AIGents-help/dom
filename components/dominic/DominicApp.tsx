@@ -14,6 +14,12 @@ import {
   Settings,
   Sparkles,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Maximize2,
+  Minimize2,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import MappingTab from "@/components/mapper/MappingTab";
@@ -54,10 +60,42 @@ export default function DominicApp() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState("Projects");
   const [showProjectsSignal, setShowProjectsSignal] = useState(0);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [compactViewport, setCompactViewport] = useState(false);
+  const [online, setOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
 
   const handleProjectChange = useCallback((projectId: string | null) => {
     setActiveProjectId(projectId);
     setActiveModule(projectId ? "Map Viewer" : "Projects");
+  }, []);
+
+  useEffect(() => {
+    const onFullscreen = () => setFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFullscreen);
+    return () => document.removeEventListener("fullscreenchange", onFullscreen);
+  }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 980px)");
+    const syncViewport = () => {
+      setCompactViewport(media.matches);
+      if (media.matches) setSidebarCollapsed(true);
+    };
+    syncViewport();
+    media.addEventListener("change", syncViewport);
+    return () => media.removeEventListener("change", syncViewport);
+  }, []);
+
+  useEffect(() => {
+    const goOnline = () => setOnline(true);
+    const goOffline = () => setOnline(false);
+    window.addEventListener("online", goOnline);
+    window.addEventListener("offline", goOffline);
+    return () => {
+      window.removeEventListener("online", goOnline);
+      window.removeEventListener("offline", goOffline);
+    };
   }, []);
 
   useEffect(() => {
@@ -115,10 +153,48 @@ export default function DominicApp() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div style={{ textAlign: "right", lineHeight: 1.15 }}>
+          <div style={{ textAlign: "right", lineHeight: 1.15, display: compactViewport ? "none" : "block" }}>
             <div style={{ color: TEXT, fontSize: 12, fontWeight: 800 }}>DOM Pilot Workspace</div>
             <div style={{ color: MUTED, fontSize: 9, letterSpacing: ".08em", marginTop: 3 }}>DRONE OPERATION MANAGEMENT</div>
           </div>
+          <div
+            title={online ? "Network connection available" : "Offline — uploads and cloud processing require connectivity"}
+            style={{
+              display: compactViewport ? "none" : "inline-flex",
+              alignItems: "center",
+              gap: 5,
+              color: online ? "#70D6A0" : "#FFB86B",
+              fontSize: 10,
+              fontWeight: 800,
+              letterSpacing: ".06em",
+              textTransform: "uppercase",
+            }}
+          >
+            {online ? <Wifi size={13} /> : <WifiOff size={13} />}
+            {online ? "Online" : "Offline"}
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              if (document.fullscreenElement) document.exitFullscreen();
+              else document.documentElement.requestFullscreen();
+            }}
+            aria-label={fullscreen ? "Exit full screen" : "Open DOMINIC full screen"}
+            title={fullscreen ? "Exit full screen" : "Full-screen field mode"}
+            style={{
+              border: `1px solid ${LINE}`,
+              background: PANEL,
+              color: TEXT,
+              borderRadius: 10,
+              width: 40,
+              height: 40,
+              cursor: "pointer",
+              display: "grid",
+              placeItems: "center",
+            }}
+          >
+            {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </button>
           <button
             onClick={() => router.push("/pilot")}
             aria-label="Exit DOMINIC and return to DOM pilot workspace"
@@ -135,12 +211,12 @@ export default function DominicApp() {
               gap: 7,
             }}
           >
-            <LogOut size={15} /> Exit DOMINIC
+            <LogOut size={15} /> {!compactViewport ? "Exit DOMINIC" : null}
           </button>
         </div>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", minHeight: "calc(100vh - 78px)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: sidebarCollapsed ? "72px minmax(0, 1fr)" : "220px minmax(0, 1fr)", minHeight: "calc(100vh - 78px)", transition: "grid-template-columns .18s ease" }}>
         <aside
           style={{
             borderRight: `1px solid ${LINE}`,
@@ -153,18 +229,30 @@ export default function DominicApp() {
             overflowY: "auto",
           }}
         >
-          <div
-            style={{
-              marginBottom: 14,
-              padding: "8px 10px",
-              color: ORANGE,
-              fontSize: 10,
-              fontWeight: 900,
-              letterSpacing: ".16em",
-              textTransform: "uppercase",
-            }}
-          >
-            Project Workspace
+          <div style={{ display: "flex", alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "space-between", marginBottom: 12, gap: 8 }}>
+            {!sidebarCollapsed ? (
+              <div
+                style={{
+                  padding: "8px 10px",
+                  color: ORANGE,
+                  fontSize: 10,
+                  fontWeight: 900,
+                  letterSpacing: ".16em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Project Workspace
+              </div>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed((value) => !value)}
+              aria-label={sidebarCollapsed ? "Expand DOMINIC sidebar" : "Collapse DOMINIC sidebar"}
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              style={{ border: `1px solid ${LINE}`, background: PANEL, color: MUTED, width: 34, height: 34, borderRadius: 8, display: "grid", placeItems: "center", cursor: "pointer", flexShrink: 0 }}
+            >
+              {sidebarCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            </button>
           </div>
 
           <nav style={{ display: "grid", gap: 4 }}>
@@ -188,12 +276,13 @@ export default function DominicApp() {
                   alignItems: "center",
                   gap: 11,
                   borderRadius: 9,
-                  padding: "10px 11px",
+                  padding: sidebarCollapsed ? "11px 0" : "10px 11px",
                   color: active ? "#160A02" : disabled ? "#596573" : "#A7B2BE",
                   background: active ? `linear-gradient(90deg, ${ORANGE_DARK}, ${ORANGE})` : "transparent",
                   border: active ? "1px solid rgba(244,90,30,.7)" : "1px solid transparent",
                   fontWeight: active ? 900 : 500,
                   width: "100%",
+                  justifyContent: sidebarCollapsed ? "center" : "flex-start",
                   textAlign: "left",
                   cursor: disabled ? "default" : "pointer",
                   opacity: disabled ? .55 : 1,
@@ -201,16 +290,16 @@ export default function DominicApp() {
                 }}
               >
                 <Icon size={17} color={active ? "#160A02" : disabled ? "#596573" : "#798694"} />
-                {label}
+                {!sidebarCollapsed ? label : null}
               </button>
               );
             })}
           </nav>
 
           <div style={{ marginTop: 18, borderTop: `1px solid ${LINE}`, paddingTop: 14 }}>
-            <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 10px", color: MUTED, fontSize: 13 }}>
+            <div title="Settings" style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", padding: sidebarCollapsed ? "10px 0" : "8px 10px", color: MUTED, fontSize: 13 }}>
               <Settings size={17} />
-              Settings
+              {!sidebarCollapsed ? "Settings" : null}
             </div>
           </div>
 
@@ -222,6 +311,7 @@ export default function DominicApp() {
               overflow: "hidden",
               background: "radial-gradient(circle at 50% 0%, rgba(244,90,30,.16), transparent 62%), #0A0F14",
               textAlign: "center",
+              display: sidebarCollapsed ? "none" : "block",
             }}
           >
             <div style={{ position: "relative", aspectRatio: "1 / 1", width: "100%", overflow: "hidden" }}>
@@ -242,9 +332,9 @@ export default function DominicApp() {
             style={{
               borderBottom: `1px solid ${LINE}`,
               background: "#0E141A",
-              padding: "12px 18px",
+              padding: sidebarCollapsed ? "10px 12px" : "12px 18px",
               display: "grid",
-              gridTemplateColumns: "repeat(5, minmax(130px, 1fr))",
+              gridTemplateColumns: compactViewport ? "repeat(5, minmax(112px, 1fr))" : "repeat(5, minmax(130px, 1fr))",
               gap: 8,
               overflowX: "auto",
             }}
@@ -285,7 +375,7 @@ export default function DominicApp() {
             ))}
           </section>
 
-          <section style={{ padding: "12px 14px 18px" }}>
+          <section style={{ padding: compactViewport ? "8px 8px 86px" : "12px 14px 18px" }}>
             <div
               style={{
                 border: `1px solid ${LINE}`,
@@ -308,6 +398,68 @@ export default function DominicApp() {
           </section>
         </main>
       </div>
+
+      {compactViewport ? (
+        <nav
+          aria-label="DOMINIC field navigation"
+          style={{
+            position: "fixed",
+            left: 8,
+            right: 8,
+            bottom: "max(8px, env(safe-area-inset-bottom))",
+            zIndex: 60,
+            display: "grid",
+            gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+            gap: 6,
+            padding: 6,
+            border: `1px solid ${LINE}`,
+            borderRadius: 14,
+            background: "rgba(9,13,17,.94)",
+            backdropFilter: "blur(14px)",
+            boxShadow: "0 14px 36px rgba(0,0,0,.45)",
+          }}
+        >
+          {[
+            { label: "Projects", icon: FolderKanban },
+            { label: "Map Viewer", icon: Map },
+            { label: "Measure & Markup", icon: Ruler },
+            { label: "Deliverables", icon: Layers3 },
+          ].map(({ label, icon: DockIcon }) => {
+            const requiresProject = label !== "Projects";
+            const disabled = requiresProject && !activeProjectId;
+            const active = activeModule === label;
+            return (
+              <button
+                key={label}
+                type="button"
+                disabled={disabled}
+                onClick={() => {
+                  if (disabled) return;
+                  setActiveModule(label);
+                  if (label === "Projects") setShowProjectsSignal((value) => value + 1);
+                }}
+                style={{
+                  minHeight: 48,
+                  border: active ? "1px solid rgba(244,90,30,.7)" : "1px solid transparent",
+                  borderRadius: 10,
+                  background: active ? "rgba(244,90,30,.16)" : "transparent",
+                  color: active ? ORANGE : disabled ? "#58626D" : TEXT,
+                  display: "grid",
+                  justifyItems: "center",
+                  alignContent: "center",
+                  gap: 3,
+                  fontSize: 8,
+                  fontWeight: 800,
+                  cursor: disabled ? "default" : "pointer",
+                }}
+              >
+                <DockIcon size={17} />
+                <span>{label === "Measure & Markup" ? "Measure" : label === "Map Viewer" ? "Map" : label}</span>
+              </button>
+            );
+          })}
+        </nav>
+      ) : null}
     </div>
   );
 }

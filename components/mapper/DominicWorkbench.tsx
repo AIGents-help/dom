@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Box,
   ChevronDown,
@@ -60,6 +60,15 @@ export default function DominicWorkbench({
   const [layersOpen, setLayersOpen] = useState(true);
   const [requestedLayer, setRequestedLayer] = useState<string | null>(null);
   const [viewerMode, setViewerMode] = useState<"map" | "3d" | "elevation" | "compare">("map");
+  const [compactWorkbench, setCompactWorkbench] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 980px)");
+    const sync = () => setCompactWorkbench(media.matches);
+    sync();
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, []);
 
   const available = useMemo(() => {
     const types = new Set(deliverables.map((d) => d.type).filter(Boolean));
@@ -68,7 +77,7 @@ export default function DominicWorkbench({
 
   return (
     <div style={{ border: `1px solid ${V.line}`, borderRadius: 12, overflow: "hidden", background: "#070B0F", boxShadow: "0 24px 70px rgba(0,0,0,.28)" }}>
-      <div style={{ display: "grid", gridTemplateColumns: "72px minmax(0,1fr) 220px", minHeight: 540 }}>
+      <div style={{ display: "grid", gridTemplateColumns: compactWorkbench ? "58px minmax(0,1fr)" : "72px minmax(0,1fr) 220px", minHeight: 540 }}>
         <aside style={{ borderRight: `1px solid ${V.line}`, background: "#0B1016", padding: "10px 7px", display: "grid", alignContent: "start", gap: 5 }}>
           {tools.map(({ id, label, icon: Icon, live }) => {
             const active = activeTool === id;
@@ -82,23 +91,23 @@ export default function DominicWorkbench({
                   background: active ? "rgba(244,90,30,.13)" : "transparent",
                   color: active ? V.signal : V.inkDim,
                   borderRadius: 9,
-                  padding: "8px 3px",
+                  padding: compactWorkbench ? "10px 2px" : "8px 3px",
                   display: "grid",
                   justifyItems: "center",
                   gap: 4,
                   cursor: "pointer",
-                  fontSize: 9,
+                  fontSize: compactWorkbench ? 8 : 9,
                 }}
               >
-                <Icon size={18} />
+                <Icon size={compactWorkbench ? 20 : 18} />
                 <span>{label}</span>
               </button>
             );
           })}
         </aside>
 
-        <main style={{ minWidth: 0, background: "#080C10", padding: 10 }}>
-          <div style={{ minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8, borderBottom: `1px solid ${V.line}`, paddingBottom: 8 }}>
+        <main style={{ minWidth: 0, background: "#080C10", padding: compactWorkbench ? 6 : 10 }}>
+          <div style={{ minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", gap: compactWorkbench ? 5 : 10, marginBottom: 8, borderBottom: `1px solid ${V.line}`, paddingBottom: 8, overflowX: "auto" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               {[
                 { id: "map" as const, label: "Map View", icon: Map, layer: "orthomosaic" },
@@ -124,7 +133,7 @@ export default function DominicWorkbench({
                       border: 0,
                       borderBottom: active ? `2px solid ${V.signal}` : "2px solid transparent",
                       background: "transparent",
-                      padding: "6px 8px",
+                      padding: compactWorkbench ? "9px 8px" : "6px 8px",
                       color: active ? V.ink : ready ? V.inkDim : V.inkFaint,
                       fontSize: 10,
                       fontWeight: active ? 800 : 600,
@@ -136,7 +145,7 @@ export default function DominicWorkbench({
                 );
               })}
             </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.inkDim, fontSize: 10 }}>
+            <div style={{ display: compactWorkbench ? "none" : "flex", alignItems: "center", gap: 7, color: V.inkDim, fontSize: 10 }}>
               <Crosshair size={13} color={V.signal} />
               <span>{activeTool === "select" ? "Navigate" : `${tools.find((tool) => tool.id === activeTool)?.label} selected`}</span>
             </div>
@@ -152,7 +161,7 @@ export default function DominicWorkbench({
           <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} requestedLayer={requestedLayer} viewerMode={viewerMode} />
         </main>
 
-        <aside style={{ borderLeft: `1px solid ${V.line}`, background: "#0B1016", padding: 12, display: "flex", flexDirection: "column" }}>
+        <aside style={{ borderLeft: `1px solid ${V.line}`, background: "#0B1016", padding: 12, display: compactWorkbench ? "none" : "flex", flexDirection: "column" }}>
           <button
             onClick={() => setLayersOpen((open) => !open)}
             style={{ width: "100%", border: 0, background: "transparent", color: V.ink, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", padding: 0 }}

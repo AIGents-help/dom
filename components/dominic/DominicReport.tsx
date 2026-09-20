@@ -43,7 +43,6 @@ interface ProjectPayload {
     client_feedback?: string | null;
     client_reviewed_at?: string | null;
     delivered_at: string | null;
-    created_at?: string | null;
   }>;
 }
 

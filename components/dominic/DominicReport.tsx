@@ -101,13 +101,13 @@ export default function DominicReport({ projectId }: { projectId: string }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#E9EDF1", padding: "24px 16px", color: "#172033" }}>
-      <style>{`@media print { .dominic-report-actions { display:none !important; } body { background:#fff !important; } }`}</style>
+      <style>{`@media print { .dominic-report-actions { display:none !important; } body { background:#fff !important; } @page { margin: 12mm; } .dominic-report-sheet { box-shadow:none !important; border-radius:0 !important; } tr, .dominic-report-keep { break-inside: avoid; page-break-inside: avoid; } h2 { break-after: avoid; page-break-after: avoid; } }`}</style>
       <div className="dominic-report-actions" style={{ maxWidth: 980, margin: "0 auto 12px", display: "flex", justifyContent: "space-between", gap: 10 }}>
         <button onClick={() => router.push("/dominic")} style={actionStyle}><ArrowLeft size={15} /> Back to DOMINIC</button>
         <button onClick={() => window.print()} style={{ ...actionStyle, background: "#F45A1E", borderColor: "#F45A1E", color: "#fff" }}><Printer size={15} /> Print / Save PDF</button>
       </div>
 
-      <main style={{ position: "relative", maxWidth: 980, margin: "0 auto", background: "#fff", borderRadius: 18, overflow: "hidden", boxShadow: "0 20px 70px rgba(0,0,0,.12)" }}>
+      <main className="dominic-report-sheet" style={{ position: "relative", maxWidth: 980, margin: "0 auto", background: "#fff", borderRadius: 18, overflow: "hidden", boxShadow: "0 20px 70px rgba(0,0,0,.12)" }}>
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", overflow: "hidden", zIndex: 0 }}>
           <div style={{ transform: "rotate(-32deg)", fontSize: 82, fontWeight: 950, letterSpacing: ".08em", color: "rgba(244,90,30,.035)", whiteSpace: "nowrap" }}>DOMINIC · DRONE OPERATION MANAGEMENT</div>
         </div>
@@ -135,7 +135,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
             <Metric label="Client Approved" value={`${approved}/${passed}`} />
           </div>
 
-          <div style={{ marginBottom: 26, padding: 14, borderRadius: 10, border: `1px solid ${handoffComplete ? "#2DAA74" : revisions ? "#C9822B" : "#D9E0E6"}`, background: "#F8FAFB" }}>
+          <div className="dominic-report-keep" style={{ marginBottom: 26, padding: 14, borderRadius: 10, border: `1px solid ${handoffComplete ? "#2DAA74" : revisions ? "#C9822B" : "#D9E0E6"}`, background: "#F8FAFB" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <div>
                 <div style={{ fontSize: 9, color: "#697584", textTransform: "uppercase", letterSpacing: ".07em" }}>Client Handoff</div>

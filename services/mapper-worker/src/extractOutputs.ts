@@ -34,7 +34,7 @@ const OUTPUT_HINTS: { type: ExtractedOutput["type"]; dirHint: string; extensions
   { type: "point_cloud", dirHint: "odm_georeferencing", extensions: [".laz", ".las", ".ply"] },
 ];
 
-function walk(dir: string): string[] {
+export function walk(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
@@ -49,7 +49,7 @@ export function extractAllZip(zipPath: string, destDir: string): void {
   zip.extractAllTo(destDir, true);
 }
 
-function extensionRank(file: string, extensions: string[]): number {
+export function extensionRank(file: string, extensions: string[]): number {
   const lower = file.toLowerCase();
   const rank = extensions.findIndex((ext) => lower.endsWith(ext));
   return rank === -1 ? extensions.length : rank;

@@ -7,7 +7,8 @@
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
     "typecheck": "tsc --noEmit",
-    "authorize:drive": "tsx scripts/authorizeGoogleDrive.ts"
+    "authorize:drive": "tsx scripts/authorizeGoogleDrive.ts",
+    "verify:pipeline": "tsx scripts/verifyPipelineContract.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

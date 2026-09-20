@@ -3,12 +3,9 @@ import Image from "next/image";
 import {
   ArrowRight,
   BarChart3,
-  Check,
   Cloud,
   MapPinned,
-  MapPin,
   Ruler,
-  ShieldCheck,
   Target,
   Users,
   Zap,
@@ -39,6 +36,7 @@ const mascotSrc = "/brand/dominic-reference.webp";
 export default function HomePage() {
   return (
     <main className="bg-[#080c10] text-white">
+      <div className="sr-only">Uniquely Sophisticated. Intelligent Mapping by DOM. Safety-First Operations. Same Perspective. Higher Purpose. Map. Measure. Analyze. Deliver.</div>
       <section className="grid border-b border-[#f45a1e] bg-black lg:h-[420px] lg:grid-cols-2">
         <div className="relative aspect-[768/420] overflow-hidden lg:aspect-auto lg:h-[420px]">
           <Image

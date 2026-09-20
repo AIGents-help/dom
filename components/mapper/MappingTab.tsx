@@ -10,7 +10,7 @@ type View = { name: "list" } | { name: "create" } | { name: "workspace"; project
 // Top-level content for the "Mapping" PilotTab. Owns only view-switching
 // state — all data loading lives in the child components, same separation
 // used by the rest of app/pilot/page.tsx's tabs.
-export default function MappingTab({ accessToken, focusModule, onProjectChange, showProjectsSignal = 0 }: { accessToken: string; focusModule?: string | null; onProjectChange?: (projectId: string | null) => void; showProjectsSignal?: number }) {
+export default function MappingTab({ accessToken, focusModule, onProjectChange, showProjectsSignal = 0, online = true }: { accessToken: string; focusModule?: string | null; onProjectChange?: (projectId: string | null) => void; showProjectsSignal?: number; online?: boolean }) {
   const [view, setView] = useState<View>({ name: "list" });
 
   useEffect(() => {
@@ -35,6 +35,7 @@ export default function MappingTab({ accessToken, focusModule, onProjectChange, 
         accessToken={accessToken}
         projectId={view.projectId}
         focusModule={focusModule}
+        online={online}
         onBack={() => { setView({ name: "list" }); onProjectChange?.(null); }}
       />
     );

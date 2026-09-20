@@ -1,6 +1,7 @@
 import Image from "next/image";
 import { Box, Layers3, MapPinned, Ruler, Sparkles } from "lucide-react";
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
+import DominicMascotImage from "@/components/dominic/DominicMascotImage";
 
 const features = [
   [MapPinned, "Orthomosaics", "Turn mission imagery into georeferenced site maps."],
@@ -16,13 +17,7 @@ export default function DominicComingSoon() {
         <div className="overflow-hidden rounded-3xl border border-[#F45A1E]/35 bg-[radial-gradient(circle_at_78%_8%,rgba(244,90,30,.20),transparent_30%),linear-gradient(135deg,#121922,#090D11)]">
           <div className="grid gap-8 p-7 lg:grid-cols-[.72fr_.9fr_1.08fr] lg:items-center lg:p-12">
             <div className="relative min-h-[360px] overflow-hidden rounded-2xl border border-white/10 bg-black/25">
-              <Image
-                src="/brand/dominic-mascot.webp"
-                alt="DOMINIC mapping software mascot"
-                fill
-                sizes="(max-width:1024px) 100vw, 28vw"
-                className="object-cover object-center"
-              />
+              <DominicMascotImage className="object-cover object-[48%_34%]" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-5">
                 <p className="text-sm font-black text-white">Same Perspective. Higher Purpose.</p>

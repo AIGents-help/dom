@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Printer } from "lucide-react";
+import { ArrowLeft, Download, Printer } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 
@@ -52,8 +52,14 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [markups, setMarkups] = useState<Markup[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [pdfMode] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("pdf") === "1");
+  const [reportGeneratedAt, setReportGeneratedAt] = useState<Date | null>(null);
+  const [pdfReady, setPdfReady] = useState(false);
+  const autoPrintStartedRef = useRef(false);
+  const [printCompleted, setPrintCompleted] = useState(false);
 
   useEffect(() => {
+    const startedAt = window.setTimeout(() => setReportGeneratedAt(new Date()), 0);
     let active = true;
     (async () => {
       const { data: sessionData } = await getSupabaseBrowser().auth.getSession();
@@ -84,10 +90,31 @@ export default function DominicReport({ projectId }: { projectId: string }) {
       setData(projectBody);
       setMeasurements(measurementRes.ok ? measurementBody.measurements ?? [] : []);
       setMarkups(markupRes.ok ? markupBody.markups ?? [] : []);
+      setPdfReady(true);
     })();
 
-    return () => { active = false; };
+    return () => { active = false; window.clearTimeout(startedAt); };
   }, [projectId, router]);
+
+  useEffect(() => {
+    if (!data) return;
+    const previousTitle = document.title;
+    document.title = `DOMINIC - ${data.project.name} - Project Report`;
+    return () => { document.title = previousTitle; };
+  }, [data]);
+
+  useEffect(() => {
+    const handleAfterPrint = () => setPrintCompleted(true);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => window.removeEventListener("afterprint", handleAfterPrint);
+  }, []);
+
+  useEffect(() => {
+    if (!pdfMode || !data || !pdfReady || autoPrintStartedRef.current) return;
+    autoPrintStartedRef.current = true;
+    const timer = window.setTimeout(() => window.print(), 500);
+    return () => window.clearTimeout(timer);
+  }, [pdfMode, data, pdfReady]);
 
   if (error) return <div style={{ minHeight: "100vh", background: "#090D11", color: "#F05A5A", padding: 32 }}>{error}</div>;
   if (!data) return <div style={{ minHeight: "100vh", background: "#090D11", color: "#B2BCC7", padding: 32 }}>Preparing report…</div>;
@@ -102,12 +129,12 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   return (
     <div style={{ minHeight: "100vh", background: "#E9EDF1", padding: "24px 16px", color: "#172033" }}>
       <style>{`@media print { .dominic-report-actions { display:none !important; } body { background:#fff !important; } @page { margin: 12mm; } .dominic-report-sheet { box-shadow:none !important; border-radius:0 !important; } tr, .dominic-report-keep { break-inside: avoid; page-break-inside: avoid; } h2 { break-after: avoid; page-break-after: avoid; } }`}</style>
-      <div className="dominic-report-actions" style={{ maxWidth: 980, margin: "0 auto 12px", display: "flex", justifyContent: "space-between", gap: 10 }}>
+      <div className="dominic-report-actions" style={{ maxWidth: 980, margin: "0 auto 12px", display: pdfMode ? "none" : "flex", justifyContent: "space-between", gap: 10 }}>
         <button onClick={() => router.push("/dominic")} style={actionStyle}><ArrowLeft size={15} /> Back to DOMINIC</button>
-        <button onClick={() => window.print()} style={{ ...actionStyle, background: "#F45A1E", borderColor: "#F45A1E", color: "#fff" }}><Printer size={15} /> Print / Save PDF</button>
+        <div style={{ display: "flex", gap: 8 }}><button onClick={() => { const url = new URL(window.location.href); url.searchParams.set("pdf", "1"); window.open(url.toString(), "_blank", "noopener,noreferrer"); }} style={actionStyle}><Download size={15} /> Clean PDF View</button><button onClick={() => window.print()} style={{ ...actionStyle, background: "#F45A1E", borderColor: "#F45A1E", color: "#fff" }}><Printer size={15} /> Print / Save PDF</button></div>
       </div>
 
-      <main className="dominic-report-sheet" style={{ position: "relative", maxWidth: 980, margin: "0 auto", background: "#fff", borderRadius: 18, overflow: "hidden", boxShadow: "0 20px 70px rgba(0,0,0,.12)" }}>
+      <main className="dominic-report-sheet" data-pdf-ready={pdfReady ? "true" : "false"} data-pdf-print-complete={printCompleted ? "true" : "false"} data-project-id={project.id} style={{ position: "relative", maxWidth: 980, margin: "0 auto", background: "#fff", borderRadius: 18, overflow: "hidden", boxShadow: "0 20px 70px rgba(0,0,0,.12)" }}>
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", overflow: "hidden", zIndex: 0 }}>
           <div style={{ transform: "rotate(-32deg)", fontSize: 82, fontWeight: 950, letterSpacing: ".08em", color: "rgba(244,90,30,.035)", whiteSpace: "nowrap" }}>DOMINIC · DRONE OPERATION MANAGEMENT</div>
         </div>
@@ -122,7 +149,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
           </div>
           <div style={{ textAlign: "right", fontSize: 11, color: "#BAC4CE" }}>
             <div>DOMINIC Project Report</div>
-            <div style={{ marginTop: 4 }}>{new Date().toLocaleDateString()}</div>
+            <div style={{ marginTop: 4 }}>{reportGeneratedAt?.toLocaleDateString() ?? "—"}</div>
           </div>
         </header>
 
@@ -204,7 +231,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
           ) : null}
 
           <div style={{ marginTop: 30, paddingTop: 18, borderTop: "1px solid #D9E0E6", color: "#697584", fontSize: 10, lineHeight: 1.5 }}>
-            DOMINIC™ · Drone Operation Management · Uniquely Sophisticated · DroneOpsMan.com · Project ID {project.id}. Report generated {new Date().toLocaleString()}. Generated by DOMINIC — Intelligent Mapping by DOM. Measurements and mapping outputs reflect the project data available at the time this report was generated. Survey-grade use depends on capture method, control, coordinate reference system, validation, and applicable professional requirements.
+            DOMINIC™ · Drone Operation Management · Uniquely Sophisticated · DroneOpsMan.com · Project ID {project.id}. Report generated {reportGeneratedAt?.toLocaleString() ?? "—"}. Generated by DOMINIC — Intelligent Mapping by DOM. Measurements and mapping outputs reflect the project data available at the time this report was generated. Survey-grade use depends on capture method, control, coordinate reference system, validation, and applicable professional requirements.
           </div>
         </section>
       </main>

@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: deliverables } = await admin
     .from("deliverables")
-    .select("id, name, type, storage_url, storage_provider, external_file_id, qc_passed, delivered_at, created_at")
+    .select("id, name, type, storage_url, storage_provider, external_file_id, qc_passed, client_status, client_feedback, client_reviewed_at, delivered_at, created_at")
     .eq("job_id", project.job_id)
     .eq("qc_passed", true)
     .order("created_at");
@@ -41,11 +41,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       name: item.name,
       type: titleCase(item.type ?? "output"),
       deliveredAt: item.delivered_at,
+      clientStatus: item.client_status ?? null,
+      clientFeedback: item.client_feedback ?? null,
+      clientReviewedAt: item.client_reviewed_at ?? null,
       url: download.ok ? download.url : null,
     };
   }));
 
   const generated = new Date().toISOString();
+  const clientApproved = rows.filter((row) => row.clientStatus === "approved").length;
+  const revisionRequested = rows.filter((row) => row.clientStatus === "revision_requested").length;
+  const awaitingClient = rows.length - clientApproved - revisionRequested;
   const jobRows = project.job as unknown as Array<{ title?: string | null; location?: string | null }> | { title?: string | null; location?: string | null } | null;
   const job = Array.isArray(jobRows) ? jobRows[0] : jobRows;
   const missionTitle = job?.title ?? "—";
@@ -64,14 +70,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     `Processing completed: ${project.processing_completed_at ?? "—"}`,
     `Manifest generated: ${generated}`,
     "",
-    `APPROVED DELIVERABLES (${rows.length})`,
+    `QC-APPROVED DELIVERABLES (${rows.length})`,
+    `Client approved: ${clientApproved}`,
+    `Awaiting client review: ${awaitingClient}`,
+    `Revision requested: ${revisionRequested}`,
+    "",
     ...rows.flatMap((row, index) => [
       `${index + 1}. ${row.name}`,
       `   Type: ${row.type}`,
+      `   Client review: ${row.clientStatus ? titleCase(row.clientStatus) : "Awaiting Review"}`,
+      ...(row.clientReviewedAt ? [`   Reviewed: ${row.clientReviewedAt}`] : []),
+      ...(row.clientFeedback ? [`   Client note: ${row.clientFeedback}`] : []),
       `   Download: ${row.url ?? "Unavailable"}`,
     ]),
     "",
     "Files listed here passed DOM QC at the time this manifest was generated.",
+    "Client review status reflects the latest recorded approval or revision decision in DOM at manifest generation time.",
     "Download links are short-lived and may expire. Return to DOMINIC to generate fresh links.",
     "Professional geospatial source files are preserved without burned-in visual watermarks.",
     "",

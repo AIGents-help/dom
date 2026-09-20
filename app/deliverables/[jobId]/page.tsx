@@ -13,6 +13,6 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function DeliverablesPage({ params }: Props) {
-  await params;
-  redirect("/client/login");
+  const { jobId } = await params;
+  redirect(`/client/login?returnTo=${encodeURIComponent(`/client?job=${jobId}`)}`);
 }

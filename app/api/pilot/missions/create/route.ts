@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const admin = getSupabaseAdmin();
     const { data: contractor } = await admin
       .from("contractors")
-      .select("id, can_create_missions")
+      .select("id, can_create_missions, insurance_verified, insurance_expires_on, uninsured_self_service_eligible")
       .eq("user_id", user.id)
       .maybeSingle();
 
@@ -43,6 +43,25 @@ export async function POST(req: NextRequest) {
         { error: "You're not yet approved to create your own missions." },
         { status: 403 }
       );
+    }
+
+    const personalInsuranceCurrent = !!contractor.insurance_verified
+      && !!contractor.insurance_expires_on
+      && new Date(`${contractor.insurance_expires_on}T23:59:59Z`).getTime() > Date.now();
+
+    if (!personalInsuranceCurrent) {
+      if (!contractor.uninsured_self_service_eligible) {
+        return NextResponse.json(
+          { error: "A current verified insurance policy or Admin-authorized uninsured self-service path is required." },
+          { status: 409 }
+        );
+      }
+      if (uninsuredAcknowledged !== true) {
+        return NextResponse.json(
+          { error: "Accept the per-mission uninsured responsibility acknowledgement before creating this mission." },
+          { status: 409 }
+        );
+      }
     }
 
     const body = await req.json();
@@ -64,6 +83,7 @@ export async function POST(req: NextRequest) {
       customDeliverables,
       customBaseCents,
       travelDistanceSource,
+      uninsuredAcknowledged,
     } = body;
 
     if (!clientName || !clientEmail || latitude == null || longitude == null || !serviceType) {
@@ -123,6 +143,8 @@ export async function POST(req: NextRequest) {
         warnings: quote.warnings,
         travelDistanceMiles: distanceMiles,
         travelDistanceSource,
+        uninsuredAcknowledged: !personalInsuranceCurrent && uninsuredAcknowledged === true,
+        uninsuredTermsVersion: "pilot-uninsured-responsibility-v1",
       },
     });
 

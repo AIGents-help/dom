@@ -42,6 +42,8 @@ export default function DominicDeliverySummary({ deliverables, projectId }: { de
   const clientApproved = deliverables.filter((item) => item.client_status === "approved").length;
   const revisionRequested = deliverables.filter((item) => item.client_status === "revision_requested").length;
   const clientPending = deliverables.filter((item) => item.qc_passed && !["approved", "revision_requested"].includes(item.client_status ?? "")).length;
+  const clientReviewed = clientApproved + revisionRequested;
+  const handoffComplete = qcPassed > 0 && clientApproved === qcPassed;
   const categories = new Set(deliverables.map((item) => item.type).filter(Boolean));
 
   return (
@@ -65,11 +67,19 @@ export default function DominicDeliverySummary({ deliverables, projectId }: { de
 
       {qcPassed > 0 ? (
         <div style={{ marginTop: 13, border: `1px solid ${revisionRequested ? V.warn : V.line}`, borderRadius: 10, padding: 11, background: "#0B1117" }}>
-          <div className="font-mono-ibm" style={{ color: V.inkFaint, fontSize: 9, textTransform: "uppercase", letterSpacing: ".08em" }}>Client Handoff</div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+            <div className="font-mono-ibm" style={{ color: V.inkFaint, fontSize: 9, textTransform: "uppercase", letterSpacing: ".08em" }}>Client Handoff</div>
+            <span className="font-mono-ibm" style={{ color: handoffComplete ? V.telemetry : revisionRequested ? V.warn : V.inkDim, fontSize: 9 }}>
+              {handoffComplete ? "HANDOFF COMPLETE" : revisionRequested ? "ACTION REQUIRED" : clientReviewed > 0 ? "IN REVIEW" : "AWAITING REVIEW"}
+            </span>
+          </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 7, fontSize: 11 }}>
             <span style={{ color: V.inkDim }}>{clientPending} awaiting client review</span>
             <span style={{ color: V.telemetry }}>{clientApproved} approved</span>
             {revisionRequested > 0 ? <span style={{ color: V.warn }}>{revisionRequested} revision requested</span> : null}
+          </div>
+          <div style={{ marginTop: 9, height: 4, borderRadius: 999, background: V.line, overflow: "hidden" }}>
+            <div style={{ width: `${qcPassed ? Math.round((clientReviewed / qcPassed) * 100) : 0}%`, height: "100%", background: handoffComplete ? V.telemetry : revisionRequested ? V.warn : V.signal }} />
           </div>
           {revisionRequested > 0 ? (
             <div style={{ marginTop: 9, display: "grid", gap: 6 }}>

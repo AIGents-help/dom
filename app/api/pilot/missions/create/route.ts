@@ -95,10 +95,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (serviceType === "custom" && (
-      !customMissionTitle?.trim() || !customMissionScope?.trim() ||
-      !customDeliverables?.trim() || !Number.isFinite(customBaseCents) || customBaseCents <= 0
+      !customMissionTitle?.trim() || !customMissionScope?.trim()
     )) {
-      return NextResponse.json({ error: "Custom missions require a title, scope, deliverables, and base price." }, { status: 400 });
+      return NextResponse.json({ error: "Custom missions require a title and mission objective." }, { status: 400 });
     }
 
     const airspaceResult = await classifyAirspace(latitude, longitude);
@@ -109,7 +108,7 @@ export async function POST(req: NextRequest) {
       siteComplexity: siteComplexity ?? "simple",
       urgency: urgency ?? "standard",
       deliverableTier: deliverableTier ?? "standard",
-      customBaseCents: serviceType === "custom" ? customBaseCents : undefined,
+      customBaseCents: serviceType === "custom" && Number.isFinite(customBaseCents) && customBaseCents > 0 ? customBaseCents : undefined,
     };
     const quote = calculateQuote(quoteInput);
 
@@ -129,7 +128,7 @@ export async function POST(req: NextRequest) {
       p_service_type: serviceType,
       p_airspace_class: airspaceResult.airspace_class,
       p_scope: serviceType === "custom"
-        ? `${customMissionTitle.trim()}\n\nScope:\n${customMissionScope.trim()}\n\nDeliverables:\n${customDeliverables.trim()}${clientPhone ? `\n\nClient phone: ${clientPhone}` : ""}\n\nTravel: ${distanceMiles} one-way driving miles (${travelDistanceSource === "pilot_google_maps_verified" ? "pilot verified in Google Maps" : "unverified"})`
+        ? `${customMissionTitle.trim()}\n\nObjective:\n${customMissionScope.trim()}\n\nDeliverables:\n${customDeliverables?.trim() || "DOM to determine appropriate deliverables from the mission objective and selected deliverable tier."}${clientPhone ? `\n\nClient phone: ${clientPhone}` : ""}\n\nTravel: ${distanceMiles} one-way driving miles (${travelDistanceSource === "pilot_google_maps_verified" ? "pilot verified in Google Maps" : "unverified"})`
         : `${clientPhone ? `Phone: ${clientPhone}\n\n` : ""}Travel: ${distanceMiles} one-way driving miles (${travelDistanceSource === "pilot_google_maps_verified" ? "pilot verified in Google Maps" : "unverified"})`,
       p_quote: {
         basePriceCents: quote.basePriceCents,

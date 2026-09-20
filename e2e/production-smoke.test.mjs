@@ -68,6 +68,17 @@ test("homepage exposes the approved DOMINIC layout", async () => {
   await page.close();
 });
 
+test("deployment build identity is uncached and available", async () => {
+  const context = await browser.newContext();
+  const response = await context.request.get(`${baseURL}/api/build`, { failOnStatusCode: false });
+  assert.equal(response.status(), 200);
+  const body = await response.json();
+  assert.ok(body.buildId, "build endpoint should expose a deployment identity");
+  const cacheControl = response.headers()["cache-control"] ?? "";
+  assert.match(cacheControl, /no-store/i, "build identity must never be cached");
+  await context.close();
+});
+
 test("privileged workflow APIs reject anonymous callers", async () => {
   const context = await browser.newContext();
   const checks = [

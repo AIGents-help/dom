@@ -121,6 +121,13 @@ export async function POST(req: NextRequest) {
       customBaseCents: serviceType === "custom" && Number.isFinite(customBaseCents) && customBaseCents > 0 ? customBaseCents : undefined,
     };
     const referenceQuote = calculateQuote(quoteInput);
+    if (!referenceQuote.canOperate) {
+      return NextResponse.json(
+        { error: referenceQuote.warnings[0] ?? "This mission cannot be operated at the selected location." },
+        { status: 409 }
+      );
+    }
+
     const isNoCharge = billingMode === "no_charge";
     const quote = isNoCharge
       ? {

@@ -2,8 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight, Map, Radio, Database, Camera, Thermometer, ClipboardCheck, ShieldCheck, CheckCircle2 } from "lucide-react";
 import DominicComingSoon from "@/components/DominicComingSoon";
-import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
-import DominicMascotImage from "@/components/dominic/DominicMascotImage";
 
 const services = [
   { icon: Map, title: "Mapping & Surveying", copy: "Orthomosaics, 3D models, point clouds, and measurable site intelligence.", image: "/images/construction-aerial.jpg", href: "/services/mapping-surveying" },
@@ -34,43 +32,46 @@ export default function HomePage() {
           <div className="grid w-full gap-12 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
             <div className="max-w-4xl">
               <div className="mb-6 inline-flex items-center gap-3 rounded-full border border-white/15 bg-black/25 px-4 py-2 text-xs font-black uppercase tracking-[.2em] text-white backdrop-blur">
-                <span className="h-2 w-2 rounded-full bg-accent" /> Drone Operation Management · DOMINIC
+                <span className="h-2 w-2 rounded-full bg-accent" /> Professional Drone Operations
               </div>
               <h1 className="text-5xl font-black leading-[.95] tracking-tight text-white sm:text-6xl lg:text-7xl xl:text-8xl">
-                Drone operations.
-                <span className="block text-accent">Uniquely Sophisticated.</span>
+                Higher insights.
+                <span className="block text-accent">Real results.</span>
               </h1>
               <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300 lg:text-xl">
-                One operating platform from mission request to final delivery. Plan, fly, document, process, measure, analyze, and deliver — with DOMINIC bringing intelligent mapping and data workflows directly into DOM.
+                Professional drone operations for inspection, mapping, construction, real estate, infrastructure, and more — planned, flown, processed, and delivered through one accountable workflow.
               </p>
               <div className="mt-9 flex flex-wrap gap-4">
                 <Link href="/request-mission" className="inline-flex items-center gap-2 rounded-lg bg-accent px-7 py-4 text-sm font-black text-white transition hover:bg-accent-dim">Request a Mission <ArrowRight className="h-4 w-4" /></Link>
-                <Link href="/dominic" className="inline-flex items-center gap-2 rounded-lg border border-accent/60 bg-black/30 px-7 py-4 text-sm font-black text-white backdrop-blur transition hover:bg-accent/10">Meet DOMINIC <ArrowRight className="h-4 w-4" /></Link>
+                <Link href="/services" className="inline-flex items-center gap-2 rounded-lg border border-white/25 bg-black/30 px-7 py-4 text-sm font-black text-white backdrop-blur transition hover:border-accent/70 hover:bg-white/10">Explore Services <ArrowRight className="h-4 w-4" /></Link>
+              </div>
+              <div className="mt-10 grid max-w-2xl gap-3 sm:grid-cols-3">
+                {[
+                  ["Safety First", "Structured operations"],
+                  ["Decision-Ready", "Usable deliverables"],
+                  ["FAA Part 107", "Professional pilots"],
+                ].map(([title, copy]) => (
+                  <div key={title} className="border-l-2 border-accent pl-4">
+                    <p className="text-sm font-black text-white">{title}</p>
+                    <p className="mt-1 text-xs text-slate-400">{copy}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
-            <div className="grid min-h-[470px] overflow-hidden rounded-3xl border border-white/10 bg-[#111923] shadow-2xl sm:grid-cols-[.82fr_1.18fr]">
-              <div className="relative min-h-[390px] sm:min-h-[470px]">
-                <Image src="/images/drone-operation-safety.png" alt="Professional drone operation safety perimeter" fill priority sizes="(max-width: 1024px) 100vw, 21vw" className="object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent" />
-                <div className="absolute left-4 top-4 rounded-full border border-white/20 bg-black/60 px-3 py-2 text-[9px] font-black uppercase tracking-[.16em] text-white backdrop-blur">Safety-First Operations</div>
-                <div className="absolute inset-x-0 bottom-0 p-5">
-                  <h2 className="text-xl font-black text-white">Professional work zones. Professional missions.</h2>
-                  <p className="mt-2 text-xs leading-5 text-slate-300">Planning, safety, and documentation are part of the operation.</p>
-                </div>
+            <div className="relative min-h-[470px] overflow-hidden rounded-3xl border border-white/10 bg-[#111923] shadow-2xl">
+              <Image src="/images/drone-operation-safety.png" alt="Professional drone operation with a managed safety perimeter" fill priority sizes="(max-width: 1024px) 100vw, 45vw" className="object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#07111c] via-[#07111c]/35 to-transparent" />
+              <div className="absolute left-5 top-5 rounded-full border border-white/20 bg-black/65 px-4 py-2 text-[10px] font-black uppercase tracking-[.16em] text-white backdrop-blur">
+                Safety-First Operations
               </div>
-
-              <div className="relative min-h-[390px] overflow-hidden bg-[radial-gradient(circle_at_50%_22%,rgba(244,90,30,.22),transparent_34%),#090D11] sm:min-h-[470px]">
-                <div className="absolute inset-x-4 top-4 bottom-[175px] sm:bottom-[190px]">
-                  <DominicMascotImage priority className="object-contain object-top" />
-                </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/15 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 z-10 p-5">
-                  <div className="rounded-2xl border border-[#F45A1E]/40 bg-black/80 p-4 backdrop-blur-md">
-                    <p className="text-[9px] font-black uppercase tracking-[.18em] text-[#F45A1E]">DOMINIC · Coming Soon</p>
-                    <div className="mt-2"><DominicBrandLockup size="sm" /></div>
-                    <p className="mt-3 text-sm leading-5 text-slate-200">Intelligent mapping, 3D reconstruction, measurements, analysis, revision-aware QC, and professional deliverables — connected to the mission instead of scattered across separate software.</p>
-                    <Link href="/pilot/login" className="mt-4 inline-flex items-center gap-2 text-xs font-black text-[#F45A1E]">Meet DOMINIC <ArrowRight className="h-3.5 w-3.5" /></Link>
+              <div className="absolute inset-x-0 bottom-0 p-6 lg:p-8">
+                <div className="max-w-xl rounded-2xl border border-white/10 bg-black/65 p-5 backdrop-blur-md">
+                  <p className="text-[10px] font-black uppercase tracking-[.18em] text-accent">Drone Operation Management</p>
+                  <h2 className="mt-2 text-2xl font-black text-white">The flight is only one part of the mission.</h2>
+                  <p className="mt-3 text-sm leading-6 text-slate-300">DOM combines planning, airspace review, field execution, processing, quality control, and delivery so clients receive usable results — not just a folder of aerial images.</p>
+                  <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold text-white/90">
+                    <span>Plan</span><span className="text-accent">•</span><span>Fly</span><span className="text-accent">•</span><span>Process</span><span className="text-accent">•</span><span>Deliver</span>
                   </div>
                 </div>
               </div>
@@ -92,6 +93,18 @@ export default function HomePage() {
               <p className="mt-2 text-sm font-bold text-white/90 lg:text-base">{value}</p>
             </div>
           ))}
+        </div>
+      </section>
+
+      <section className="container-app py-16 lg:py-20">
+        <div className="grid gap-8 rounded-3xl border border-white/10 bg-[#0E151E] p-7 lg:grid-cols-[.9fr_1.1fr] lg:items-center lg:p-10">
+          <div>
+            <p className="eyebrow mb-4">One Operating Standard</p>
+            <h2 className="text-3xl font-black tracking-tight text-white lg:text-4xl">Built around the mission objective — not the drone.</h2>
+          </div>
+          <p className="text-base leading-7 text-slate-400">
+            Aircraft, sensors, software, pilots, capture methods, and deliverables are selected around what the client needs to inspect, measure, document, understand, or communicate.
+          </p>
         </div>
       </section>
 

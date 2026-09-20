@@ -30,6 +30,17 @@ jobs:
           echo "Production did not expose the updated DOMINIC homepage layout within 10 minutes."
           exit 1
 
+      - name: Verify approved DOMINIC mascot asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset="https://droneopsman.com/brand/dominic-mascot.webp"
+          headers="$(curl -fsSI --max-time 20 "$asset")"
+          printf '%s' "$headers" | grep -qi '^content-type: image/webp'
+          bytes="$(curl -fsSL --max-time 20 "$asset" | wc -c | tr -d ' ')"
+          test "$bytes" -gt 1000
+          echo "DOMINIC mascot asset is live ($bytes bytes)."
+
       - name: Verify DOMINIC route responds
         shell: bash
         run: |

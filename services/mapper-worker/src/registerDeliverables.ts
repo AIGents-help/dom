@@ -47,11 +47,25 @@ export async function registerDeliverable(
   processingJobId: string,
   potree?: PotreeLocation
 ): Promise<void> {
-  const { error } = await supabaseAdmin
+  const { data: previousRevision } = await supabaseAdmin
+    .from("deliverables")
+    .select("id, revision_number, client_status")
+    .eq("job_id", jobId)
+    .eq("type", output.type)
+    .eq("client_status", "revision_requested")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const revisionNumber = previousRevision ? Math.max(2, Number(previousRevision.revision_number ?? 1) + 1) : 1;
+
+  const { data: registered, error } = await supabaseAdmin
     .from("deliverables")
     .upsert(
       {
         job_id: jobId,
+        supersedes_deliverable_id: previousRevision?.id ?? null,
+        revision_number: revisionNumber,
         name: `${projectName} — ${TYPE_LABEL[output.type]}`,
         type: output.type,
         storage_url: location.provider === "supabase" ? location.storagePath : null,
@@ -61,8 +75,21 @@ export async function registerDeliverable(
         ...(potree ? { potree } : {}),
       },
       { onConflict: "mapping_processing_job_id,type", ignoreDuplicates: true }
-    );
+    )
+    .select("id, supersedes_deliverable_id")
+    .maybeSingle();
   if (error) throw new Error(`Failed to register deliverable (${output.type}): ${error.message}`);
+
+  if (previousRevision && registered?.id) {
+    const { error: supersedeError } = await supabaseAdmin
+      .from("deliverables")
+      .update({ client_status: "superseded" })
+      .eq("id", previousRevision.id)
+      .eq("client_status", "revision_requested");
+    if (supersedeError) {
+      console.warn(`[registerDeliverables] Corrected output registered but prior revision status was not updated: ${supersedeError.message}`);
+    }
+  }
 }
 
 // Lets processJob skip uploading an output it has already registered for

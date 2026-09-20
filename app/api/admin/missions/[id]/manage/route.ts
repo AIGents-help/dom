@@ -78,9 +78,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // until the correction itself passes DOM QC. This keeps the prior version
     // active and auditable throughout processing and quality review.
     if (passed && deliverable.supersedes_deliverable_id) {
+      const { data: predecessor, error: predecessorError } = await auth.admin.from("deliverables")
+        .select("id,client_status")
+        .eq("id", deliverable.supersedes_deliverable_id)
+        .eq("job_id", job.id)
+        .maybeSingle();
+      if (predecessorError || !predecessor || !["revision_requested", "superseded"].includes(predecessor.client_status ?? "")) {
+        await auth.admin.from("deliverables").update({ qc_passed: false, delivered_at: null }).eq("id", deliverable.id);
+        return NextResponse.json({ error: "Corrected deliverable could not complete its revision handoff" }, { status: 500 });
+      }
+
+      // Retrying an already completed QC handoff must be a no-op. In
+      // particular, never roll the corrected revision back just because its
+      // predecessor was already superseded by the first successful request.
+      if (predecessor.client_status === "superseded") {
+        return NextResponse.json({ ok: true });
+      }
+
       const { data: priorRevision, error: supersedeError } = await auth.admin.from("deliverables")
         .update({ client_status: "superseded" })
-        .eq("id", deliverable.supersedes_deliverable_id)
+        .eq("id", predecessor.id)
         .eq("job_id", job.id)
         .eq("client_status", "revision_requested")
         .select("id")

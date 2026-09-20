@@ -60,6 +60,7 @@ export default function DominicApp() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState("Projects");
   const [showProjectsSignal, setShowProjectsSignal] = useState(0);
+  const [newProjectSignal, setNewProjectSignal] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [compactViewport, setCompactViewport] = useState(false);
@@ -74,6 +75,14 @@ export default function DominicApp() {
     const onFullscreen = () => setFullscreen(Boolean(document.fullscreenElement));
     document.addEventListener("fullscreenchange", onFullscreen);
     return () => document.removeEventListener("fullscreenchange", onFullscreen);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") === "1") {
+      setNewProjectSignal((value) => value + 1);
+      window.history.replaceState({}, "", "/dominic");
+    }
   }, []);
 
   useEffect(() => {
@@ -391,6 +400,7 @@ export default function DominicApp() {
                   accessToken={accessToken}
                   focusModule={activeModule}
                   showProjectsSignal={showProjectsSignal}
+                  newProjectSignal={newProjectSignal}
                   onProjectChange={handleProjectChange}
                   online={online}
                 />

@@ -16,6 +16,10 @@ import {
   Sparkles,
   Square,
   Type,
+  Download,
+  FileText,
+  Mountain,
+  Columns3,
 } from "lucide-react";
 import { V } from "./theme";
 import MappingResults from "./MappingResults";
@@ -55,6 +59,7 @@ export default function DominicWorkbench({
   const [toolSet, setToolSet] = useState("General");
   const [layersOpen, setLayersOpen] = useState(true);
   const [requestedLayer, setRequestedLayer] = useState<string | null>(null);
+  const [viewerMode, setViewerMode] = useState<"map" | "3d" | "elevation" | "compare">("map");
 
   const available = useMemo(() => {
     const types = new Set(deliverables.map((d) => d.type).filter(Boolean));
@@ -93,10 +98,47 @@ export default function DominicWorkbench({
         </aside>
 
         <main style={{ minWidth: 0, background: "#080C10", padding: 10 }}>
-          <div style={{ minHeight: 36, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.inkDim, fontSize: 11 }}>
-              <Crosshair size={14} color={V.signal} />
-              <span>{activeTool === "select" ? "Navigate the map" : `${tools.find((tool) => tool.id === activeTool)?.label} tool selected`}</span>
+          <div style={{ minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8, borderBottom: `1px solid ${V.line}`, paddingBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              {[
+                { id: "map" as const, label: "Map View", icon: Map, layer: "orthomosaic" },
+                { id: "3d" as const, label: "3D View", icon: Box, layer: "3d_model" },
+                { id: "elevation" as const, label: "Elevation", icon: Mountain, layer: available.find((layer) => layer.label === "DTM" && layer.ready) ? "dtm" : "dsm" },
+                { id: "compare" as const, label: "Compare", icon: Columns3, layer: null },
+              ].map((view) => {
+                const active = viewerMode === view.id;
+                const ready = view.id === "compare" ? available.filter((layer) => layer.ready).length >= 2 : available.some((layer) => layer.types.includes(view.layer ?? "") && layer.ready);
+                return (
+                  <button
+                    key={view.id}
+                    disabled={!ready}
+                    onClick={() => {
+                      setViewerMode(view.id);
+                      if (view.layer) setRequestedLayer(view.layer);
+                    }}
+                    title={view.id === "compare" ? "Comparison workspace is being prepared" : ready ? view.label : `${view.label} output is not available yet`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      border: 0,
+                      borderBottom: active ? `2px solid ${V.signal}` : "2px solid transparent",
+                      background: "transparent",
+                      padding: "6px 8px",
+                      color: active ? V.ink : ready ? V.inkDim : V.inkFaint,
+                      fontSize: 10,
+                      fontWeight: active ? 800 : 600,
+                      cursor: ready ? "pointer" : "default",
+                    }}
+                  >
+                    <view.icon size={13} />{view.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.inkDim, fontSize: 10 }}>
+              <Crosshair size={13} color={V.signal} />
+              <span>{activeTool === "select" ? "Navigate" : `${tools.find((tool) => tool.id === activeTool)?.label} selected`}</span>
             </div>
             <select
               value={toolSet}
@@ -107,10 +149,10 @@ export default function DominicWorkbench({
               {["General", "Roof", "Solar", "Construction", "Infrastructure", "Property", "Thermal"].map((set) => <option key={set}>{set}</option>)}
             </select>
           </div>
-          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} requestedLayer={requestedLayer} />
+          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} requestedLayer={requestedLayer} viewerMode={viewerMode} />
         </main>
 
-        <aside style={{ borderLeft: `1px solid ${V.line}`, background: "#0B1016", padding: 12 }}>
+        <aside style={{ borderLeft: `1px solid ${V.line}`, background: "#0B1016", padding: 12, display: "flex", flexDirection: "column" }}>
           <button
             onClick={() => setLayersOpen((open) => !open)}
             style={{ width: "100%", border: 0, background: "transparent", color: V.ink, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", padding: 0 }}
@@ -129,7 +171,12 @@ export default function DominicWorkbench({
                   disabled={!layer.ready}
                   onClick={() => {
                     const layerType = layer.types.find((type) => deliverables.some((d) => d.type === type));
-                    if (layerType) setRequestedLayer(layerType);
+                    if (layerType) {
+                      setRequestedLayer(layerType);
+                      if (layerType === "3d_model" || layerType === "point_cloud") setViewerMode("3d");
+                      else if (layerType === "dsm" || layerType === "dtm") setViewerMode("elevation");
+                      else setViewerMode("map");
+                    }
                   }}
                   style={{
                     border: requestedLayer && layer.types.includes(requestedLayer) ? `1px solid ${V.signal}` : "1px solid transparent",
@@ -169,6 +216,20 @@ export default function DominicWorkbench({
           >
             <Sparkles size={14} color={V.signal} /> Auto Markup
           </button>
+
+          <div style={{ marginTop: "auto", paddingTop: 18 }}>
+            <div style={{ borderTop: `1px solid ${V.line}`, paddingTop: 12 }}>
+              <div style={{ color: V.inkFaint, fontSize: 9, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 8 }}>Project Output</div>
+              <div style={{ display: "grid", gap: 6 }}>
+                <a href={`/dominic/report/${projectId}`} style={{ textDecoration: "none", border: `1px solid ${V.line}`, background: "#121922", color: V.ink, borderRadius: 8, padding: "8px 9px", display: "flex", alignItems: "center", gap: 7, fontSize: 10, fontWeight: 700 }}>
+                  <FileText size={13} color={V.signal} /> Project Report
+                </a>
+                <div style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.inkDim, borderRadius: 8, padding: "8px 9px", display: "flex", alignItems: "center", gap: 7, fontSize: 10 }}>
+                  <Download size={13} color={V.telemetry} /> Deliverables below
+                </div>
+              </div>
+            </div>
+          </div>
         </aside>
       </div>
     </div>

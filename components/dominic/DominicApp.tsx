@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Activity,
@@ -10,20 +10,20 @@ import {
   FolderKanban,
   Layers3,
   Map,
-  MapPinned,
   Ruler,
   Settings,
   Sparkles,
-  UploadCloud,
+  LogOut,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import MappingTab from "@/components/mapper/MappingTab";
+import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
+import DominicMascotImage from "@/components/dominic/DominicMascotImage";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
 const BG = "#090D11";
 const PANEL = "#10161D";
-const PANEL_2 = "#151C24";
 const LINE = "#25303B";
 const TEXT = "#F5F7FA";
 const MUTED = "#8F9CAA";
@@ -51,6 +51,14 @@ export default function DominicApp() {
   const router = useRouter();
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [activeModule, setActiveModule] = useState("Projects");
+  const [showProjectsSignal, setShowProjectsSignal] = useState(0);
+
+  const handleProjectChange = useCallback((projectId: string | null) => {
+    setActiveProjectId(projectId);
+    setActiveModule(projectId ? "Map Viewer" : "Projects");
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -98,34 +106,38 @@ export default function DominicApp() {
           zIndex: 40,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 280 }}>
-          <Image src="/brand/dom-propeller-3fin.png" alt="DOM propeller" width={52} height={52} priority />
-          <div>
-            <div style={{ fontFamily: "Saira, Inter, sans-serif", fontWeight: 800, fontSize: 28, letterSpacing: ".03em", lineHeight: 1 }}>
-              DOM<span style={{ color: ORANGE }}>INIC</span>
-            </div>
-            <div style={{ color: MUTED, fontSize: 10, letterSpacing: ".22em", marginTop: 5 }}>INTELLIGENT MAPPING BY DOM</div>
-          </div>
+        <div style={{ minWidth: 280 }}>
+          <DominicBrandLockup size="md" />
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 22, color: "#E8EDF2", fontSize: 15, whiteSpace: "nowrap" }}>
           <span>Map</span><span>Measure</span><span>Analyze</span><span>Deliver</span>
         </div>
 
-        <button
-          onClick={() => router.push("/pilot")}
-          style={{
-            border: `1px solid ${LINE}`,
-            background: PANEL,
-            color: TEXT,
-            borderRadius: 10,
-            padding: "10px 14px",
-            cursor: "pointer",
-            fontWeight: 700,
-          }}
-        >
-          Back to DOM
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ textAlign: "right", lineHeight: 1.15 }}>
+            <div style={{ color: TEXT, fontSize: 12, fontWeight: 800 }}>DOM Pilot Workspace</div>
+            <div style={{ color: MUTED, fontSize: 9, letterSpacing: ".08em", marginTop: 3 }}>DRONE OPERATION MANAGEMENT</div>
+          </div>
+          <button
+            onClick={() => router.push("/pilot")}
+            aria-label="Exit DOMINIC and return to DOM pilot workspace"
+            style={{
+              border: `1px solid ${LINE}`,
+              background: PANEL,
+              color: TEXT,
+              borderRadius: 10,
+              padding: "9px 12px",
+              cursor: "pointer",
+              fontWeight: 800,
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+            }}
+          >
+            <LogOut size={15} /> Exit DOMINIC
+          </button>
+        </div>
       </header>
 
       <div style={{ display: "grid", gridTemplateColumns: "220px minmax(0, 1fr)", minHeight: "calc(100vh - 78px)" }}>
@@ -141,46 +153,58 @@ export default function DominicApp() {
             overflowY: "auto",
           }}
         >
-          <button
+          <div
             style={{
-              width: "100%",
-              border: "none",
-              background: `linear-gradient(90deg, ${ORANGE_DARK}, ${ORANGE})`,
-              color: "#160A02",
-              borderRadius: 10,
-              padding: "12px 14px",
-              fontWeight: 900,
-              cursor: "default",
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
               marginBottom: 14,
+              padding: "8px 10px",
+              color: ORANGE,
+              fontSize: 10,
+              fontWeight: 900,
+              letterSpacing: ".16em",
+              textTransform: "uppercase",
             }}
           >
-            <MapPinned size={18} /> Mapping Workspace
-          </button>
+            Project Workspace
+          </div>
 
           <nav style={{ display: "grid", gap: 4 }}>
-            {nav.map(({ label, icon: Icon }, index) => (
-              <div
+            {nav.map(({ label, icon: Icon }) => {
+              const projectRequired = label !== "Projects";
+              const disabled = projectRequired && !activeProjectId;
+              const active = activeModule === label;
+              return (
+              <button
                 key={label}
-                title={index === 0 ? "Active workspace" : "DOMINIC module — being connected in upcoming passes"}
+                type="button"
+                disabled={disabled}
+                title={disabled ? "Open a DOMINIC project first" : label}
+                onClick={() => {
+                  if (disabled) return;
+                  setActiveModule(label);
+                  if (label === "Projects") setShowProjectsSignal((value) => value + 1);
+                }}
                 style={{
                   display: "flex",
                   alignItems: "center",
                   gap: 11,
                   borderRadius: 9,
                   padding: "10px 11px",
-                  color: index === 0 ? TEXT : "#A7B2BE",
-                  background: index === 0 ? PANEL_2 : "transparent",
-                  border: index === 0 ? `1px solid ${LINE}` : "1px solid transparent",
+                  color: active ? "#160A02" : disabled ? "#596573" : "#A7B2BE",
+                  background: active ? `linear-gradient(90deg, ${ORANGE_DARK}, ${ORANGE})` : "transparent",
+                  border: active ? "1px solid rgba(244,90,30,.7)" : "1px solid transparent",
+                  fontWeight: active ? 900 : 500,
+                  width: "100%",
+                  textAlign: "left",
+                  cursor: disabled ? "default" : "pointer",
+                  opacity: disabled ? .55 : 1,
                   fontSize: 13,
                 }}
               >
-                <Icon size={17} color={index === 0 ? ORANGE : "#798694"} />
+                <Icon size={17} color={active ? "#160A02" : disabled ? "#596573" : "#798694"} />
                 {label}
-              </div>
-            ))}
+              </button>
+              );
+            })}
           </nav>
 
           <div style={{ marginTop: 18, borderTop: `1px solid ${LINE}`, paddingTop: 14 }}>
@@ -201,18 +225,12 @@ export default function DominicApp() {
             }}
           >
             <div style={{ position: "relative", aspectRatio: "1 / 1", width: "100%", overflow: "hidden" }}>
-              <Image
-                src="/brand/dominic-mascot.webp"
-                alt="DOMINIC mascot"
-                fill
-                sizes="190px"
-                style={{ objectFit: "cover", objectPosition: "center" }}
-              />
+              <DominicMascotImage className="object-cover object-[48%_32%]" />
               <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 55%, rgba(9,13,17,.92) 100%)" }} />
             </div>
             <div style={{ padding: "0 12px 14px", marginTop: -16, position: "relative" }}>
-              <div style={{ fontFamily: "Saira, sans-serif", fontSize: 18, fontWeight: 800 }}>
-                DOM<span style={{ color: ORANGE }}>INIC</span>
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                <DominicBrandLockup size="sm" showTagline={false} compact />
               </div>
               <div style={{ color: MUTED, fontSize: 11, marginTop: 4 }}>Same Perspective. Higher Purpose.</div>
             </div>
@@ -267,39 +285,24 @@ export default function DominicApp() {
             ))}
           </section>
 
-          <section style={{ padding: 18 }}>
+          <section style={{ padding: "12px 14px 18px" }}>
             <div
               style={{
                 border: `1px solid ${LINE}`,
-                borderRadius: 14,
+                borderRadius: 12,
                 background: PANEL,
-                minHeight: "calc(100vh - 190px)",
+                minHeight: "calc(100vh - 170px)",
                 boxShadow: "0 24px 80px rgba(0,0,0,.24)",
                 overflow: "hidden",
               }}
             >
-              <div
-                style={{
-                  padding: "12px 16px",
-                  borderBottom: `1px solid ${LINE}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  background: "#111820",
-                }}
-              >
-                <div>
-                  <div style={{ fontFamily: "Saira, sans-serif", fontSize: 17, fontWeight: 800 }}>DOMINIC Workspace</div>
-                  <div style={{ color: MUTED, fontSize: 11, marginTop: 2 }}>Mission-linked projects, processing, measurements, analysis and deliverables.</div>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: MUTED }}>
-                  <UploadCloud size={16} color={ORANGE} />
-                  Map · Measure · Analyze · Deliver
-                </div>
-              </div>
-
-              <div style={{ padding: 18, color: TEXT, background: "#0B1117", minHeight: 620 }}>
-                <MappingTab accessToken={accessToken} />
+              <div style={{ padding: "12px 14px", color: TEXT, background: "#0B1117", minHeight: 680 }}>
+                <MappingTab
+                  accessToken={accessToken}
+                  focusModule={activeModule}
+                  showProjectsSignal={showProjectsSignal}
+                  onProjectChange={handleProjectChange}
+                />
               </div>
             </div>
           </section>

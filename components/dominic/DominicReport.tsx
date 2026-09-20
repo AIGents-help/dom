@@ -1,10 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Printer } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 
 interface Measurement {
   id: string;
@@ -106,13 +106,9 @@ export default function DominicReport({ projectId }: { projectId: string }) {
         </div>
         <header style={{ position: "relative", zIndex: 1, background: "#090D11", color: "#fff", padding: "28px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 20 }}>
           <div>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <Image src="/brand/dom-propeller-3fin.png" alt="DOM" width={48} height={48} />
-              <div>
-                <div style={{ fontSize: 25, fontWeight: 900, letterSpacing: ".03em" }}>DOM<span style={{ color: "#F45A1E" }}>INIC</span></div>
-                <div style={{ fontSize: 9, letterSpacing: ".18em", color: "#9AA6B2" }}>INTELLIGENT MAPPING BY DOM</div>
-                <div style={{ fontSize: 9, marginTop: 4, color: "#F45A1E", fontWeight: 800 }}>UNIQUELY SOPHISTICATED</div>
-              </div>
+            <div>
+              <DominicBrandLockup size="sm" />
+              <div style={{ fontSize: 9, marginTop: 6, color: "#F45A1E", fontWeight: 800 }}>UNIQUELY SOPHISTICATED</div>
             </div>
             <h1 style={{ margin: "24px 0 0", fontSize: 30 }}>{project.name}</h1>
             <p style={{ margin: "6px 0 0", color: "#BAC4CE" }}>{project.job?.title ?? "DOM Mission"} · {project.location_snapshot ?? project.job?.location ?? "Location not supplied"}</p>

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Image from "next/image";
+import DominicMascotImage from "@/components/dominic/DominicMascotImage";
+import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 import { ArrowRight, Plus, ScanLine, Sparkles } from "lucide-react";
 import { V, panelStyle, btnPrimary, statusPillStyle } from "./theme";
 import { MAPPING_PROJECT_STATUS_OPTIONS, MAPPING_PROJECT_STATUS_LABELS, formatProgress } from "@/lib/mapperPipeline";
@@ -72,10 +73,11 @@ export default function MappingProjectList({
           }}
         >
           <div>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 7, color: V.signal, fontSize: 11, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase" }}>
-              <Sparkles size={15} /> Intelligent Mapping
+            <div style={{ marginBottom: 12 }}><DominicBrandLockup size="sm" /></div>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 7, color: V.signal, fontSize: 10, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase" }}>
+              <Sparkles size={14} /> Map · Measure · Analyze · Deliver
             </div>
-            <h2 className="font-saira" style={{ marginTop: 10, fontSize: 27, lineHeight: 1.05, color: V.ink, fontWeight: 800 }}>
+            <h2 className="font-saira" style={{ marginTop: 9, fontSize: 27, lineHeight: 1.05, color: V.ink, fontWeight: 800 }}>
               Turn flight data into answers.
             </h2>
             <p style={{ marginTop: 8, color: V.inkDim, fontSize: 13, maxWidth: 560, lineHeight: 1.55 }}>
@@ -85,8 +87,8 @@ export default function MappingProjectList({
               <Plus size={16} /> New DOMINIC Project
             </button>
           </div>
-          <div style={{ width: 150, height: 150, position: "relative", flexShrink: 0, borderRadius: 18, overflow: "hidden", border: `1px solid ${V.line}`, boxShadow: "0 16px 40px rgba(0,0,0,.28)" }}>
-            <Image src="/brand/dominic-mascot.webp" alt="DOMINIC mascot" fill sizes="150px" style={{ objectFit: "cover" }} />
+          <div style={{ width: 176, height: 176, position: "relative", flexShrink: 0, borderRadius: 18, overflow: "hidden", border: `1px solid ${V.line}`, boxShadow: "0 16px 40px rgba(0,0,0,.28)" }}>
+            <DominicMascotImage className="object-cover object-[48%_32%]" />
           </div>
         </div>
 

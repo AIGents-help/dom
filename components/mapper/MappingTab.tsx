@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import MappingProjectList from "./MappingProjectList";
 import MappingProjectCreate from "./MappingProjectCreate";
 import MappingProjectWorkspace from "./MappingProjectWorkspace";
@@ -10,14 +10,20 @@ type View = { name: "list" } | { name: "create" } | { name: "workspace"; project
 // Top-level content for the "Mapping" PilotTab. Owns only view-switching
 // state — all data loading lives in the child components, same separation
 // used by the rest of app/pilot/page.tsx's tabs.
-export default function MappingTab({ accessToken }: { accessToken: string }) {
+export default function MappingTab({ accessToken, focusModule, onProjectChange, showProjectsSignal = 0 }: { accessToken: string; focusModule?: string | null; onProjectChange?: (projectId: string | null) => void; showProjectsSignal?: number }) {
   const [view, setView] = useState<View>({ name: "list" });
+
+  useEffect(() => {
+    if (showProjectsSignal === 0) return;
+    setView({ name: "list" });
+    onProjectChange?.(null);
+  }, [showProjectsSignal, onProjectChange]);
 
   if (view.name === "create") {
     return (
       <MappingProjectCreate
         accessToken={accessToken}
-        onCreated={(projectId) => setView({ name: "workspace", projectId })}
+        onCreated={(projectId) => { setView({ name: "workspace", projectId }); onProjectChange?.(projectId); }}
         onCancel={() => setView({ name: "list" })}
       />
     );
@@ -28,7 +34,8 @@ export default function MappingTab({ accessToken }: { accessToken: string }) {
       <MappingProjectWorkspace
         accessToken={accessToken}
         projectId={view.projectId}
-        onBack={() => setView({ name: "list" })}
+        focusModule={focusModule}
+        onBack={() => { setView({ name: "list" }); onProjectChange?.(null); }}
       />
     );
   }
@@ -36,7 +43,7 @@ export default function MappingTab({ accessToken }: { accessToken: string }) {
   return (
     <MappingProjectList
       accessToken={accessToken}
-      onOpenProject={(projectId) => setView({ name: "workspace", projectId })}
+      onOpenProject={(projectId) => { setView({ name: "workspace", projectId }); onProjectChange?.(projectId); }}
       onNewProject={() => setView({ name: "create" })}
     />
   );

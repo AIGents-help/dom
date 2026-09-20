@@ -1,5 +1,6 @@
-import Image from "next/image";
 import { Box, Layers3, MapPinned, Ruler, Sparkles } from "lucide-react";
+import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
+import DominicMascotImage from "@/components/dominic/DominicMascotImage";
 
 const features = [
   [MapPinned, "Orthomosaics", "Turn mission imagery into georeferenced site maps."],
@@ -15,13 +16,7 @@ export default function DominicComingSoon() {
         <div className="overflow-hidden rounded-3xl border border-[#F45A1E]/35 bg-[radial-gradient(circle_at_78%_8%,rgba(244,90,30,.20),transparent_30%),linear-gradient(135deg,#121922,#090D11)]">
           <div className="grid gap-8 p-7 lg:grid-cols-[.72fr_.9fr_1.08fr] lg:items-center lg:p-12">
             <div className="relative min-h-[360px] overflow-hidden rounded-2xl border border-white/10 bg-black/25">
-              <Image
-                src="/brand/dominic-mascot.webp"
-                alt="DOMINIC mapping software mascot"
-                fill
-                sizes="(max-width:1024px) 100vw, 28vw"
-                className="object-cover object-center"
-              />
+              <DominicMascotImage className="object-cover object-[48%_34%]" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-5">
                 <p className="text-sm font-black text-white">Same Perspective. Higher Purpose.</p>
@@ -33,15 +28,7 @@ export default function DominicComingSoon() {
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#F45A1E]/40 bg-[#F45A1E]/10 px-4 py-2 text-[11px] font-black uppercase tracking-[.2em] text-[#F45A1E]">
                 <Sparkles className="h-4 w-4" /> Coming to DOM
               </div>
-              <div className="flex items-center gap-4">
-                <Image src="/brand/dom-propeller-3fin.png" alt="DOM propeller" width={76} height={76} />
-                <div>
-                  <h2 className="text-4xl font-black tracking-tight text-white sm:text-5xl">
-                    DOM<span className="text-[#F45A1E]">INIC</span>
-                  </h2>
-                  <p className="mt-1 text-xs font-black uppercase tracking-[.2em] text-slate-400">Intelligent Mapping by DOM</p>
-                </div>
-              </div>
+              <DominicBrandLockup size="lg" />
               <h3 className="mt-8 text-3xl font-black leading-tight text-white lg:text-4xl">From captured imagery to client-ready intelligence. One platform.</h3>
               <p className="mt-5 max-w-xl text-base leading-7 text-slate-300">
                 DOMINIC is the mapping, photogrammetry and analysis environment being built directly into DOM — connecting the mission, pilot, processing, measurements, findings and final deliverables without breaking the workflow.

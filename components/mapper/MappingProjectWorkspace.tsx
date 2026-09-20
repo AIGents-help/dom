@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronLeft, ImageIcon, Layers3, UploadCloud } from "lucide-react";
+import { ChevronLeft, ImageIcon, Layers3, UploadCloud, CalendarDays, MapPin, Plane, CheckCircle2 } from "lucide-react";
 import { V, btnGhost, statusPillStyle } from "./theme";
 import { MAPPING_PROJECT_STATUS_LABELS, formatBytes, canUploadImages } from "@/lib/mapperPipeline";
 import MappingImageUploader from "./MappingImageUploader";
@@ -32,10 +32,12 @@ export default function MappingProjectWorkspace({
   accessToken,
   projectId,
   onBack,
+  focusModule,
 }: {
   accessToken: string;
   projectId: string;
   onBack: () => void;
+  focusModule?: string | null;
 }) {
   const [data, setData] = useState<WorkspacePayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,6 +54,22 @@ export default function MappingProjectWorkspace({
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!focusModule) return;
+    const targetMap: Record<string, string> = {
+      "Map Viewer": "dominic-workbench",
+      "Measure & Markup": "dominic-workbench",
+      "Analysis": "dominic-workbench",
+      "3D & Point Cloud": "dominic-workbench",
+      "Deliverables": "dominic-workbench",
+      "Processing": "dominic-processing",
+      "Data Library": "dominic-source-imagery",
+    };
+    const id = targetMap[focusModule];
+    if (!id) return;
+    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [focusModule]);
 
   useEffect(() => {
     if (!data || !["queued", "processing"].includes(data.project.status)) return;
@@ -74,14 +92,20 @@ export default function MappingProjectWorkspace({
             <ChevronLeft size={14} /> Projects
           </button>
           <div className="font-saira" style={{ fontWeight: 800, fontSize: 23, color: V.ink }}>{project.name}</div>
-          <p style={{ color: V.inkDim, fontSize: 12, marginTop: 3 }}>
-            {project.job?.title ?? "Unlinked mission"} · {project.location_snapshot ?? "Location TBD"}
-            {project.latitude != null && project.longitude != null && ` · ${project.latitude.toFixed(5)}, ${project.longitude.toFixed(5)}`}
+          <p style={{ color: V.inkDim, fontSize: 12, marginTop: 3, display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><Plane size={12} /> {project.job?.title ?? "Unlinked mission"}</span>
+            <span>·</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><MapPin size={12} /> {project.location_snapshot ?? "Location TBD"}</span>
+            {project.latitude != null && project.longitude != null && <span>· {project.latitude.toFixed(5)}, {project.longitude.toFixed(5)}</span>}
           </p>
         </div>
-        <span className="font-mono-ibm" style={statusPillStyle(STATUS_COLOR[project.status] ?? V.inkFaint)}>
-          {MAPPING_PROJECT_STATUS_LABELS[project.status] ?? project.status}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ color: V.inkFaint, fontSize: 10, display: "inline-flex", alignItems: "center", gap: 5 }}><CalendarDays size={13} /> {new Date(project.created_at).toLocaleDateString()}</span>
+          <span className="font-mono-ibm" style={{ ...statusPillStyle(STATUS_COLOR[project.status] ?? V.inkFaint), display: "inline-flex", alignItems: "center", gap: 5 }}>
+            {project.status === "completed" && <CheckCircle2 size={11} />}
+            {MAPPING_PROJECT_STATUS_LABELS[project.status] ?? project.status}
+          </span>
+        </div>
       </div>
 
       <div
@@ -93,17 +117,17 @@ export default function MappingProjectWorkspace({
           border: `1px solid ${V.line}`,
           borderRadius: 10,
           overflow: "hidden",
-          marginBottom: 16,
+          marginBottom: 12,
         }}
       >
         <Stat k="Images" v={String(project.image_count)} />
         <Stat k="Uploaded" v={formatBytes(project.total_upload_bytes)} />
-        <Stat k="Outputs" v={String(deliverables.length)} />
-        <Stat k="Created" v={new Date(project.created_at).toLocaleDateString()} />
+        <Stat k="Deliverables" v={String(deliverables.length)} />
+        <Stat k="Processing" v={latestJob?.status ? (MAPPING_PROJECT_STATUS_LABELS[latestJob.status] ?? latestJob.status) : "Ready"} />
       </div>
 
       {processed && (
-        <section style={{ marginBottom: 16 }}>
+        <section id="dominic-workbench" style={{ marginBottom: 16, scrollMarginTop: 96 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8, color: V.inkFaint, fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase" }}>
             <Layers3 size={14} color={V.signal} /> Map · Measure · Analyze
           </div>
@@ -111,8 +135,8 @@ export default function MappingProjectWorkspace({
         </section>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: processed ? "minmax(0, .9fr) minmax(0, 1.1fr)" : "1fr", gap: 14, alignItems: "start" }}>
-        <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface, padding: 15 }}>
+      <div style={{ display: "grid", gridTemplateColumns: processed ? "minmax(0, .78fr) minmax(0, 1.22fr)" : "1fr", gap: 14, alignItems: "start" }}>
+        <section id="dominic-source-imagery" style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface, padding: 15, scrollMarginTop: 96 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10, color: V.inkFaint, fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase" }}>
             <UploadCloud size={14} color={V.signal} /> Source Imagery
           </div>
@@ -135,7 +159,7 @@ export default function MappingProjectWorkspace({
           )}
         </section>
 
-        <section>
+        <section id="dominic-processing" style={{ scrollMarginTop: 96 }}>
           <MappingProcessingStatus accessToken={accessToken} project={project} latestJob={latestJob} onQueued={load} />
         </section>
       </div>

@@ -1,4 +1,4 @@
-const CACHE = "dom-os-shell-v2";
+const CACHE = "dom-os-shell-v3";
 const CACHE_PREFIX = "dom-os-shell-";
 const SHELL = ["/offline", "/icon.png", "/apple-icon.png", "/brand/dom-icon-mark.png"];
 

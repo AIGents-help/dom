@@ -59,6 +59,7 @@ export default function DominicWorkbench({
   const [toolSet, setToolSet] = useState("General");
   const [layersOpen, setLayersOpen] = useState(true);
   const [requestedLayer, setRequestedLayer] = useState<string | null>(null);
+  const [viewerMode, setViewerMode] = useState<"map" | "3d" | "elevation" | "compare">("map");
 
   const available = useMemo(() => {
     const types = new Set(deliverables.map((d) => d.type).filter(Boolean));
@@ -99,9 +100,40 @@ export default function DominicWorkbench({
         <main style={{ minWidth: 0, background: "#080C10", padding: 10 }}>
           <div style={{ minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8, borderBottom: `1px solid ${V.line}`, paddingBottom: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              {[["Map View", Map], ["3D View", Box], ["Elevation", Mountain], ["Compare", Columns3]].map(([label, Icon], index) => {
-                const ViewIcon = Icon as typeof Map;
-                return <div key={label as string} style={{ display: "flex", alignItems: "center", gap: 5, borderBottom: index === 0 ? `2px solid ${V.signal}` : "2px solid transparent", padding: "6px 8px", color: index === 0 ? V.ink : V.inkDim, fontSize: 10, fontWeight: index === 0 ? 800 : 600 }}><ViewIcon size={13} />{label as string}</div>;
+              {[
+                { id: "map" as const, label: "Map View", icon: Map, layer: "orthomosaic" },
+                { id: "3d" as const, label: "3D View", icon: Box, layer: "3d_model" },
+                { id: "elevation" as const, label: "Elevation", icon: Mountain, layer: available.find((layer) => layer.label === "DTM" && layer.ready) ? "dtm" : "dsm" },
+                { id: "compare" as const, label: "Compare", icon: Columns3, layer: null },
+              ].map((view) => {
+                const active = viewerMode === view.id;
+                const ready = view.id === "compare" || available.some((layer) => layer.types.includes(view.layer ?? "") && layer.ready);
+                return (
+                  <button
+                    key={view.id}
+                    disabled={!ready}
+                    onClick={() => {
+                      setViewerMode(view.id);
+                      if (view.layer) setRequestedLayer(view.layer);
+                    }}
+                    title={view.id === "compare" ? "Comparison workspace is being prepared" : ready ? view.label : `${view.label} output is not available yet`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      border: 0,
+                      borderBottom: active ? `2px solid ${V.signal}` : "2px solid transparent",
+                      background: "transparent",
+                      padding: "6px 8px",
+                      color: active ? V.ink : ready ? V.inkDim : V.inkFaint,
+                      fontSize: 10,
+                      fontWeight: active ? 800 : 600,
+                      cursor: ready ? "pointer" : "default",
+                    }}
+                  >
+                    <view.icon size={13} />{view.label}
+                  </button>
+                );
               })}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.inkDim, fontSize: 10 }}>
@@ -139,7 +171,12 @@ export default function DominicWorkbench({
                   disabled={!layer.ready}
                   onClick={() => {
                     const layerType = layer.types.find((type) => deliverables.some((d) => d.type === type));
-                    if (layerType) setRequestedLayer(layerType);
+                    if (layerType) {
+                      setRequestedLayer(layerType);
+                      if (layerType === "3d_model" || layerType === "point_cloud") setViewerMode("3d");
+                      else if (layerType === "dsm" || layerType === "dtm") setViewerMode("elevation");
+                      else setViewerMode("map");
+                    }
                   }}
                   style={{
                     border: requestedLayer && layer.types.includes(requestedLayer) ? `1px solid ${V.signal}` : "1px solid transparent",

@@ -76,6 +76,15 @@ export default function MappingProcessingStatus({
         <div style={{ marginBottom: 14, padding: 10, borderRadius: 8, border: `1px solid ${V.warn}` }}>
           <div style={{ color: V.warn, fontSize: 12, fontWeight: 700, marginBottom: 5 }}>CLIENT REVISION REQUESTED</div>
           <p style={{ color: V.inkDim, fontSize: 12, marginBottom: 8 }}>{revisionRequests.length} current output{revisionRequests.length === 1 ? "" : "s"} require correction. Reprocessing creates new revision versions and preserves the prior client review history.</p>
+          <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
+            {revisionRequests.map((item) => (
+              <div key={item.id} style={{ padding: 8, borderRadius: 6, background: V.raised, fontSize: 11 }}>
+                <div style={{ color: V.ink, fontWeight: 600 }}>{item.name}</div>
+                {item.client_feedback ? <div style={{ color: V.warn, marginTop: 3 }}>Client: {item.client_feedback}</div> : null}
+              </div>
+            ))}
+          </div>
+          {!online && <p style={{ color: V.warn, fontSize: 11, marginBottom: 8 }}>Reconnect before starting corrected processing.</p>}
           <button onClick={() => queueProcessing(true)} disabled={queuing || !online} style={{ ...btnPrimary, opacity: !online ? .55 : 1, cursor: !online ? "not-allowed" : "pointer" }}>
             {queuing ? "Queuing…" : "Process Corrected Revision"}
           </button>

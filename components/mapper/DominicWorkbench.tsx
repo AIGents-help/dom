@@ -16,6 +16,8 @@ import {
   Sparkles,
   Square,
   Type,
+  Download,
+  FileText,
 } from "lucide-react";
 import { V } from "./theme";
 import MappingResults from "./MappingResults";
@@ -110,7 +112,7 @@ export default function DominicWorkbench({
           <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} requestedLayer={requestedLayer} />
         </main>
 
-        <aside style={{ borderLeft: `1px solid ${V.line}`, background: "#0B1016", padding: 12 }}>
+        <aside style={{ borderLeft: `1px solid ${V.line}`, background: "#0B1016", padding: 12, display: "flex", flexDirection: "column" }}>
           <button
             onClick={() => setLayersOpen((open) => !open)}
             style={{ width: "100%", border: 0, background: "transparent", color: V.ink, display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer", padding: 0 }}
@@ -169,6 +171,20 @@ export default function DominicWorkbench({
           >
             <Sparkles size={14} color={V.signal} /> Auto Markup
           </button>
+
+          <div style={{ marginTop: "auto", paddingTop: 18 }}>
+            <div style={{ borderTop: `1px solid ${V.line}`, paddingTop: 12 }}>
+              <div style={{ color: V.inkFaint, fontSize: 9, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 8 }}>Project Output</div>
+              <div style={{ display: "grid", gap: 6 }}>
+                <a href={`/dominic/report/${projectId}`} style={{ textDecoration: "none", border: `1px solid ${V.line}`, background: "#121922", color: V.ink, borderRadius: 8, padding: "8px 9px", display: "flex", alignItems: "center", gap: 7, fontSize: 10, fontWeight: 700 }}>
+                  <FileText size={13} color={V.signal} /> Project Report
+                </a>
+                <div style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.inkDim, borderRadius: 8, padding: "8px 9px", display: "flex", alignItems: "center", gap: 7, fontSize: 10 }}>
+                  <Download size={13} color={V.telemetry} /> Deliverables below
+                </div>
+              </div>
+            </div>
+          </div>
         </aside>
       </div>
     </div>

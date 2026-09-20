@@ -239,6 +239,41 @@ test("admin-authorized uninsured pilot creates a ready self-service mission", { 
     const rejectedBody = await rejected.json();
     assert.match(rejectedBody.error, /acknowledgement/i);
 
+    const customQuote = await api.post("/api/quote", {
+      data: {
+        serviceType: "custom",
+        lat: 0,
+        lng: 0,
+        distanceMiles: 5,
+        siteComplexity: "simple",
+        urgency: "standard",
+        deliverableTier: "enhanced",
+      },
+      failOnStatusCode: false,
+    });
+    const customQuoteBody = await customQuote.json().catch(() => ({}));
+    assert.equal(customQuote.status(), 200, JSON.stringify(customQuoteBody));
+    assert.ok(customQuoteBody.quote.totalCents > 0, "custom mission should receive a system-generated quote");
+
+    const customMission = await api.post("/api/pilot/missions/create", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: {
+        ...missionPayload,
+        clientEmail: `custom-client-${stamp}@e2e.dom.invalid`,
+        serviceType: "custom",
+        customMissionTitle: "E2E Custom 3D Object",
+        customMissionScope: "Create a detailed 3D model of a test object.",
+        customDeliverables: "",
+        deliverableTier: "enhanced",
+        uninsuredAcknowledged: true,
+      },
+      failOnStatusCode: false,
+    });
+    const customMissionBody = await customMission.json().catch(() => ({}));
+    assert.equal(customMission.status(), 200, JSON.stringify(customMissionBody));
+    assert.ok(customMissionBody.jobId);
+    assert.ok(customMissionBody.quote.totalCents > 0);
+
     const accepted = await api.post("/api/pilot/missions/create", {
       headers: { Authorization: `Bearer ${token}` },
       data: { ...missionPayload, uninsuredAcknowledged: true },

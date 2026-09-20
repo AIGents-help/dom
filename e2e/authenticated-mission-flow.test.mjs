@@ -168,3 +168,132 @@ test("pilot-owned team mission completes without DOM approval", { skip: !isolate
     await admin.auth.admin.deleteUser(ownerUser.id);
   }
 });
+
+
+test("admin-authorized uninsured pilot creates a ready self-service mission", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Uninsured-E2E-${stamp}!Aa1`;
+  const pilotEmail = `uninsured-owner-${stamp}@e2e.dom.invalid`;
+
+  const { data: createdUser, error: userError } = await admin.auth.admin.createUser({
+    email: pilotEmail,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  const pilotUser = createdUser.user;
+
+  const { data: pilot, error: contractorError } = await admin.from("contractors").insert({
+    user_id: pilotUser.id,
+    full_name: "E2E Authorized Uninsured Pilot",
+    email: pilotEmail,
+    status: "active",
+    part107_verified: true,
+    insurance_verified: false,
+    insurance_expires_on: null,
+    uninsured_self_service_eligible: true,
+    can_create_missions: true,
+    subscription_active: true,
+    stripe_payouts_enabled: true,
+    equipment: "DJI Matrice 4E",
+  }).select("id").single();
+  assert.ifError(contractorError);
+
+  const authClient = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await authClient.auth.signInWithPassword({
+    email: pilotEmail,
+    password,
+  });
+  assert.ifError(signInError);
+  const session = signedIn.session;
+  const token = session.access_token;
+  const api = await request.newContext({ baseURL });
+  const browser = await chromium.launch({ headless: true });
+
+  const missionPayload = {
+    clientName: "Uninsured E2E Client",
+    clientEmail: `uninsured-client-${stamp}@e2e.dom.invalid`,
+    clientCompany: "Authorized Self Service Test",
+    location: "Isolated CI airfield",
+    latitude: 0,
+    longitude: 0,
+    serviceType: "aerial_images",
+    distanceMiles: 5,
+    siteComplexity: "simple",
+    urgency: "standard",
+    deliverableTier: "standard",
+    travelDistanceSource: "pilot_google_maps_verified",
+  };
+
+  try {
+    const rejected = await api.post("/api/pilot/missions/create", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: missionPayload,
+      failOnStatusCode: false,
+    });
+    assert.equal(rejected.status(), 409);
+    const rejectedBody = await rejected.json();
+    assert.match(rejectedBody.error, /acknowledgement/i);
+
+    const accepted = await api.post("/api/pilot/missions/create", {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { ...missionPayload, uninsuredAcknowledged: true },
+      failOnStatusCode: false,
+    });
+    const acceptedBody = await accepted.json().catch(() => ({}));
+    assert.equal(accepted.status(), 200, JSON.stringify(acceptedBody));
+    assert.ok(acceptedBody.jobId);
+
+    const { data: assignment, error: assignmentError } = await admin.from("mission_assignments")
+      .select("id,insurance_source,mission_insurance_verified,mission_insurance_reference")
+      .eq("job_id", acceptedBody.jobId)
+      .eq("contractor_id", pilot.id)
+      .single();
+    assert.ifError(assignmentError);
+    assert.equal(assignment.insurance_source, "pilot_uninsured_acknowledgement");
+    assert.equal(assignment.mission_insurance_verified, false);
+    assert.equal(assignment.mission_insurance_reference, "pilot-uninsured-responsibility-v1");
+
+    const { data: auditEvent, error: auditError } = await admin.from("mission_activity_events")
+      .select("event_type,summary")
+      .eq("assignment_id", assignment.id)
+      .eq("event_type", "uninsured_responsibility_acknowledged")
+      .single();
+    assert.ifError(auditError);
+    assert.equal(auditEvent.event_type, "uninsured_responsibility_acknowledged");
+
+    const workflowResponse = await api.get(`/api/pilot/missions/${assignment.id}/workflow`, {
+      headers: { Authorization: `Bearer ${token}` },
+      failOnStatusCode: false,
+    });
+    const workflow = await workflowResponse.json().catch(() => ({}));
+    assert.equal(workflowResponse.status(), 200, JSON.stringify(workflow));
+    assert.equal(workflow.insurance.satisfied, true);
+    assert.equal(workflow.insurance.verified, false);
+    assert.equal(workflow.insurance.uninsuredAcknowledged, true);
+    assert.equal(workflow.readiness.blockers.includes("Select an insurance or uninsured-responsibility path"), false);
+
+    const browserErrors = [];
+    const browserContext = await browser.newContext();
+    const storageKey = `sb-${new URL(supabaseURL).hostname.split(".")[0]}-auth-token`;
+    await browserContext.addInitScript(({ key, authSession }) => {
+      localStorage.setItem(key, JSON.stringify(authSession));
+    }, { key: storageKey, authSession: session });
+    const page = await browserContext.newPage();
+    page.on("pageerror", (error) => browserErrors.push(error.message));
+    const dashboard = await page.goto(`${baseURL}/pilot`, { waitUntil: "networkidle", timeout: 45_000 });
+    assert.ok(dashboard && dashboard.status() < 400, `pilot dashboard returned ${dashboard?.status()}`);
+    await page.getByText("Self-service mission authorization active", { exact: false }).waitFor({ timeout: 15_000 });
+    assert.equal(await page.getByText("Your credentials are not fully verified yet.", { exact: false }).count(), 0);
+    assert.deepEqual(browserErrors, [], `pilot dashboard browser errors: ${browserErrors.join(" | ")}`);
+    await browserContext.close();
+  } finally {
+    await api.dispose();
+    await browser.close();
+    await admin.auth.admin.deleteUser(pilotUser.id);
+  }
+});

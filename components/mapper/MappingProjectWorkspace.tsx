@@ -48,6 +48,7 @@ export default function MappingProjectWorkspace({
   const [refreshing, setRefreshing] = useState(false);
   const dataRef = useRef<WorkspacePayload | null>(null);
   const cacheKey = `dominic:project-snapshot:${projectId}`;
+  const [snapshotSavedAt, setSnapshotSavedAt] = useState<Date | null>(null);
 
   useEffect(() => { dataRef.current = data; }, [data]);
 
@@ -68,7 +69,9 @@ export default function MappingProjectWorkspace({
       setData(body);
       setLastSyncedAt(new Date());
       try {
-        sessionStorage.setItem(cacheKey, JSON.stringify({ saved_at: new Date().toISOString(), payload: body }));
+        const savedAt = new Date();
+        localStorage.setItem(cacheKey, JSON.stringify({ saved_at: savedAt.toISOString(), payload: body }));
+        setSnapshotSavedAt(savedAt);
       } catch {
         // Field snapshot caching is best-effort; live project loading still succeeds.
       }
@@ -109,13 +112,15 @@ export default function MappingProjectWorkspace({
 
   function restoreFieldSnapshot() {
     try {
-      const raw = sessionStorage.getItem(cacheKey);
+      const raw = localStorage.getItem(cacheKey);
       if (!raw) { setError("No saved field snapshot is available for this project yet."); return; }
       const cached = JSON.parse(raw) as { saved_at?: string; payload?: WorkspacePayload };
       if (!cached.payload) { setError("The saved field snapshot is not valid."); return; }
       setData(cached.payload);
       dataRef.current = cached.payload;
-      setLastSyncedAt(cached.saved_at ? new Date(cached.saved_at) : null);
+      const savedAt = cached.saved_at ? new Date(cached.saved_at) : null;
+      setLastSyncedAt(savedAt);
+      setSnapshotSavedAt(savedAt);
       setError(null);
       setLoading(false);
     } catch {
@@ -137,7 +142,7 @@ export default function MappingProjectWorkspace({
           </button>
         ) : null}
       </div>
-      {!online ? <p style={{ color: V.inkFaint, fontSize: 10, marginTop: 9 }}>DOMINIC saves the most recent successful project sync in this browser session for read-only field reference.</p> : null}
+      {!online ? <p style={{ color: V.inkFaint, fontSize: 10, marginTop: 9 }}>DOMINIC saves the most recent successful project sync on this device for read-only field reference.</p> : null}
     </div>
   );
 
@@ -164,6 +169,14 @@ export default function MappingProjectWorkspace({
           <span style={{ color: online ? V.telemetry : V.warn, fontSize: 9, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase" }}>
             {online ? lastSyncedAt ? `Synced ${lastSyncedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Connecting" : lastSyncedAt ? `Offline · last sync ${lastSyncedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : "Offline"}
           </span>
+          {snapshotSavedAt ? (
+            <span
+              title={`Offline field snapshot saved ${snapshotSavedAt.toLocaleString()}`}
+              style={{ color: V.inkFaint, fontSize: 9, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}
+            >
+              Snapshot saved
+            </span>
+          ) : null}
           <button
             type="button"
             onClick={load}

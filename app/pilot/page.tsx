@@ -307,7 +307,7 @@ export default function PilotDashboard() {
         </div>
         <div style={{ display: "flex", gap: 8 }}>
           <CredBadge label="Part 107" ok={profile.part107_verified} />
-          <CredBadge label="Insurance" ok={authorization.personalInsuranceCurrent} />
+          <CredBadge label="Personal Insurance" ok={authorization.personalInsuranceCurrent} />
           <CredBadge label="Mission Auth" ok={authorization.selfServiceAuthorized} />
           <CredBadge label="Payouts" ok={profile.stripe_payouts_enabled} />
         </div>
@@ -316,6 +316,18 @@ export default function PilotDashboard() {
       {!cleared && (
         <div style={{ ...panelStyle, borderColor: "rgba(229,112,31,.4)", marginBottom: 18, background: "rgba(229,112,31,.05)" }}>
           <p style={{ color: V.warn, fontSize: 14 }}>Your pilot credentials still need attention before field operations. {!profile.part107_verified ? "Part 107 verification is not current. " : ""}{profile.status !== "active" ? "Your pilot account is not active. " : ""}{!profile.stripe_payouts_enabled ? "Complete Stripe payout setup to receive payments." : ""}</p>
+        </div>
+      )}
+
+      {cleared && !authorization.selfServiceAuthorized && (
+        <div style={{ ...panelStyle, borderColor: "rgba(229,112,31,.4)", marginBottom: 18, background: "rgba(229,112,31,.05)" }}>
+          <p style={{ color: V.warn, fontSize: 14, fontWeight: 600 }}>Self-service mission creation needs a coverage path.</p>
+          <p style={{ color: V.inkDim, fontSize: 12, marginTop: 6 }}>Your core pilot credentials are current, but you need either a current verified personal policy or Admin authorization for the uninsured self-service path before creating pilot-owned missions.</p>
+          {!profile.insurance_requested && (
+            <button onClick={requestInsurance} disabled={subActionLoading} style={{ ...btnGhost, marginTop: 10 }}>
+              {subActionLoading ? "…" : "Request Insurance via SkyWatch →"}
+            </button>
+          )}
         </div>
       )}
 

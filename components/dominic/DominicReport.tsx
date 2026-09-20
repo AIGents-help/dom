@@ -56,6 +56,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   const [reportGeneratedAt, setReportGeneratedAt] = useState<Date | null>(null);
   const [pdfReady, setPdfReady] = useState(false);
   const [autoPrintStarted, setAutoPrintStarted] = useState(false);
+  const [printCompleted, setPrintCompleted] = useState(false);
 
   useEffect(() => {
     setPdfMode(new URLSearchParams(window.location.search).get("pdf") === "1");
@@ -107,6 +108,12 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   const handoffComplete = passed > 0 && approved === passed;
 
   useEffect(() => {
+    const handleAfterPrint = () => setPrintCompleted(true);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => window.removeEventListener("afterprint", handleAfterPrint);
+  }, []);
+
+  useEffect(() => {
     if (!pdfMode || !data || !pdfReady || autoPrintStarted) return;
     setAutoPrintStarted(true);
     const timer = window.setTimeout(() => window.print(), 500);
@@ -121,7 +128,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
         <div style={{ display: "flex", gap: 8 }}><button onClick={() => { const url = new URL(window.location.href); url.searchParams.set("pdf", "1"); window.open(url.toString(), "_blank", "noopener,noreferrer"); }} style={actionStyle}><Download size={15} /> Clean PDF View</button><button onClick={() => window.print()} style={{ ...actionStyle, background: "#F45A1E", borderColor: "#F45A1E", color: "#fff" }}><Printer size={15} /> Print / Save PDF</button></div>
       </div>
 
-      <main className="dominic-report-sheet" data-pdf-ready={pdfReady ? "true" : "false"} data-project-id={project.id} style={{ position: "relative", maxWidth: 980, margin: "0 auto", background: "#fff", borderRadius: 18, overflow: "hidden", boxShadow: "0 20px 70px rgba(0,0,0,.12)" }}>
+      <main className="dominic-report-sheet" data-pdf-ready={pdfReady ? "true" : "false"} data-pdf-print-complete={printCompleted ? "true" : "false"} data-project-id={project.id} style={{ position: "relative", maxWidth: 980, margin: "0 auto", background: "#fff", borderRadius: 18, overflow: "hidden", boxShadow: "0 20px 70px rgba(0,0,0,.12)" }}>
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", pointerEvents: "none", overflow: "hidden", zIndex: 0 }}>
           <div style={{ transform: "rotate(-32deg)", fontSize: 82, fontWeight: 950, letterSpacing: ".08em", color: "rgba(244,90,30,.035)", whiteSpace: "nowrap" }}>DOMINIC · DRONE OPERATION MANAGEMENT</div>
         </div>

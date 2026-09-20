@@ -54,13 +54,13 @@ export default function MappingDeliverables({
     <div style={{ display: "grid", gap: 8 }}>
       {deliverables.map((d) => {
         const hasFile = deliverableHasFile(d);
-        const reviewTone = d.client_status === "approved" ? V.telemetry : d.client_status === "revision_requested" ? V.warn : V.inkFaint;
-        const reviewLabel = d.client_status === "approved" ? "CLIENT APPROVED" : d.client_status === "revision_requested" ? "REVISION REQUESTED" : d.qc_passed ? "AWAITING CLIENT REVIEW" : "PENDING QC";
+        const reviewTone = d.client_status === "approved" ? V.telemetry : d.client_status === "revision_requested" ? V.warn : d.client_status === "superseded" ? V.inkFaint : V.inkFaint;
+        const reviewLabel = d.client_status === "approved" ? "CLIENT APPROVED" : d.client_status === "revision_requested" ? "REVISION REQUESTED" : d.client_status === "superseded" ? "SUPERSEDED" : d.qc_passed ? "AWAITING CLIENT REVIEW" : "PENDING QC";
         return (
-          <div key={d.id} style={{ ...panelStyle, padding: 12 }}>
+          <div key={d.id} style={{ ...panelStyle, padding: 12, opacity: d.client_status === "superseded" ? .68 : 1 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ color: V.ink, fontSize: 13, fontWeight: 600 }}>{d.name}</div>
+                <div style={{ color: V.ink, fontSize: 13, fontWeight: 600 }}>{d.name}{(d.revision_number ?? 1) > 1 ? ` · Rev ${d.revision_number}` : ""}</div>
                 <div className="font-mono-ibm" style={{ color: V.inkFaint, fontSize: 11, marginTop: 3, textTransform: "uppercase", letterSpacing: ".05em" }}>
                   {(d.type ?? "output").replace(/_/g, " ")} · {d.qc_passed ? "QC passed" : "Pending QC"}{d.client_status ? ` · Client ${d.client_status.replace(/_/g, " ")}` : ""}
                 </div>

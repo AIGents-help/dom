@@ -15,9 +15,11 @@ export default function DominicComingSoon() {
       <div className="container-app">
         <div className="overflow-hidden rounded-3xl border border-[#F45A1E]/35 bg-[radial-gradient(circle_at_78%_8%,rgba(244,90,30,.20),transparent_30%),linear-gradient(135deg,#121922,#090D11)]">
           <div className="grid gap-8 p-7 lg:grid-cols-[.72fr_.9fr_1.08fr] lg:items-center lg:p-12">
-            <div className="relative min-h-[360px] overflow-hidden rounded-2xl border border-white/10 bg-black/25">
-              <DominicMascotImage className="object-cover object-[48%_34%]" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+            <div className="relative min-h-[360px] overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_50%_28%,rgba(244,90,30,.18),transparent_38%),#0A0F14]">
+              <div className="absolute inset-5">
+                <DominicMascotImage className="object-contain object-center" />
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent" />
               <div className="absolute inset-x-0 bottom-0 p-5">
                 <p className="text-sm font-black text-white">Same Perspective. Higher Purpose.</p>
                 <p className="mt-1 text-[10px] font-black uppercase tracking-[.14em] text-[#F45A1E]">The official DOMINIC mascot</p>

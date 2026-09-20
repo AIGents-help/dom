@@ -53,8 +53,15 @@ test("homepage exposes the approved DOMINIC layout", async () => {
   const mascots = page.getByAltText("DOMINIC mapping software mascot");
   assert.ok(await mascots.count() >= 2, "homepage should render the approved DOMINIC mascot in both hero and feature promotion");
   for (let index = 0; index < await mascots.count(); index += 1) {
-    const loaded = await mascots.nth(index).evaluate((image) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0);
-    assert.equal(loaded, true, `DOMINIC mascot image ${index + 1} failed to load`);
+    const status = await mascots.nth(index).evaluate((image) => ({
+      loaded: image.complete && image.naturalWidth > 0 && image.naturalHeight > 0,
+      objectFit: getComputedStyle(image).objectFit,
+      width: image.getBoundingClientRect().width,
+      height: image.getBoundingClientRect().height,
+    }));
+    assert.equal(status.loaded, true, `DOMINIC mascot image ${index + 1} failed to load`);
+    assert.equal(status.objectFit, "contain", `DOMINIC mascot image ${index + 1} must remain fully visible`);
+    assert.ok(status.width > 100 && status.height > 100, `DOMINIC mascot image ${index + 1} rendered too small`);
   }
   await page.close();
 });

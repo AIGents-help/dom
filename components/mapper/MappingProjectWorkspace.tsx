@@ -33,11 +33,13 @@ export default function MappingProjectWorkspace({
   projectId,
   onBack,
   focusModule,
+  online = true,
 }: {
   accessToken: string;
   projectId: string;
   onBack: () => void;
   focusModule?: string | null;
+  online?: boolean;
 }) {
   const [data, setData] = useState<WorkspacePayload | null>(null);
   const [loading, setLoading] = useState(true);
@@ -143,10 +145,12 @@ export default function MappingProjectWorkspace({
           <MappingImageUploader
             accessToken={accessToken}
             projectId={project.id}
-            disabled={!canUploadImages(project)}
+            disabled={!online || !canUploadImages(project)}
             onUploaded={load}
           />
-          {!canUploadImages(project) && (
+          {!online ? (
+            <p style={{ color: V.warn, fontSize: 11, marginTop: 8 }}>Offline — imagery upload will be available when connectivity returns.</p>
+          ) : !canUploadImages(project) && (
             <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 8 }}>
               Uploads close once processing is queued.
             </p>
@@ -160,7 +164,7 @@ export default function MappingProjectWorkspace({
         </section>
 
         <section id="dominic-processing" style={{ scrollMarginTop: 96 }}>
-          <MappingProcessingStatus accessToken={accessToken} project={project} latestJob={latestJob} onQueued={load} />
+          <MappingProcessingStatus accessToken={accessToken} project={project} latestJob={latestJob} onQueued={load} online={online} />
         </section>
       </div>
 

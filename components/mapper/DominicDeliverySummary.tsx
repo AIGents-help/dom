@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Download, FileText, PackageCheck } from "lucide-react";
 import { V, panelStyle } from "./theme";
+import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import type { MappingDeliverable } from "./types";
 
 function labelFor(type: string | null) {
@@ -18,7 +19,10 @@ export default function DominicDeliverySummary({ deliverables, projectId }: { de
   async function downloadManifest() {
     setManifestBusy(true);
     try {
-      const res = await fetch(`/api/pilot/mapping/projects/${projectId}/delivery-manifest`, { credentials: "include" });
+      const { data } = await getSupabaseBrowser().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return;
+      const res = await fetch(`/api/pilot/mapping/projects/${projectId}/delivery-manifest`, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return;
       const blob = await res.blob();
       const disposition = res.headers.get("content-disposition") ?? "";

@@ -198,7 +198,7 @@ export default function MappingProjectWorkspace({
               title={`Offline field snapshot saved ${snapshotSavedAt.toLocaleString()}`}
               style={{ color: V.inkFaint, fontSize: 9, fontWeight: 700, letterSpacing: ".04em", textTransform: "uppercase" }}
             >
-              Snapshot saved {Math.max(0, Math.floor((Date.now() - snapshotSavedAt.getTime()) / 60000))}m ago
+              Snapshot saved {snapshotSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
             </span>
           ) : null}
           {snapshotAvailable ? (

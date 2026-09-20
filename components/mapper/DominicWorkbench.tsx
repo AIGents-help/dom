@@ -18,6 +18,8 @@ import {
   Type,
   Download,
   FileText,
+  Mountain,
+  Columns3,
 } from "lucide-react";
 import { V } from "./theme";
 import MappingResults from "./MappingResults";
@@ -95,10 +97,16 @@ export default function DominicWorkbench({
         </aside>
 
         <main style={{ minWidth: 0, background: "#080C10", padding: 10 }}>
-          <div style={{ minHeight: 36, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.inkDim, fontSize: 11 }}>
-              <Crosshair size={14} color={V.signal} />
-              <span>{activeTool === "select" ? "Navigate the map" : `${tools.find((tool) => tool.id === activeTool)?.label} tool selected`}</span>
+          <div style={{ minHeight: 38, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 8, borderBottom: `1px solid ${V.line}`, paddingBottom: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              {[["Map View", Map], ["3D View", Box], ["Elevation", Mountain], ["Compare", Columns3]].map(([label, Icon], index) => {
+                const ViewIcon = Icon as typeof Map;
+                return <div key={label as string} style={{ display: "flex", alignItems: "center", gap: 5, borderBottom: index === 0 ? `2px solid ${V.signal}` : "2px solid transparent", padding: "6px 8px", color: index === 0 ? V.ink : V.inkDim, fontSize: 10, fontWeight: index === 0 ? 800 : 600 }}><ViewIcon size={13} />{label as string}</div>;
+              })}
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.inkDim, fontSize: 10 }}>
+              <Crosshair size={13} color={V.signal} />
+              <span>{activeTool === "select" ? "Navigate" : `${tools.find((tool) => tool.id === activeTool)?.label} selected`}</span>
             </div>
             <select
               value={toolSet}

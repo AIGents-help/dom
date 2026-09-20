@@ -37,6 +37,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "This deliverable is already approved. Contact DOM if a new revision is required." }, { status: 409 });
   }
 
+  if (deliverable.client_status === status) {
+    return NextResponse.json({
+      ok: true,
+      status,
+      feedback: status === "revision_requested" ? feedback || null : null,
+      reviewedAt: null,
+      unchanged: true,
+    });
+  }
+
   const reviewedAt = new Date().toISOString();
   const { error } = await admin.from("deliverables").update({ client_status: status, client_feedback: feedback || null, client_reviewed_at: reviewedAt }).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

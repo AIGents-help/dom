@@ -60,11 +60,13 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="relative min-h-[390px] overflow-hidden bg-[#090D11] sm:min-h-[470px]">
-                <DominicMascotImage priority className="object-cover object-[48%_35%]" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/5 to-transparent" />
+              <div className="relative min-h-[390px] overflow-hidden bg-[radial-gradient(circle_at_50%_22%,rgba(244,90,30,.22),transparent_34%),#090D11] sm:min-h-[470px]">
+                <div className="absolute inset-x-4 top-4 bottom-[175px] sm:bottom-[190px]">
+                  <DominicMascotImage priority className="object-contain object-top" />
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/15 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 z-10 p-5">
-                  <div className="rounded-2xl border border-[#F45A1E]/40 bg-black/70 p-4 backdrop-blur-md">
+                  <div className="rounded-2xl border border-[#F45A1E]/40 bg-black/80 p-4 backdrop-blur-md">
                     <p className="text-[9px] font-black uppercase tracking-[.18em] text-[#F45A1E]">Coming to DOM</p>
                     <div className="mt-2"><DominicBrandLockup size="sm" /></div>
                     <p className="mt-3 text-sm leading-5 text-slate-200">Turn imagery into orthomosaics, elevation, measurements, analysis, and professional deliverables inside the same mission workflow.</p>

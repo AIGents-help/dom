@@ -96,6 +96,8 @@ export default function DominicReport({ projectId }: { projectId: string }) {
   const passed = data.deliverables.filter((item) => item.qc_passed).length;
   const approved = data.deliverables.filter((item) => item.client_status === "approved").length;
   const revisions = data.deliverables.filter((item) => item.client_status === "revision_requested").length;
+  const reviewed = data.deliverables.filter((item) => ["approved", "revision_requested"].includes(item.client_status ?? "")).length;
+  const handoffComplete = passed > 0 && approved === passed;
 
   return (
     <div style={{ minHeight: "100vh", background: "#E9EDF1", padding: "24px 16px", color: "#172033" }}>
@@ -133,6 +135,21 @@ export default function DominicReport({ projectId }: { projectId: string }) {
             <Metric label="Client Approved" value={`${approved}/${passed}`} />
           </div>
 
+          <div style={{ marginBottom: 26, padding: 14, borderRadius: 10, border: `1px solid ${handoffComplete ? "#2DAA74" : revisions ? "#C9822B" : "#D9E0E6"}`, background: "#F8FAFB" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ fontSize: 9, color: "#697584", textTransform: "uppercase", letterSpacing: ".07em" }}>Client Handoff</div>
+                <div style={{ fontSize: 14, fontWeight: 850, marginTop: 3 }}>
+                  {handoffComplete ? "Handoff complete" : revisions ? "Revision action required" : reviewed > 0 ? "Client review in progress" : "Awaiting client review"}
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: "#697584" }}>{reviewed}/{passed} QC-approved outputs reviewed</div>
+            </div>
+            <div style={{ height: 5, background: "#E5E9ED", borderRadius: 999, overflow: "hidden", marginTop: 10 }}>
+              <div style={{ width: `${passed ? Math.min(100, Math.round((reviewed / passed) * 100)) : 0}%`, height: "100%", background: handoffComplete ? "#2DAA74" : revisions ? "#C9822B" : "#F45A1E" }} />
+            </div>
+          </div>
+
           <SectionTitle>Project Summary</SectionTitle>
           <table style={tableStyle}>
             <tbody>
@@ -140,6 +157,7 @@ export default function DominicReport({ projectId }: { projectId: string }) {
               <Row k="Location" v={project.location_snapshot ?? project.job?.location ?? "—"} />
               <Row k="Coordinates" v={project.latitude != null && project.longitude != null ? `${project.latitude.toFixed(6)}, ${project.longitude.toFixed(6)}` : "—"} />
               <Row k="Processing completed" v={project.processing_completed_at ? new Date(project.processing_completed_at).toLocaleString() : "—"} />
+              <Row k="DOMINIC Project ID" v={project.id} />
             </tbody>
           </table>
 

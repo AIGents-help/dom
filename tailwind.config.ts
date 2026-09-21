@@ -15,7 +15,8 @@ const config: Config = {
         border: "#283442",
         ink: "#F8FAFC",
         muted: "#94A3B8",
-        navy: "#172033",
+        navy: "#4B535B",
+        "dji-grey": "#4B535B",
         accent: {
           DEFAULT: "#F45A1E",
           dim: "#D9480F",

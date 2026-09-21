@@ -376,3 +376,32 @@ export type ProcessingProfileValue = (typeof PROCESSING_PROFILES)[number]["value
 export function resolveProcessingProfileOptions(profile: string): OdmOption[] {
   return PROCESSING_PROFILES.find((p) => p.value === profile)?.options ?? [];
 }
+
+export function buildProcessingJobOptions(
+  profile: string,
+  requestedOutputs: ProcessingOutputValue[],
+  contourIntervalM: number,
+): OdmOption[] {
+  let odmOptions: OdmOption[] = resolveProcessingProfileOptions(profile).map((option) => ({ ...option }));
+
+  if (requestedOutputs.includes("3d_model")) {
+    odmOptions = odmOptions.filter((option) => option.name !== "skip-3dmodel");
+  } else if (!odmOptions.some((option) => option.name === "skip-3dmodel")) {
+    odmOptions.push({ name: "skip-3dmodel", value: true });
+  }
+
+  const needsDsm = requestedOutputs.includes("dsm") || requestedOutputs.includes("contours");
+  const needsDtm = requestedOutputs.includes("dtm") || requestedOutputs.includes("contours");
+  if (needsDsm && !odmOptions.some((option) => option.name === "dsm")) {
+    odmOptions.push({ name: "dsm", value: true });
+  }
+  if (needsDtm && !odmOptions.some((option) => option.name === "dtm")) {
+    odmOptions.push({ name: "dtm", value: true });
+  }
+
+  return [
+    ...odmOptions,
+    { name: "__dom_contour_interval_m", value: contourIntervalM },
+    { name: "__dom_requested_outputs", value: requestedOutputs },
+  ];
+}

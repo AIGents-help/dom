@@ -323,8 +323,8 @@ export default function DominicApp() {
               display: sidebarCollapsed ? "none" : "block",
             }}
           >
-            <div style={{ position: "relative", aspectRatio: "1 / 1", width: "100%", overflow: "hidden" }}>
-              <DominicMascotImage className="object-cover object-[48%_32%]" />
+            <div style={{ position: "relative", aspectRatio: "4 / 5", width: "100%", overflow: "hidden" }}>
+              <DominicMascotImage className="object-contain object-bottom p-2" />
               <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, transparent 55%, rgba(9,13,17,.92) 100%)" }} />
             </div>
             <div style={{ padding: "0 12px 14px", marginTop: -16, position: "relative" }}>

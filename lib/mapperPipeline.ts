@@ -360,8 +360,13 @@ export function resolveProcessingProfileOptions(profile: string, requestedOutput
   const wants3d = requestedOutputs.includes("3d_model");
   const wantsDsm = requestedOutputs.includes("dsm") || requestedOutputs.includes("contours");
   const wantsDtm = requestedOutputs.includes("dtm") || requestedOutputs.includes("contours");
+  const needsDenseReconstruction = requestedOutputs.some((output) => output !== "orthomosaic");
 
-  const filtered = wants3d ? base.filter((option) => option.name !== "skip-3dmodel") : base;
+  const filtered = base.filter((option) => {
+    if (wants3d && option.name === "skip-3dmodel") return false;
+    if (needsDenseReconstruction && option.name === "fast-orthophoto") return false;
+    return true;
+  });
 
   if (wantsDsm && !filtered.some((option) => option.name === "dsm")) {
     filtered.push({ name: "dsm", value: true });

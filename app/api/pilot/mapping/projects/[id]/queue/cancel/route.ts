@@ -37,13 +37,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const now = new Date().toISOString();
-  const { error: jobError } = await admin
+  const { data: cancelledJob, error: jobError } = await admin
     .from("mapping_processing_jobs")
     .update({ status: "cancelled", completed_at: now, error_message: "Cancelled by pilot before worker claim." })
     .eq("id", job.id)
-    .eq("status", "queued");
+    .eq("status", "queued")
+    .is("worker_id", null)
+    .is("claimed_at", null)
+    .is("started_at", null)
+    .select("id")
+    .maybeSingle();
 
   if (jobError) return NextResponse.json({ error: jobError.message }, { status: 500 });
+  if (!cancelledJob) {
+    return NextResponse.json({ error: "A worker claimed this job before cancellation completed. Refresh the project to see its current state." }, { status: 409 });
+  }
 
   const { error: projectError } = await admin
     .from("mapping_projects")

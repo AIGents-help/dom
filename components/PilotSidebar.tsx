@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 const V = {
-  surface: "#172033",
+  surface: "#4B535B",
   line: "rgba(255,255,255,0.08)",
   ink: "#FFFFFF",
   inkDim: "#AEB7C4",

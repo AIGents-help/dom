@@ -143,6 +143,7 @@ describe("DOMINIC output selection", () => {
   it("does not let Quick Test silently skip a requested 3D model", () => {
     const options = resolveProcessingProfileOptions("quick_test", ["3d_model", "point_cloud"]);
     expect(options.some((option) => option.name === "skip-3dmodel")).toBe(false);
+    expect(options.some((option) => option.name === "fast-orthophoto")).toBe(false);
   });
 
   it("enables elevation generation when survey outputs require it", () => {

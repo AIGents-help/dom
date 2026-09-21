@@ -4,7 +4,7 @@
 // source so the theme stays consistent. Content surfaces use white cards on a
 // light page with dark text; nav shells use `navy` with light text (handled in
 // the individual nav components). DOM orange (#F45A1E) is the primary accent;
-// status colors keep their semantic meaning (green=success, orange=warning,
+// DJI Grey (#4B535B) is the secondary brand neutral for headers, navigation, and software chrome;\n// status colors keep their semantic meaning (green=success, orange=warning,
 // red=error, purple=distinct status).
 
 export const V = {
@@ -21,7 +21,7 @@ export const V = {
   airspace: "#7C3AED", // distinct status (purple)
   danger: "#DC2626", // errors
   warn: "#E5701F", // warnings / overdue (orange)
-  navy: "#172033", // nav / sidebar shell
+  djiGrey: "#4B535B", // SECONDARY brand neutral / software chrome\n  navy: "#4B535B", // nav / sidebar shell (legacy token now maps to DJI Grey)
 };
 
 export const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };

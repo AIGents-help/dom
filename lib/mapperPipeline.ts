@@ -327,6 +327,69 @@ export const PROCESSING_PROFILES = [
 
 export type ProcessingProfileValue = (typeof PROCESSING_PROFILES)[number]["value"];
 
-export function resolveProcessingProfileOptions(profile: string): OdmOption[] {
-  return PROCESSING_PROFILES.find((p) => p.value === profile)?.options ?? [];
+export const DOMINIC_OUTPUT_OPTIONS = [
+  { value: "orthomosaic", label: "Orthomosaic / 2D Map" },
+  { value: "3d_model", label: "3D Model" },
+  { value: "point_cloud", label: "Point Cloud" },
+  { value: "dsm", label: "DSM Surface Model" },
+  { value: "dtm", label: "DTM Terrain Model" },
+  { value: "contours", label: "Contours / GIS / CAD" },
+] as const;
+
+export type DominicOutputValue = (typeof DOMINIC_OUTPUT_OPTIONS)[number]["value"];
+
+export const DOMINIC_OUTPUT_PRESETS: readonly {
+  value: "mapping" | "3d" | "survey" | "everything";
+  label: string;
+  description: string;
+  outputs: readonly DominicOutputValue[];
+}[] = [
+  {
+    value: "mapping",
+    label: "2D Mapping",
+    description: "Orthomosaic plus point cloud for routine mapping.",
+    outputs: ["orthomosaic", "point_cloud"],
+  },
+  {
+    value: "3d",
+    label: "3D Model",
+    description: "Textured 3D reconstruction plus point cloud.",
+    outputs: ["3d_model", "point_cloud"],
+  },
+  {
+    value: "survey",
+    label: "Survey",
+    description: "Orthomosaic, point cloud, DSM/DTM and contour/GIS/CAD outputs.",
+    outputs: ["orthomosaic", "point_cloud", "dsm", "dtm", "contours"],
+  },
+  {
+    value: "everything",
+    label: "Everything",
+    description: "Generate every DOMINIC output supported by this project.",
+    outputs: ["orthomosaic", "3d_model", "point_cloud", "dsm", "dtm", "contours"],
+  },
+] as const;
+
+export function normalizeDominicOutputs(value: unknown): DominicOutputValue[] {
+  if (!Array.isArray(value)) return [];
+  const allowed = new Set<string>(DOMINIC_OUTPUT_OPTIONS.map((item) => item.value));
+  return [...new Set(value.map(String).filter((item): item is DominicOutputValue => allowed.has(item)))];
+}
+
+export function resolveProcessingProfileOptions(profile: string, requestedOutputs: readonly DominicOutputValue[] = []): OdmOption[] {
+  let options = [...(PROCESSING_PROFILES.find((p) => p.value === profile)?.options ?? [])];
+
+  const wants3d = requestedOutputs.includes("3d_model");
+  if (wants3d) {
+    options = options.filter((option) => option.name !== "skip-3dmodel" && option.name !== "fast-orthophoto");
+  }
+
+  if (requestedOutputs.includes("dsm") || requestedOutputs.includes("contours")) {
+    if (!options.some((option) => option.name === "dsm")) options.push({ name: "dsm", value: true });
+  }
+  if (requestedOutputs.includes("dtm") || requestedOutputs.includes("contours")) {
+    if (!options.some((option) => option.name === "dtm")) options.push({ name: "dtm", value: true });
+  }
+
+  return options;
 }

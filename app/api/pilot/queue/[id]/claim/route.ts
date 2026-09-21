@@ -31,10 +31,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (authErr || !user) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
 
   const admin = getSupabaseAdmin();
-  const { data: contractor } = await admin.from("contractors").select("id, status, part107_verified, insurance_verified").eq("user_id", user.id).maybeSingle();
+  const { data: contractor } = await admin.from("contractors").select("id, status, part107_verified").eq("user_id", user.id).maybeSingle();
   if (!contractor) return NextResponse.json({ error: "No pilot profile found" }, { status: 404 });
-  if (contractor.status !== "active" || !contractor.part107_verified || !contractor.insurance_verified) {
-    return NextResponse.json({ error: "Pilot not verified — Part 107 and insurance both required" }, { status: 403 });
+  if (contractor.status !== "active" || !contractor.part107_verified) {
+    return NextResponse.json({ error: "Pilot credentials are not current — an active account and verified Part 107 are required." }, { status: 403 });
   }
 
   const { id } = await params;

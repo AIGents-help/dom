@@ -3,6 +3,7 @@ import {
   canUploadImages, canQueueProcessing, isStaleProcessingJob, formatBytes, formatProgress, dedupeDeliverables,
   DEFAULT_STALE_THRESHOLD_MS, MAPPING_PROJECT_STATUS_OPTIONS, PROCESSING_JOB_STATUS_OPTIONS,
   MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES,
+  PROCESSING_OUTPUT_PRESETS, normalizeRequestedOutputs,
   type MappingProjectStatus, type DeduplicableDeliverable,
 } from "./mapperPipeline";
 
@@ -124,5 +125,20 @@ describe("dedupeDeliverables", () => {
     const a = d({ id: "a", storage_url: null });
     const b = d({ id: "b", storage_url: null });
     expect(dedupeDeliverables([a, b]).map((x) => x.id).sort()).toEqual(["a", "b"]);
+  });
+});
+
+
+describe("DOMINIC output selection", () => {
+  it("provides explicit presets for mapping, 3D, survey, and all outputs", () => {
+    expect(PROCESSING_OUTPUT_PRESETS.map((p) => p.value)).toEqual(["map", "3d", "survey", "all"]);
+    expect(PROCESSING_OUTPUT_PRESETS.find((p) => p.value === "3d")?.outputs).toEqual(["3d_model", "point_cloud"]);
+    expect(PROCESSING_OUTPUT_PRESETS.find((p) => p.value === "survey")?.outputs).toContain("contours");
+  });
+
+  it("normalizes, de-duplicates, and rejects unknown output names", () => {
+    expect(normalizeRequestedOutputs(["3d_model", "point_cloud", "3d_model", "made_up"])).toEqual(["3d_model", "point_cloud"]);
+    expect(normalizeRequestedOutputs("3d_model")).toEqual([]);
+    expect(normalizeRequestedOutputs([])).toEqual([]);
   });
 });

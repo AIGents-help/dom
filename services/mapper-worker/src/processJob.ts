@@ -197,7 +197,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
       throw new Error("NodeODM finished but no recognizable output files were found in all.zip.");
     }
 
-    const expandedRequestedOutputs = new Set(requestedOutputs);
+    const expandedRequestedOutputs = new Set<string>(requestedOutputs);
     if (wantsContours) {
       expandedRequestedOutputs.add("contours_shapefile");
       expandedRequestedOutputs.add("contours_kml");
@@ -211,7 +211,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
       throw new Error(`NodeODM finished, but none of the requested outputs were found: ${requestedOutputs.join(", ")}.`);
     }
 
-    const producedTypes = new Set(selectedOutputs.map((output) => output.type));
+    const producedTypes = new Set<string>(selectedOutputs.map((output) => output.type));
     const missingRequested = requestedOutputs.filter((type) => type !== "contours" && !producedTypes.has(type));
     if (missingRequested.length > 0) {
       await logEvent(

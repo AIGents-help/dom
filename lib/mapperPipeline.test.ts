@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   canUploadImages, canQueueProcessing, isStaleProcessingJob, formatBytes, formatProgress, dedupeDeliverables,
   DEFAULT_STALE_THRESHOLD_MS, MAPPING_PROJECT_STATUS_OPTIONS, PROCESSING_JOB_STATUS_OPTIONS,
-  MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES,
+  MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES, MAPPING_OUTPUT_PRESETS, normalizeRequestedOutputs,
   type MappingProjectStatus, type DeduplicableDeliverable,
 } from "./mapperPipeline";
 
@@ -124,5 +124,18 @@ describe("dedupeDeliverables", () => {
     const a = d({ id: "a", storage_url: null });
     const b = d({ id: "b", storage_url: null });
     expect(dedupeDeliverables([a, b]).map((x) => x.id).sort()).toEqual(["a", "b"]);
+  });
+});
+
+
+describe("DOMINIC output selection", () => {
+  it("defines a 3D preset that requests model + point cloud at high detail", () => {
+    expect(MAPPING_OUTPUT_PRESETS.model_3d.outputs).toEqual(["3d_model", "point_cloud"]);
+    expect(MAPPING_OUTPUT_PRESETS.model_3d.profile).toBe("high_detail");
+  });
+
+  it("normalizes requested outputs and drops unknown values", () => {
+    expect(normalizeRequestedOutputs(["3d_model", "point_cloud", "3d_model", "bogus"])).toEqual(["3d_model", "point_cloud"]);
+    expect(normalizeRequestedOutputs("3d_model")).toEqual([]);
   });
 });

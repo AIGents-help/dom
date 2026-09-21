@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { V, panelStyle, btnPrimary, statusPillStyle, inputStyle, labelStyle } from "./theme";
-import { canQueueProcessing, formatProgress, PROCESSING_JOB_STATUS_OPTIONS, PROCESSING_PROFILES } from "@/lib/mapperPipeline";
+import { canQueueProcessing, formatProgress, PROCESSING_JOB_STATUS_OPTIONS, PROCESSING_PROFILES, MAPPING_OUTPUT_OPTIONS, MAPPING_OUTPUT_PRESETS, type MappingOutputValue } from "@/lib/mapperPipeline";
 import type { MappingDeliverable, MappingProject, MappingProcessingJob, ProcessingProfileValue } from "./types";
 
 const JOB_STATUS_COLOR: Record<string, string> = {
@@ -17,6 +17,8 @@ export default function MappingProcessingStatus({
   onQueued,
   online = true,
   deliverables = [],
+  uploadState,
+  focusModule,
 }: {
   accessToken: string;
   project: Pick<MappingProject, "id" | "status" | "image_count" | "processing_progress" | "processing_stage" | "error_message">;
@@ -24,15 +26,60 @@ export default function MappingProcessingStatus({
   onQueued: () => void;
   online?: boolean;
   deliverables?: MappingDeliverable[];
+  uploadState?: { total: number; done: number; inProgress: number; failed: number; duplicates: number };
+  focusModule?: string | null;
 }) {
   const [queuing, setQueuing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProcessingProfileValue>("standard");
   const [contourInterval, setContourInterval] = useState("0.5");
+  const [outputs, setOutputs] = useState<MappingOutputValue[]>(["orthomosaic", "point_cloud"]);
+  const [cancelling, setCancelling] = useState(false);
 
   const guard = canQueueProcessing(project);
+  const uploadsBusy = !!uploadState && uploadState.inProgress > 0;
+  const uploadsFailed = !!uploadState && uploadState.failed > 0;
+  const outputsMissing = outputs.length === 0;
+  const quickTest3dConflict = profile === "quick_test" && outputs.includes("3d_model");
+  const queueBlocked = uploadsBusy || uploadsFailed || outputsMissing || quickTest3dConflict;
+
   const revisionRequests = deliverables.filter((item) => item.client_status === "revision_requested");
   const canReprocessRevision = project.status === "completed" && revisionRequests.length > 0;
+
+  useEffect(() => {
+    if (focusModule === "3D & Point Cloud" && !["queued", "processing", "completed"].includes(project.status)) {
+      setOutputs(["3d_model", "point_cloud"]);
+      setProfile("high_detail");
+    }
+  }, [focusModule, project.status]);
+
+
+  function applyPreset(key: keyof typeof MAPPING_OUTPUT_PRESETS) {
+    const preset = MAPPING_OUTPUT_PRESETS[key];
+    setOutputs([...preset.outputs]);
+    setProfile(preset.profile);
+  }
+
+  function toggleOutput(value: MappingOutputValue) {
+    setOutputs((current) => {
+      const next = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
+      if (value === "3d_model" && !current.includes(value) && profile === "quick_test") setProfile("high_detail");
+      return next;
+    });
+  }
+
+  async function cancelQueuedProcessing() {
+    setCancelling(true);
+    setError(null);
+    const res = await fetch(`/api/pilot/mapping/projects/${project.id}/queue`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    setCancelling(false);
+    if (!res.ok) { setError(body.error ?? "Could not cancel queued processing."); return; }
+    onQueued();
+  }
 
   async function queueProcessing(revision = false) {
     setQueuing(true);
@@ -40,7 +87,7 @@ export default function MappingProcessingStatus({
     const res = await fetch(`/api/pilot/mapping/projects/${project.id}/queue`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ profile, contour_interval_m: Number(contourInterval), revision }),
+      body: JSON.stringify({ profile, outputs, contour_interval_m: Number(contourInterval), revision }),
     });
     const body = await res.json().catch(() => ({}));
     setQueuing(false);
@@ -57,12 +104,21 @@ export default function MappingProcessingStatus({
       {(project.status === "processing" || project.status === "queued") && (
         <div style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: V.inkDim, marginBottom: 6 }}>
-            <span>{project.processing_stage ?? (project.status === "queued" ? "Waiting for a worker to pick this up" : "Processing")}</span>
+            <span>{project.processing_stage ?? (project.status === "queued" ? (latestJob?.worker_id ? `Claimed by ${latestJob.worker_id}` : "Waiting for a DOMINIC worker to claim this job") : "Processing")}</span>
             <span className="font-mono-ibm" style={{ color: V.telemetry }}>{formatProgress(project.processing_progress)}</span>
           </div>
           <div style={{ height: 6, borderRadius: 4, background: V.lineSoft, overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, project.processing_progress))}%`, background: V.telemetry, transition: "width .3s ease" }} />
           </div>
+          {project.status === "queued" && !latestJob?.worker_id && (
+            <div style={{ marginTop: 10, padding: 10, borderRadius: 8, border: `1px solid ${V.warn}`, background: "rgba(229,112,31,.06)" }}>
+              <p style={{ color: V.warn, fontSize: 12, fontWeight: 700 }}>No worker has claimed this job yet.</p>
+              <p style={{ color: V.inkDim, fontSize: 11, marginTop: 4 }}>DOMINIC processing runs on the separate mapper worker/NodeODM workstation. If this remains at 0%, start or restart that worker.</p>
+              <button type="button" onClick={cancelQueuedProcessing} disabled={cancelling} style={{ ...btnPrimary, marginTop: 9 }}>
+                {cancelling ? "Cancelling…" : "Cancel Queue & Resume Uploads"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -93,7 +149,39 @@ export default function MappingProcessingStatus({
 
       {guard.ok ? (
         <div>
-          <label style={labelStyle} htmlFor="mapper-processing-profile">Processing profile</label>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>What should DOMINIC produce?</label>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+              {(Object.entries(MAPPING_OUTPUT_PRESETS) as [keyof typeof MAPPING_OUTPUT_PRESETS, (typeof MAPPING_OUTPUT_PRESETS)[keyof typeof MAPPING_OUTPUT_PRESETS]][]).map(([key, preset]) => (
+                <button key={key} type="button" onClick={() => applyPreset(key)} style={{ ...btnPrimary, padding: "7px 10px", fontSize: 11 }}>
+                  {preset.label}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {MAPPING_OUTPUT_OPTIONS.map((item) => {
+                const active = outputs.includes(item.value);
+                return (
+                  <button
+                    key={item.value}
+                    type="button"
+                    onClick={() => toggleOutput(item.value)}
+                    style={{
+                      ...btnPrimary,
+                      padding: "7px 10px",
+                      fontSize: 11,
+                      opacity: active ? 1 : 0.45,
+                      filter: active ? "none" : "grayscale(1)",
+                    }}
+                  >
+                    {active ? "✓ " : ""}{item.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <label style={labelStyle} htmlFor="mapper-processing-profile">Processing quality</label>
           <select
             id="mapper-processing-profile"
             value={profile}
@@ -125,8 +213,12 @@ export default function MappingProcessingStatus({
             </div>
           )}
           {!online && <p style={{ color: V.warn, fontSize: 11, marginBottom: 10 }}>Offline — processing requires a network connection.</p>}
-          <button onClick={() => queueProcessing(false)} disabled={queuing || !online} style={{ ...btnPrimary, opacity: !online ? .55 : 1, cursor: !online ? "not-allowed" : "pointer" }}>
-            {queuing ? "Queuing…" : project.status === "failed" ? "Retry Processing" : "Queue Processing"}
+          {uploadsBusy && <p style={{ color: V.warn, fontSize: 11, marginBottom: 8 }}>Finish the current upload batch first: {uploadState?.done ?? 0}/{uploadState?.total ?? 0} complete, {uploadState?.inProgress ?? 0} still uploading.</p>}
+          {uploadsFailed && <p style={{ color: V.danger, fontSize: 11, marginBottom: 8 }}>Retry the {uploadState?.failed ?? 0} failed upload{uploadState?.failed === 1 ? "" : "s"} before processing.</p>}
+          {outputsMissing && <p style={{ color: V.warn, fontSize: 11, marginBottom: 8 }}>Select at least one output.</p>}
+          {quickTest3dConflict && <p style={{ color: V.warn, fontSize: 11, marginBottom: 8 }}>Quick Test skips 3D reconstruction. Choose High Detail or remove 3D Model.</p>}
+          <button onClick={() => queueProcessing(false)} disabled={queuing || !online || queueBlocked} style={{ ...btnPrimary, opacity: (!online || queueBlocked) ? .55 : 1, cursor: (!online || queueBlocked) ? "not-allowed" : "pointer" }}>
+            {queuing ? "Queuing…" : project.status === "failed" ? "Retry Processing" : "Start DOMINIC Processing"}
           </button>
         </div>
       ) : (

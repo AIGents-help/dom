@@ -50,6 +50,7 @@ export default function MappingProjectWorkspace({
   const cacheKey = `dominic:project-snapshot:${projectId}`;
   const [snapshotSavedAt, setSnapshotSavedAt] = useState<Date | null>(null);
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);
+  const [uploadState, setUploadState] = useState<{ total: number; done: number; inProgress: number; failed: number; duplicates: number } | undefined>();
 
   useEffect(() => { dataRef.current = data; }, [data]);
 
@@ -108,7 +109,7 @@ export default function MappingProjectWorkspace({
       "Map Viewer": "dominic-workbench",
       "Measure & Markup": "dominic-workbench",
       "Analysis": "dominic-workbench",
-      "3D & Point Cloud": "dominic-workbench",
+      "3D & Point Cloud": document.getElementById("dominic-workbench") ? "dominic-workbench" : "dominic-processing",
       "Deliverables": "dominic-workbench",
       "Processing": "dominic-processing",
       "Data Library": "dominic-source-imagery",
@@ -268,6 +269,7 @@ export default function MappingProjectWorkspace({
             disabled={!online || !canUploadImages(project)}
             online={online}
             onUploaded={load}
+            onUploadStateChange={setUploadState}
           />
           {!online ? (
             <p style={{ color: V.warn, fontSize: 11, marginTop: 8 }}>Offline — imagery upload will be available when connectivity returns.</p>
@@ -285,7 +287,16 @@ export default function MappingProjectWorkspace({
         </section>
 
         <section id="dominic-processing" style={{ scrollMarginTop: 96 }}>
-          <MappingProcessingStatus accessToken={accessToken} project={project} latestJob={latestJob} deliverables={deliverables} onQueued={load} online={online} />
+          <MappingProcessingStatus
+            accessToken={accessToken}
+            project={project}
+            latestJob={latestJob}
+            deliverables={deliverables}
+            onQueued={load}
+            online={online}
+            uploadState={uploadState}
+            focusModule={focusModule}
+          />
         </section>
       </div>
 

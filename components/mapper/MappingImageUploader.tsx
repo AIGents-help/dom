@@ -67,12 +67,14 @@ export default function MappingImageUploader({
   disabled,
   online = true,
   onUploaded,
+  onActivityChange,
 }: {
   accessToken: string;
   projectId: string;
   disabled?: boolean;
   online?: boolean;
   onUploaded: () => void;
+  onActivityChange?: (activity: { total: number; done: number; failed: number; duplicate: number; inProgress: number }) => void;
 }) {
   const [files, setFiles] = useState<TrackedFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
@@ -272,6 +274,16 @@ export default function MappingImageUploader({
   const errorCount = files.filter((f) => f.status === "error").length;
   const duplicateCount = files.filter((f) => f.status === "duplicate").length;
   const inProgressCount = files.length - doneCount - errorCount - duplicateCount;
+
+  useEffect(() => {
+    onActivityChange?.({
+      total: files.length,
+      done: doneCount,
+      failed: errorCount,
+      duplicate: duplicateCount,
+      inProgress: inProgressCount,
+    });
+  }, [files.length, doneCount, errorCount, duplicateCount, inProgressCount, onActivityChange]);
 
   return (
     <div>

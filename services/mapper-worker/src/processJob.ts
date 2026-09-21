@@ -103,6 +103,12 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     const allOptions = Array.isArray(job.options) ? (job.options as { name: string; value: unknown }[]) : [];
     const contourSetting = allOptions.find((option) => option.name === "__dom_contour_interval_m");
     const contourIntervalM = typeof contourSetting?.value === "number" ? contourSetting.value : 0.5;
+    const requestedOutputSetting = allOptions.find((option) => option.name === "__dom_requested_outputs");
+    const requestedOutputs = Array.isArray(requestedOutputSetting?.value)
+      ? requestedOutputSetting.value.map(String)
+      : [];
+    const requestedOutputSet = new Set(requestedOutputs);
+    const wantsContours = requestedOutputSet.has("contours");
     const odmOptions = allOptions.filter((option) => !option.name.startsWith("__dom_"));
     const taskUuid = await initTask(project.name, odmOptions);
     await uploadImagesToTask(taskUuid, localImagePaths);
@@ -151,7 +157,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     // DOMINIC elevation derivative: when a Survey run produced DTM or DSM,
     // generate a GeoJSON contour layer locally with GDAL. Prefer bare-earth
     // DTM; fall back to DSM when DTM is unavailable.
-    if (!outputs.some((output) => output.type === "contours")) {
+    if (wantsContours && !outputs.some((output) => output.type === "contours")) {
       const elevationSource = outputs.find((output) => output.type === "dtm") ?? outputs.find((output) => output.type === "dsm");
       if (elevationSource) {
         try {
@@ -171,7 +177,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     }
 
     const contourSource = outputs.find((output) => output.type === "contours");
-    if (contourSource) {
+    if (wantsContours && contourSource) {
       try {
         const vectorDir = join(workspace.outputDir, "dominic_vector_exports");
         const vectorExports = await generateVectorExports(contourSource.localPath, vectorDir);
@@ -191,13 +197,38 @@ export async function processJob(job: ProcessingJob): Promise<void> {
       throw new Error("NodeODM finished but no recognizable output files were found in all.zip.");
     }
 
+    const expandedRequestedOutputs = new Set<string>(requestedOutputs);
+    if (wantsContours) {
+      expandedRequestedOutputs.add("contours_shapefile");
+      expandedRequestedOutputs.add("contours_kml");
+      expandedRequestedOutputs.add("contours_dxf");
+    }
+    const selectedOutputs = requestedOutputs.length > 0
+      ? outputs.filter((output) => expandedRequestedOutputs.has(output.type))
+      : outputs;
+
+    if (selectedOutputs.length === 0) {
+      throw new Error(`NodeODM finished, but none of the requested outputs were found: ${requestedOutputs.join(", ")}.`);
+    }
+
+    const producedTypes = new Set<string>(selectedOutputs.map((output) => output.type));
+    const missingRequested = requestedOutputs.filter((type) => type !== "contours" && !producedTypes.has(type));
+    if (missingRequested.length > 0) {
+      await logEvent(
+        project.id,
+        "requested_outputs_missing",
+        `DOMINIC could not locate ${missingRequested.length} requested output(s): ${missingRequested.join(", ")}.`,
+        { requestedOutputs, producedOutputs: [...producedTypes] }
+      );
+    }
+
     // One output failing to upload (e.g. an orthomosaic larger than the
     // Storage project's max upload size) must not throw away outputs that
     // did upload fine — same "skip it, log it, don't hard-fail" philosophy
     // extractOutputs.ts already applies to missing output types.
     const registered: string[] = [];
     const skipped: string[] = [];
-    for (const output of outputs) {
+    for (const output of selectedOutputs) {
       try {
         if (await isOutputAlreadyRegistered(job.id, output.type)) {
           console.log(`[processJob] Job ${job.id}: output "${output.type}" already registered on a prior attempt, skipping re-upload.`);

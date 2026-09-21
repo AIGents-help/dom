@@ -390,7 +390,13 @@ export default function PilotDashboard() {
             uninsuredSelfServiceEligible={profile.uninsured_self_service_eligible}
             homeAddress={profile.home_address}
             initialDraft={draftToResume}
-            onCreated={async () => { setDraftToResume(null); await load(); }}
+            onCreated={async () => {
+              setDraftToResume(null);
+              setMissionFilter("all");
+              setMissionSort("newest");
+              await load();
+              setTab("missions");
+            }}
             onDraftSaved={load}
           />
         </>

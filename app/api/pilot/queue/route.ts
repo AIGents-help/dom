@@ -39,16 +39,27 @@ export async function GET(req: NextRequest) {
 
     const { data: contractor } = await admin
       .from("contractors")
-      .select("id, status, part107_verified, insurance_verified")
+      .select("id, status, part107_verified, insurance_verified, insurance_expires_on, uninsured_self_service_eligible, dom_gig_insurance_eligible")
       .eq("user_id", user.id)
       .single();
 
     if (!contractor) {
       return NextResponse.json({ error: "No pilot profile found" }, { status: 404 });
     }
-    if (contractor.status !== "active" || !contractor.part107_verified || !contractor.insurance_verified) {
-      return NextResponse.json({ error: "Pilot not verified — Part 107 and insurance both required" }, { status: 403 });
+    if (contractor.status !== "active" || !contractor.part107_verified) {
+      return NextResponse.json({ error: "Pilot credentials are not current — an active account and verified Part 107 are required." }, { status: 403 });
     }
+
+    const insuranceCurrent =
+      !!contractor.insurance_verified
+      && !!contractor.insurance_expires_on
+      && new Date(`${contractor.insurance_expires_on}T23:59:59Z`).getTime() > Date.now();
+
+    const coverageNotice = insuranceCurrent
+      ? null
+      : contractor.dom_gig_insurance_eligible
+        ? "You may browse and request missions. DOM must confirm an approved insurance path before field operations."
+        : "You may browse and request missions, but a verified insurance path is required before DOM can assign you to field operations.";
 
     const { data: missions } = await admin
       .from("mission_requests")
@@ -102,7 +113,16 @@ export async function GET(req: NextRequest) {
       };
     });
 
-    return NextResponse.json({ queue });
+    return NextResponse.json({
+      queue,
+      authorization: {
+        credentialsVerified: true,
+        personalInsuranceCurrent: insuranceCurrent,
+        domGigInsuranceEligible: !!contractor.dom_gig_insurance_eligible,
+        uninsuredSelfServiceEligible: !!contractor.uninsured_self_service_eligible,
+        coverageNotice,
+      },
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

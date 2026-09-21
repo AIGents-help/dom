@@ -103,6 +103,10 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     const allOptions = Array.isArray(job.options) ? (job.options as { name: string; value: unknown }[]) : [];
     const contourSetting = allOptions.find((option) => option.name === "__dom_contour_interval_m");
     const contourIntervalM = typeof contourSetting?.value === "number" ? contourSetting.value : 0.5;
+    const requestedOutputsSetting = allOptions.find((option) => option.name === "__dom_requested_outputs");
+    const requestedOutputs = Array.isArray(requestedOutputsSetting?.value)
+      ? new Set((requestedOutputsSetting!.value as unknown[]).filter((value): value is string => typeof value === "string"))
+      : new Set<string>(["orthomosaic", "point_cloud"]);
     const odmOptions = allOptions.filter((option) => !option.name.startsWith("__dom_"));
     const taskUuid = await initTask(project.name, odmOptions);
     await uploadImagesToTask(taskUuid, localImagePaths);
@@ -151,7 +155,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     // DOMINIC elevation derivative: when a Survey run produced DTM or DSM,
     // generate a GeoJSON contour layer locally with GDAL. Prefer bare-earth
     // DTM; fall back to DSM when DTM is unavailable.
-    if (!outputs.some((output) => output.type === "contours")) {
+    if (requestedOutputs.has("contours") && !outputs.some((output) => output.type === "contours")) {
       const elevationSource = outputs.find((output) => output.type === "dtm") ?? outputs.find((output) => output.type === "dsm");
       if (elevationSource) {
         try {
@@ -170,7 +174,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
       }
     }
 
-    const contourSource = outputs.find((output) => output.type === "contours");
+    const contourSource = requestedOutputs.has("contours") ? outputs.find((output) => output.type === "contours") : undefined;
     if (contourSource) {
       try {
         const vectorDir = join(workspace.outputDir, "dominic_vector_exports");
@@ -191,13 +195,38 @@ export async function processJob(job: ProcessingJob): Promise<void> {
       throw new Error("NodeODM finished but no recognizable output files were found in all.zip.");
     }
 
+    const contourDerivativeTypes = new Set(["contours_shapefile", "contours_kml", "contours_dxf"]);
+    const selectedOutputs = outputs.filter((output) =>
+      requestedOutputs.has(output.type)
+      || (requestedOutputs.has("contours") && contourDerivativeTypes.has(output.type))
+    );
+
+    const producedTypes = new Set(selectedOutputs.map((output) => output.type));
+    const missingRequested = [...requestedOutputs].filter((type) => {
+      if (type === "contours") return !producedTypes.has("contours");
+      return !producedTypes.has(type);
+    });
+
+    if (selectedOutputs.length === 0) {
+      throw new Error(`NodeODM completed, but none of the requested outputs were produced: ${[...requestedOutputs].join(", ")}.`);
+    }
+
+    if (missingRequested.length > 0) {
+      await logEvent(
+        project.id,
+        "requested_outputs_missing",
+        `DOMINIC could not locate ${missingRequested.length} requested output(s): ${missingRequested.join(", ")}.`,
+        { requestedOutputs: [...requestedOutputs], missingRequested }
+      );
+    }
+
     // One output failing to upload (e.g. an orthomosaic larger than the
     // Storage project's max upload size) must not throw away outputs that
     // did upload fine — same "skip it, log it, don't hard-fail" philosophy
     // extractOutputs.ts already applies to missing output types.
     const registered: string[] = [];
     const skipped: string[] = [];
-    for (const output of outputs) {
+    for (const output of selectedOutputs) {
       try {
         if (await isOutputAlreadyRegistered(job.id, output.type)) {
           console.log(`[processJob] Job ${job.id}: output "${output.type}" already registered on a prior attempt, skipping re-upload.`);
@@ -270,7 +299,10 @@ export async function processJob(job: ProcessingJob): Promise<void> {
       supabaseAdmin.from("mapping_processing_jobs").update({ status: "completed", progress: 100, current_stage: "Complete", completed_at: doneIso }).eq("id", job.id),
       supabaseAdmin.from("mapping_projects").update({ status: "completed", processing_progress: 100, processing_completed_at: doneIso, processing_stage: "Complete" }).eq("id", project.id),
     ]);
-    const summary = `Registered ${registered.length} deliverable(s): ${registered.join(", ")}.` + (skipped.length > 0 ? ` Skipped: ${skipped.join("; ")}.` : "");
+    const summary =
+      `Registered ${registered.length} requested deliverable(s): ${registered.join(", ")}.`
+      + (missingRequested.length > 0 ? ` Missing requested outputs: ${missingRequested.join(", ")}.` : "")
+      + (skipped.length > 0 ? ` Skipped: ${skipped.join("; ")}.` : "");
     await logEvent(project.id, "processing_completed", summary);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

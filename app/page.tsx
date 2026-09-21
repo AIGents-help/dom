@@ -32,7 +32,7 @@ const benefits = [
   [Cloud, "All in One", "Platform"],
 ];
 
-const mascotSrc = "/brand/dominic-reference.webp";
+const mascotSrc = "/brand/dominic-reference.webp?v=20260921-blackhat";
 
 export default function HomePage() {
   return (

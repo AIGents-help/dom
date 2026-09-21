@@ -32,7 +32,7 @@ const benefits = [
   [Cloud, "All in One", "Platform"],
 ];
 
-const mascotSrc = "/brand/dominic-home-kneeling.webp?v=20260921-home";
+const mascotSrc = "/brand/dominic-home-kneeling.webp";
 
 export default function HomePage() {
   return (

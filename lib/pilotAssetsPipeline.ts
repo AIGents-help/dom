@@ -53,6 +53,70 @@ export const CAPABILITIES = [
 export type Capability = (typeof CAPABILITIES)[number]["value"];
 export const CAPABILITY_LABELS: Record<string, string> = Object.fromEntries(CAPABILITIES.map((c) => [c.value, c.label]));
 
+const UAV_CAPABILITY_PRESETS: Array<{
+  match: RegExp;
+  capabilities: Capability[];
+}> = [
+  {
+    match: /\b(matrice\s*4e|m4e)\b/i,
+    capabilities: ["rgb_imagery", "mapping_photogrammetry", "rtk", "zoom_inspection", "low_light", "video", "obstacle_avoidance", "survey_workflow"],
+  },
+  {
+    match: /\b(matrice\s*4t|m4t)\b/i,
+    capabilities: ["rgb_imagery", "rtk", "thermal", "zoom_inspection", "low_light", "video", "obstacle_avoidance"],
+  },
+  {
+    match: /\b(mavic\s*3\s*(enterprise|e)|m3e)\b/i,
+    capabilities: ["rgb_imagery", "mapping_photogrammetry", "rtk", "zoom_inspection", "video", "obstacle_avoidance", "survey_workflow"],
+  },
+  {
+    match: /\b(mavic\s*3\s*(thermal|t)|m3t)\b/i,
+    capabilities: ["rgb_imagery", "thermal", "zoom_inspection", "low_light", "video", "obstacle_avoidance"],
+  },
+  {
+    match: /\bmatrice\s*(300|350)\s*rtk\b/i,
+    capabilities: ["rtk", "obstacle_avoidance"],
+  },
+  {
+    match: /\bmini\s*3\s*pro\b/i,
+    capabilities: ["rgb_imagery", "video", "obstacle_avoidance"],
+  },
+  {
+    match: /\bmini\s*3\b/i,
+    capabilities: ["rgb_imagery", "video"],
+  },
+  {
+    match: /\bair\s*3\b/i,
+    capabilities: ["rgb_imagery", "zoom_inspection", "low_light", "video", "obstacle_avoidance"],
+  },
+  {
+    match: /\bevo\s*ii\s*dual\s*640t\b/i,
+    capabilities: ["rgb_imagery", "thermal", "zoom_inspection", "video", "obstacle_avoidance"],
+  },
+  {
+    match: /\bevo\s*max\s*4t\b/i,
+    capabilities: ["rgb_imagery", "thermal", "zoom_inspection", "low_light", "video", "obstacle_avoidance"],
+  },
+];
+
+export function suggestCapabilitiesForAsset(input: {
+  asset_type?: string | null;
+  manufacturer?: string | null;
+  model?: string | null;
+  display_name?: string | null;
+}): Capability[] {
+  if ((input.asset_type ?? "uav") !== "uav") return [];
+  const identity = [input.manufacturer, input.model, input.display_name]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!identity) return [];
+  return UAV_CAPABILITY_PRESETS.find((preset) => preset.match.test(identity))?.capabilities ?? [];
+}
+
 // Private fields: visible only to the owning pilot and admins, never on a
 // public profile regardless of public_visible (see the migration's own
 // comment on pilot_assets.public_visible).

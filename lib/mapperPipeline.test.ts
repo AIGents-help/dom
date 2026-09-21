@@ -3,7 +3,7 @@ import {
   canUploadImages, canQueueProcessing, isStaleProcessingJob, formatBytes, formatProgress, dedupeDeliverables,
   DEFAULT_STALE_THRESHOLD_MS, MAPPING_PROJECT_STATUS_OPTIONS, PROCESSING_JOB_STATUS_OPTIONS,
   MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES,
-  PROCESSING_OUTPUT_PRESETS, normalizeRequestedOutputs,
+  PROCESSING_OUTPUT_PRESETS, normalizeRequestedOutputs, buildProcessingJobOptions,
   type MappingProjectStatus, type DeduplicableDeliverable,
 } from "./mapperPipeline";
 
@@ -140,5 +140,20 @@ describe("DOMINIC output selection", () => {
     expect(normalizeRequestedOutputs(["3d_model", "point_cloud", "3d_model", "made_up"])).toEqual(["3d_model", "point_cloud"]);
     expect(normalizeRequestedOutputs("3d_model")).toEqual([]);
     expect(normalizeRequestedOutputs([])).toEqual([]);
+  });
+
+
+  it("translates requested outputs into compatible ODM options", () => {
+    const threeD = buildProcessingJobOptions("quick_test", ["3d_model", "point_cloud"], 0.5);
+    expect(threeD.some((o) => o.name === "skip-3dmodel")).toBe(false);
+    expect(threeD.find((o) => o.name === "__dom_requested_outputs")?.value).toEqual(["3d_model", "point_cloud"]);
+
+    const mapOnly = buildProcessingJobOptions("standard", ["orthomosaic"], 0.5);
+    expect(mapOnly).toContainEqual({ name: "skip-3dmodel", value: true });
+
+    const contours = buildProcessingJobOptions("standard", ["contours"], 1);
+    expect(contours).toContainEqual({ name: "dsm", value: true });
+    expect(contours).toContainEqual({ name: "dtm", value: true });
+    expect(contours).toContainEqual({ name: "__dom_contour_interval_m", value: 1 });
   });
 });

@@ -87,6 +87,16 @@ export default function HomePage() {
               real-world operations, not just pretty pictures.
             </p>
 
+            <div className="mt-3 rounded-lg border border-[#F45A1E]/35 bg-[#F45A1E]/10 px-4 py-3">
+              <p className="text-[11px] font-black uppercase tracking-[.12em] text-[#F45A1E]">Free Pilot Access</p>
+              <p className="mt-1 text-[11px] leading-4 text-white/85">
+                To view DOMINIC, create or log in to your Pilot account and get free access to the DOMINIC workspace.
+              </p>
+              <Link href="/pilot/login" className="mt-2 inline-flex items-center gap-1 text-[11px] font-black text-white hover:text-[#F45A1E]">
+                Pilot Login / Get Access <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
+
             <div className="mt-4 grid grid-cols-4 gap-2">
               {[
                 [MapPinned, "Map", "2D & 3D"],

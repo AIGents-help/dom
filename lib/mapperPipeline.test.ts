@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   canUploadImages, canQueueProcessing, isStaleProcessingJob, formatBytes, formatProgress, dedupeDeliverables,
   DEFAULT_STALE_THRESHOLD_MS, MAPPING_PROJECT_STATUS_OPTIONS, PROCESSING_JOB_STATUS_OPTIONS,
-  MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES,
+  MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES, DOMINIC_JOB_PRESETS, normalizeRequestedOutputs, resolveProcessingProfileOptions,
   type MappingProjectStatus, type DeduplicableDeliverable,
 } from "./mapperPipeline";
 
@@ -124,5 +124,30 @@ describe("dedupeDeliverables", () => {
     const a = d({ id: "a", storage_url: null });
     const b = d({ id: "b", storage_url: null });
     expect(dedupeDeliverables([a, b]).map((x) => x.id).sort()).toEqual(["a", "b"]);
+  });
+});
+
+
+describe("DOMINIC output selection", () => {
+  it("provides clear job presets for 3D, map, point cloud, survey, and everything", () => {
+    expect(DOMINIC_JOB_PRESETS.map((preset) => preset.value)).toEqual([
+      "3d", "map", "point_cloud", "survey", "everything", "custom",
+    ]);
+    expect(DOMINIC_JOB_PRESETS.find((preset) => preset.value === "3d")?.outputs).toEqual(["3d_model", "point_cloud"]);
+  });
+
+  it("normalizes requested outputs and ignores unknown values", () => {
+    expect(normalizeRequestedOutputs(["3d_model", "point_cloud", "bogus", "3d_model"])).toEqual(["3d_model", "point_cloud"]);
+  });
+
+  it("does not let Quick Test silently skip a requested 3D model", () => {
+    const options = resolveProcessingProfileOptions("quick_test", ["3d_model", "point_cloud"]);
+    expect(options.some((option) => option.name === "skip-3dmodel")).toBe(false);
+  });
+
+  it("enables elevation generation when survey outputs require it", () => {
+    const options = resolveProcessingProfileOptions("standard", ["dsm", "dtm", "contours"]);
+    expect(options).toContainEqual({ name: "dsm", value: true });
+    expect(options).toContainEqual({ name: "dtm", value: true });
   });
 });

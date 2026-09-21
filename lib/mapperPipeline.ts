@@ -98,6 +98,52 @@ export const PROCESSING_JOB_STATUS_OPTIONS = [
 ] as const;
 export type ProcessingJobStatus = (typeof PROCESSING_JOB_STATUS_OPTIONS)[number]["value"];
 
+// Pilot-facing output selection. This is intentionally separate from
+// processing quality/profile: "what should DOMINIC make?" is not the same
+// question as "how aggressively should ODM process it?".
+export const PROCESSING_OUTPUTS = [
+  { value: "orthomosaic", label: "2D Orthomosaic", description: "Georeferenced stitched map." },
+  { value: "3d_model", label: "3D Model", description: "Textured 3D reconstruction for object/structure review." },
+  { value: "point_cloud", label: "Point Cloud", description: "Dense LAZ/LAS/PLY point cloud and Potree viewer when available." },
+  { value: "dsm", label: "DSM", description: "Digital surface model including buildings/vegetation." },
+  { value: "dtm", label: "DTM", description: "Bare-earth digital terrain model." },
+  { value: "contours", label: "Contours / GIS / CAD", description: "Contour layer plus GIS/CAD exchange derivatives when available." },
+] as const;
+export type ProcessingOutputValue = (typeof PROCESSING_OUTPUTS)[number]["value"];
+
+export const PROCESSING_OUTPUT_PRESETS = [
+  {
+    value: "map",
+    label: "2D Mapping",
+    outputs: ["orthomosaic", "point_cloud"] as ProcessingOutputValue[],
+    suggestedProfile: "standard" as const,
+  },
+  {
+    value: "3d",
+    label: "3D Model",
+    outputs: ["3d_model", "point_cloud"] as ProcessingOutputValue[],
+    suggestedProfile: "high_detail" as const,
+  },
+  {
+    value: "survey",
+    label: "Survey",
+    outputs: ["orthomosaic", "point_cloud", "dsm", "dtm", "contours"] as ProcessingOutputValue[],
+    suggestedProfile: "survey" as const,
+  },
+  {
+    value: "all",
+    label: "Everything",
+    outputs: ["orthomosaic", "3d_model", "point_cloud", "dsm", "dtm", "contours"] as ProcessingOutputValue[],
+    suggestedProfile: "high_detail" as const,
+  },
+] as const;
+
+export function normalizeRequestedOutputs(values: unknown): ProcessingOutputValue[] {
+  if (!Array.isArray(values)) return [];
+  const allowed = new Set(PROCESSING_OUTPUTS.map((item) => item.value));
+  return [...new Set(values.filter((value): value is ProcessingOutputValue => typeof value === "string" && allowed.has(value as ProcessingOutputValue)))];
+}
+
 // Deliverable types the mapper worker can produce. `deliverables.type` has
 // no DB constraint (verified live) — this is purely the app-level list,
 // kept here as the single source of truth so the admin missions page and

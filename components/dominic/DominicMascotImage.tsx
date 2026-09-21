@@ -1,4 +1,4 @@
-export const DOMINIC_MASCOT_SRC = "/brand/dominic-reference.webp?v=20260921";
+export const DOMINIC_MASCOT_SRC = "/brand/dominic-reference.webp?v=20260921-blackhat";
 
 export default function DominicMascotImage({ className = "", priority = false }: { className?: string; priority?: boolean }) {
   return (

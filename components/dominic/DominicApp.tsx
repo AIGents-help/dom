@@ -28,7 +28,7 @@ import DominicMascotImage from "@/components/dominic/DominicMascotImage";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
-const BG = "#090D11";
+const DJI_GREY = "#4B535B";\nconst BG = DJI_GREY;
 const PANEL = "#10161D";
 const LINE = "#25303B";
 const TEXT = "#F5F7FA";
@@ -142,7 +142,7 @@ export default function DominicApp() {
         style={{
           minHeight: 78,
           borderBottom: `1px solid ${LINE}`,
-          background: "linear-gradient(90deg, #11171E 0%, #0B1015 68%, #11171E 100%)",
+          background: DJI_GREY,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -229,7 +229,7 @@ export default function DominicApp() {
         <aside
           style={{
             borderRight: `1px solid ${LINE}`,
-            background: "linear-gradient(180deg, #0D1218 0%, #0A0F14 100%)",
+            background: DJI_GREY,
             padding: 14,
             position: "sticky",
             top: 78,
@@ -318,7 +318,7 @@ export default function DominicApp() {
               border: `1px solid ${LINE}`,
               borderRadius: 14,
               overflow: "hidden",
-              background: "radial-gradient(circle at 50% 0%, rgba(244,90,30,.16), transparent 62%), #0A0F14",
+              background: `radial-gradient(circle at 50% 0%, rgba(244,90,30,.14), transparent 62%), ${DJI_GREY}`,
               textAlign: "center",
               display: sidebarCollapsed ? "none" : "block",
             }}

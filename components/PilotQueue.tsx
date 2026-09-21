@@ -45,6 +45,7 @@ export default function PilotQueue({
   const [claiming, setClaiming] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("status");
   const [eligibleOnly, setEligibleOnly] = useState(false);
+  const [coverageNotice, setCoverageNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,6 +60,7 @@ export default function PilotQueue({
     }
     const body = await res.json();
     setOpen(body.queue ?? []);
+    setCoverageNotice(body.authorization?.coverageNotice ?? null);
     setLoading(false);
   }, [accessToken]);
 
@@ -156,6 +158,12 @@ export default function PilotQueue({
       </div>
 
       {error && <p style={{ color: V.danger, fontSize: 13, marginBottom: 12 }}>{error}</p>}
+      {!error && coverageNotice && (
+        <div style={{ ...panelStyle, borderColor: "rgba(229,112,31,.35)", background: "rgba(229,112,31,.05)", marginBottom: 12, padding: 12 }}>
+          <p style={{ color: V.warn, fontSize: 12, fontWeight: 600 }}>Coverage required before field assignment</p>
+          <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>{coverageNotice}</p>
+        </div>
+      )}
       {loading && <p style={{ color: V.inkDim }}>Loading queue…</p>}
       {!loading && sorted.length === 0 && (
         <div style={{ ...panelStyle, textAlign: "center", padding: 40 }}>

@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-export const DOMINIC_MASCOT_SRC = "/brand/dominic-reference.webp?v=20260921-blackhat";
+export const DOMINIC_MASCOT_SRC = "/brand/dominic-reference.webp";
 
 export default function DominicMascotImage({ className = "", priority = false }: { className?: string; priority?: boolean }) {
   return (

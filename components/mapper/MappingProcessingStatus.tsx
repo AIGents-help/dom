@@ -109,6 +109,7 @@ export default function MappingProcessingStatus({
           </div>
           <div style={{ height: 6, borderRadius: 4, background: V.lineSoft, overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${Math.max(0, Math.min(100, project.processing_progress))}%`, background: V.telemetry, transition: "width .3s ease" }} />
+          </div>
           {project.status === "queued" && !latestJob?.worker_id && (
             <div style={{ marginTop: 10, padding: 10, borderRadius: 8, border: `1px solid ${V.warn}`, background: "rgba(229,112,31,.06)" }}>
               <p style={{ color: V.warn, fontSize: 12, fontWeight: 700 }}>No worker has claimed this job yet.</p>

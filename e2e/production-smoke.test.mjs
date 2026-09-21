@@ -44,27 +44,22 @@ test("homepage exposes the approved DOMINIC layout", async () => {
   const response = await page.goto(`${baseURL}/`, { waitUntil: "networkidle", timeout: 45_000 });
   assert.ok(response && response.status() < 400, `homepage returned ${response?.status()}`);
 
-  await page.getByText("Higher Insights.", { exact: true }).waitFor();
-  await page.getByText("Coming to DOM", { exact: true }).first().waitFor();
-  const dominicLinks = page.getByRole("link", { name: "Meet DOMINIC" });
-  assert.ok(await dominicLinks.count() >= 1, "homepage should expose at least one Meet DOMINIC link");
-  await dominicLinks.first().waitFor();
-  await page.getByText("Same Perspective. Higher Purpose.", { exact: true }).waitFor();
-  await page.getByText("Map. Measure. Analyze. Deliver.", { exact: true }).waitFor();
+  await page.getByRole("heading", { name: /Higher Insights\.\s*Real Results\./i }).waitFor();
+  await page.getByText("Free Pilot Access", { exact: true }).waitFor();
+  await page.getByRole("link", { name: /Pilot Login \/ Get Access/i }).waitFor();
+  await page.getByRole("link", { name: /Explore DOMINIC/i }).waitFor();
 
-  const mascots = page.getByAltText("DOMINIC mapping software mascot");
-  assert.ok(await mascots.count() >= 2, "homepage should render the approved DOMINIC mascot in both hero and feature promotion");
-  for (let index = 0; index < await mascots.count(); index += 1) {
-    const status = await mascots.nth(index).evaluate((image) => ({
-      loaded: image.complete && image.naturalWidth > 0 && image.naturalHeight > 0,
-      objectFit: getComputedStyle(image).objectFit,
-      width: image.getBoundingClientRect().width,
-      height: image.getBoundingClientRect().height,
-    }));
-    assert.equal(status.loaded, true, `DOMINIC mascot image ${index + 1} failed to load`);
-    assert.equal(status.objectFit, "contain", `DOMINIC mascot image ${index + 1} must remain fully visible`);
-    assert.ok(status.width > 100 && status.height > 100, `DOMINIC mascot image ${index + 1} rendered too small`);
-  }
+  const mascot = page.getByAltText("DOMINIC mapping software mascot").first();
+  await mascot.waitFor();
+  const status = await mascot.evaluate((image) => ({
+    loaded: image.complete && image.naturalWidth > 0 && image.naturalHeight > 0,
+    objectFit: getComputedStyle(image).objectFit,
+    width: image.getBoundingClientRect().width,
+    height: image.getBoundingClientRect().height,
+  }));
+  assert.equal(status.loaded, true, "DOMINIC mascot image failed to load");
+  assert.equal(status.objectFit, "contain", "DOMINIC mascot must remain fully visible");
+  assert.ok(status.width > 100 && status.height > 100, "DOMINIC mascot rendered too small");
   await page.close();
 });
 

@@ -39,7 +39,7 @@ const SECTIONS: Section[] = [
     label: "Missions",
     icon: "▤",
     items: [
-      { id: "missions", label: "Mission Dashboard", icon: "•" },
+      { id: "missions", label: "My Missions", icon: "•" },
       { id: "create", label: "Create New", icon: "+" },
       ...(QUEUE_ENABLED ? [{ id: "queue" as PilotTab, label: "Mission Queue", icon: "◫" }] : []),
     ],

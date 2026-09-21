@@ -50,6 +50,7 @@ export default function MappingProjectWorkspace({
   const cacheKey = `dominic:project-snapshot:${projectId}`;
   const [snapshotSavedAt, setSnapshotSavedAt] = useState<Date | null>(null);
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);
+  const [uploadBatchState, setUploadBatchState] = useState({ total: 0, done: 0, failed: 0, duplicate: 0, inProgress: 0 });
 
   useEffect(() => { dataRef.current = data; }, [data]);
 
@@ -268,6 +269,7 @@ export default function MappingProjectWorkspace({
             disabled={!online || !canUploadImages(project)}
             online={online}
             onUploaded={load}
+            onUploadStateChange={setUploadBatchState}
           />
           {!online ? (
             <p style={{ color: V.warn, fontSize: 11, marginTop: 8 }}>Offline — imagery upload will be available when connectivity returns.</p>
@@ -285,7 +287,15 @@ export default function MappingProjectWorkspace({
         </section>
 
         <section id="dominic-processing" style={{ scrollMarginTop: 96 }}>
-          <MappingProcessingStatus accessToken={accessToken} project={project} latestJob={latestJob} deliverables={deliverables} onQueued={load} online={online} />
+          <MappingProcessingStatus
+            accessToken={accessToken}
+            project={project}
+            latestJob={latestJob}
+            deliverables={deliverables}
+            onQueued={load}
+            online={online}
+            uploadBatchState={uploadBatchState}
+          />
         </section>
       </div>
 

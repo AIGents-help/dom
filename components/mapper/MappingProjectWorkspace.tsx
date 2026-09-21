@@ -115,7 +115,14 @@ export default function MappingProjectWorkspace({
     };
     const id = targetMap[focusModule];
     if (!id) return;
-    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    requestAnimationFrame(() => {
+      const primary = document.getElementById(id);
+      const fallback =
+        ["Map Viewer", "Measure & Markup", "Analysis", "3D & Point Cloud", "Deliverables"].includes(focusModule)
+          ? document.getElementById("dominic-processing")
+          : null;
+      (primary ?? fallback)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }, [focusModule]);
 
   useEffect(() => {

@@ -1,13 +1,16 @@
-export const DOMINIC_MASCOT_SRC = "/brand/dominic-reference.webp?v=20260921-blackhat";
+import Image from "next/image";
+
+export const DOMINIC_MASCOT_SRC = "/brand/dominic-reference.webp";
 
 export default function DominicMascotImage({ className = "", priority = false }: { className?: string; priority?: boolean }) {
   return (
-    <img
+    <Image
       src={DOMINIC_MASCOT_SRC}
       alt="DOMINIC mapping software mascot"
-      loading={priority ? "eager" : "lazy"}
-      fetchPriority={priority ? "high" : "auto"}
-      className={`absolute inset-0 h-full w-full ${className}`}
+      fill
+      priority={priority}
+      sizes="(max-width: 980px) 100vw, 320px"
+      className={`object-contain ${className}`}
     />
   );
 }

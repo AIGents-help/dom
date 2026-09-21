@@ -28,7 +28,8 @@ import DominicMascotImage from "@/components/dominic/DominicMascotImage";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
-const DJI_GREY = "#4B535B";\nconst BG = DJI_GREY;
+const DJI_GREY = "#4B535B";
+const BG = DJI_GREY;
 const PANEL = "#10161D";
 const LINE = "#25303B";
 const TEXT = "#F5F7FA";

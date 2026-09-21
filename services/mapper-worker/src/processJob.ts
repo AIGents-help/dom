@@ -103,6 +103,15 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     const allOptions = Array.isArray(job.options) ? (job.options as { name: string; value: unknown }[]) : [];
     const contourSetting = allOptions.find((option) => option.name === "__dom_contour_interval_m");
     const contourIntervalM = typeof contourSetting?.value === "number" ? contourSetting.value : 0.5;
+    const requestedOutputSetting = allOptions.find((option) => option.name === "__dom_requested_outputs");
+    const requestedOutputs = Array.isArray(requestedOutputSetting?.value)
+      ? requestedOutputSetting.value.filter((value): value is string => typeof value === "string")
+      : [];
+    const wantsOutput = (type: ExtractedOutput["type"]) => {
+      if (requestedOutputs.length === 0) return true;
+      if (type.startsWith("contours")) return requestedOutputs.includes("contours");
+      return requestedOutputs.includes(type);
+    };
     const odmOptions = allOptions.filter((option) => !option.name.startsWith("__dom_"));
     const taskUuid = await initTask(project.name, odmOptions);
     await uploadImagesToTask(taskUuid, localImagePaths);
@@ -151,7 +160,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     // DOMINIC elevation derivative: when a Survey run produced DTM or DSM,
     // generate a GeoJSON contour layer locally with GDAL. Prefer bare-earth
     // DTM; fall back to DSM when DTM is unavailable.
-    if (!outputs.some((output) => output.type === "contours")) {
+    if (requestedOutputs.includes("contours") && !outputs.some((output) => output.type === "contours")) {
       const elevationSource = outputs.find((output) => output.type === "dtm") ?? outputs.find((output) => output.type === "dsm");
       if (elevationSource) {
         try {
@@ -170,7 +179,9 @@ export async function processJob(job: ProcessingJob): Promise<void> {
       }
     }
 
-    const contourSource = outputs.find((output) => output.type === "contours");
+    const contourSource = requestedOutputs.includes("contours")
+      ? outputs.find((output) => output.type === "contours")
+      : undefined;
     if (contourSource) {
       try {
         const vectorDir = join(workspace.outputDir, "dominic_vector_exports");
@@ -187,8 +198,13 @@ export async function processJob(job: ProcessingJob): Promise<void> {
         console.error(`[processJob] Job ${job.id}: GIS/CAD export generation skipped:`, vectorErr instanceof Error ? vectorErr.message : vectorErr);
       }
     }
-    if (outputs.length === 0) {
-      throw new Error("NodeODM finished but no recognizable output files were found in all.zip.");
+    const selectedOutputs = outputs.filter((output) => wantsOutput(output.type));
+    if (selectedOutputs.length === 0) {
+      throw new Error(
+        requestedOutputs.length > 0
+          ? `NodeODM finished but none of the requested outputs were found: ${requestedOutputs.join(", ")}.`
+          : "NodeODM finished but no recognizable output files were found in all.zip."
+      );
     }
 
     // One output failing to upload (e.g. an orthomosaic larger than the
@@ -197,7 +213,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     // extractOutputs.ts already applies to missing output types.
     const registered: string[] = [];
     const skipped: string[] = [];
-    for (const output of outputs) {
+    for (const output of selectedOutputs) {
       try {
         if (await isOutputAlreadyRegistered(job.id, output.type)) {
           console.log(`[processJob] Job ${job.id}: output "${output.type}" already registered on a prior attempt, skipping re-upload.`);

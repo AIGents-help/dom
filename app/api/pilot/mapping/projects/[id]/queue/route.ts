@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveContractor } from "@/lib/pilotAuth";
-import { canQueueProcessing, PROCESSING_PROFILES, resolveProcessingProfileOptions } from "@/lib/mapperPipeline";
+import { canQueueProcessing, PROCESSING_PROFILES, normalizeRequestedOutputs, resolveProcessingProfileOptions } from "@/lib/mapperPipeline";
 
 // POST /api/pilot/mapping/projects/[id]/queue
 // Inserts a mapping_processing_jobs row (status 'queued') and flips the
@@ -35,6 +35,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
 
+  const requestedOutputs = normalizeRequestedOutputs(body?.requested_outputs);
+  if (!revisionRequested && requestedOutputs.length === 0) {
+    return NextResponse.json({ error: "Choose at least one DOMINIC output before queueing processing." }, { status: 400 });
+  }
+
   const requestedProfile = typeof body?.profile === "string" ? body.profile : "standard";
   const profile = PROCESSING_PROFILES.some((p) => p.value === requestedProfile) ? requestedProfile : "standard";
   const requestedContourInterval = Number(body?.contour_interval_m);
@@ -42,8 +47,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ? Math.min(20, Math.max(0.1, requestedContourInterval))
     : 0.5;
   const options = [
-    ...resolveProcessingProfileOptions(profile),
+    ...resolveProcessingProfileOptions(profile, requestedOutputs),
     { name: "__dom_contour_interval_m", value: contourInterval },
+    { name: "__dom_requested_outputs", value: requestedOutputs },
   ];
 
   const { error: jobError } = await admin.from("mapping_processing_jobs").insert({
@@ -81,7 +87,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     actor_id: auth.contractor.id,
     event_type: revisionRequested ? "revision_queued" : "queued",
     message: revisionRequested ? `Queued corrected output processing (${project.image_count} images).` : `Queued for processing (${project.image_count} images).`,
-    metadata: revisionRequested ? { reason: "client_revision_requested" } : null,
+    metadata: revisionRequested
+      ? { reason: "client_revision_requested", requested_outputs: requestedOutputs }
+      : { requested_outputs: requestedOutputs, profile },
   });
 
   return NextResponse.json({ ok: true });

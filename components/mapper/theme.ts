@@ -17,7 +17,8 @@ export const V = {
   airspace: "#A78BFA",
   danger: "#F05A5A",
   warn: "#F59E0B",
-  djiGrey: "#4B535B",\n  navy: "#4B535B",
+  djiGrey: "#4B535B",
+  navy: "#4B535B",
 };
 
 export const panelStyle: CSSProperties = {

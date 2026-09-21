@@ -327,6 +327,30 @@ export const PROCESSING_PROFILES = [
 
 export type ProcessingProfileValue = (typeof PROCESSING_PROFILES)[number]["value"];
 
+export const MAPPING_OUTPUT_OPTIONS = [
+  { value: "orthomosaic", label: "Orthomosaic / 2D Map" },
+  { value: "3d_model", label: "3D Model" },
+  { value: "point_cloud", label: "Point Cloud" },
+  { value: "dsm", label: "DSM" },
+  { value: "dtm", label: "DTM" },
+  { value: "contours", label: "Contours / GIS / CAD" },
+] as const;
+export type MappingOutputValue = (typeof MAPPING_OUTPUT_OPTIONS)[number]["value"];
+
+export const MAPPING_OUTPUT_PRESETS: Record<string, { label: string; outputs: MappingOutputValue[]; profile: ProcessingProfileValue }> = {
+  model_3d: { label: "3D Model", outputs: ["3d_model", "point_cloud"], profile: "high_detail" },
+  mapping: { label: "Mapping", outputs: ["orthomosaic", "point_cloud"], profile: "standard" },
+  survey: { label: "Survey", outputs: ["orthomosaic", "point_cloud", "dsm", "dtm", "contours"], profile: "survey" },
+  everything: { label: "Everything", outputs: ["orthomosaic", "3d_model", "point_cloud", "dsm", "dtm", "contours"], profile: "high_detail" },
+};
+
+export function normalizeRequestedOutputs(values: unknown): MappingOutputValue[] {
+  if (!Array.isArray(values)) return [];
+  const allowed = new Set(MAPPING_OUTPUT_OPTIONS.map((item) => item.value));
+  return [...new Set(values.filter((value): value is MappingOutputValue => typeof value === "string" && allowed.has(value as MappingOutputValue)))];
+}
+
+
 export function resolveProcessingProfileOptions(profile: string): OdmOption[] {
   return PROCESSING_PROFILES.find((p) => p.value === profile)?.options ?? [];
 }

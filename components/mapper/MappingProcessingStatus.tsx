@@ -36,6 +36,7 @@ export default function MappingProcessingStatus({
   uploadBatchState?: { total: number; done: number; failed: number; duplicate: number; inProgress: number };
 }) {
   const [queuing, setQueuing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProcessingProfileValue>("standard");
   const [requestedOutputs, setRequestedOutputs] = useState<ProcessingOutputValue[]>(["orthomosaic", "point_cloud"]);
@@ -68,6 +69,22 @@ export default function MappingProcessingStatus({
   }
 
   const canReprocessRevision = project.status === "completed" && revisionRequests.length > 0;
+
+  async function cancelQueuedProcessing() {
+    setCancelling(true);
+    setError(null);
+    const res = await fetch(`/api/pilot/mapping/projects/${project.id}/queue/cancel`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    setCancelling(false);
+    if (!res.ok) {
+      setError(body.error ?? "Could not cancel the queued processing job.");
+      return;
+    }
+    onQueued();
+  }
 
   async function queueProcessing(revision = false) {
     setQueuing(true);
@@ -274,9 +291,19 @@ export default function MappingProcessingStatus({
             {latestJob.current_stage && <span style={{ color: V.inkDim }}>{latestJob.current_stage}</span>}
           </div>
           {latestJob.status === "queued" && !latestJob.worker_id && (
-            <p style={{ color: V.warn, fontSize: 11, marginTop: 8 }}>
-              This job is queued but has not started. A DOMINIC worker/NodeODM workstation must be online to claim it.
-            </p>
+            <div style={{ marginTop: 8 }}>
+              <p style={{ color: V.warn, fontSize: 11 }}>
+                This job is queued but has not started. A DOMINIC worker/NodeODM workstation must be online to claim it.
+              </p>
+              <button
+                type="button"
+                onClick={cancelQueuedProcessing}
+                disabled={cancelling}
+                style={{ marginTop: 8, padding: "6px 10px", borderRadius: 7, border: `1px solid ${V.line}`, background: V.raised, color: V.ink, fontSize: 11, cursor: cancelling ? "wait" : "pointer", opacity: cancelling ? .6 : 1 }}
+              >
+                {cancelling ? "Cancelling…" : "Cancel queued job & reopen uploads"}
+              </button>
+            </div>
           )}
           {latestJob.error_message && <p style={{ color: V.danger, fontSize: 12, marginTop: 8 }}>{latestJob.error_message}</p>}
         </div>

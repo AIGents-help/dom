@@ -104,20 +104,21 @@ export default function MappingProjectWorkspace({
   }, [load]);
 
   useEffect(() => {
-    if (!focusModule) return;
+    if (!focusModule || !data) return;
+    const hasProcessedOutputs = data.deliverables.length > 0;
     const targetMap: Record<string, string> = {
-      "Map Viewer": "dominic-workbench",
-      "Measure & Markup": "dominic-workbench",
-      "Analysis": "dominic-workbench",
-      "3D & Point Cloud": "dominic-workbench",
-      "Deliverables": "dominic-workbench",
+      "Map Viewer": hasProcessedOutputs ? "dominic-workbench" : "dominic-processing",
+      "Measure & Markup": hasProcessedOutputs ? "dominic-workbench" : "dominic-processing",
+      "Analysis": hasProcessedOutputs ? "dominic-workbench" : "dominic-processing",
+      "3D & Point Cloud": hasProcessedOutputs ? "dominic-workbench" : "dominic-processing",
+      "Deliverables": hasProcessedOutputs ? "dominic-workbench" : "dominic-processing",
       "Processing": "dominic-processing",
       "Data Library": "dominic-source-imagery",
     };
     const id = targetMap[focusModule];
     if (!id) return;
     requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }, [focusModule]);
+  }, [focusModule, data]);
 
   useEffect(() => {
     if (!online || !data || !["queued", "processing"].includes(data.project.status)) return;

@@ -582,7 +582,16 @@ export default function PilotDashboard() {
       )}
 
       {tab === "queue" && accessToken && (
-        <PilotQueue accessToken={accessToken} myClaims={myClaims} onClaimed={load} />
+        <PilotQueue
+          accessToken={accessToken}
+          myClaims={myClaims}
+          onClaimed={load}
+          onViewMyMissions={() => {
+            setMissionFilter("all");
+            setMissionSort("newest");
+            setTab("missions");
+          }}
+        />
       )}
 
       {tab === "mapping" && accessToken && <MappingTab accessToken={accessToken} />}

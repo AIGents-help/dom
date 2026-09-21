@@ -32,7 +32,7 @@ const benefits = [
   [Cloud, "All in One", "Platform"],
 ];
 
-const mascotSrc = "/brand/dominic-reference.webp?v=20260921-blackhat";
+const mascotSrc = "/brand/dominic-home-kneeling.webp?v=20260921-home";
 
 export default function HomePage() {
   return (
@@ -72,7 +72,7 @@ export default function HomePage() {
               alt="DOMINIC mapping software mascot"
               fill
               sizes="(max-width: 1024px) 100vw, 30vw"
-              className="object-contain object-bottom drop-shadow-[0_20px_45px_rgba(0,0,0,.5)]"
+              className="object-contain object-center drop-shadow-[0_20px_45px_rgba(0,0,0,.5)]"
             />
             <p className="absolute bottom-2 left-0 z-20 text-[12px] italic leading-5 text-white/75">
               “Same<br />Perspective.<br />Higher Purpose.”

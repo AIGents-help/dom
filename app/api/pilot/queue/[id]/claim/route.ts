@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
 import { computeEligibility, eligibilityReason } from "@/lib/pilotAssetsPipeline";
 import { getContractorActiveCapabilities, getServiceTypeRequirements } from "@/lib/pilotAssetsServer";
+import { hasCurrentPilotCredentials } from "@/lib/pilotAuthorization";
 
 // POST /api/pilot/queue/[id]/claim
 // Server-side gate in front of the existing `pilot_request_mission` RPC
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const admin = getSupabaseAdmin();
   const { data: contractor } = await admin.from("contractors").select("id, status, part107_verified").eq("user_id", user.id).maybeSingle();
   if (!contractor) return NextResponse.json({ error: "No pilot profile found" }, { status: 404 });
-  if (contractor.status !== "active" || !contractor.part107_verified) {
+  if (!hasCurrentPilotCredentials(contractor)) {
     return NextResponse.json({ error: "Pilot credentials are not current — an active account and verified Part 107 are required." }, { status: 403 });
   }
 

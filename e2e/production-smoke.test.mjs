@@ -44,7 +44,7 @@ test("homepage exposes the approved DOMINIC layout", async () => {
   const response = await page.goto(`${baseURL}/`, { waitUntil: "networkidle", timeout: 45_000 });
   assert.ok(response && response.status() < 400, `homepage returned ${response?.status()}`);
 
-  await page.getByText("Safety-First Operations", { exact: true }).waitFor();
+  await page.getByText("Higher Insights.", { exact: true }).waitFor();
   await page.getByText("Coming to DOM", { exact: true }).first().waitFor();
   const dominicLinks = page.getByRole("link", { name: "Meet DOMINIC" });
   assert.ok(await dominicLinks.count() >= 1, "homepage should expose at least one Meet DOMINIC link");

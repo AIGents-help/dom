@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { V, panelStyle, btnPrimary, btnGhost, inputStyle, labelStyle, statusPillStyle } from "@/lib/theme";
-import { ASSET_TYPES, ASSET_STATUS_OPTIONS, CAPABILITIES, CAPABILITY_LABELS, isAssetActive } from "@/lib/pilotAssetsPipeline";
+import { ASSET_TYPES, ASSET_STATUS_OPTIONS, CAPABILITIES, CAPABILITY_LABELS, isAssetActive, suggestCapabilitiesForAsset } from "@/lib/pilotAssetsPipeline";
 
 // Pilot > Assets — structured equipment inventory (issue #15). Private
 // fields (serial/registration/Remote ID/firmware/acquired date/notes) are
@@ -177,6 +177,7 @@ export default function PilotAssetsTab({ accessToken }: { accessToken: string })
 
       {editingId && (
         <AssetForm
+          key={editingId}
           form={form}
           setForm={setForm}
           toggleCapability={toggleCapability}
@@ -258,7 +259,25 @@ function AssetForm({
   saving: boolean;
   isNew: boolean;
 }) {
+  const [capabilitiesCustomized, setCapabilitiesCustomized] = useState(false);
+  const suggestedCapabilities = suggestCapabilitiesForAsset(form);
+
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
+
+  function setIdentityField(key: "asset_type" | "manufacturer" | "model" | "display_name", value: string) {
+    setForm((current) => {
+      const next = { ...current, [key]: value };
+      if (isNew && !capabilitiesCustomized) {
+        next.capabilities = suggestCapabilitiesForAsset(next);
+      }
+      return next;
+    });
+  }
+
+  function toggleSuggestedCapability(capability: string) {
+    setCapabilitiesCustomized(true);
+    toggleCapability(capability);
+  }
 
   return (
     <div style={{ ...panelStyle, marginBottom: 4 }}>
@@ -269,7 +288,7 @@ function AssetForm({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 12 }}>
         <div>
           <label style={labelStyle}>Asset type</label>
-          <select value={form.asset_type} onChange={(e) => set("asset_type", e.target.value)} style={inputStyle}>
+          <select value={form.asset_type} onChange={(e) => setIdentityField("asset_type", e.target.value)} style={inputStyle}>
             {ASSET_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>
         </div>
@@ -281,19 +300,29 @@ function AssetForm({
         </div>
         <div>
           <label style={labelStyle}>Public display name</label>
-          <input value={form.display_name} onChange={(e) => set("display_name", e.target.value)} style={inputStyle} placeholder="e.g. DJI Matrice 4E" />
+          <input value={form.display_name} onChange={(e) => setIdentityField("display_name", e.target.value)} style={inputStyle} placeholder="e.g. DJI Matrice 4E" />
         </div>
         <div>
           <label style={labelStyle}>Manufacturer</label>
-          <input value={form.manufacturer} onChange={(e) => set("manufacturer", e.target.value)} style={inputStyle} />
+          <input value={form.manufacturer} onChange={(e) => setIdentityField("manufacturer", e.target.value)} style={inputStyle} />
         </div>
         <div>
           <label style={labelStyle}>Model</label>
-          <input value={form.model} onChange={(e) => set("model", e.target.value)} style={inputStyle} />
+          <input value={form.model} onChange={(e) => setIdentityField("model", e.target.value)} style={inputStyle} />
         </div>
       </div>
 
       <label style={labelStyle}>Capabilities</label>
+      {isNew && suggestedCapabilities.length > 0 && (
+        <p style={{ color: V.inkDim, fontSize: 11, margin: "0 0 8px" }}>
+          DOM selected the standard capabilities for this drone model. Click any capability to turn it on or off before saving. Admin verification is still required before capabilities count for mission matching.
+        </p>
+      )}
+      {isNew && form.asset_type === "uav" && suggestedCapabilities.length === 0 && (
+        <p style={{ color: V.inkFaint, fontSize: 11, margin: "0 0 8px" }}>
+          No standard profile matched yet. Enter the manufacturer/model or select capabilities manually.
+        </p>
+      )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
         {CAPABILITIES.map((c) => {
           const active = form.capabilities.includes(c.value);
@@ -301,7 +330,7 @@ function AssetForm({
             <button
               key={c.value}
               type="button"
-              onClick={() => toggleCapability(c.value)}
+              onClick={() => toggleSuggestedCapability(c.value)}
               className="font-mono-ibm"
               style={{
                 fontSize: 11, padding: "6px 10px", borderRadius: 20, cursor: "pointer",

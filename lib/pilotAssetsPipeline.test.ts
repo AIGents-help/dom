@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   computeEligibility, computeConfiguredEligibility, eligibilityReason, toPublicAsset, isAssetActive, activeCapabilitySet,
-  ASSET_TYPES, CAPABILITIES, PILOT_ASSET_PRIVATE_FIELDS,
+  suggestCapabilitiesForAsset, ASSET_TYPES, CAPABILITIES, PILOT_ASSET_PRIVATE_FIELDS,
   type CapabilityRequirement, type PilotAsset,
 } from "./pilotAssetsPipeline";
 
@@ -127,5 +127,35 @@ describe("toPublicAsset", () => {
     expect(Object.keys(result!)).not.toContain("serial_number");
     expect(Object.keys(result!)).not.toContain("registration_number");
     expect(Object.keys(result!)).not.toContain("notes");
+  });
+});
+
+
+describe("asset capability suggestions", () => {
+  it("suggests standard Matrice 4E capabilities from the entered model", () => {
+    const caps = suggestCapabilitiesForAsset({
+      asset_type: "uav",
+      manufacturer: "DJI",
+      model: "Matrice 4E",
+    });
+    expect(caps).toContain("mapping_photogrammetry");
+    expect(caps).toContain("rtk");
+    expect(caps).toContain("zoom_inspection");
+    expect(caps).not.toContain("thermal");
+  });
+
+  it("suggests thermal for Matrice 4T", () => {
+    const caps = suggestCapabilitiesForAsset({
+      asset_type: "uav",
+      manufacturer: "DJI",
+      model: "Matrice 4T",
+    });
+    expect(caps).toContain("thermal");
+    expect(caps).toContain("rtk");
+  });
+
+  it("does not invent capabilities for unknown models or non-UAV assets", () => {
+    expect(suggestCapabilitiesForAsset({ asset_type: "uav", model: "Unknown Drone 123" })).toEqual([]);
+    expect(suggestCapabilitiesForAsset({ asset_type: "controller", manufacturer: "DJI", model: "Matrice 4E" })).toEqual([]);
   });
 });

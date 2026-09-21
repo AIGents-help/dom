@@ -103,6 +103,12 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     const allOptions = Array.isArray(job.options) ? (job.options as { name: string; value: unknown }[]) : [];
     const contourSetting = allOptions.find((option) => option.name === "__dom_contour_interval_m");
     const contourIntervalM = typeof contourSetting?.value === "number" ? contourSetting.value : 0.5;
+    const outputSetting = allOptions.find((option) => option.name === "__dom_outputs");
+    const requestedOutputs = new Set(
+      typeof outputSetting?.value === "string"
+        ? outputSetting.value.split(",").map((value) => value.trim()).filter(Boolean)
+        : []
+    );
     const odmOptions = allOptions.filter((option) => !option.name.startsWith("__dom_"));
     const taskUuid = await initTask(project.name, odmOptions);
     await uploadImagesToTask(taskUuid, localImagePaths);
@@ -191,13 +197,24 @@ export async function processJob(job: ProcessingJob): Promise<void> {
       throw new Error("NodeODM finished but no recognizable output files were found in all.zip.");
     }
 
+    const deliverableOutputs = requestedOutputs.size === 0
+      ? outputs
+      : outputs.filter((output) => {
+          if (requestedOutputs.has(output.type)) return true;
+          return requestedOutputs.has("contours") && ["contours_shapefile", "contours_kml", "contours_dxf"].includes(output.type);
+        });
+
+    if (deliverableOutputs.length === 0) {
+      throw new Error(`DOMINIC finished processing but none of the requested outputs were produced: ${[...requestedOutputs].join(", ")}.`);
+    }
+
     // One output failing to upload (e.g. an orthomosaic larger than the
     // Storage project's max upload size) must not throw away outputs that
     // did upload fine — same "skip it, log it, don't hard-fail" philosophy
     // extractOutputs.ts already applies to missing output types.
     const registered: string[] = [];
     const skipped: string[] = [];
-    for (const output of outputs) {
+    for (const output of deliverableOutputs) {
       try {
         if (await isOutputAlreadyRegistered(job.id, output.type)) {
           console.log(`[processJob] Job ${job.id}: output "${output.type}" already registered on a prior attempt, skipping re-upload.`);

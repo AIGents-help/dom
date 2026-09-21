@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 // DOM operationally, but its user-facing workspace is intentionally darker,
 // denser, and more map-centric than the light CRM/operations surfaces.
 export const V = {
-  ground: "#090D11",
+  ground: "#4B535B",
   surface: "#10161D",
   raised: "#151C24",
   line: "#2A3540",
@@ -17,7 +17,7 @@ export const V = {
   airspace: "#A78BFA",
   danger: "#F05A5A",
   warn: "#F59E0B",
-  navy: "#090D11",
+  djiGrey: "#4B535B",\n  navy: "#4B535B",
 };
 
 export const panelStyle: CSSProperties = {

@@ -4,6 +4,7 @@ import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
 import { fuzzyGrid } from "@/lib/fuzzyLocation";
 import { computeConfiguredEligibility } from "@/lib/pilotAssetsPipeline";
 import { getContractorActiveCapabilities } from "@/lib/pilotAssetsServer";
+import { hasCurrentPilotCredentials } from "@/lib/pilotAuthorization";
 
 // GET /api/pilot/queue
 // Open mission queue — any verified pilot can browse approved-but-unclaimed
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
     if (!contractor) {
       return NextResponse.json({ error: "No pilot profile found" }, { status: 404 });
     }
-    if (contractor.status !== "active" || !contractor.part107_verified) {
+    if (!hasCurrentPilotCredentials(contractor)) {
       return NextResponse.json({ error: "Pilot credentials are not current — an active account and verified Part 107 are required." }, { status: 403 });
     }
 

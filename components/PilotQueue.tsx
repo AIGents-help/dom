@@ -34,10 +34,12 @@ export default function PilotQueue({
   accessToken,
   myClaims,
   onClaimed,
+  onViewMyMissions,
 }: {
   accessToken: string;
   myClaims: QueueItem[];
   onClaimed: () => void;
+  onViewMyMissions: () => void;
 }) {
   const [open, setOpen] = useState<QueueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,6 +120,14 @@ export default function PilotQueue({
 
   return (
     <div>
+      <div style={{ ...panelStyle, borderColor: "rgba(244,90,30,.25)", background: "rgba(244,90,30,.04)", marginBottom: 12, padding: 12, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <strong style={{ color: V.ink, fontSize: 12 }}>Looking for a mission you created or already accepted?</strong>
+          <p style={{ color: V.inkDim, fontSize: 12, marginTop: 3 }}>Mission Queue only shows open DOM marketplace work. Your owned and assigned missions are under My Missions.</p>
+        </div>
+        <button type="button" onClick={onViewMyMissions} style={btnPrimary}>View My Missions →</button>
+      </div>
+
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <p style={{ color: V.inkDim, fontSize: 13 }}>
           Browse open missions and request the ones you want. A request doesn't assign it —

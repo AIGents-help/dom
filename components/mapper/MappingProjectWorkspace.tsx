@@ -50,6 +50,7 @@ export default function MappingProjectWorkspace({
   const cacheKey = `dominic:project-snapshot:${projectId}`;
   const [snapshotSavedAt, setSnapshotSavedAt] = useState<Date | null>(null);
   const [snapshotAvailable, setSnapshotAvailable] = useState(false);
+  const [uploadBatchState, setUploadBatchState] = useState({ total: 0, done: 0, failed: 0, duplicate: 0, inProgress: 0 });
 
   useEffect(() => { dataRef.current = data; }, [data]);
 
@@ -103,20 +104,21 @@ export default function MappingProjectWorkspace({
   }, [load]);
 
   useEffect(() => {
-    if (!focusModule) return;
+    if (!focusModule || !data) return;
+    const hasProcessedOutputs = data.deliverables.length > 0;
     const targetMap: Record<string, string> = {
-      "Map Viewer": "dominic-workbench",
-      "Measure & Markup": "dominic-workbench",
-      "Analysis": "dominic-workbench",
-      "3D & Point Cloud": "dominic-workbench",
-      "Deliverables": "dominic-workbench",
+      "Map Viewer": hasProcessedOutputs ? "dominic-workbench" : "dominic-processing",
+      "Measure & Markup": hasProcessedOutputs ? "dominic-workbench" : "dominic-processing",
+      "Analysis": hasProcessedOutputs ? "dominic-workbench" : "dominic-processing",
+      "3D & Point Cloud": hasProcessedOutputs ? "dominic-workbench" : "dominic-processing",
+      "Deliverables": hasProcessedOutputs ? "dominic-workbench" : "dominic-processing",
       "Processing": "dominic-processing",
       "Data Library": "dominic-source-imagery",
     };
     const id = targetMap[focusModule];
     if (!id) return;
     requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }, [focusModule]);
+  }, [focusModule, data]);
 
   useEffect(() => {
     if (!online || !data || !["queued", "processing"].includes(data.project.status)) return;
@@ -268,6 +270,7 @@ export default function MappingProjectWorkspace({
             disabled={!online || !canUploadImages(project)}
             online={online}
             onUploaded={load}
+            onUploadStateChange={setUploadBatchState}
           />
           {!online ? (
             <p style={{ color: V.warn, fontSize: 11, marginTop: 8 }}>Offline — imagery upload will be available when connectivity returns.</p>
@@ -285,7 +288,15 @@ export default function MappingProjectWorkspace({
         </section>
 
         <section id="dominic-processing" style={{ scrollMarginTop: 96 }}>
-          <MappingProcessingStatus accessToken={accessToken} project={project} latestJob={latestJob} deliverables={deliverables} onQueued={load} online={online} />
+          <MappingProcessingStatus
+            accessToken={accessToken}
+            project={project}
+            latestJob={latestJob}
+            deliverables={deliverables}
+            onQueued={load}
+            online={online}
+            uploadBatchState={uploadBatchState}
+          />
         </section>
       </div>
 

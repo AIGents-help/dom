@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import { V, panelStyle, btnPrimary, statusPillStyle, inputStyle, labelStyle } from "./theme";
-import { canQueueProcessing, formatProgress, PROCESSING_JOB_STATUS_OPTIONS, PROCESSING_PROFILES } from "@/lib/mapperPipeline";
+import {
+  canQueueProcessing,
+  formatProgress,
+  PROCESSING_JOB_STATUS_OPTIONS,
+  PROCESSING_PROFILES,
+  PROCESSING_OUTPUTS,
+  PROCESSING_OUTPUT_PRESETS,
+} from "@/lib/mapperPipeline";
+import type { ProcessingOutputValue } from "@/lib/mapperPipeline";
 import type { MappingDeliverable, MappingProject, MappingProcessingJob, ProcessingProfileValue } from "./types";
 
 const JOB_STATUS_COLOR: Record<string, string> = {
@@ -17,6 +25,7 @@ export default function MappingProcessingStatus({
   onQueued,
   online = true,
   deliverables = [],
+  uploadBatchState = { total: 0, done: 0, failed: 0, duplicate: 0, inProgress: 0 },
 }: {
   accessToken: string;
   project: Pick<MappingProject, "id" | "status" | "image_count" | "processing_progress" | "processing_stage" | "error_message">;
@@ -24,15 +33,58 @@ export default function MappingProcessingStatus({
   onQueued: () => void;
   online?: boolean;
   deliverables?: MappingDeliverable[];
+  uploadBatchState?: { total: number; done: number; failed: number; duplicate: number; inProgress: number };
 }) {
   const [queuing, setQueuing] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<ProcessingProfileValue>("standard");
+  const [requestedOutputs, setRequestedOutputs] = useState<ProcessingOutputValue[]>(["orthomosaic", "point_cloud"]);
+  const [selectedPreset, setSelectedPreset] = useState<string>("map");
+  const [allowPartialBatch, setAllowPartialBatch] = useState(false);
   const [contourInterval, setContourInterval] = useState("0.5");
 
   const guard = canQueueProcessing(project);
   const revisionRequests = deliverables.filter((item) => item.client_status === "revision_requested");
+  const uploadBatchBusy = uploadBatchState.inProgress > 0;
+  const uploadBatchHasFailures = uploadBatchState.failed > 0;
+  const outputConflict = profile === "quick_test" && requestedOutputs.includes("3d_model")
+    ? "Quick Test intentionally skips 3D model generation. Choose Standard or High Detail for a 3D model."
+    : null;
+  const outputsValid = requestedOutputs.length > 0;
+
+  function applyPreset(value: string) {
+    const preset = PROCESSING_OUTPUT_PRESETS.find((item) => item.value === value);
+    if (!preset) return;
+    setSelectedPreset(value);
+    setRequestedOutputs([...preset.outputs]);
+    setProfile(preset.suggestedProfile);
+  }
+
+  function toggleOutput(value: ProcessingOutputValue) {
+    setSelectedPreset("custom");
+    setRequestedOutputs((current) =>
+      current.includes(value) ? current.filter((item) => item !== value) : [...current, value]
+    );
+  }
+
   const canReprocessRevision = project.status === "completed" && revisionRequests.length > 0;
+
+  async function cancelQueuedProcessing() {
+    setCancelling(true);
+    setError(null);
+    const res = await fetch(`/api/pilot/mapping/projects/${project.id}/queue/cancel`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const body = await res.json().catch(() => ({}));
+    setCancelling(false);
+    if (!res.ok) {
+      setError(body.error ?? "Could not cancel the queued processing job.");
+      return;
+    }
+    onQueued();
+  }
 
   async function queueProcessing(revision = false) {
     setQueuing(true);
@@ -40,7 +92,12 @@ export default function MappingProcessingStatus({
     const res = await fetch(`/api/pilot/mapping/projects/${project.id}/queue`, {
       method: "POST",
       headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ profile, contour_interval_m: Number(contourInterval), revision }),
+      body: JSON.stringify({
+        profile,
+        requested_outputs: requestedOutputs,
+        contour_interval_m: Number(contourInterval),
+        revision,
+      }),
     });
     const body = await res.json().catch(() => ({}));
     setQueuing(false);
@@ -57,7 +114,7 @@ export default function MappingProcessingStatus({
       {(project.status === "processing" || project.status === "queued") && (
         <div style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: V.inkDim, marginBottom: 6 }}>
-            <span>{project.processing_stage ?? (project.status === "queued" ? "Waiting for a worker to pick this up" : "Processing")}</span>
+            <span>{project.processing_stage ?? (project.status === "queued" ? "Waiting for DOMINIC processing worker" : "Processing")}</span>
             <span className="font-mono-ibm" style={{ color: V.telemetry }}>{formatProgress(project.processing_progress)}</span>
           </div>
           <div style={{ height: 6, borderRadius: 4, background: V.lineSoft, overflow: "hidden" }}>
@@ -93,7 +150,59 @@ export default function MappingProcessingStatus({
 
       {guard.ok ? (
         <div>
-          <label style={labelStyle} htmlFor="mapper-processing-profile">Processing profile</label>
+          <label style={labelStyle}>What should DOMINIC produce?</label>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+            {PROCESSING_OUTPUT_PRESETS.map((preset) => (
+              <button
+                key={preset.value}
+                type="button"
+                onClick={() => applyPreset(preset.value)}
+                style={{
+                  padding: "8px 11px",
+                  borderRadius: 8,
+                  border: `1px solid ${selectedPreset === preset.value ? V.signal : V.line}`,
+                  background: selectedPreset === preset.value ? "rgba(244,90,30,.12)" : V.raised,
+                  color: selectedPreset === preset.value ? V.signal : V.inkDim,
+                  fontSize: 12,
+                  cursor: "pointer",
+                  fontWeight: 650,
+                }}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))", gap: 8, marginBottom: 14 }}>
+            {PROCESSING_OUTPUTS.map((output) => {
+              const selected = requestedOutputs.includes(output.value);
+              return (
+                <button
+                  key={output.value}
+                  type="button"
+                  onClick={() => toggleOutput(output.value)}
+                  aria-pressed={selected}
+                  style={{
+                    textAlign: "left",
+                    padding: "10px 11px",
+                    borderRadius: 9,
+                    border: `1px solid ${selected ? V.telemetry : V.line}`,
+                    background: selected ? "rgba(22,163,74,.08)" : V.surface,
+                    color: V.ink,
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>{selected ? "✓ " : ""}{output.label}</div>
+                  <div style={{ color: V.inkFaint, fontSize: 10, marginTop: 3 }}>{output.description}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          {!outputsValid && <p style={{ color: V.danger, fontSize: 11, marginBottom: 10 }}>Select at least one output before processing.</p>}
+          {outputConflict && <p style={{ color: V.danger, fontSize: 11, marginBottom: 10 }}>{outputConflict}</p>}
+
+          <label style={labelStyle} htmlFor="mapper-processing-profile">Processing quality</label>
           <select
             id="mapper-processing-profile"
             value={profile}
@@ -124,8 +233,38 @@ export default function MappingProcessingStatus({
               </select>
             </div>
           )}
+          {uploadBatchBusy && (
+            <div style={{ padding: 10, borderRadius: 8, border: `1px solid ${V.warn}`, marginBottom: 10, background: "rgba(245,158,11,.06)" }}>
+              <p style={{ color: V.warn, fontSize: 11, fontWeight: 700 }}>
+                Upload still in progress — {uploadBatchState.inProgress} file{uploadBatchState.inProgress === 1 ? "" : "s"} remaining in this batch.
+              </p>
+              <p style={{ color: V.inkDim, fontSize: 10, marginTop: 3 }}>Finish the upload before processing so DOMINIC does not lock an incomplete image set.</p>
+            </div>
+          )}
+
+          {!uploadBatchBusy && uploadBatchHasFailures && (
+            <div style={{ padding: 10, borderRadius: 8, border: `1px solid ${V.danger}`, marginBottom: 10, background: "rgba(220,38,38,.05)" }}>
+              <p style={{ color: V.danger, fontSize: 11, fontWeight: 700 }}>
+                {uploadBatchState.failed} file{uploadBatchState.failed === 1 ? "" : "s"} failed in this upload batch.
+              </p>
+              <p style={{ color: V.inkDim, fontSize: 10, marginTop: 3 }}>Retry the failed images, or explicitly continue with only the successfully uploaded images.</p>
+              <label style={{ display: "flex", alignItems: "center", gap: 7, color: V.inkDim, fontSize: 11, marginTop: 7 }}>
+                <input type="checkbox" checked={allowPartialBatch} onChange={(e) => setAllowPartialBatch(e.target.checked)} />
+                Process only the successfully uploaded images
+              </label>
+            </div>
+          )}
+
           {!online && <p style={{ color: V.warn, fontSize: 11, marginBottom: 10 }}>Offline — processing requires a network connection.</p>}
-          <button onClick={() => queueProcessing(false)} disabled={queuing || !online} style={{ ...btnPrimary, opacity: !online ? .55 : 1, cursor: !online ? "not-allowed" : "pointer" }}>
+          <button
+            onClick={() => queueProcessing(false)}
+            disabled={queuing || !online || uploadBatchBusy || (uploadBatchHasFailures && !allowPartialBatch) || !outputsValid || !!outputConflict}
+            style={{
+              ...btnPrimary,
+              opacity: !online || uploadBatchBusy || (uploadBatchHasFailures && !allowPartialBatch) || !outputsValid || !!outputConflict ? .55 : 1,
+              cursor: !online || uploadBatchBusy || (uploadBatchHasFailures && !allowPartialBatch) || !outputsValid || !!outputConflict ? "not-allowed" : "pointer",
+            }}
+          >
             {queuing ? "Queuing…" : project.status === "failed" ? "Retry Processing" : "Queue Processing"}
           </button>
         </div>
@@ -151,6 +290,21 @@ export default function MappingProcessingStatus({
             {latestJob.worker_id && <span style={{ color: V.inkFaint }}>Worker: {latestJob.worker_id}</span>}
             {latestJob.current_stage && <span style={{ color: V.inkDim }}>{latestJob.current_stage}</span>}
           </div>
+          {latestJob.status === "queued" && !latestJob.worker_id && (
+            <div style={{ marginTop: 8 }}>
+              <p style={{ color: V.warn, fontSize: 11 }}>
+                This job is queued but has not started. A DOMINIC worker/NodeODM workstation must be online to claim it.
+              </p>
+              <button
+                type="button"
+                onClick={cancelQueuedProcessing}
+                disabled={cancelling}
+                style={{ marginTop: 8, padding: "6px 10px", borderRadius: 7, border: `1px solid ${V.line}`, background: V.raised, color: V.ink, fontSize: 11, cursor: cancelling ? "wait" : "pointer", opacity: cancelling ? .6 : 1 }}
+              >
+                {cancelling ? "Cancelling…" : "Cancel queued job & reopen uploads"}
+              </button>
+            </div>
+          )}
           {latestJob.error_message && <p style={{ color: V.danger, fontSize: 12, marginTop: 8 }}>{latestJob.error_message}</p>}
         </div>
       )}

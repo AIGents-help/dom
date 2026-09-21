@@ -327,6 +327,48 @@ export const PROCESSING_PROFILES = [
 
 export type ProcessingProfileValue = (typeof PROCESSING_PROFILES)[number]["value"];
 
-export function resolveProcessingProfileOptions(profile: string): OdmOption[] {
-  return PROCESSING_PROFILES.find((p) => p.value === profile)?.options ?? [];
+export const DOMINIC_OUTPUT_CHOICES = [
+  { value: "orthomosaic", label: "Orthomosaic / 2D Map" },
+  { value: "3d_model", label: "3D Model" },
+  { value: "point_cloud", label: "Point Cloud" },
+  { value: "dsm", label: "DSM Surface Model" },
+  { value: "dtm", label: "DTM Terrain Model" },
+  { value: "contours", label: "Contours / GIS / CAD" },
+] as const;
+
+export type DominicOutputType = (typeof DOMINIC_OUTPUT_CHOICES)[number]["value"];
+
+export const DOMINIC_JOB_PRESETS = [
+  { value: "3d", label: "3D Model", outputs: ["3d_model", "point_cloud"] },
+  { value: "map", label: "Map / Orthomosaic", outputs: ["orthomosaic", "point_cloud"] },
+  { value: "point_cloud", label: "Point Cloud", outputs: ["point_cloud"] },
+  { value: "survey", label: "Survey", outputs: ["orthomosaic", "point_cloud", "dsm", "dtm", "contours"] },
+  { value: "everything", label: "Everything", outputs: ["orthomosaic", "3d_model", "point_cloud", "dsm", "dtm", "contours"] },
+  { value: "custom", label: "Custom", outputs: [] },
+] as const satisfies readonly { value: string; label: string; outputs: readonly DominicOutputType[] }[];
+
+export type DominicJobPresetValue = (typeof DOMINIC_JOB_PRESETS)[number]["value"];
+
+export function normalizeRequestedOutputs(outputs: unknown): DominicOutputType[] {
+  if (!Array.isArray(outputs)) return [];
+  const allowed = new Set<string>(DOMINIC_OUTPUT_CHOICES.map((item) => item.value));
+  return [...new Set(outputs.filter((value): value is DominicOutputType => typeof value === "string" && allowed.has(value)))];
+}
+
+export function resolveProcessingProfileOptions(profile: string, requestedOutputs: DominicOutputType[] = []): OdmOption[] {
+  const base = [...(PROCESSING_PROFILES.find((p) => p.value === profile)?.options ?? [])];
+  const wants3d = requestedOutputs.includes("3d_model");
+  const wantsDsm = requestedOutputs.includes("dsm") || requestedOutputs.includes("contours");
+  const wantsDtm = requestedOutputs.includes("dtm") || requestedOutputs.includes("contours");
+
+  const filtered = wants3d ? base.filter((option) => option.name !== "skip-3dmodel") : base;
+
+  if (wantsDsm && !filtered.some((option) => option.name === "dsm")) {
+    filtered.push({ name: "dsm", value: true });
+  }
+  if (wantsDtm && !filtered.some((option) => option.name === "dtm")) {
+    filtered.push({ name: "dtm", value: true });
+  }
+
+  return filtered;
 }

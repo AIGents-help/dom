@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   computeEligibility, computeConfiguredEligibility, eligibilityReason, toPublicAsset, isAssetActive, activeCapabilitySet,
-  ASSET_TYPES, CAPABILITIES, PILOT_ASSET_PRIVATE_FIELDS,
+  suggestCapabilitiesForAsset, ASSET_TYPES, CAPABILITIES, PILOT_ASSET_PRIVATE_FIELDS,
   type CapabilityRequirement, type PilotAsset,
 } from "./pilotAssetsPipeline";
 

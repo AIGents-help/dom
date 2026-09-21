@@ -16,13 +16,19 @@ export function hasCurrentPersonalInsurance(
   return Number.isFinite(expiresMs) && expiresMs > nowMs;
 }
 
+export function hasCurrentPilotCredentials(
+  profile: Pick<PilotAuthorizationProfile, "status" | "part107_verified">,
+): boolean {
+  return profile.status === "active" && profile.part107_verified;
+}
+
 export function getPilotAuthorizationState(
   profile: PilotAuthorizationProfile,
   nowMs = Date.now(),
 ) {
   const personalInsuranceCurrent = hasCurrentPersonalInsurance(profile, nowMs);
   const uninsuredAuthorized = !!profile.uninsured_self_service_eligible;
-  const baseCredentialsCurrent = profile.status === "active" && profile.part107_verified;
+  const baseCredentialsCurrent = hasCurrentPilotCredentials(profile);
   const selfServiceAuthorized =
     baseCredentialsCurrent
     && profile.can_create_missions

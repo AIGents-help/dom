@@ -67,10 +67,12 @@ export default function HomePage() {
 
         <div className="relative mx-auto grid h-full max-w-[1536px] gap-4 px-6 py-4 lg:grid-cols-[.72fr_.92fr_1.36fr] lg:items-center lg:px-8">
           <div className="relative min-h-[320px] lg:h-[320px] lg:min-h-0">
-            <img
+            <Image
               src={mascotSrc}
               alt="DOMINIC mapping software mascot"
-              className="absolute bottom-[-7%] left-[-8%] h-[112%] w-[112%] object-contain object-bottom drop-shadow-[0_20px_45px_rgba(0,0,0,.5)]"
+              fill
+              sizes="(max-width: 1024px) 100vw, 30vw"
+              className="object-contain object-bottom drop-shadow-[0_20px_45px_rgba(0,0,0,.5)]"
             />
             <p className="absolute bottom-2 left-0 z-20 text-[12px] italic leading-5 text-white/75">
               “Same<br />Perspective.<br />Higher Purpose.”

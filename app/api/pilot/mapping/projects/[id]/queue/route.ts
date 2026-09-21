@@ -5,7 +5,7 @@ import {
   canQueueProcessing,
   PROCESSING_PROFILES,
   normalizeRequestedOutputs,
-  resolveProcessingProfileOptions,
+  buildProcessingJobOptions,
 } from "@/lib/mapperPipeline";
 
 // POST /api/pilot/mapping/projects/[id]/queue
@@ -54,30 +54,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const contourInterval = Number.isFinite(requestedContourInterval) && requestedContourInterval > 0
     ? Math.min(20, Math.max(0.1, requestedContourInterval))
     : 0.5;
-  let odmOptions = resolveProcessingProfileOptions(profile);
-
-  // Output selection is authoritative. Profiles tune quality; they must not
-  // silently disable an output the pilot explicitly selected.
-  if (requestedOutputs.includes("3d_model")) {
-    odmOptions = odmOptions.filter((option) => option.name !== "skip-3dmodel");
-  } else if (!odmOptions.some((option) => option.name === "skip-3dmodel")) {
-    odmOptions = [...odmOptions, { name: "skip-3dmodel", value: true }];
-  }
-
-  const needsDsm = requestedOutputs.includes("dsm") || requestedOutputs.includes("contours");
-  const needsDtm = requestedOutputs.includes("dtm") || requestedOutputs.includes("contours");
-  if (needsDsm && !odmOptions.some((option) => option.name === "dsm")) {
-    odmOptions = [...odmOptions, { name: "dsm", value: true }];
-  }
-  if (needsDtm && !odmOptions.some((option) => option.name === "dtm")) {
-    odmOptions = [...odmOptions, { name: "dtm", value: true }];
-  }
-
-  const options = [
-    ...odmOptions,
-    { name: "__dom_contour_interval_m", value: contourInterval },
-    { name: "__dom_requested_outputs", value: requestedOutputs },
-  ];
+  const options = buildProcessingJobOptions(profile, requestedOutputs, contourInterval);
 
   const { error: jobError } = await admin.from("mapping_processing_jobs").insert({
     mapping_project_id: project.id,

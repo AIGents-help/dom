@@ -7,6 +7,7 @@ import {
   PROCESSING_PROFILES,
   resolveProcessingProfileOptions,
 } from "@/lib/mapperPipeline";
+import type { DominicOutputValue } from "@/lib/mapperPipeline";
 
 // POST /api/pilot/mapping/projects/[id]/queue
 // Inserts a mapping_processing_jobs row (status 'queued') and flips the
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const contourInterval = Number.isFinite(requestedContourInterval) && requestedContourInterval > 0
     ? Math.min(20, Math.max(0.1, requestedContourInterval))
     : 0.5;
-  const effectiveOutputs = requestedOutputs.length > 0
+  const effectiveOutputs: DominicOutputValue[] = requestedOutputs.length > 0
     ? requestedOutputs
     : ["orthomosaic", "point_cloud"];
   const options = [

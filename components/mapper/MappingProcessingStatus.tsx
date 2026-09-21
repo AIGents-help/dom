@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { V, panelStyle, btnPrimary, statusPillStyle, inputStyle, labelStyle } from "./theme";
 import { canQueueProcessing, formatProgress, PROCESSING_JOB_STATUS_OPTIONS, PROCESSING_PROFILES, MAPPING_OUTPUT_OPTIONS, MAPPING_OUTPUT_PRESETS, type MappingOutputValue } from "@/lib/mapperPipeline";
 import type { MappingDeliverable, MappingProject, MappingProcessingJob, ProcessingProfileValue } from "./types";
@@ -45,6 +45,14 @@ export default function MappingProcessingStatus({
 
   const revisionRequests = deliverables.filter((item) => item.client_status === "revision_requested");
   const canReprocessRevision = project.status === "completed" && revisionRequests.length > 0;
+
+  useEffect(() => {
+    if (focusModule === "3D & Point Cloud" && !["queued", "processing", "completed"].includes(project.status)) {
+      setOutputs(["3d_model", "point_cloud"]);
+      setProfile("high_detail");
+    }
+  }, [focusModule, project.status]);
+
 
   function applyPreset(key: keyof typeof MAPPING_OUTPUT_PRESETS) {
     const preset = MAPPING_OUTPUT_PRESETS[key];

@@ -3,6 +3,7 @@ import {
   canUploadImages, canQueueProcessing, isStaleProcessingJob, formatBytes, formatProgress, dedupeDeliverables,
   DEFAULT_STALE_THRESHOLD_MS, MAPPING_PROJECT_STATUS_OPTIONS, PROCESSING_JOB_STATUS_OPTIONS,
   MAPPING_ELIGIBLE_ASSIGNMENT_STATUSES,
+  DOMINIC_OUTPUT_PRESETS, normalizeDominicOutputs, resolveProcessingProfileOptions,
   type MappingProjectStatus, type DeduplicableDeliverable,
 } from "./mapperPipeline";
 
@@ -124,5 +125,29 @@ describe("dedupeDeliverables", () => {
     const a = d({ id: "a", storage_url: null });
     const b = d({ id: "b", storage_url: null });
     expect(dedupeDeliverables([a, b]).map((x) => x.id).sort()).toEqual(["a", "b"]);
+  });
+});
+
+
+describe("DOMINIC output selection", () => {
+  it("includes the intended 3D preset", () => {
+    const preset = DOMINIC_OUTPUT_PRESETS.find((item) => item.value === "3d");
+    expect(preset?.outputs).toEqual(["3d_model", "point_cloud"]);
+  });
+
+  it("normalizes unknown and duplicate outputs", () => {
+    expect(normalizeDominicOutputs(["3d_model", "point_cloud", "3d_model", "bogus"])).toEqual(["3d_model", "point_cloud"]);
+  });
+
+  it("removes Quick Test's 3D-skipping options when a 3D model is explicitly requested", () => {
+    const options = resolveProcessingProfileOptions("quick_test", ["3d_model", "point_cloud"]);
+    expect(options.some((option) => option.name === "skip-3dmodel")).toBe(false);
+    expect(options.some((option) => option.name === "fast-orthophoto")).toBe(false);
+  });
+
+  it("enables elevation products when survey outputs are selected", () => {
+    const options = resolveProcessingProfileOptions("standard", ["dtm", "dsm", "contours"]);
+    expect(options).toContainEqual({ name: "dsm", value: true });
+    expect(options).toContainEqual({ name: "dtm", value: true });
   });
 });

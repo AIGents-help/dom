@@ -327,6 +327,11 @@ export interface OdmOption {
   value: string | number | boolean;
 }
 
+export interface ProcessingJobOption {
+  name: string;
+  value: string | number | boolean | ProcessingOutputValue[];
+}
+
 export const PROCESSING_PROFILES = [
   {
     value: "quick_test",
@@ -381,8 +386,8 @@ export function buildProcessingJobOptions(
   profile: string,
   requestedOutputs: ProcessingOutputValue[],
   contourIntervalM: number,
-): OdmOption[] {
-  let odmOptions: OdmOption[] = resolveProcessingProfileOptions(profile).map((option) => ({ ...option }));
+): ProcessingJobOption[] {
+  let odmOptions: ProcessingJobOption[] = resolveProcessingProfileOptions(profile).map((option) => ({ ...option }));
 
   if (requestedOutputs.includes("3d_model")) {
     odmOptions = odmOptions.filter((option) => option.name !== "skip-3dmodel");

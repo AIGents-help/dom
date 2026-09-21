@@ -10,8 +10,8 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 // (that page renders its own centered full-screen form). Collapsed state
 // persists in localStorage so it doesn't reset on every navigation.
 
-// Navy nav shell with light text + blue active state (DOM light theme).
-const V = { surface: "#172033", line: "rgba(255,255,255,0.08)", ink: "#FFFFFF", inkDim: "#AEB7C4", inkFaint: "#8A95A7", signal: "#FFFFFF" };
+// DJI Grey nav shell with light text + DOM orange active state.
+const V = { surface: "#4B535B", line: "rgba(255,255,255,0.08)", ink: "#FFFFFF", inkDim: "#AEB7C4", inkFaint: "#8A95A7", signal: "#FFFFFF" };
 
 const NAV = [
   { href: "/admin/dashboard", label: "Dashboard", icon: "◧" },

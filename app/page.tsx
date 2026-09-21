@@ -92,7 +92,7 @@ export default function HomePage() {
               <p className="mt-1 text-[11px] leading-4 text-white/85">
                 To view DOMINIC, create or log in to your Pilot account and get free access to the DOMINIC workspace.
               </p>
-              <Link href="/pilot/login" className="mt-2 inline-flex items-center gap-1 text-[11px] font-black text-white hover:text-[#F45A1E]">
+              <Link href="/pilot/login" target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] font-black text-white hover:text-[#F45A1E]">
                 Pilot Login / Get Access <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
@@ -117,6 +117,8 @@ export default function HomePage() {
 
             <Link
               href="/dominic"
+              target="_blank"
+              rel="noopener noreferrer"
               className="mx-auto mt-4 flex h-[38px] w-fit items-center gap-2 rounded-md bg-[#ff641c] px-8 text-[12px] font-black text-black transition hover:bg-[#ff7a3a]"
             >
               Explore DOMINIC <ArrowRight className="h-3.5 w-3.5" />

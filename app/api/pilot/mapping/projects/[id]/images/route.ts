@@ -78,14 +78,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Recalculate from confirmed image rows rather than incrementing a stale
+  // project counter. Multiple TUS uploads can confirm concurrently; read+1
+  // updates race and under-count the project even though every image row exists.
+  const { data: confirmedImages, error: confirmedError } = await admin
+    .from("mapping_images")
+    .select("file_size")
+    .eq("mapping_project_id", project.id);
+
+  if (confirmedError) return NextResponse.json({ error: confirmedError.message }, { status: 500 });
+
+  const imageCount = confirmedImages?.length ?? 0;
+  const totalUploadBytes = (confirmedImages ?? []).reduce(
+    (sum, item) => sum + (typeof item.file_size === "number" ? item.file_size : 0),
+    0,
+  );
+
   await admin
     .from("mapping_projects")
     .update({
-      image_count: project.image_count + 1,
-      total_upload_bytes: project.total_upload_bytes + (fileSize ?? 0),
+      image_count: imageCount,
+      total_upload_bytes: totalUploadBytes,
       status: "uploaded",
     })
     .eq("id", project.id);
 
-  return NextResponse.json({ ok: true, imageId: image.id });
+  return NextResponse.json({ ok: true, imageId: image.id, imageCount, totalUploadBytes });
 }

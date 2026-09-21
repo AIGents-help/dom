@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveContractor } from "@/lib/pilotAuth";
-import { canQueueProcessing, PROCESSING_PROFILES, resolveProcessingProfileOptions } from "@/lib/mapperPipeline";
+import {
+  canQueueProcessing,
+  PROCESSING_PROFILES,
+  normalizeRequestedOutputs,
+  resolveProcessingProfileOptions,
+} from "@/lib/mapperPipeline";
 
 // POST /api/pilot/mapping/projects/[id]/queue
 // Inserts a mapping_processing_jobs row (status 'queued') and flips the
@@ -37,13 +42,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const requestedProfile = typeof body?.profile === "string" ? body.profile : "standard";
   const profile = PROCESSING_PROFILES.some((p) => p.value === requestedProfile) ? requestedProfile : "standard";
+  const requestedOutputs = normalizeRequestedOutputs(body?.requested_outputs);
+  if (requestedOutputs.length === 0) {
+    return NextResponse.json({ error: "Select at least one DOMINIC output before processing." }, { status: 400 });
+  }
+  if (profile === "quick_test" && requestedOutputs.includes("3d_model")) {
+    return NextResponse.json({ error: "Quick Test skips 3D model generation. Choose Standard or High Detail for a 3D model." }, { status: 400 });
+  }
+
   const requestedContourInterval = Number(body?.contour_interval_m);
   const contourInterval = Number.isFinite(requestedContourInterval) && requestedContourInterval > 0
     ? Math.min(20, Math.max(0.1, requestedContourInterval))
     : 0.5;
+  let odmOptions = resolveProcessingProfileOptions(profile);
+
+  // Output selection is authoritative. Profiles tune quality; they must not
+  // silently disable an output the pilot explicitly selected.
+  if (requestedOutputs.includes("3d_model")) {
+    odmOptions = odmOptions.filter((option) => option.name !== "skip-3dmodel");
+  } else if (!odmOptions.some((option) => option.name === "skip-3dmodel")) {
+    odmOptions = [...odmOptions, { name: "skip-3dmodel", value: true }];
+  }
+
+  const needsDsm = requestedOutputs.includes("dsm") || requestedOutputs.includes("contours");
+  const needsDtm = requestedOutputs.includes("dtm") || requestedOutputs.includes("contours");
+  if (needsDsm && !odmOptions.some((option) => option.name === "dsm")) {
+    odmOptions = [...odmOptions, { name: "dsm", value: true }];
+  }
+  if (needsDtm && !odmOptions.some((option) => option.name === "dtm")) {
+    odmOptions = [...odmOptions, { name: "dtm", value: true }];
+  }
+
   const options = [
-    ...resolveProcessingProfileOptions(profile),
+    ...odmOptions,
     { name: "__dom_contour_interval_m", value: contourInterval },
+    { name: "__dom_requested_outputs", value: requestedOutputs },
   ];
 
   const { error: jobError } = await admin.from("mapping_processing_jobs").insert({
@@ -80,8 +113,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     actor_type: "pilot",
     actor_id: auth.contractor.id,
     event_type: revisionRequested ? "revision_queued" : "queued",
-    message: revisionRequested ? `Queued corrected output processing (${project.image_count} images).` : `Queued for processing (${project.image_count} images).`,
-    metadata: revisionRequested ? { reason: "client_revision_requested" } : null,
+    message: revisionRequested
+      ? `Queued corrected output processing (${project.image_count} images).`
+      : `Queued for processing (${project.image_count} images): ${requestedOutputs.join(", ")}.`,
+    metadata: {
+      ...(revisionRequested ? { reason: "client_revision_requested" } : {}),
+      requested_outputs: requestedOutputs,
+      profile,
+    },
   });
 
   return NextResponse.json({ ok: true });

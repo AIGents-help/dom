@@ -52,6 +52,9 @@ const nav = [
   { label: "3D & Point Cloud", icon: Box },
   { label: "Deliverables", icon: Layers3 },
   { label: "Data Library", icon: Database },
+  { label: "Live Flight", icon: Activity, upcoming: true },
+  { label: "AR View", icon: Layers3, upcoming: true },
+  { label: "AI Copilot", icon: Sparkles, upcoming: true },
 ];
 
 export default function DominicApp() {
@@ -266,16 +269,22 @@ export default function DominicApp() {
           </div>
 
           <nav style={{ display: "grid", gap: 4 }}>
-            {nav.map(({ label, icon: Icon }) => {
+            {nav.map(({ label, icon: Icon, upcoming }) => {
               const projectRequired = label !== "Projects";
-              const disabled = projectRequired && !activeProjectId;
-              const active = activeModule === label;
+              const disabled = Boolean(upcoming) || (projectRequired && !activeProjectId);
+              const active = !upcoming && activeModule === label;
+              const title = upcoming
+                ? `${label} — Coming Soon`
+                : disabled
+                  ? "Open a DOMINIC project first"
+                  : label;
               return (
               <button
                 key={label}
                 type="button"
                 disabled={disabled}
-                title={disabled ? "Open a DOMINIC project first" : label}
+                title={title}
+                aria-label={upcoming ? `${label}, coming soon` : label}
                 onClick={() => {
                   if (disabled) return;
                   setActiveModule(label);
@@ -287,24 +296,92 @@ export default function DominicApp() {
                   gap: 11,
                   borderRadius: 9,
                   padding: sidebarCollapsed ? "11px 0" : "10px 11px",
-                  color: active ? "#160A02" : disabled ? "#596573" : "#A7B2BE",
-                  background: active ? `linear-gradient(90deg, ${ORANGE_DARK}, ${ORANGE})` : "transparent",
-                  border: active ? "1px solid rgba(244,90,30,.7)" : "1px solid transparent",
+                  color: active ? "#160A02" : upcoming ? "#C9D1D9" : disabled ? "#596573" : "#A7B2BE",
+                  background: active
+                    ? `linear-gradient(90deg, ${ORANGE_DARK}, ${ORANGE})`
+                    : upcoming
+                      ? "rgba(244,90,30,.055)"
+                      : "transparent",
+                  border: active
+                    ? "1px solid rgba(244,90,30,.7)"
+                    : upcoming
+                      ? "1px solid rgba(244,90,30,.18)"
+                      : "1px solid transparent",
                   fontWeight: active ? 900 : 500,
                   width: "100%",
                   justifyContent: sidebarCollapsed ? "center" : "flex-start",
                   textAlign: "left",
                   cursor: disabled ? "default" : "pointer",
-                  opacity: disabled ? .55 : 1,
+                  opacity: upcoming ? .82 : disabled ? .55 : 1,
                   fontSize: 13,
+                  position: "relative",
                 }}
               >
-                <Icon size={17} color={active ? "#160A02" : disabled ? "#596573" : "#798694"} />
-                {!sidebarCollapsed ? label : null}
+                <Icon size={17} color={active ? "#160A02" : upcoming ? ORANGE : disabled ? "#596573" : "#798694"} />
+                {!sidebarCollapsed ? (
+                  <>
+                    <span style={{ flex: 1 }}>{label}</span>
+                    {upcoming ? (
+                      <span
+                        style={{
+                          border: "1px solid rgba(244,90,30,.38)",
+                          background: "rgba(244,90,30,.11)",
+                          color: "#FF9A70",
+                          borderRadius: 999,
+                          padding: "2px 6px",
+                          fontSize: 8,
+                          lineHeight: 1.2,
+                          fontWeight: 900,
+                          letterSpacing: ".08em",
+                          textTransform: "uppercase",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Soon
+                      </span>
+                    ) : null}
+                  </>
+                ) : upcoming ? (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      top: 5,
+                      right: 6,
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background: ORANGE,
+                      boxShadow: "0 0 0 2px rgba(244,90,30,.16)",
+                    }}
+                  />
+                ) : null}
               </button>
               );
             })}
           </nav>
+
+          {!sidebarCollapsed ? (
+            <div
+              style={{
+                marginTop: 12,
+                padding: "10px 11px",
+                border: "1px solid rgba(244,90,30,.14)",
+                borderRadius: 10,
+                background: "rgba(10,14,18,.28)",
+                color: MUTED,
+                fontSize: 10,
+                lineHeight: 1.45,
+              }}
+            >
+              <span style={{ color: ORANGE, fontWeight: 900, letterSpacing: ".07em", textTransform: "uppercase" }}>
+                DOMINIC Live
+              </span>
+              <div style={{ marginTop: 4 }}>
+                Live telemetry, augmented-reality overlays and AI flight assistance are being built into this workspace.
+              </div>
+            </div>
+          ) : null}
 
           <div style={{ marginTop: 18, borderTop: `1px solid ${LINE}`, paddingTop: 14 }}>
             <div title="Settings" style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: sidebarCollapsed ? "center" : "flex-start", padding: sidebarCollapsed ? "10px 0" : "8px 10px", color: MUTED, fontSize: 13 }}>

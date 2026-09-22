@@ -20,7 +20,7 @@ create table if not exists public.mapping_workers (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
-create index if not exists idx_mapping_workers_last_seen_at on public.mapping_workers (last_seen_at desc);
+create index if not exists idx_mapping_workers_last_seen_at on public.mapping_workers (last_seen_at desc);\ncreate index if not exists idx_mapping_workers_current_job_id on public.mapping_workers (current_job_id);
 alter table public.mapping_workers enable row level security;
 drop policy if exists "admins full access" on public.mapping_workers;
 create policy "admins full access" on public.mapping_workers

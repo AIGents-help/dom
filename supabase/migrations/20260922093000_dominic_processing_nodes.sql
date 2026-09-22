@@ -25,3 +25,6 @@ alter table public.mapping_workers enable row level security;
 drop policy if exists "admins full access" on public.mapping_workers;
 create policy "admins full access" on public.mapping_workers
   for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+-- Newer Supabase projects may not auto-grant Data API table access.
+grant select, insert, update, delete on public.mapping_workers to service_role;

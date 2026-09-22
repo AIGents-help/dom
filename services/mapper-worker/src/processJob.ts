@@ -65,7 +65,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
   ]);
   await logEvent(project.id, "processing_started", `Worker ${env.workerId} started processing.`);
 
-  const driveEnabled = isDriveConfigured();
+  let driveEnabled = isDriveConfigured();
   let driveFolders: DriveFolderTree | null = null;
 
   try {
@@ -90,8 +90,19 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     });
 
     if (driveEnabled) {
-      const driveContext = await getProjectDriveContext(project.job_id);
-      driveFolders = await resolveProjectFolders(project.id, driveContext.customerName, driveContext.jobLabel);
+      try {
+        const driveContext = await getProjectDriveContext(project.job_id);
+        driveFolders = await resolveProjectFolders(project.id, driveContext.customerName, driveContext.jobLabel);
+      } catch (driveInitErr) {
+        const driveMessage = driveInitErr instanceof Error ? driveInitErr.message : String(driveInitErr);
+        console.error(`[processJob] Job ${job.id}: Google Drive archive unavailable; continuing with Supabase storage:`, driveMessage);
+        await logEvent(project.id, "drive_archive_unavailable", `Google Drive archive unavailable; processing continued with Supabase storage. ${driveMessage}`);
+        driveEnabled = false;
+        driveFolders = null;
+      }
+    }
+
+    if (driveEnabled && driveFolders) {
       for (let i = 0; i < images.length; i++) {
         try {
           const filename = images[i].original_filename || basename(localImagePaths[i]);

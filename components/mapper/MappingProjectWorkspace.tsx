@@ -5,6 +5,7 @@ import { ChevronLeft, ImageIcon, Layers3, UploadCloud, CalendarDays, MapPin, Pla
 import { V, btnGhost, statusPillStyle } from "./theme";
 import { MAPPING_PROJECT_STATUS_LABELS, formatBytes, canUploadImages } from "@/lib/mapperPipeline";
 import MappingImageUploader from "./MappingImageUploader";
+import MappingImageStatusList from "./MappingImageStatusList";
 import MappingProcessingStatus from "./MappingProcessingStatus";
 import MappingResults from "./MappingResults";
 import DominicWorkbench from "./DominicWorkbench";
@@ -249,7 +250,7 @@ export default function MappingProjectWorkspace({
           marginBottom: 12,
         }}
       >
-        <Stat k="Images" v={String(project.image_count)} />
+        <Stat k="Images" v={String(images.length)} />
         <Stat k="Uploaded" v={formatBytes(project.total_upload_bytes)} />
         <Stat k="Deliverables" v={String(deliverables.length)} />
         <Stat k="Processing" v={latestJob?.status ? (MAPPING_PROJECT_STATUS_LABELS[latestJob.status] ?? latestJob.status) : "Ready"} />
@@ -284,10 +285,13 @@ export default function MappingProjectWorkspace({
             </p>
           )}
           {images.length > 0 && (
-            <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              <ImageIcon size={13} />
-              {images.length} image{images.length === 1 ? "" : "s"} · {images.filter((i) => i.camera_make || i.captured_at).length} with verified metadata
-            </p>
+            <>
+              <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                <ImageIcon size={13} />
+                {images.length} image{images.length === 1 ? "" : "s"} · {images.filter((i) => i.camera_make || i.captured_at).length} with verified metadata
+              </p>
+              <MappingImageStatusList images={images} />
+            </>
           )}
         </section>
 

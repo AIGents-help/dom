@@ -34,9 +34,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .order("created_at", { ascending: false }),
   ]);
 
+  const imageRows = images ?? [];
+  const authoritativeProject = {
+    ...project,
+    image_count: imageRows.length,
+    total_upload_bytes: imageRows.reduce((sum, image) => sum + (image.file_size ?? 0), 0),
+  };
+
   return NextResponse.json({
-    project,
-    images: images ?? [],
+    project: authoritativeProject,
+    images: imageRows,
     processingJobs: processingJobs ?? [],
     events: events ?? [],
     deliverables: deliverables ?? [],

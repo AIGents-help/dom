@@ -36,6 +36,10 @@ export const env = {
   nodeOdmUrl: process.env.NODEODM_URL || "http://localhost",
   nodeOdmPort: process.env.NODEODM_PORT || "3001",
   workerId: required("MAPPER_WORKER_ID"),
+  workerDisplayName: process.env.MAPPER_WORKER_DISPLAY_NAME || required("MAPPER_WORKER_ID"),
+  manageNodeOdm: (process.env.MAPPER_MANAGE_NODEODM || "true").toLowerCase() !== "false",
+  nodeOdmImage: process.env.NODEODM_DOCKER_IMAGE || "opendronemap/nodeodm",
+  runtimeStartupTimeoutMs: parseInt(process.env.MAPPER_RUNTIME_STARTUP_TIMEOUT_MS || "120000", 10),
   workDir: required("MAPPER_WORK_DIR"),
   pollIntervalMs: parseInt(process.env.MAPPER_POLL_INTERVAL_MS || "10000", 10),
   // Google Drive archive layer — all optional. Unset means isDriveConfigured()

@@ -15,7 +15,13 @@ export async function extractAndStoreMetadata(image: MappingImageRow, localPath:
   } catch (err) {
     console.error(`[extractMetadata] Could not parse EXIF for ${image.original_filename ?? image.id}:`, err);
   }
-  if (!exif) return;
+  if (!exif) {
+    await supabaseAdmin.from("mapping_images").update({
+      lifecycle_status: "metadata_checked",
+      lifecycle_updated_at: new Date().toISOString(),
+    }).eq("id", image.id);
+    return;
+  }
 
   const capturedAt = exif.DateTimeOriginal ?? exif.CreateDate ?? exif.ModifyDate ?? null;
 
@@ -29,6 +35,9 @@ export async function extractAndStoreMetadata(image: MappingImageRow, localPath:
       longitude: typeof exif.longitude === "number" ? exif.longitude : null,
       altitude: typeof exif.GPSAltitude === "number" ? exif.GPSAltitude : null,
       metadata: exif,
+      lifecycle_status: "metadata_checked",
+      lifecycle_error: null,
+      lifecycle_updated_at: new Date().toISOString(),
     })
     .eq("id", image.id);
 }

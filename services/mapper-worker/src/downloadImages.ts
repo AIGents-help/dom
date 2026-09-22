@@ -7,12 +7,13 @@ export interface MappingImageRow {
   storage_path: string;
   original_filename: string | null;
   sequence_number: number | null;
+  lifecycle_status?: string | null;
 }
 
 export async function listProjectImages(mappingProjectId: string): Promise<MappingImageRow[]> {
   const { data, error } = await supabaseAdmin
     .from("mapping_images")
-    .select("id, storage_path, original_filename, sequence_number")
+    .select("id, storage_path, original_filename, sequence_number, lifecycle_status")
     .eq("mapping_project_id", mappingProjectId)
     .order("sequence_number", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: true });
@@ -27,15 +28,31 @@ export async function listProjectImages(mappingProjectId: string): Promise<Mappi
 export async function downloadProjectImages(images: MappingImageRow[], imagesDir: string): Promise<string[]> {
   const localPaths: string[] = [];
   for (const image of images) {
+    await supabaseAdmin.from("mapping_images").update({
+      lifecycle_status: "downloading",
+      lifecycle_error: null,
+      lifecycle_updated_at: new Date().toISOString(),
+    }).eq("id", image.id);
+
     const { data, error } = await supabaseAdmin.storage.from("mapping-uploads").download(image.storage_path);
     if (error || !data) {
-      throw new Error(`Failed to download ${image.storage_path}: ${error?.message ?? "no data"}`);
+      const message = `Failed to download ${image.storage_path}: ${error?.message ?? "no data"}`;
+      await supabaseAdmin.from("mapping_images").update({
+        lifecycle_status: "failed",
+        lifecycle_error: message,
+        lifecycle_updated_at: new Date().toISOString(),
+      }).eq("id", image.id);
+      throw new Error(message);
     }
     const filename = image.original_filename || basename(image.storage_path);
     const localPath = join(imagesDir, `${image.id}-${filename}`);
     const buffer = Buffer.from(await data.arrayBuffer());
     writeFileSync(localPath, buffer);
     localPaths.push(localPath);
+    await supabaseAdmin.from("mapping_images").update({
+      lifecycle_status: "downloaded",
+      lifecycle_updated_at: new Date().toISOString(),
+    }).eq("id", image.id);
   }
   return localPaths;
 }

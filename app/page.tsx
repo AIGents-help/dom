@@ -18,9 +18,6 @@ const industries = [
   ["Construction", "/images/construction-aerial.jpg"],
   ["Real Estate", "/images/city-night-aerial.jpg"],
   ["Infrastructure", "/images/drone-operation-safety.png"],
-  ["Industrial", "/images/construction-aerial.jpg"],
-  ["Agriculture", "/images/solar-aerial.jpg"],
-  ["Public Safety", "/images/drone-operation-safety.png"],
 ];
 
 const benefits = [
@@ -96,8 +93,8 @@ export default function HomePage() {
               className="object-cover transition duration-500 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/5 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 bg-black/72 px-1 py-2 text-center text-[10px] font-black uppercase tracking-[.04em]">
-              {label}
+            <div className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 bg-black/72 px-1 py-2 text-center text-[12px] font-black uppercase tracking-[.02em]">
+              {label} <ArrowRight className="h-3.5 w-3.5" />
             </div>
           </Link>
         ))}
@@ -157,9 +154,9 @@ export default function HomePage() {
               href="/dominic"
               target="_blank"
               rel="noopener noreferrer"
-              className="mx-auto mt-4 flex h-[38px] w-fit items-center gap-2 rounded-md bg-[#ff641c] px-8 text-[12px] font-black text-black transition hover:bg-[#ff7a3a]"
+              className="mx-auto mt-4 flex h-[42px] w-fit items-center gap-2 rounded-md border border-[#ff641c] bg-transparent px-8 text-[12px] font-black text-[#ff641c] transition hover:bg-[#ff641c] hover:text-black"
             >
-              Explore DOMINIC <ArrowRight className="h-3.5 w-3.5" />
+              Learn More About DOMINIC <ArrowRight className="h-3.5 w-3.5" />
             </Link>
 
             <p className="mt-3 text-center text-[9px] font-bold uppercase tracking-[.21em] text-white/72">

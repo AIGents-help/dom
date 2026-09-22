@@ -80,7 +80,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // image_count and total_upload_bytes are maintained atomically by the
   // mapping_images trigger. Only advance project state here.
-  await admin.from("mapping_projects").update({ status: "uploaded" }).eq("id", project.id);
+  await admin.from("mapping_projects").update({ status: "uploaded" }).eq("id", project.id).in("status", ["draft", "uploading", "uploaded"]);
 
   return NextResponse.json({ ok: true, imageId: image.id });
 }

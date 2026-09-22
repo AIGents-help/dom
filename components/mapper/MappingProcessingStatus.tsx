@@ -60,6 +60,7 @@ export default function MappingProcessingStatus({
     setJobPreset(value);
     const preset = DOMINIC_JOB_PRESETS.find((item) => item.value === value);
     setRequestedOutputs([...(preset?.outputs ?? [])]);
+    if (preset?.profile) setProfile(preset.profile);
   }
 
   function toggleOutput(value: DominicOutputType) {
@@ -165,6 +166,15 @@ export default function MappingProcessingStatus({
               </button>
             ))}
           </div>
+
+          {jobPreset === "3d_object" && (
+            <div style={{ marginBottom: 12, padding: 10, borderRadius: 8, border: `1px solid ${V.telemetry}`, background: "rgba(22,163,74,.06)" }}>
+              <div style={{ color: V.telemetry, fontSize: 11, fontWeight: 800 }}>OBJECT RECONSTRUCTION MODE</div>
+              <p style={{ color: V.inkDim, fontSize: 11, marginTop: 4, marginBottom: 0 }}>
+                Built for close-range subjects such as equipment, vehicles and furniture. DOMINIC uses robust feature matching instead of GPS-neighbor assumptions and skips the orthophoto stage.
+              </p>
+            </div>
+          )}
 
           <label style={labelStyle}>Outputs</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>

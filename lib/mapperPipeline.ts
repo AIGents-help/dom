@@ -302,6 +302,20 @@ export const PROCESSING_PROFILES = [
     ],
   },
   {
+    value: "object_3d",
+    label: "3D Object / Close-Range",
+    description: "For chairs, equipment, vehicles and other close-range subjects. Uses robust all-image feature matching, does not rely on GPS-neighbor matching, and skips the orthophoto stage.",
+    options: [
+      { name: "matcher-type", value: "bruteforce" },
+      { name: "matcher-neighbors", value: 0 },
+      { name: "feature-quality", value: "high" },
+      { name: "min-num-features", value: 20000 },
+      { name: "pc-quality", value: "high" },
+      { name: "mesh-octree-depth", value: 12 },
+      { name: "skip-orthophoto", value: true },
+    ],
+  },
+  {
     value: "high_detail",
     label: "High Detail",
     description: "Higher-resolution reconstruction for close inspection work. Slower.",
@@ -339,13 +353,14 @@ export const DOMINIC_OUTPUT_CHOICES = [
 export type DominicOutputType = (typeof DOMINIC_OUTPUT_CHOICES)[number]["value"];
 
 export const DOMINIC_JOB_PRESETS = [
-  { value: "3d", label: "3D Model", outputs: ["3d_model", "point_cloud"] },
-  { value: "map", label: "Map / Orthomosaic", outputs: ["orthomosaic", "point_cloud"] },
-  { value: "point_cloud", label: "Point Cloud", outputs: ["point_cloud"] },
-  { value: "survey", label: "Survey", outputs: ["orthomosaic", "point_cloud", "dsm", "dtm", "contours"] },
-  { value: "everything", label: "Everything", outputs: ["orthomosaic", "3d_model", "point_cloud", "dsm", "dtm", "contours"] },
-  { value: "custom", label: "Custom", outputs: [] },
-] as const satisfies readonly { value: string; label: string; outputs: readonly DominicOutputType[] }[];
+  { value: "3d_object", label: "3D Object", outputs: ["3d_model", "point_cloud"], profile: "object_3d" },
+  { value: "3d", label: "Site 3D Model", outputs: ["3d_model", "point_cloud"], profile: "high_detail" },
+  { value: "map", label: "Map / Orthomosaic", outputs: ["orthomosaic", "point_cloud"], profile: "standard" },
+  { value: "point_cloud", label: "Point Cloud", outputs: ["point_cloud"], profile: "standard" },
+  { value: "survey", label: "Survey", outputs: ["orthomosaic", "point_cloud", "dsm", "dtm", "contours"], profile: "survey" },
+  { value: "everything", label: "Everything", outputs: ["orthomosaic", "3d_model", "point_cloud", "dsm", "dtm", "contours"], profile: "high_detail" },
+  { value: "custom", label: "Custom", outputs: [], profile: "standard" },
+] as const satisfies readonly { value: string; label: string; outputs: readonly DominicOutputType[]; profile: ProcessingProfileValue }[];
 
 export type DominicJobPresetValue = (typeof DOMINIC_JOB_PRESETS)[number]["value"];
 

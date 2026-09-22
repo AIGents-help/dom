@@ -45,6 +45,18 @@ test("homepage exposes the approved DOMINIC layout", async () => {
   assert.ok(response && response.status() < 400, `homepage returned ${response?.status()}`);
 
   await page.getByRole("heading", { name: /Higher Insights\.\s*Real Results\./i }).waitFor();
+
+  const pilotBarrier = page.getByAltText("DOM 4-post Drone Operation pilot protection barrier system");
+  const droneBarrier = page.getByAltText("DOM 4-post Drone Operation drone landing zone barrier system");
+  await pilotBarrier.waitFor();
+  await droneBarrier.waitFor();
+  for (const image of [pilotBarrier, droneBarrier]) {
+    const loaded = await image.evaluate((node) => node.complete && node.naturalWidth > 0 && node.naturalHeight > 0);
+    assert.equal(loaded, true, "actual DOM homepage barrier asset failed to load");
+  }
+  assert.ok((await pilotBarrier.getAttribute("src"))?.includes("dom-4-post-pilot-protection"), "homepage must use the real DOM pilot-protection product asset");
+  assert.ok((await droneBarrier.getAttribute("src"))?.includes("dom-4-post-large-drone-zone"), "homepage must use the real DOM drone-zone product asset");
+
   await page.getByText("Free Pilot Access", { exact: true }).waitFor();
   await page.getByRole("link", { name: /Pilot Login \/ Get Access/i }).waitFor();
   await page.getByRole("link", { name: /Explore DOMINIC/i }).waitFor();

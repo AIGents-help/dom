@@ -85,6 +85,8 @@ test("homepage exposes the approved DOMINIC layout", async () => {
   assert.ok(status.opacity > 0.5, "DOM mascot must be visibly opaque");
   assert.ok(status.width > 180 && status.height > 220, "DOM mascot must be visibly large on homepage");
   assert.ok(status.naturalWidth > 100 && status.naturalHeight > 100, "DOM mascot source asset is unexpectedly tiny");
+  const mascotSrc = await mascot.getAttribute("src");
+  assert.ok(mascotSrc?.includes("dominic-home-kneeling"), "homepage must use the dedicated DOM homepage mascot asset");
   await page.getByText("Meet DOM", { exact: true }).waitFor();
   await page.close();
 });

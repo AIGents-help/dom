@@ -32,7 +32,7 @@ const benefits = [
   [Cloud, "All in One", "Platform"],
 ];
 
-const mascotSrc = "/brand/dominic-reference.webp?v=20260922-home-visible";
+const mascotSrc = "/brand/dominic-home-kneeling.webp";
 
 export default function HomePage() {
   return (
@@ -66,16 +66,17 @@ export default function HomePage() {
         <div className="absolute inset-0 opacity-[.16] [background-image:linear-gradient(rgba(244,90,30,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(244,90,30,.12)_1px,transparent_1px)] [background-size:34px_34px]" />
 
         <div className="relative mx-auto grid max-w-[1536px] gap-8 px-6 py-10 lg:min-h-[430px] lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:px-10">
-          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_20%_40%,rgba(244,90,30,.18),transparent_30%),#0b1118]">
-            <div className="grid min-h-[360px] grid-cols-[0.78fr_1.22fr] items-center gap-2 px-4 py-5 sm:px-6">
-              <div className="relative flex h-full items-end justify-center overflow-visible">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+          <div className="relative rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_20%_40%,rgba(244,90,30,.18),transparent_30%),#0b1118]">
+            <div className="grid min-h-[390px] grid-cols-[0.82fr_1.18fr] items-center gap-4 px-5 py-5 sm:px-7">
+              <div className="relative flex min-h-[360px] items-end justify-center self-stretch overflow-visible">
+                <Image
                   src={mascotSrc}
                   alt="DOM mascot introducing DOMINIC mapping software"
-                  loading="eager"
-                  fetchPriority="high"
-                  className="h-[330px] w-auto max-w-none object-contain object-bottom drop-shadow-[0_24px_50px_rgba(0,0,0,.6)]"
+                  width={520}
+                  height={700}
+                  priority
+                  sizes="(max-width: 1024px) 42vw, 24vw"
+                  className="h-[355px] w-auto max-w-full object-contain object-bottom drop-shadow-[0_24px_50px_rgba(0,0,0,.62)]"
                 />
               </div>
 

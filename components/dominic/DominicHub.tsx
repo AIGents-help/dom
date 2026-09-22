@@ -23,6 +23,7 @@ import {
   ThermometerSun,
   Wind,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
@@ -77,6 +78,29 @@ const initialAlerts = [
   { id: 2, level: "info", title: "Tank 12 inspection due", detail: "Thermal recurring inspection window opens at 16:00." },
   { id: 3, level: "critical", title: "LDAR threshold simulation", detail: "Demo sensor exceeded configured methane threshold at PIPE-E." },
 ] as const;
+
+const telemetryRows: Array<[string, string, LucideIcon, string]> = [
+  ["Thermal max", "141.6°F", ThermometerSun, AMBER],
+  ["CH₄", "512 ppm", Wind, RED],
+  ["Wind", "14 mph E", CloudSun, CYAN],
+  ["Link", "98%", Radio, GREEN],
+];
+
+const sensorCards: Array<[string, string, LucideIcon, Array<[string, string]>]> = [
+  ["Thermal Payload", "Radiometric thermal simulation", ThermometerSun, [["Max temp","141.6°F"],["Min temp","78.2°F"],["Alarm","135°F"],["Calibration","Valid"]]],
+  ["LDAR Sensor", "Gas-sensor integration simulator", Wind, [["CH₄","512 ppm"],["VOC","16 ppm"],["Alarm","400 ppm"],["Pump","Nominal"]]],
+  ["Visual Camera", "Inspection imaging simulator", Camera, [["Mode","4K / 30"],["Zoom","3.0×"],["Storage","72% free"],["Stream","1080p"]]],
+  ["Weather Station", "Dock environmental feed", CloudSun, [["Wind","14 mph E"],["Gust","19 mph"],["Temp","79°F"],["Visibility","10+ mi"]]],
+];
+
+const evidenceItems: Array<[string, LucideIcon]> = [
+  ["Flight log", FileClock],
+  ["Route manifest", Route],
+  ["Sensor readings", Gauge],
+  ["Thermal captures", ThermometerSun],
+  ["Alert history", AlertTriangle],
+  ["Operator actions", ClipboardCheck],
+];
 
 function Panel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
@@ -183,12 +207,7 @@ export default function DominicHub() {
           <Panel>
             <Header eyebrow="Telemetry" title="Sensor Snapshot" />
             <div style={{ padding: 12, display: "grid", gap: 8 }}>
-              {[
-                ["Thermal max", "141.6°F", ThermometerSun, AMBER],
-                ["CH₄", "512 ppm", Wind, RED],
-                ["Wind", "14 mph E", CloudSun, CYAN],
-                ["Link", "98%", Radio, GREEN],
-              ].map(([label, value, Icon, color]) => (
+              {telemetryRows.map(([label, value, Icon, color]) => (
                 <div key={String(label)} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${LINE}`, padding: "7px 2px" }}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", color: MUTED, fontSize: 11 }}><Icon size={15} color={String(color)} />{label}</div>
                   <div style={{ fontWeight: 900, fontSize: 12 }}>{value}</div>
@@ -310,12 +329,7 @@ export default function DominicHub() {
 
   const sensorsView = (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 12 }}>
-      {[
-        ["Thermal Payload","Radiometric thermal simulation",ThermometerSun,[["Max temp","141.6°F"],["Min temp","78.2°F"],["Alarm","135°F"],["Calibration","Valid"]]],
-        ["LDAR Sensor","Gas-sensor integration simulator",Wind,[["CH₄","512 ppm"],["VOC","16 ppm"],["Alarm","400 ppm"],["Pump","Nominal"]]],
-        ["Visual Camera","Inspection imaging simulator",Camera,[["Mode","4K / 30"],["Zoom","3.0×"],["Storage","72% free"],["Stream","1080p"]]],
-        ["Weather Station","Dock environmental feed",CloudSun,[["Wind","14 mph E"],["Gust","19 mph"],["Temp","79°F"],["Visibility","10+ mi"]]],
-      ].map(([title,desc,Icon,items]) => <Panel key={String(title)}><Header eyebrow="Sensor" title={String(title)} right={<Icon size={19} color={ORANGE}/>} /><div style={{ padding: 13 }}><div style={{ color: MUTED, fontSize: 9, marginBottom: 10 }}>{String(desc)}</div>{(items as string[][]).map(([k,v]) => <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: `1px solid ${LINE}`, fontSize: 10 }}><span style={{ color: MUTED }}>{k}</span><strong>{v}</strong></div>)}</div></Panel>)}
+      {sensorCards.map(([title,desc,Icon,items]) => <Panel key={title}><Header eyebrow="Sensor" title={title} right={<Icon size={19} color={ORANGE}/>} /><div style={{ padding: 13 }}><div style={{ color: MUTED, fontSize: 9, marginBottom: 10 }}>{desc}</div>{items.map(([k,v]) => <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderTop: `1px solid ${LINE}`, fontSize: 10 }}><span style={{ color: MUTED }}>{k}</span><strong>{v}</strong></div>)}</div></Panel>)}
     </div>
   );
 
@@ -350,7 +364,7 @@ export default function DominicHub() {
         <Panel>
           <Header eyebrow="Records" title="Evidence Package" />
           <div style={{ padding: 12, display: "grid", gap: 8 }}>
-            {[["Flight log",FileClock],["Route manifest",Route],["Sensor readings",Gauge],["Thermal captures",ThermometerSun],["Alert history",AlertTriangle],["Operator actions",ClipboardCheck]].map(([label,Icon]) => <div key={String(label)} style={{ border: `1px solid ${LINE}`, borderRadius: 8, padding: 9, display: "flex", alignItems: "center", gap: 8, color: MUTED, fontSize: 9 }}><Icon size={14} color={ORANGE}/>{String(label)}</div>)}
+            {evidenceItems.map(([label,Icon]) => <div key={label} style={{ border: `1px solid ${LINE}`, borderRadius: 8, padding: 9, display: "flex", alignItems: "center", gap: 8, color: MUTED, fontSize: 9 }}><Icon size={14} color={ORANGE}/>{label}</div>)}
           </div>
         </Panel>
       </div>

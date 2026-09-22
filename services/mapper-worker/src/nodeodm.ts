@@ -13,6 +13,17 @@ import { nodeOdmBaseUrl } from "./env";
 // Status codes per NodeODM's TaskInfo schema.
 export const NODEODM_STATUS = { QUEUED: 10, RUNNING: 20, FAILED: 30, COMPLETED: 40, CANCELED: 50 } as const;
 
+export interface NodeOdmInfo {
+  availableMemory?: number;
+  cpuCores?: number;
+  engine: string;
+  engineVersion: string;
+  maxImages: number | null;
+  maxParallelTasks?: number;
+  taskQueueCount: number;
+  totalMemory?: number;
+}
+
 export interface NodeOdmTaskInfo {
   uuid: string;
   status: { code: number; errorMessage?: string };
@@ -25,6 +36,12 @@ export interface NodeOdmTaskInfo {
 
 function url(path: string): string {
   return `${nodeOdmBaseUrl()}${path}`;
+}
+
+export async function getNodeInfo(): Promise<NodeOdmInfo> {
+  const res = await fetch(url("/info"), { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`NodeODM /info failed: ${res.status}`);
+  return (await res.json()) as NodeOdmInfo;
 }
 
 async function fileToBlob(path: string): Promise<Blob> {

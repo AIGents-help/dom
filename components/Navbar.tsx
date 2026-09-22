@@ -17,7 +17,13 @@ export default function Navbar() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  if (pathname?.startsWith("/admin") || pathname === "/pilot" || pathname?.startsWith("/pilot/")) return null;
+  if (
+    pathname?.startsWith("/admin")
+    || pathname === "/pilot"
+    || pathname?.startsWith("/pilot/")
+    || pathname === "/dominic"
+    || pathname?.startsWith("/dominic/")
+  ) return null;
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-navy/95 shadow-sm backdrop-blur-md">

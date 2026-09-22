@@ -21,6 +21,7 @@ import { generateContours } from "./generateContours";
 import { generateVectorExports } from "./generateVectorExports";
 import { dominicDeliverableFilename } from "./deliverableBranding";
 import type { ExtractedOutput } from "./extractOutputs";
+import { stripGpsFromObjectImages } from "./sanitizeObjectMetadata";
 
 const POLL_ODM_INTERVAL_MS = 5000;
 
@@ -119,6 +120,23 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     await updateProgress(job.id, project.id, 15, "Reading Metadata");
     for (let i = 0; i < images.length; i++) {
       await extractAndStoreMetadata(images[i], localImagePaths[i]);
+    }
+
+    // Close-range object reconstruction must not inherit fake/degenerate
+    // GPS priors (for example every image tagged 0,0 with varying altitude).
+    // Preserve originals and stored metadata, but sanitize the temporary
+    // processor copies before NodeODM/OpenSfM sees them.
+    if (job.profile === "object_3d") {
+      const sanitized = stripGpsFromObjectImages(localImagePaths);
+      await logEvent(
+        project.id,
+        "object_gps_sanitized",
+        `Object reconstruction removed GPS priors from ${sanitized.stripped}/${localImagePaths.length} temporary image copies.`,
+        sanitized
+      );
+      console.log(
+        `[processJob] Job ${job.id}: object_3d GPS sanitization stripped=${sanitized.stripped} skipped=${sanitized.skipped}`
+      );
     }
 
     // 3. Uploading to Processor — submit to NodeODM.

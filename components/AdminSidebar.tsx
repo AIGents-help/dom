@@ -24,6 +24,8 @@ const NAV = [
   { href: "/admin/missions?view=pilot_owned", label: "Pilot-Owned", icon: "◎", child: true },
   { href: "/admin/missions?view=closed", label: "Completed", icon: "⌁", child: true },
   { href: "/admin/contractors", label: "Contractors", icon: "◎" },
+  { href: "/admin/industry", label: "Industry Center", icon: "◫" },
+  { href: "/admin/industry/ideas", label: "Idea Inbox", icon: "✦", child: true },
   { href: "/admin/store", label: "Store", icon: "▦" },
   { href: "/admin/store/products", label: "Products", icon: "◇", child: true },
   { href: "/admin/orders", label: "Orders & Fulfillment", icon: "□", child: true },

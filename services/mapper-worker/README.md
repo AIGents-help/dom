@@ -1,9 +1,14 @@
-# DOM Mapper Worker
+# DOMINIC Processing Node
 
-Independent Node process that turns queued DOM Mapper projects into finished
-orthomosaics / 3D models / point clouds via [NodeODM](https://github.com/OpenDroneMap/NodeODM).
-Runs completely outside the Next.js app and outside Vercel — this is meant
-for a local DOM processing workstation with real CPU/GPU/disk to spare.
+Local DOMINIC agent that turns queued projects into finished orthomosaics,
+3D models and point clouds via NodeODM. It runs outside Vercel on a processing
+workstation with real CPU/RAM/disk, but its health and queue state are surfaced
+inside the DOMINIC web application.
+
+On Windows, the agent can manage Docker Desktop and a dedicated
+`dominic-nodeodm` container automatically. After one-time installation it
+starts at Windows sign-in, checks Docker/NodeODM health, repairs the local
+runtime when possible, registers itself with DOMINIC, then claims queued jobs.
 
 ## How it fits together
 
@@ -38,12 +43,28 @@ than 10 minutes gets requeued (or marked `failed` after 3 attempts) by
 
 ## Prerequisites
 
-- Node.js 18+ (native `fetch`/`FormData`/`Blob` — no HTTP client dependency needed)
-- A running NodeODM instance reachable from this machine. Easiest local setup:
-  ```
-  docker run -p 3001:3000 opendronemap/nodeodm
-  ```
-- The Supabase project's **service-role key** (Project Settings → API in the dashboard) — this worker runs entirely server-side/trusted, never in a browser.
+- Node.js 18+
+- Docker Desktop on Windows when DOMINIC manages the local NodeODM runtime
+- The Supabase project's **service-role key** — this agent is trusted local
+  software and the key must never be exposed to browser code.
+
+## One-time Windows install
+
+After `.env.local` is configured, run PowerShell from this folder:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\install-windows.ps1
+```
+
+The installer:
+- installs worker dependencies,
+- registers **DOMINIC Processing Node** to start at Windows sign-in,
+- registers the `dominic://` protocol used by DOMINIC's **Start Processing Node** button,
+- launches the agent immediately.
+
+After that, normal operation is **Upload → Queue → DOMINIC automatically
+claims and processes the job**. You should not need to open Docker Desktop
+or NodeODM manually.
 
 ## Setup
 

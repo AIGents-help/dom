@@ -75,7 +75,19 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     await updateProgress(job.id, project.id, 5, "Preparing Images");
     const images = await listProjectImages(project.id);
     if (images.length < 2) throw new Error(`Only ${images.length} image(s) recorded — need at least 2.`);
-    const localImagePaths = await downloadProjectImages(images, workspace.imagesDir);
+    const localImagePaths = await downloadProjectImages(images, workspace.imagesDir, async (download) => {
+      const fraction = download.totalCount > 0 ? download.downloadedCount / download.totalCount : 0;
+      const stageProgress = Math.min(14, 5 + Math.round(fraction * 9));
+      const downloadedMb = (download.downloadedBytes / (1024 * 1024)).toFixed(1);
+      const totalMb = download.totalBytes > 0 ? (download.totalBytes / (1024 * 1024)).toFixed(1) : null;
+      const bytesLabel = totalMb ? `${downloadedMb} MB / ${totalMb} MB` : `${downloadedMb} MB`;
+      await updateProgress(
+        job.id,
+        project.id,
+        stageProgress,
+        `Downloading source imagery — ${download.downloadedCount}/${download.totalCount} — ${bytesLabel}`
+      );
+    });
 
     if (driveEnabled) {
       const driveContext = await getProjectDriveContext(project.job_id);

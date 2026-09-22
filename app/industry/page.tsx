@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, ExternalLink, Radar, ShieldCheck, Newspaper, Radio } from "lucide-react";
 import { getIndustryFeed, industrySources } from "@/lib/industryFeed";
+import { getPublishedIndustryPosts } from "@/lib/industryContent";
 
 export const metadata: Metadata = {
   title: "Drone Industry Updates | DOM Pilot Intelligence Center",
@@ -28,7 +29,7 @@ const topicCards = [
 ] as const;
 
 export default async function IndustryPage() {
-  const items = await getIndustryFeed();
+  const [items, editorial] = await Promise.all([getIndustryFeed(), getPublishedIndustryPosts(12)]);
 
   return (
     <div className="bg-[#080c10] text-white">
@@ -68,6 +69,29 @@ export default async function IndustryPage() {
           ))}
         </div>
       </section>
+
+      {editorial.length > 0 && (
+        <section className="container-app py-16 lg:py-20">
+          <div className="mb-9 max-w-3xl">
+            <p className="eyebrow mb-3">DOM Pilot Briefs</p>
+            <h2 className="text-4xl font-black tracking-tight lg:text-5xl">Practical answers for working pilots.</h2>
+            <p className="mt-4 text-slate-400">DOM-created articles and events are reviewed before publication. AI may assist drafting, but Admin controls what becomes public.</p>
+          </div>
+          <div className="grid gap-5 lg:grid-cols-2">
+            {editorial.map((post) => (
+              <Link key={post.id} href={`/industry/${post.slug}`} className="group rounded-2xl border border-white/10 bg-[#111923] p-7 transition hover:border-[#F45A1E]/60">
+                <div className="flex flex-wrap items-center gap-2 text-xs font-black uppercase tracking-[.12em] text-[#F45A1E]">
+                  <span>{post.category}</span><span className="text-white/25">•</span><span>{post.content_type}</span>
+                </div>
+                <h3 className="mt-4 text-2xl font-black leading-tight group-hover:text-[#F45A1E]">{post.title}</h3>
+                {post.dek && <p className="mt-4 text-sm leading-7 text-slate-400">{post.dek}</p>}
+                {post.content_type === "event" && post.starts_at && <p className="mt-4 text-xs font-bold text-slate-300">{formatDate(post.starts_at)}{post.location ? ` · ${post.location}` : ""}</p>}
+                <span className="mt-6 inline-flex items-center gap-2 text-sm font-black text-[#F45A1E]">Read entry <ArrowRight className="h-4 w-4" /></span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section id="latest" className="container-app py-16 lg:py-24">
         <div className="mb-10 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">

@@ -25,6 +25,7 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import MappingTab from "@/components/mapper/MappingTab";
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 import DominicMascotImage from "@/components/dominic/DominicMascotImage";
+import DominicPreviewEnvironment from "@/components/dominic/DominicPreviewEnvironment";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
@@ -42,6 +43,8 @@ const workflow = [
   ["4", "Measure & Markup", "Notes, dimensions, insights"],
   ["5", "Deliver", "Professional results"],
 ];
+
+const previewModules = new Set(["Live Flight", "AR View", "AI Copilot"]);
 
 const nav = [
   { label: "Projects", icon: FolderKanban },
@@ -270,21 +273,18 @@ export default function DominicApp() {
 
           <nav style={{ display: "grid", gap: 4 }}>
             {nav.map(({ label, icon: Icon, upcoming }) => {
-              const projectRequired = label !== "Projects";
-              const disabled = Boolean(upcoming) || (projectRequired && !activeProjectId);
-              const active = !upcoming && activeModule === label;
-              const title = upcoming
-                ? `${label} — Coming Soon`
-                : disabled
-                  ? "Open a DOMINIC project first"
-                  : label;
+              const preview = Boolean(upcoming);
+              const projectRequired = label !== "Projects" && !preview;
+              const disabled = projectRequired && !activeProjectId;
+              const active = activeModule === label;
+              const title = preview ? `${label} — Preview environment` : disabled ? "Open a DOMINIC project first" : label;
               return (
               <button
                 key={label}
                 type="button"
                 disabled={disabled}
                 title={title}
-                aria-label={upcoming ? `${label}, coming soon` : label}
+                aria-label={preview ? `${label}, preview environment` : label}
                 onClick={() => {
                   if (disabled) return;
                   setActiveModule(label);
@@ -296,15 +296,15 @@ export default function DominicApp() {
                   gap: 11,
                   borderRadius: 9,
                   padding: sidebarCollapsed ? "11px 0" : "10px 11px",
-                  color: active ? "#160A02" : upcoming ? "#C9D1D9" : disabled ? "#596573" : "#A7B2BE",
+                  color: active ? "#160A02" : preview ? "#C9D1D9" : disabled ? "#596573" : "#A7B2BE",
                   background: active
                     ? `linear-gradient(90deg, ${ORANGE_DARK}, ${ORANGE})`
-                    : upcoming
+                    : preview
                       ? "rgba(244,90,30,.055)"
                       : "transparent",
                   border: active
                     ? "1px solid rgba(244,90,30,.7)"
-                    : upcoming
+                    : preview
                       ? "1px solid rgba(244,90,30,.18)"
                       : "1px solid transparent",
                   fontWeight: active ? 900 : 500,
@@ -312,16 +312,16 @@ export default function DominicApp() {
                   justifyContent: sidebarCollapsed ? "center" : "flex-start",
                   textAlign: "left",
                   cursor: disabled ? "default" : "pointer",
-                  opacity: upcoming ? .82 : disabled ? .55 : 1,
+                  opacity: preview ? .9 : disabled ? .55 : 1,
                   fontSize: 13,
                   position: "relative",
                 }}
               >
-                <Icon size={17} color={active ? "#160A02" : upcoming ? ORANGE : disabled ? "#596573" : "#798694"} />
+                <Icon size={17} color={active ? "#160A02" : preview ? ORANGE : disabled ? "#596573" : "#798694"} />
                 {!sidebarCollapsed ? (
                   <>
                     <span style={{ flex: 1 }}>{label}</span>
-                    {upcoming ? (
+                    {preview ? (
                       <span
                         style={{
                           border: "1px solid rgba(244,90,30,.38)",
@@ -341,7 +341,7 @@ export default function DominicApp() {
                       </span>
                     ) : null}
                   </>
-                ) : upcoming ? (
+                ) : preview ? (
                   <span
                     aria-hidden="true"
                     style={{
@@ -474,14 +474,18 @@ export default function DominicApp() {
               }}
             >
               <div style={{ padding: "12px 14px", color: TEXT, background: "#0B1117", minHeight: 680 }}>
-                <MappingTab
-                  accessToken={accessToken}
-                  focusModule={activeModule}
-                  showProjectsSignal={showProjectsSignal}
-                  newProjectSignal={newProjectSignal}
-                  onProjectChange={handleProjectChange}
-                  online={online}
-                />
+                {previewModules.has(activeModule) ? (
+                  <DominicPreviewEnvironment module={activeModule as "Live Flight" | "AR View" | "AI Copilot"} />
+                ) : (
+                  <MappingTab
+                    accessToken={accessToken}
+                    focusModule={activeModule}
+                    showProjectsSignal={showProjectsSignal}
+                    newProjectSignal={newProjectSignal}
+                    onProjectChange={handleProjectChange}
+                    online={online}
+                  />
+                )}
               </div>
             </div>
           </section>

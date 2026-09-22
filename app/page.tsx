@@ -11,7 +11,6 @@ import {
   Zap,
 } from "lucide-react";
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
-import HomeSafetyHero from "@/components/HomeSafetyHero";
 
 const industries = [
   ["Commercial", "/images/city-night-aerial.jpg"],
@@ -28,22 +27,64 @@ const benefits = [
   [Zap, "Faster", "Workflow"],
   [Target, "Greater", "Accuracy"],
   [BarChart3, "Actionable", "Insights"],
-  [Users, "Built for", "Pilots & Teams"],
-  [Cloud, "All in One", "Platform"],
+  [Users, "Built for", "Pilots"],
 ];
-
-const mascotSrc = "/brand/dominic-home-kneeling.webp";
 
 export default function HomePage() {
   return (
     <main className="bg-[#080c10] text-white">
       <div className="sr-only">Uniquely Sophisticated. Intelligent Mapping by DOM. Safety-First Operations. Same Perspective. Higher Purpose. Map. Measure. Analyze. Deliver.</div>
-      <HomeSafetyHero />
+      <section className="grid border-b border-[#f45a1e] bg-black lg:h-[420px] lg:grid-cols-2">
+        <div className="relative aspect-[768/420] overflow-hidden lg:aspect-auto lg:h-[420px]">
+          <Image
+            src="/brand/dom-home-hero-left.webp"
+            alt="DOM professional drone operations — Uniquely Sophisticated"
+            fill
+            priority
+            sizes="(max-width: 1024px) 100vw, 50vw"
+            className="object-cover"
+          />
+          <Link
+            href="/request-mission"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Request a Mission"
+            className="absolute left-[6.5%] top-[61.5%] h-[10.5%] w-[25%] rounded-md"
+          />
+          <Link
+            href="/safety-equipment"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="View Safety Equipment"
+            className="absolute left-[33%] top-[61.5%] h-[10.5%] w-[23%] rounded-md"
+          />
+        </div>
 
-      <section className="grid grid-cols-2 border-b border-[#f45a1e] bg-[#090d11] sm:grid-cols-4 xl:h-[120px] xl:grid-cols-8">
-        {industries.map(([label, image]) => (
+        <div className="relative aspect-[768/420] overflow-hidden lg:aspect-auto lg:h-[420px]">
+          <Image
+            src="/brand/dom-home-hero-right.webp"
+            alt="DOMINIC Intelligent Mapping by DOM"
+            fill
+            priority
+            sizes="(max-width: 1024px) 100vw, 50vw"
+            className="object-cover"
+          />
+          <Link
+            href="/dominic"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="See DOMINIC in Action"
+            className="absolute left-[67%] top-[76.5%] h-[9.5%] w-[28%] rounded-md"
+          />
+        </div>
+      </section>
+
+      <section className="grid grid-cols-2 border-b border-[#f45a1e] bg-[#090d11] sm:grid-cols-5 xl:h-[120px]">
+        {industries.slice(0, 5).map(([label, image]) => (
           <Link
             href="/industries"
+            target="_blank"
+            rel="noopener noreferrer"
             key={label}
             className="group relative min-h-[108px] overflow-hidden border-r border-white/10 xl:min-h-0"
           >
@@ -51,7 +92,7 @@ export default function HomePage() {
               src={image}
               alt=""
               fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1280px) 25vw, 12.5vw"
+              sizes="(max-width: 640px) 50vw, 20vw"
               className="object-cover transition duration-500 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/5 to-transparent" />
@@ -68,15 +109,12 @@ export default function HomePage() {
         <div className="relative mx-auto grid h-full max-w-[1536px] gap-4 px-6 py-4 lg:grid-cols-[.72fr_.92fr_1.36fr] lg:items-center lg:px-8">
           <div className="relative min-h-[320px] lg:h-[320px] lg:min-h-0">
             <Image
-              src={mascotSrc}
-              alt="DOMINIC mapping software mascot"
+              src="/brand/dominic-home-purpose-built.webp"
+              alt="DOMINIC mapping mascot reviewing drone data on a tablet"
               fill
               sizes="(max-width: 1024px) 100vw, 30vw"
               className="object-contain object-center drop-shadow-[0_20px_45px_rgba(0,0,0,.5)]"
             />
-            <p className="absolute bottom-2 left-0 z-20 text-[12px] italic leading-5 text-white/75">
-              “Same<br />Perspective.<br />Higher Purpose.”
-            </p>
           </div>
 
           <div className="relative z-20 self-center">
@@ -185,7 +223,7 @@ export default function HomePage() {
       </section>
 
       <section className="border-t border-white/10 bg-[#070b0f]">
-        <div className="mx-auto grid min-h-[72px] max-w-[1536px] grid-cols-2 sm:grid-cols-5">
+        <div className="mx-auto grid min-h-[72px] max-w-[1536px] grid-cols-2 sm:grid-cols-4">
           {benefits.map(([Icon, a, b]) => {
             const I = Icon as typeof Zap;
             return (

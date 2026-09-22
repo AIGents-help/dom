@@ -12,7 +12,7 @@ import {
   ClipboardCheck,
   CloudSun,
   Cpu,
-  Drone,
+  Plane,
   FileClock,
   Flame,
   Gauge,
@@ -44,7 +44,7 @@ const views: { label: HubView; icon: typeof Activity }[] = [
   { label: "Command", icon: Activity },
   { label: "Scheduler", icon: CalendarClock },
   { label: "Route Planner", icon: Route },
-  { label: "Fleet", icon: Drone },
+  { label: "Fleet", icon: Plane },
   { label: "Sensors", icon: Gauge },
   { label: "Compliance", icon: ShieldCheck },
 ];
@@ -294,7 +294,7 @@ export default function DominicHub() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 10, padding: 12 }}>
           {aircraft.map((a) => (
             <button key={a.id} onClick={() => setSelectedAircraft(a.id)} style={{ textAlign: "left", border: `1px solid ${selectedAircraft === a.id ? "rgba(244,90,30,.7)" : LINE}`, background: selectedAircraft === a.id ? "rgba(244,90,30,.08)" : PANEL_2, borderRadius: 11, padding: 12, color: TEXT, cursor: "pointer" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><Drone size={23} color={ORANGE} /><StatusPill tone={a.status === "READY" ? "green" : "amber"}>{a.status}</StatusPill></div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><Plane size={23} color={ORANGE} /><StatusPill tone={a.status === "READY" ? "green" : "amber"}>{a.status}</StatusPill></div>
               <div style={{ fontSize: 17, fontWeight: 900, marginTop: 12 }}>{a.id}</div>
               <div style={{ color: MUTED, fontSize: 9, marginTop: 3 }}>{a.type}</div>
               <div style={{ marginTop: 12, display: "grid", gap: 5, fontSize: 9 }}><span><BatteryCharging size={12} style={{ verticalAlign: -2, marginRight: 5 }} />{a.battery}% battery</span><span><Archive size={12} style={{ verticalAlign: -2, marginRight: 5 }} />{a.dock}</span><span><Cpu size={12} style={{ verticalAlign: -2, marginRight: 5 }} />{a.payload}</span></div>

@@ -49,18 +49,18 @@ const workflow = [
 const previewModules = new Set(["Live Flight", "AR View", "AI Copilot"]);
 
 const nav = [
-  { label: "Projects", icon: FolderKanban },
-  { label: "Map Viewer", icon: Map },
-  { label: "Processing", icon: Activity },
-  { label: "Measure & Markup", icon: Ruler },
-  { label: "Analysis", icon: Sparkles },
-  { label: "3D & Point Cloud", icon: Box },
-  { label: "Deliverables", icon: Layers3 },
-  { label: "Data Library", icon: Database },
-  { label: "DOMINIC HUB", icon: Factory, hub: true },
-  { label: "Live Flight", icon: Activity, upcoming: true },
-  { label: "AR View", icon: Layers3, upcoming: true },
-  { label: "AI Copilot", icon: Sparkles, upcoming: true },
+  { label: "Projects", icon: FolderKanban, upcoming: false, hub: false },
+  { label: "Map Viewer", icon: Map, upcoming: false, hub: false },
+  { label: "Processing", icon: Activity, upcoming: false, hub: false },
+  { label: "Measure & Markup", icon: Ruler, upcoming: false, hub: false },
+  { label: "Analysis", icon: Sparkles, upcoming: false, hub: false },
+  { label: "3D & Point Cloud", icon: Box, upcoming: false, hub: false },
+  { label: "Deliverables", icon: Layers3, upcoming: false, hub: false },
+  { label: "Data Library", icon: Database, upcoming: false, hub: false },
+  { label: "DOMINIC HUB", icon: Factory, upcoming: false, hub: true },
+  { label: "Live Flight", icon: Activity, upcoming: true, hub: false },
+  { label: "AR View", icon: Layers3, upcoming: true, hub: false },
+  { label: "AI Copilot", icon: Sparkles, upcoming: true, hub: false },
 ];
 
 export default function DominicApp() {

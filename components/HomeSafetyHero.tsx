@@ -1,17 +1,14 @@
 import Link from "next/link";
-import Image from "next/image";
 
 export default function HomeSafetyHero() {
   return (
     <section className="relative border-b border-[#f45a1e] bg-black">
       <div className="relative mx-auto min-h-[430px] w-full overflow-hidden md:min-h-[500px] lg:min-h-[560px]">
-        <Image
-          src="/images/drone-operation-safety.png"
+        <img
+          src="/images/drone-operation-safety.png?v=20260922-hero3"
           alt="DOM safety-first drone operation with protected aircraft and pilot zones"
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover object-center"
+          className="absolute inset-0 h-full w-full object-cover object-center"
+          fetchPriority="high"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/35 to-black/10" />
 

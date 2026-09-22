@@ -1,46 +1,62 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+
+const HERO_PAYLOAD = "/brand/dom-safety-hero/ultra.txt?v=20260922-approved";
 
 export default function HomeSafetyHero() {
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(HERO_PAYLOAD, { cache: "no-store" })
+      .then((response) => {
+        if (!response.ok) throw new Error("DOM safety hero payload failed to load");
+        return response.text();
+      })
+      .then((payload) => {
+        if (!cancelled) setSrc(`data:image/jpeg;base64,${payload.replace(/\s/g, "")}`);
+      })
+      .catch(() => {
+        if (!cancelled) setSrc(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <section className="relative border-b border-[#f45a1e] bg-black">
-      <div className="relative mx-auto min-h-[430px] w-full overflow-hidden md:min-h-[500px] lg:min-h-[560px]">
-        <img
-          src="/images/drone-operation-safety.png?v=20260922-hero3"
-          alt="DOM safety-first drone operation with protected aircraft and pilot zones"
-          className="absolute inset-0 h-full w-full object-cover object-center"
-          fetchPriority="high"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/35 to-black/10" />
+      <div className="relative mx-auto aspect-[640/229] w-full overflow-hidden bg-[#080c10]">
+        {src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={src}
+            alt="DOM safety-first drone operation with protected aircraft and pilot zones"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src="/images/drone-operation-safety.png?v=20260922-fallback"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover opacity-35"
+          />
+        )}
 
-        <div className="relative z-10 flex min-h-[430px] items-center px-6 py-12 md:min-h-[500px] md:px-12 lg:min-h-[560px] lg:px-[3%]">
-          <div className="max-w-[620px]">
-            <p className="mb-4 text-sm font-bold uppercase tracking-[0.18em] text-[#ff641e]">
-              Professional Drone Operations
-            </p>
-            <h1 className="text-5xl font-black uppercase leading-[0.92] tracking-tight text-white md:text-6xl lg:text-7xl">
-              Higher Insights.
-              <span className="mt-2 block text-[#ff5a1f]">Real Results.</span>
-            </h1>
-            <p className="mt-6 max-w-[560px] text-base leading-relaxed text-white/90 md:text-lg">
-              Professional drone operations for inspection, mapping, construction, real estate,
-              infrastructure, and more.
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <Link href="/request-mission" className="rounded-md bg-[#ff5a1f] px-6 py-4 font-bold text-black transition hover:bg-[#ff7338]">
-                Request a Mission →
-              </Link>
-              <Link href="/services" className="rounded-md border border-[#ff641e] bg-black/55 px-6 py-4 font-bold text-white backdrop-blur-sm transition hover:bg-black/75">
-                Our Services
-              </Link>
-            </div>
-            <div className="mt-8 flex flex-wrap gap-x-8 gap-y-3 text-sm font-semibold text-white">
-              <span>✓ Safety First</span>
-              <span>✓ Data You Can Trust</span>
-              <span>✓ FAA Part 107 Pilots</span>
-              <span>✓ Local & Nationwide</span>
-            </div>
-          </div>
-        </div>
+        <Link
+          href="/request-mission"
+          aria-label="Request a Mission"
+          className="absolute left-[1.6%] top-[58%] h-[9%] w-[12.8%] rounded-md"
+        />
+        <Link
+          href="/services"
+          aria-label="Our Services"
+          className="absolute left-[15.4%] top-[58%] h-[9%] w-[9.5%] rounded-md"
+        />
       </div>
     </section>
   );

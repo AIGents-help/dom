@@ -4,6 +4,7 @@ import { useState } from "react";
 import { V, panelStyle, btnPrimary, statusPillStyle, inputStyle, labelStyle } from "./theme";
 import { canQueueProcessing, formatProgress, PROCESSING_JOB_STATUS_OPTIONS, PROCESSING_PROFILES, DOMINIC_OUTPUT_CHOICES, DOMINIC_JOB_PRESETS, type DominicOutputType, type DominicJobPresetValue } from "@/lib/mapperPipeline";
 import type { MappingDeliverable, MappingProject, MappingProcessingJob, ProcessingProfileValue } from "./types";
+import ProcessingNodeStatus from "./ProcessingNodeStatus";
 
 const JOB_STATUS_COLOR: Record<string, string> = {
   queued: "#E5701F", claimed: "#16A34A", processing: "#16A34A",
@@ -96,6 +97,8 @@ export default function MappingProcessingStatus({
       <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".08em", color: V.inkFaint, textTransform: "uppercase", marginBottom: 10 }}>
         Processing
       </div>
+
+      <ProcessingNodeStatus accessToken={accessToken} />
 
       {(project.status === "processing" || project.status === "queued") && (
         <div style={{ marginBottom: 14 }}>

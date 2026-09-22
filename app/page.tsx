@@ -64,8 +64,8 @@ export default function HomePage() {
       <section className="relative overflow-hidden border-b border-[#f45a1e] bg-[#090d11]">
         <div className="absolute inset-0 opacity-[.16] [background-image:linear-gradient(rgba(244,90,30,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(244,90,30,.12)_1px,transparent_1px)] [background-size:34px_34px]" />
 
-        <div className="relative mx-auto grid max-w-[1536px] gap-6 px-6 py-10 lg:min-h-[430px] lg:grid-cols-[0.42fr_0.78fr_1.2fr] lg:items-center lg:px-10">
-          <div className="relative flex min-h-[360px] items-end justify-center overflow-visible">
+        <div className="relative mx-auto grid max-w-[1536px] gap-6 px-6 py-10 lg:min-h-[470px] lg:grid-cols-[0.72fr_0.78fr_1.1fr] lg:items-center lg:px-10">
+          <div className="relative flex min-h-[410px] items-end justify-center overflow-visible lg:-ml-4">
             <DominicHomePresentingMascot />
           </div>
 

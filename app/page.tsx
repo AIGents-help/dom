@@ -62,103 +62,90 @@ export default function HomePage() {
         ))}
       </section>
 
-      <section className="relative overflow-hidden border-b border-[#f45a1e] bg-[radial-gradient(circle_at_17%_42%,rgba(244,90,30,.20),transparent_30%),#080c10] lg:h-[340px]">
-        <div className="absolute inset-0 opacity-[.18] [background-image:linear-gradient(rgba(244,90,30,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(244,90,30,.12)_1px,transparent_1px)] [background-size:34px_34px]" />
+      <section className="relative overflow-hidden border-b border-[#f45a1e] bg-[#090d11]">
+        <div className="absolute inset-0 opacity-[.16] [background-image:linear-gradient(rgba(244,90,30,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(244,90,30,.12)_1px,transparent_1px)] [background-size:34px_34px]" />
 
-        <div className="relative mx-auto grid h-full max-w-[1536px] gap-4 px-6 py-4 lg:grid-cols-[.72fr_.92fr_1.36fr] lg:items-center lg:px-8">
-          <div className="relative min-h-[320px] lg:h-[320px] lg:min-h-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={mascotSrc}
-              alt="DOM mascot introducing DOMINIC mapping software"
-              loading="eager"
-              fetchPriority="high"
-              className="absolute inset-0 h-full w-full object-contain object-bottom drop-shadow-[0_20px_45px_rgba(0,0,0,.5)]"
-            />
-            <div className="absolute bottom-3 left-3 z-20 rounded-lg border border-[#F45A1E]/45 bg-black/70 px-3 py-2 backdrop-blur-sm">
-              <div className="text-[10px] font-black uppercase tracking-[.14em] text-[#F45A1E]">Meet DOM</div>
-              <p className="mt-1 text-[11px] italic leading-4 text-white/80">“Same Perspective.<br />Higher Purpose.”</p>
+        <div className="relative mx-auto grid max-w-[1536px] gap-8 px-6 py-10 lg:min-h-[430px] lg:grid-cols-[0.92fr_1.08fr] lg:items-center lg:px-10">
+          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_20%_40%,rgba(244,90,30,.18),transparent_30%),#0b1118]">
+            <div className="grid min-h-[360px] grid-cols-[0.78fr_1.22fr] items-center gap-2 px-4 py-5 sm:px-6">
+              <div className="relative flex h-full items-end justify-center overflow-visible">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={mascotSrc}
+                  alt="DOM mascot introducing DOMINIC mapping software"
+                  loading="eager"
+                  fetchPriority="high"
+                  className="h-[330px] w-auto max-w-none object-contain object-bottom drop-shadow-[0_24px_50px_rgba(0,0,0,.6)]"
+                />
+              </div>
+
+              <div className="relative z-10 py-4">
+                <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#F45A1E]">Meet DOM</p>
+                <div className="mt-2">
+                  <DominicBrandLockup size="lg" />
+                </div>
+                <p className="mt-4 max-w-[430px] text-[13px] leading-6 text-white/82">
+                  DOMINIC takes your drone data and turns it into clear maps, measurements,
+                  analysis, and professional deliverables — one workflow built for real operations.
+                </p>
+
+                <div className="mt-5 grid grid-cols-2 gap-2">
+                  {[
+                    [MapPinned, "Map", "2D & 3D"],
+                    [Ruler, "Measure", "Dimensions"],
+                    [BarChart3, "Analyze", "Insights"],
+                    [Cloud, "Deliver", "Reports"],
+                  ].map(([Icon, title, copy]) => {
+                    const I = Icon as typeof MapPinned;
+                    return (
+                      <div key={title as string} className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/25 px-3 py-2">
+                        <I className="h-5 w-5 shrink-0 text-[#F45A1E]" />
+                        <div>
+                          <div className="text-[10px] font-black">{title as string}</div>
+                          <div className="text-[9px] text-white/60">{copy as string}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  <Link href="/dominic" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-md bg-[#F45A1E] px-5 py-3 text-[11px] font-black text-black transition hover:bg-[#ff7338]">
+                    Explore DOMINIC <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                  <Link href="/pilot/login" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-md border border-white/20 px-5 py-3 text-[11px] font-black text-white hover:border-[#F45A1E]">
+                    Pilot Login / Get Access
+                  </Link>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="relative z-20 self-center">
-            <DominicBrandLockup size="lg" />
-            <p className="mt-3 max-w-[470px] text-[13px] leading-5 text-white/84">
-              DOMINIC takes your drone data and turns it into clear maps,
-              measurements, and professional deliverables — built for
-              real-world operations, not just pretty pictures.
-            </p>
-
-            <div className="mt-3 rounded-lg border border-[#F45A1E]/35 bg-[#F45A1E]/10 px-4 py-3">
-              <p className="text-[11px] font-black uppercase tracking-[.12em] text-[#F45A1E]">Free Pilot Access</p>
-              <p className="mt-1 text-[11px] leading-4 text-white/85">
-                To view DOMINIC, create or log in to your Pilot account and get free access to the DOMINIC workspace.
-              </p>
-              <Link href="/pilot/login" target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-[11px] font-black text-white hover:text-[#F45A1E]">
-                Pilot Login / Get Access <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-
-            <div className="mt-4 grid grid-cols-4 gap-2">
-              {[
-                [MapPinned, "Map", "2D & 3D"],
-                [Ruler, "Measure", "Dimensions"],
-                [BarChart3, "Analyze", "AI-Powered"],
-                [Cloud, "Deliver", "Reports"],
-              ].map(([Icon, title, copy]) => {
-                const I = Icon as typeof MapPinned;
-                return (
-                  <div key={title as string} className="text-center">
-                    <I className="mx-auto h-7 w-7 text-[#ff641c]" />
-                    <div className="mt-1 text-[11px] font-black">{title as string}</div>
-                    <div className="text-[9px] text-white/70">{copy as string}</div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <Link
-              href="/dominic"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mx-auto mt-4 flex h-[38px] w-fit items-center gap-2 rounded-md bg-[#ff641c] px-8 text-[12px] font-black text-black transition hover:bg-[#ff7a3a]"
-            >
-              Explore DOMINIC <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-
-            <p className="mt-3 text-center text-[9px] font-bold uppercase tracking-[.21em] text-white/72">
-              Faster insights. Stronger decisions. A higher standard.
-            </p>
-          </div>
-
-          <div className="relative z-20 rounded-[14px] border border-white/35 bg-[#070b10] p-2 shadow-2xl">
-            <div className="rounded-[10px] border border-white/10 bg-[#111923] p-2">
-              <div className="flex h-8 items-center justify-between border-b border-white/10 px-2">
-                <div className="text-[9px] font-black text-[#ff641c]">DOM</div>
+          <div className="relative rounded-[16px] border border-white/25 bg-[#070b10] p-2 shadow-2xl">
+            <div className="rounded-[11px] border border-white/10 bg-[#111923] p-2">
+              <div className="flex h-9 items-center justify-between border-b border-white/10 px-2">
+                <div className="text-[10px] font-black text-[#F45A1E]">DOMINIC WORKSPACE</div>
                 <div className="flex gap-6 text-[8px] font-semibold text-white/78">
-                  <span className="border-b-2 border-[#ff641c] pb-2">Map</span>
+                  <span className="border-b-2 border-[#F45A1E] pb-2">Map</span>
                   <span>Measure</span>
                   <span>Analyze</span>
                   <span>Deliver</span>
                 </div>
               </div>
 
-              <div className="mt-2 grid h-[210px] grid-cols-[88px_1fr_110px] gap-2">
+              <div className="mt-2 grid h-[270px] grid-cols-[92px_1fr_116px] gap-2">
                 <div className="space-y-1">
                   {["Projects", "Map View", "3D View", "Point Cloud", "Elevation", "Analysis", "Deliverables"].map((item, i) => (
-                    <div
-                      key={item}
-                      className={`rounded px-2 py-[6px] text-[8px] font-bold ${i === 1 ? "bg-[#8a3a13] text-white" : "bg-white/5 text-white/70"}`}
-                    >
+                    <div key={item} className={`rounded px-2 py-[7px] text-[8px] font-bold ${i === 1 ? "bg-[#8a3a13] text-white" : "bg-white/5 text-white/70"}`}>
                       {item}
                     </div>
                   ))}
                 </div>
 
                 <div className="relative overflow-hidden rounded border border-white/10">
-                  <Image src="/images/construction-aerial.jpg" alt="" fill className="object-cover" sizes="35vw" />
-                  <div className="absolute inset-[18%_18%_24%_16%] border-2 border-[#ff641c]">
-                    <span className="absolute -top-5 right-0 rounded bg-[#ff641c] px-1.5 py-1 text-[8px] font-black text-black">
+                  <Image src="/images/construction-aerial.jpg" alt="DOMINIC map workspace preview" fill className="object-cover" sizes="40vw" />
+                  <div className="absolute inset-[18%_18%_24%_16%] border-2 border-[#F45A1E]">
+                    <span className="absolute -top-5 right-0 rounded bg-[#F45A1E] px-1.5 py-1 text-[8px] font-black text-black">
                       Roof Area 12,842 ft²
                     </span>
                   </div>

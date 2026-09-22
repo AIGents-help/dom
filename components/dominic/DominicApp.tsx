@@ -235,12 +235,12 @@ export default function DominicApp() {
         </div>
       </header>
 
-      <div style={{ display: "grid", gridTemplateColumns: sidebarCollapsed ? "72px minmax(0, 1fr)" : "220px minmax(0, 1fr)", minHeight: "calc(100vh - 78px)", transition: "grid-template-columns .18s ease" }}>
+      <div style={{ display: "grid", gridTemplateColumns: sidebarCollapsed ? "68px minmax(0, 1fr)" : "196px minmax(0, 1fr)", minHeight: "calc(100vh - 78px)", transition: "grid-template-columns .18s ease" }}>
         <aside
           style={{
             borderRight: `1px solid ${LINE}`,
             background: DJI_GREY,
-            padding: 14,
+            padding: sidebarCollapsed ? 10 : 12,
             position: "sticky",
             top: 78,
             alignSelf: "start",
@@ -252,7 +252,7 @@ export default function DominicApp() {
             {!sidebarCollapsed ? (
               <div
                 style={{
-                  padding: "8px 10px",
+                  padding: "7px 8px",
                   color: ORANGE,
                   fontSize: 10,
                   fontWeight: 900,
@@ -296,9 +296,9 @@ export default function DominicApp() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 11,
+                  gap: 9,
                   borderRadius: 9,
-                  padding: sidebarCollapsed ? "11px 0" : "10px 11px",
+                  padding: sidebarCollapsed ? "10px 0" : "9px 9px",
                   color: active ? "#160A02" : hub ? "#F2F5F8" : preview ? "#C9D1D9" : disabled ? "#B5BEC7" : "#D1D7DD",
                   background: active
                     ? `linear-gradient(90deg, ${ORANGE_DARK}, ${ORANGE})`
@@ -320,29 +320,16 @@ export default function DominicApp() {
                   textAlign: "left",
                   cursor: disabled ? "not-allowed" : "pointer",
                   opacity: 1,
-                  fontSize: 13,
+                  fontSize: 12,
                   position: "relative",
                 }}
               >
                 <Icon size={17} color={active ? "#160A02" : hub ? ORANGE : preview ? ORANGE : disabled ? "#98A5B1" : "#AEB8C2"} />
                 {!sidebarCollapsed ? (
                   <>
-                    <span style={{ flex: 1 }}>{label}</span>
+                    <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "normal", lineHeight: 1.2 }}>{label}</span>
                     {hub ? (
                       <span style={{ border: "1px solid rgba(100,214,154,.38)", background: "rgba(100,214,154,.10)", color: "#8FE2B2", borderRadius: 999, padding: "2px 6px", fontSize: 8, lineHeight: 1.2, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase", whiteSpace: "nowrap" }}>LIVE UI</span>
-                    ) : disabled ? (
-                      <span
-                        style={{
-                          color: "#9AA6B2",
-                          fontSize: 8,
-                          fontWeight: 800,
-                          letterSpacing: ".06em",
-                          textTransform: "uppercase",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        Select Project
-                      </span>
                     ) : preview ? (
                       <span
                         style={{

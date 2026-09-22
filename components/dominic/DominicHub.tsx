@@ -130,8 +130,8 @@ function StatusPill({ children, tone = "green" }: { children: React.ReactNode; t
 function RefineryMap({ activeRoute = true }: { activeRoute?: boolean }) {
   const path = activeRoute ? routeNodes.slice(0, 6) : routeNodes.slice(0, 4);
   return (
-    <div style={{ position: "relative", minHeight: 390, background: "radial-gradient(circle at 50% 45%, rgba(244,90,30,.09), transparent 36%), #0B1117", overflow: "hidden" }}>
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
+    <div style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", minHeight: 320, maxHeight: 520, background: "radial-gradient(circle at 50% 45%, rgba(244,90,30,.09), transparent 36%), #0B1117", overflow: "hidden" }}>
+      <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
         <defs>
           <pattern id="hub-grid" width="5" height="5" patternUnits="userSpaceOnUse">
             <path d="M 5 0 L 0 0 0 5" fill="none" stroke="rgba(255,255,255,.035)" strokeWidth=".2" />

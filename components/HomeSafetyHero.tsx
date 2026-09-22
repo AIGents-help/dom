@@ -39,14 +39,26 @@ export default function HomeSafetyHero() {
 
         <div className="relative min-h-[420px] overflow-hidden lg:min-h-[540px]">
           <Image
-            src="/shop/barriers/dom-4-post-pilot-protection.webp"
-            alt="DOM pilot operating inside a Drone Operation barrier safety zone"
+            src="/shop/barriers/dom-4-post-large-drone-zone.webp"
+            alt="DOM drone staged inside a Drone Operation landing zone"
             fill
             priority
             sizes="(max-width: 1024px) 100vw, 55vw"
             className="object-cover object-center"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#070b0f]/45 via-transparent to-transparent lg:from-[#070b0f]/22" />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#070b0f]/35 via-transparent to-transparent lg:from-[#070b0f]/15" />
+
+          <div className="absolute bottom-0 left-[3%] z-20 h-[78%] w-[42%] min-w-[260px]">
+            <Image
+              src="/brand/dominic-home-kneeling.webp"
+              alt="DOM mascot deploying the drone"
+              fill
+              priority
+              sizes="(max-width: 1024px) 42vw, 24vw"
+              className="object-contain object-bottom drop-shadow-[0_24px_50px_rgba(0,0,0,.6)]"
+            />
+          </div>
+
           <div className="absolute bottom-5 right-5 rounded-lg border border-white/15 bg-black/65 px-4 py-3 backdrop-blur-sm">
             <p className="text-[10px] font-black uppercase tracking-[.16em] text-[#F45A1E]">DOM Field Equipment</p>
             <p className="mt-1 text-sm font-bold text-white">Drone Operation Barrier System</p>

@@ -61,17 +61,31 @@ test("homepage exposes the approved DOMINIC layout", async () => {
   await page.getByRole("link", { name: /Pilot Login \/ Get Access/i }).waitFor();
   await page.getByRole("link", { name: /Explore DOMINIC/i }).waitFor();
 
-  const mascot = page.getByAltText("DOMINIC mapping software mascot").first();
+  const mascot = page.getByAltText("DOM mascot introducing DOMINIC mapping software").first();
   await mascot.waitFor();
-  const status = await mascot.evaluate((image) => ({
-    loaded: image.complete && image.naturalWidth > 0 && image.naturalHeight > 0,
-    objectFit: getComputedStyle(image).objectFit,
-    width: image.getBoundingClientRect().width,
-    height: image.getBoundingClientRect().height,
-  }));
-  assert.equal(status.loaded, true, "DOMINIC mascot image failed to load");
-  assert.equal(status.objectFit, "contain", "DOMINIC mascot must remain fully visible");
-  assert.ok(status.width > 100 && status.height > 100, "DOMINIC mascot rendered too small");
+  const status = await mascot.evaluate((image) => {
+    const rect = image.getBoundingClientRect();
+    const style = getComputedStyle(image);
+    return {
+      loaded: image.complete && image.naturalWidth > 0 && image.naturalHeight > 0,
+      naturalWidth: image.naturalWidth,
+      naturalHeight: image.naturalHeight,
+      objectFit: style.objectFit,
+      opacity: Number(style.opacity || "1"),
+      visibility: style.visibility,
+      display: style.display,
+      width: rect.width,
+      height: rect.height,
+    };
+  });
+  assert.equal(status.loaded, true, "DOM mascot image failed to load");
+  assert.equal(status.objectFit, "contain", "DOM mascot must remain fully visible");
+  assert.notEqual(status.visibility, "hidden", "DOM mascot must not be hidden");
+  assert.notEqual(status.display, "none", "DOM mascot must be rendered");
+  assert.ok(status.opacity > 0.5, "DOM mascot must be visibly opaque");
+  assert.ok(status.width > 180 && status.height > 220, "DOM mascot must be visibly large on homepage");
+  assert.ok(status.naturalWidth > 100 && status.naturalHeight > 100, "DOM mascot source asset is unexpectedly tiny");
+  await page.getByText("Meet DOM", { exact: true }).waitFor();
   await page.close();
 });
 

@@ -32,7 +32,7 @@ const benefits = [
   [Cloud, "All in One", "Platform"],
 ];
 
-const mascotSrc = "/brand/dominic-home-kneeling.webp";
+const mascotSrc = "/brand/dominic-reference.webp?v=20260922-home-visible";
 
 export default function HomePage() {
   return (
@@ -67,16 +67,18 @@ export default function HomePage() {
 
         <div className="relative mx-auto grid h-full max-w-[1536px] gap-4 px-6 py-4 lg:grid-cols-[.72fr_.92fr_1.36fr] lg:items-center lg:px-8">
           <div className="relative min-h-[320px] lg:h-[320px] lg:min-h-0">
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={mascotSrc}
-              alt="DOMINIC mapping software mascot"
-              fill
-              sizes="(max-width: 1024px) 100vw, 30vw"
-              className="object-contain object-center drop-shadow-[0_20px_45px_rgba(0,0,0,.5)]"
+              alt="DOM mascot introducing DOMINIC mapping software"
+              loading="eager"
+              fetchPriority="high"
+              className="absolute inset-0 h-full w-full object-contain object-bottom drop-shadow-[0_20px_45px_rgba(0,0,0,.5)]"
             />
-            <p className="absolute bottom-2 left-0 z-20 text-[12px] italic leading-5 text-white/75">
-              “Same<br />Perspective.<br />Higher Purpose.”
-            </p>
+            <div className="absolute bottom-3 left-3 z-20 rounded-lg border border-[#F45A1E]/45 bg-black/70 px-3 py-2 backdrop-blur-sm">
+              <div className="text-[10px] font-black uppercase tracking-[.14em] text-[#F45A1E]">Meet DOM</div>
+              <p className="mt-1 text-[11px] italic leading-4 text-white/80">“Same Perspective.<br />Higher Purpose.”</p>
+            </div>
           </div>
 
           <div className="relative z-20 self-center">

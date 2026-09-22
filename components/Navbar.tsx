@@ -11,9 +11,7 @@ const links = [
   { href: "/industries", label: "Industries" },
   { href: "/industry", label: "Industry" },
   { href: "/fly-for-dom", label: "Fly for DOM" },
-  { href: "/faa-compliance", label: "FAA Compliance" },
-  { href: "/safety-equipment", label: "Safety Equipment" },
-  { href: "/shop", label: "Shop" },
+  { href: "/shop", label: "Shop & Safety" },
   { href: "/about", label: "About" },
   { href: "/contact", label: "Contact" },
 ];
@@ -33,7 +31,7 @@ export default function Navbar() {
 
         <nav className="hidden items-center gap-6 lg:flex">
           {links.map((l) => {
-            const highlighted = l.href === "/shop" || l.href === "/safety-equipment";
+            const highlighted = l.href === "/shop";
             return (
               <Link key={l.href} href={l.href} className={highlighted ? "text-sm font-bold text-[#f26a1b] transition hover:text-[#ff8a3d]" : "text-sm font-medium text-slate-200 transition hover:text-white"}>
                 {l.label}
@@ -56,7 +54,7 @@ export default function Navbar() {
         <div className="border-t border-white/10 bg-navy lg:hidden">
           <div className="container-app flex flex-col gap-4 py-6">
             {links.map((l) => {
-              const highlighted = l.href === "/shop" || l.href === "/safety-equipment";
+              const highlighted = l.href === "/shop";
               return (
                 <Link key={l.href} href={l.href} onClick={() => setOpen(false)} className={highlighted ? "text-sm font-bold text-[#f26a1b] hover:text-[#ff8a3d]" : "text-sm font-medium text-slate-200 hover:text-white"}>
                   {l.label}

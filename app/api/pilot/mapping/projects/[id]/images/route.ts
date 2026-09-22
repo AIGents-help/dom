@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: project } = await admin
     .from("mapping_projects")
-    .select("id, image_count, total_upload_bytes")
+    .select("id")
     .eq("id", id)
     .eq("contractor_id", auth.contractor.id)
     .maybeSingle();
@@ -78,14 +78,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  await admin
-    .from("mapping_projects")
-    .update({
-      image_count: project.image_count + 1,
-      total_upload_bytes: project.total_upload_bytes + (fileSize ?? 0),
-      status: "uploaded",
-    })
-    .eq("id", project.id);
+  // image_count and total_upload_bytes are maintained atomically by the
+  // mapping_images trigger. Only advance project state here.
+  await admin.from("mapping_projects").update({ status: "uploaded" }).eq("id", project.id);
 
   return NextResponse.json({ ok: true, imageId: image.id });
 }

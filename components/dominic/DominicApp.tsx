@@ -299,7 +299,7 @@ export default function DominicApp() {
                   gap: 11,
                   borderRadius: 9,
                   padding: sidebarCollapsed ? "11px 0" : "10px 11px",
-                  color: active ? "#160A02" : hub ? "#F2F5F8" : preview ? "#C9D1D9" : disabled ? "#596573" : "#A7B2BE",
+                  color: active ? "#160A02" : hub ? "#F2F5F8" : preview ? "#C9D1D9" : disabled ? "#B5BEC7" : "#D1D7DD",
                   background: active
                     ? `linear-gradient(90deg, ${ORANGE_DARK}, ${ORANGE})`
                     : hub
@@ -318,18 +318,31 @@ export default function DominicApp() {
                   width: "100%",
                   justifyContent: sidebarCollapsed ? "center" : "flex-start",
                   textAlign: "left",
-                  cursor: disabled ? "default" : "pointer",
-                  opacity: preview ? .9 : disabled ? .55 : 1,
+                  cursor: disabled ? "not-allowed" : "pointer",
+                  opacity: 1,
                   fontSize: 13,
                   position: "relative",
                 }}
               >
-                <Icon size={17} color={active ? "#160A02" : hub ? ORANGE : preview ? ORANGE : disabled ? "#596573" : "#798694"} />
+                <Icon size={17} color={active ? "#160A02" : hub ? ORANGE : preview ? ORANGE : disabled ? "#98A5B1" : "#AEB8C2"} />
                 {!sidebarCollapsed ? (
                   <>
                     <span style={{ flex: 1 }}>{label}</span>
                     {hub ? (
                       <span style={{ border: "1px solid rgba(100,214,154,.38)", background: "rgba(100,214,154,.10)", color: "#8FE2B2", borderRadius: 999, padding: "2px 6px", fontSize: 8, lineHeight: 1.2, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase", whiteSpace: "nowrap" }}>LIVE UI</span>
+                    ) : disabled ? (
+                      <span
+                        style={{
+                          color: "#9AA6B2",
+                          fontSize: 8,
+                          fontWeight: 800,
+                          letterSpacing: ".06em",
+                          textTransform: "uppercase",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Select Project
+                      </span>
                     ) : preview ? (
                       <span
                         style={{

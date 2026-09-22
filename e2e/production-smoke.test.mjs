@@ -61,7 +61,7 @@ test("homepage exposes the approved DOMINIC layout", async () => {
   await page.getByRole("link", { name: /Pilot Login \/ Get Access/i }).waitFor();
   await page.getByRole("link", { name: /Explore DOMINIC/i }).waitFor();
 
-  const mascot = page.getByAltText("DOM mascot introducing DOMINIC mapping software").first();
+  const mascot = page.getByAltText("DOM mascot kneeling and presenting DOMINIC mapping software").first();
   await mascot.waitFor();
   const status = await mascot.evaluate((image) => {
     const rect = image.getBoundingClientRect();
@@ -85,8 +85,7 @@ test("homepage exposes the approved DOMINIC layout", async () => {
   assert.ok(status.opacity > 0.5, "DOM mascot must be visibly opaque");
   assert.ok(status.width > 180 && status.height > 220, "DOM mascot must be visibly large on homepage");
   assert.ok(status.naturalWidth > 100 && status.naturalHeight > 100, "DOM mascot source asset is unexpectedly tiny");
-  const mascotSrc = await mascot.getAttribute("src");
-  assert.ok(mascotSrc?.includes("dominic-home-kneeling"), "homepage must use the dedicated DOM homepage mascot asset");
+  assert.equal(await mascot.getAttribute("data-dominic-home-mascot"), "presenting-v1", "homepage must use the purpose-built presenting mascot");
   await page.getByText("Meet DOM", { exact: true }).waitFor();
   await page.close();
 });

@@ -11,6 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
+import DominicHomePresentingMascot from "@/components/dominic/DominicHomePresentingMascot";
 import HomeSafetyHero from "@/components/HomeSafetyHero";
 
 const industries = [
@@ -31,8 +32,6 @@ const benefits = [
   [Users, "Built for", "Pilots & Teams"],
   [Cloud, "All in One", "Platform"],
 ];
-
-const mascotSrc = "/brand/dominic-home-kneeling.webp";
 
 export default function HomePage() {
   return (
@@ -69,15 +68,7 @@ export default function HomePage() {
           <div className="relative rounded-2xl border border-white/10 bg-[radial-gradient(circle_at_20%_40%,rgba(244,90,30,.18),transparent_30%),#0b1118]">
             <div className="grid min-h-[390px] grid-cols-[0.82fr_1.18fr] items-center gap-4 px-5 py-5 sm:px-7">
               <div className="relative flex min-h-[360px] items-end justify-center self-stretch overflow-visible">
-                <Image
-                  src={mascotSrc}
-                  alt="DOM mascot introducing DOMINIC mapping software"
-                  width={520}
-                  height={700}
-                  priority
-                  sizes="(max-width: 1024px) 42vw, 24vw"
-                  className="h-[355px] w-auto max-w-full object-contain object-bottom drop-shadow-[0_24px_50px_rgba(0,0,0,.62)]"
-                />
+                <DominicHomePresentingMascot />
               </div>
 
               <div className="relative z-10 py-4">

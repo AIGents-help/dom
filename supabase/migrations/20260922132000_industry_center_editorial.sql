@@ -26,6 +26,10 @@ create index if not exists industry_posts_status_published_idx
 create index if not exists industry_posts_type_starts_idx
   on industry_posts(content_type, starts_at);
 
+grant select on table public.industry_posts to anon;
+grant select, insert, update, delete on table public.industry_posts to authenticated;
+grant select, insert, update, delete on table public.industry_posts to service_role;
+
 alter table industry_posts enable row level security;
 
 drop policy if exists "public reads published industry posts" on industry_posts;

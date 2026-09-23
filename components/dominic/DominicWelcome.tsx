@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   Activity,
   ArrowRight,
@@ -11,7 +12,6 @@ import {
   CircleHelp,
   GraduationCap,
 } from "lucide-react";
-import DominicMascotImage from "@/components/dominic/DominicMascotImage";
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 
 const ORANGE = "#F45A1E";
@@ -30,14 +30,16 @@ const modules = [
     icon: Crosshair,
     badge: "START HERE",
     priority: true,
-    visual: "radial-gradient(circle at 50% 50%, rgba(244,90,30,.28), transparent 45%), linear-gradient(135deg,#18212A,#0B1117)",
+    image: "/images/construction-aerial.jpg",
+    kind: "capture",
   },
   {
     module: "Projects",
     title: "Projects & Mapping",
     description: "Upload imagery, process maps and 3D models, measure, analyze and build deliverables.",
     icon: FolderKanban,
-    visual: "linear-gradient(145deg,rgba(135,151,165,.19),rgba(19,27,35,.94)), linear-gradient(45deg,#111820,#29323B)",
+    image: "/images/construction-aerial.jpg",
+    kind: "mapping",
   },
   {
     module: "DOMINIC HUB",
@@ -45,7 +47,8 @@ const modules = [
     description: "Mission planning, fleet management, live operations, sensors, alerts and simulation.",
     icon: Factory,
     badge: "LIVE UI",
-    visual: "radial-gradient(circle at 30% 30%, rgba(244,90,30,.25), transparent 40%), linear-gradient(145deg,#101921,#202A33)",
+    image: "/images/city-night-aerial.jpg",
+    kind: "hub",
   },
   {
     module: "Live Flight",
@@ -53,7 +56,8 @@ const modules = [
     description: "Real-time aircraft view, telemetry, camera feed and mission monitoring.",
     icon: Activity,
     badge: "PREVIEW",
-    visual: "linear-gradient(135deg,rgba(64,92,112,.55),rgba(12,18,24,.98))",
+    image: "/images/drone-operation-safety.png",
+    kind: "live",
   },
   {
     module: "AR View",
@@ -61,7 +65,8 @@ const modules = [
     description: "Augmented-reality overlays for field context, alignment and on-site validation.",
     icon: Box,
     badge: "PREVIEW",
-    visual: "linear-gradient(135deg,rgba(28,92,122,.42),rgba(10,19,28,.98))",
+    image: "/images/solar-aerial.jpg",
+    kind: "ar",
   },
   {
     module: "AI Copilot",
@@ -69,166 +74,143 @@ const modules = [
     description: "Mission guidance, checklists, analysis and contextual assistance inside DOMINIC.",
     icon: Sparkles,
     badge: "PREVIEW",
-    visual: "linear-gradient(135deg,rgba(72,76,88,.5),rgba(10,15,21,.98))",
+    image: "/brand/dominic-home-kneeling.webp",
+    kind: "ai",
   },
-];
+] as const;
+
+function CardVisual({ item }: { item: (typeof modules)[number] }) {
+  return (
+    <div style={{ position: "relative", height: 122, overflow: "hidden", borderBottom: "1px solid " + LINE, background: "#0B1117" }}>
+      <Image
+        src={item.image}
+        alt=""
+        fill
+        sizes="(max-width: 900px) 50vw, 220px"
+        style={{ objectFit: "cover", objectPosition: item.kind === "ai" ? "center 35%" : "center" }}
+      />
+      <div style={{ position: "absolute", inset: 0, background: item.kind === "ai" ? "linear-gradient(90deg,rgba(8,13,18,.08),rgba(8,13,18,.76))" : "linear-gradient(180deg,rgba(8,13,18,.05),rgba(8,13,18,.42))" }} />
+
+      {item.kind === "capture" ? (
+        <>
+          <div style={{ position: "absolute", left: "12%", right: "12%", top: "20%", bottom: "17%", border: "3px solid " + ORANGE, borderRadius: "50%", transform: "rotate(-7deg)", boxShadow: "0 0 18px rgba(244,90,30,.5)" }} />
+          <div style={{ position: "absolute", left: "21%", right: "21%", top: "31%", bottom: "27%", border: "2px solid rgba(244,90,30,.85)", borderRadius: "50%", transform: "rotate(-7deg)" }} />
+          {[20,34,49,65,80].map((left) => <span key={left} style={{ position: "absolute", left: left + "%", top: left % 2 ? "24%" : "67%", width: 7, height: 7, marginLeft: -3, borderRadius: "50%", background: ORANGE, boxShadow: "0 0 0 3px rgba(244,90,30,.2)" }} />)}
+        </>
+      ) : null}
+
+      {item.kind === "hub" ? (
+        <>
+          {[["22%","31%"],["45%","48%"],["68%","27%"],["79%","61%"]].map(([l,t]) => <span key={l+t} style={{ position: "absolute", left: l, top: t, width: 8, height: 8, borderRadius: "50%", background: ORANGE, boxShadow: "0 0 0 4px rgba(244,90,30,.18),0 0 12px rgba(244,90,30,.65)" }} />)}
+        </>
+      ) : null}
+
+      {item.kind === "live" ? (
+        <div style={{ position: "absolute", right: 9, bottom: 9, border: "1px solid rgba(244,90,30,.55)", background: "rgba(6,11,16,.8)", borderRadius: 7, padding: "5px 7px", color: "#D6DEE6", fontSize: 7, lineHeight: 1.45 }}>
+          ALT 118 ft<br />SAT 21 · LINK 98%
+        </div>
+      ) : null}
+
+      {item.kind === "ar" ? (
+        <>
+          <div style={{ position: "absolute", left: "16%", top: "19%", width: "62%", height: "55%", border: "2px solid #38CFFF", boxShadow: "0 0 16px rgba(56,207,255,.4)" }} />
+          <div style={{ position: "absolute", left: "22%", top: "35%", color: "#78E7FF", fontSize: 8, fontWeight: 900, background: "rgba(4,20,28,.75)", padding: "3px 5px", borderRadius: 4 }}>35.2 ft</div>
+          <div style={{ position: "absolute", right: "15%", bottom: "24%", color: "#78E7FF", fontSize: 8, fontWeight: 900, background: "rgba(4,20,28,.75)", padding: "3px 5px", borderRadius: 4 }}>72.4 ft</div>
+        </>
+      ) : null}
+
+      {item.kind === "ai" ? (
+        <div style={{ position: "absolute", right: 8, top: 10, width: "48%", border: "1px solid rgba(103,216,255,.4)", borderRadius: 8, padding: "7px 8px", background: "rgba(8,16,22,.82)", color: "#D8F5FF", fontSize: 7, lineHeight: 1.6 }}>
+          ✓ Analyze<br />✓ Find anomalies<br />✓ Generate report<br />✓ Suggest next flight
+        </div>
+      ) : null}
+
+      {item.badge ? (
+        <span style={{ position: "absolute", left: 9, top: 8, borderRadius: 999, padding: "4px 7px", background: item.priority ? ORANGE : "rgba(244,90,30,.16)", color: item.priority ? "#170901" : "#FF9D74", border: item.priority ? "none" : "1px solid rgba(244,90,30,.42)", fontSize: 7, fontWeight: 950, letterSpacing: ".08em" }}>
+          {item.badge}
+        </span>
+      ) : null}
+    </div>
+  );
+}
 
 export default function DominicWelcome({ onOpen }: { onOpen: (module: string) => void }) {
   return (
-    <div style={{ minHeight: 720, background: "#0A0F14", overflow: "hidden", borderRadius: 10, border: "1px solid #202A34", boxShadow: "0 26px 90px rgba(0,0,0,.38)" }}>
-      <section style={{ position: "relative", minHeight: 420, display: "grid", gridTemplateColumns: "minmax(380px,1.08fr) minmax(420px,.92fr)", overflow: "hidden", background: "#0B1117" }}>
-        <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 28% 32%, rgba(244,90,30,.24), transparent 22%), linear-gradient(90deg, rgba(10,15,20,.08) 0%, rgba(10,15,20,.18) 42%, #0B1117 66%, #0B1117 100%)", zIndex: 1, pointerEvents: "none" }} />
+    <div style={{ minHeight: 720, background: "#090E13", overflow: "hidden", border: "1px solid #202A34", boxShadow: "0 26px 90px rgba(0,0,0,.38)" }}>
+      <section style={{ position: "relative", minHeight: 392, overflow: "hidden", background: "#0A0F14" }}>
+        <Image
+          src="/images/city-night-aerial.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          style={{ objectFit: "cover", objectPosition: "center 55%", filter: "saturate(.78) brightness(.66)" }}
+        />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,#090E13 0%,rgba(9,14,19,.97) 18%,rgba(9,14,19,.35) 45%,rgba(9,14,19,.16) 67%,#090E13 100%),linear-gradient(180deg,rgba(9,14,19,.08) 45%,#090E13 100%)" }} />
 
-        <div
-          style={{
-            position: "relative",
-            minHeight: 420,
-            overflow: "hidden",
-            background:
-              "radial-gradient(circle at 33% 28%, rgba(244,90,30,.22), transparent 22%), radial-gradient(circle at 58% 78%, rgba(244,90,30,.09), transparent 30%), linear-gradient(180deg,#202832 0%,#111820 55%,#090E13 100%)",
-          }}
-        >
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              bottom: 0,
-              height: "38%",
-              background: "linear-gradient(180deg,rgba(19,27,35,0),rgba(5,9,13,.78)), repeating-linear-gradient(90deg,rgba(255,255,255,.018) 0 1px,transparent 1px 86px)",
-              borderTop: "1px solid rgba(255,255,255,.035)",
-              zIndex: 0,
-            }}
-          />
+        <div aria-hidden="true" style={{ position: "absolute", left: "30%", right: "20%", bottom: 60, height: 7, borderRadius: 4, background: ORANGE, boxShadow: "0 0 15px rgba(244,90,30,.35)" }} />
+        <div aria-hidden="true" style={{ position: "absolute", left: "29.5%", bottom: 24, width: 14, height: 108, borderRadius: 4, background: "repeating-linear-gradient(180deg,#F45A1E 0 20px,#111820 20px 37px)" }} />
+        <div aria-hidden="true" style={{ position: "absolute", right: "19.5%", bottom: 24, width: 14, height: 108, borderRadius: 4, background: "repeating-linear-gradient(180deg,#F45A1E 0 20px,#111820 20px 37px)" }} />
 
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              left: "44%",
-              bottom: 18,
-              width: 250,
-              height: 66,
-              borderRadius: "50%",
-              transform: "translateX(-15%)",
-              border: "4px solid rgba(244,90,30,.80)",
-              boxShadow: "0 0 0 11px rgba(244,90,30,.08), 0 16px 35px rgba(0,0,0,.38), inset 0 0 28px rgba(244,90,30,.12)",
-              opacity: .92,
-              zIndex: 1,
-            }}
-          />
-
-          <div aria-hidden="true" style={{ position: "absolute", left: 20, bottom: 38, width: 12, height: 118, borderRadius: 5, background: "repeating-linear-gradient(180deg,#F45A1E 0 20px,#111820 20px 38px)", boxShadow: "0 8px 20px rgba(0,0,0,.4)", zIndex: 1 }} />
-          <div aria-hidden="true" style={{ position: "absolute", right: 54, bottom: 38, width: 12, height: 118, borderRadius: 5, background: "repeating-linear-gradient(180deg,#F45A1E 0 20px,#111820 20px 38px)", boxShadow: "0 8px 20px rgba(0,0,0,.4)", zIndex: 1 }} />
-          <div aria-hidden="true" style={{ position: "absolute", left: 27, right: 61, bottom: 104, height: 7, borderRadius: 4, background: "linear-gradient(90deg,#F45A1E,#FF7A33)", boxShadow: "0 5px 16px rgba(0,0,0,.35)", opacity: .82, zIndex: 1 }} />
-
-          <div
-            style={{
-              position: "absolute",
-              left: "4%",
-              bottom: -24,
-              width: "72%",
-              height: "110%",
-              filter: "drop-shadow(0 30px 46px rgba(0,0,0,.60))",
-              zIndex: 2,
-            }}
-          >
-            <DominicMascotImage className="object-contain object-bottom" priority />
-          </div>
-
-          <div
-            style={{
-              position: "absolute",
-              left: 22,
-              top: 22,
-              zIndex: 5,
-              border: "1px solid rgba(244,90,30,.35)",
-              background: "rgba(8,13,18,.62)",
-              backdropFilter: "blur(10px)",
-              borderRadius: 999,
-              padding: "8px 11px",
-              color: "#FFC1A8",
-              fontSize: 9,
-              fontWeight: 900,
-              letterSpacing: ".12em",
-              textTransform: "uppercase",
-            }}
-          >
-            Real operations · smarter capture
-          </div>
-
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "linear-gradient(90deg,transparent 0%,transparent 72%,#0B1117 100%),linear-gradient(180deg,transparent 68%,#0B1117 100%)",
-              zIndex: 4,
-              pointerEvents: "none",
-            }}
-          />
+        <div style={{ position: "absolute", left: "34%", bottom: -8, width: "33%", height: "106%", filter: "drop-shadow(0 30px 44px rgba(0,0,0,.68))" }}>
+          <Image src="/brand/dominic-home-kneeling.webp" alt="DOMINIC preparing a drone mission" fill priority sizes="38vw" style={{ objectFit: "contain", objectPosition: "center bottom" }} />
         </div>
 
-        <div style={{ position: "relative", zIndex: 5, display: "flex", flexDirection: "column", justifyContent: "center", padding: "44px 44px 46px 30px" }}>
-          <div style={{ color: ORANGE, fontSize: 11, fontWeight: 950, letterSpacing: ".22em", textTransform: "uppercase" }}>Welcome to</div>
+        <div style={{ position: "absolute", left: "7%", top: 42, zIndex: 3, width: "27%", minWidth: 290 }}>
+          <div style={{ color: ORANGE, fontSize: 11, fontWeight: 950, letterSpacing: ".19em", textTransform: "uppercase" }}>Welcome to</div>
           <div style={{ marginTop: 12 }}><DominicBrandLockup size="lg" showTagline /></div>
-          <p style={{ color: "#C3CCD5", fontSize: 15, lineHeight: 1.7, maxWidth: 560, margin: "24px 0 0" }}>
-            Turn images into intelligence. Plan, fly, map, analyze and deliver — all in one workspace.
+          <p style={{ color: "#D0D7DE", fontSize: 15, lineHeight: 1.55, margin: "24px 0 0", maxWidth: 370 }}>
+            Turn images into intelligence.<br />Plan, fly, map, analyze and deliver —<br />all in one workspace.
           </p>
-          <div style={{ marginTop: 24, color: "#F5F7FA", fontSize: 18, fontStyle: "italic", letterSpacing: ".02em" }}>
+          <div style={{ marginTop: 22, color: "#F5F7FA", fontSize: 19, fontStyle: "italic", letterSpacing: ".02em" }}>
             Same skies. <span style={{ color: ORANGE }}>Smarter missions.</span>
           </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 24 }}>
-            {["PLAN", "FLY", "PROCESS", "DELIVER"].map((step, index) => (
-              <span key={step} style={{ border: "1px solid #2B3641", background: "rgba(15,22,29,.72)", borderRadius: 999, padding: "7px 10px", color: index === 0 ? "#FF9D74" : MUTED, fontSize: 9, fontWeight: 900, letterSpacing: ".10em" }}>
-                {"0" + (index + 1) + " " + step}
-              </span>
-            ))}
-          </div>
         </div>
-      </section>
 
-      <section style={{ padding: "16px 18px 18px", background: "#0A0F14", borderTop: "1px solid #202A34" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
-          {modules.map(({ module, title, description, icon: Icon, badge, priority, visual }) => (
-            <button key={module} type="button" onClick={() => onOpen(module)} style={{ textAlign: "left", border: priority ? "2px solid " + ORANGE : "1px solid " + LINE, borderRadius: 12, overflow: "hidden", background: PANEL, color: TEXT, cursor: "pointer", minHeight: 278, boxShadow: priority ? "0 14px 32px rgba(244,90,30,.12)" : "none", padding: 0 }}>
-              <div style={{ height: 106, background: visual, borderBottom: "1px solid " + LINE, display: "grid", placeItems: "center", position: "relative", overflow: "hidden" }}>
-                <Icon size={44} strokeWidth={1.35} color={priority ? ORANGE : "#9FB0BE"} />
-                <div aria-hidden="true" style={{ position: "absolute", inset: 10, border: "1px solid rgba(255,255,255,.055)", borderRadius: 8 }} />
-                {badge ? <span style={{ position: "absolute", left: 10, top: 9, borderRadius: 999, padding: "4px 7px", background: priority ? ORANGE : "rgba(244,90,30,.12)", color: priority ? "#170901" : "#FF9D74", border: priority ? "none" : "1px solid rgba(244,90,30,.34)", fontSize: 7, fontWeight: 950, letterSpacing: ".08em" }}>{badge}</span> : null}
-              </div>
-
-              <div style={{ padding: "14px 14px 15px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ width: 27, height: 27, display: "grid", placeItems: "center", borderRadius: 7, background: "rgba(244,90,30,.10)" }}><Icon size={15} color={ORANGE} /></div>
-                  <strong style={{ fontSize: 14, lineHeight: 1.2 }}>{title}</strong>
-                </div>
-                <div style={{ color: "#AAB5BF", fontSize: 10, lineHeight: 1.55, marginTop: 10, minHeight: 62 }}>{description}</div>
-                <div style={{ marginTop: 13, border: priority ? "1px solid rgba(244,90,30,.75)" : "1px solid " + LINE, background: priority ? "linear-gradient(90deg," + ORANGE_DARK + "," + ORANGE + ")" : PANEL_2, color: priority ? "#160801" : TEXT, borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  {"Open " + title.replace("Projects & Mapping", "Projects")} <ArrowRight size={13} />
-                </div>
-              </div>
-            </button>
+        <div style={{ position: "absolute", right: "5%", top: 48, width: 205, display: "grid", gap: 10, color: "#D9E0E7", fontSize: 9, fontWeight: 850, letterSpacing: ".12em", textTransform: "uppercase" }}>
+          {["Safer operations","Higher accuracy","Real insights","Greater efficiency"].map((label) => (
+            <div key={label} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ width: 22, height: 22, border: "1px solid rgba(255,255,255,.3)", borderRadius: "50%", display: "grid", placeItems: "center", color: ORANGE }}>•</span>
+              {label}
+            </div>
           ))}
         </div>
       </section>
 
-      <section style={{ margin: "0 18px 18px", minHeight: 82, display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) auto", gap: 0, alignItems: "stretch", border: "1px solid " + LINE, borderRadius: 12, background: "#11171E", overflow: "hidden" }}>
-        <div style={{ padding: "16px 18px", display: "flex", alignItems: "center", gap: 13, borderRight: "1px solid " + LINE }}>
-          <div style={{ width: 42, height: 42, borderRadius: "50%", display: "grid", placeItems: "center", background: "#202831" }}><GraduationCap size={20} color="#D8E0E7" /></div>
-          <div><div style={{ fontSize: 11, fontWeight: 900 }}>New to DOMINIC?</div><div style={{ color: MUTED, fontSize: 9, marginTop: 4 }}>Start with Capture Planner and work through the mission lifecycle.</div></div>
-          <button onClick={() => onOpen("Capture Planner")} style={{ marginLeft: "auto", border: "1px solid " + ORANGE, background: "transparent", color: "#FF9D74", borderRadius: 8, padding: "9px 12px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}>Start Here</button>
+      <section style={{ padding: "10px 12px 14px", background: "#090E13", borderTop: "1px solid #202A34" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6,minmax(0,1fr))", gap: 9 }}>
+          {modules.map((item) => {
+            const Icon = item.icon;
+            return (
+              <button key={item.module} type="button" onClick={() => onOpen(item.module)} style={{ textAlign: "left", border: item.priority ? "2px solid " + ORANGE : "1px solid " + LINE, borderRadius: 11, overflow: "hidden", background: PANEL, color: TEXT, cursor: "pointer", padding: 0, minWidth: 0, boxShadow: item.priority ? "0 0 0 1px rgba(244,90,30,.18),0 12px 28px rgba(244,90,30,.12)" : "none" }}>
+                <CardVisual item={item} />
+                <div style={{ padding: "12px 12px 13px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 25, height: 25, display: "grid", placeItems: "center", borderRadius: "50%", background: "rgba(244,90,30,.10)", border: "1px solid rgba(244,90,30,.25)" }}><Icon size={14} color={ORANGE} /></div>
+                    <strong style={{ fontSize: 13, lineHeight: 1.2 }}>{item.title}</strong>
+                  </div>
+                  <div style={{ color: "#AAB5BF", fontSize: 9, lineHeight: 1.5, marginTop: 9, minHeight: 55 }}>{item.description}</div>
+                  <div style={{ marginTop: 11, border: item.priority ? "1px solid rgba(244,90,30,.8)" : "1px solid " + LINE, background: item.priority ? "linear-gradient(90deg," + ORANGE_DARK + "," + ORANGE + ")" : PANEL_2, color: item.priority ? "#160801" : TEXT, borderRadius: 7, padding: "8px 9px", fontSize: 8, fontWeight: 900, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    {"Open " + item.title.replace("Projects & Mapping", "Projects")} <ArrowRight size={12} />
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
+      </section>
 
-        <div style={{ padding: "16px 18px", display: "flex", alignItems: "center", gap: 13, borderRight: "1px solid " + LINE }}>
-          <div style={{ width: 42, height: 42, borderRadius: "50%", display: "grid", placeItems: "center", background: "#202831" }}><CircleHelp size={20} color="#D8E0E7" /></div>
-          <div><div style={{ fontSize: 11, fontWeight: 900 }}>Need help?</div><div style={{ color: MUTED, fontSize: 9, marginTop: 4 }}>Use the workspace modules in the order that matches your mission.</div></div>
+      <section style={{ margin: "0 12px 14px", minHeight: 76, display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr) auto", border: "1px solid " + LINE, borderRadius: 11, background: "#11171E", overflow: "hidden" }}>
+        <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, borderRight: "1px solid " + LINE }}>
+          <div style={{ width: 40, height: 40, borderRadius: "50%", display: "grid", placeItems: "center", background: "#202831" }}><GraduationCap size={19} color="#D8E0E7" /></div>
+          <div><div style={{ fontSize: 11, fontWeight: 900 }}>New to DOMINIC?</div><div style={{ color: MUTED, fontSize: 9, marginTop: 4 }}>Take a quick tour and start with Capture Planner.</div></div>
+          <button onClick={() => onOpen("Capture Planner")} style={{ marginLeft: "auto", border: "1px solid " + ORANGE, background: "transparent", color: ORANGE, borderRadius: 7, padding: "8px 12px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}>Start Here</button>
         </div>
-
-        <div style={{ padding: "0 20px", display: "grid", placeItems: "center", color: "#7E8A96", fontSize: 8, fontWeight: 900, letterSpacing: ".22em", whiteSpace: "nowrap" }}>
-          MAP · MEASURE · ANALYZE · DELIVER
+        <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, borderRight: "1px solid " + LINE }}>
+          <div style={{ width: 40, height: 40, borderRadius: "50%", display: "grid", placeItems: "center", background: "#202831" }}><CircleHelp size={19} color="#D8E0E7" /></div>
+          <div><div style={{ fontSize: 11, fontWeight: 900 }}>Need help?</div><div style={{ color: MUTED, fontSize: 9, marginTop: 4 }}>Guides, tutorials and support resources.</div></div>
         </div>
+        <div style={{ padding: "0 18px", display: "grid", placeItems: "center", color: "#7E8A96", fontSize: 8, fontWeight: 900, letterSpacing: ".22em", whiteSpace: "nowrap" }}>MAP · MEASURE · ANALYZE · DELIVER</div>
       </section>
     </div>
   );

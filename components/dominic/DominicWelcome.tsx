@@ -1,6 +1,13 @@
 "use client";
 
 import Image from "next/image";
+import heroImage from "@/components/dominic/assets/heroData";
+import captureImage from "@/components/dominic/assets/captureData";
+import projectsImage from "@/components/dominic/assets/projectsData";
+import hubImage from "@/components/dominic/assets/hubData";
+import liveImage from "@/components/dominic/assets/liveData";
+import arImage from "@/components/dominic/assets/arData";
+import aiImage from "@/components/dominic/assets/aiData";
 import {
   Activity,
   ArrowRight,
@@ -20,21 +27,14 @@ const PANEL_2 = "#0B1117";
 const LINE = "#2A3540";
 const TEXT = "#F5F7FA";
 const MUTED = "#96A2AE";
-const SPRITE = "/brand/dominic-approved-mockup.webp";
-const SPRITE_W = 1774;
-const SPRITE_H = 887;
-
-type Crop = { x: number; y: number; w: number; h: number };
 type DominicModuleCard = {
   module: "Capture Planner" | "Projects" | "DOMINIC HUB" | "Live Flight" | "AR View" | "AI Copilot";
   title: string;
   description: string;
   icon: typeof Crosshair;
   priority?: boolean;
-  crop: Crop;
+  image: string;
 };
-
-const HERO: Crop = { x: 217, y: 70, w: 1557, h: 410 };
 
 const modules: DominicModuleCard[] = [
   {
@@ -43,86 +43,56 @@ const modules: DominicModuleCard[] = [
     description: "Plan coverage, overlap, camera angles, checkpoints and safe capture paths before takeoff.",
     icon: Crosshair,
     priority: true,
-    crop: { x: 240, y: 485, w: 228, h: 127 },
+    image: captureImage,
   },
   {
     module: "Projects",
     title: "Projects & Mapping",
     description: "Upload imagery, process maps and 3D models, measure, analyze and build deliverables.",
     icon: FolderKanban,
-    crop: { x: 490, y: 485, w: 224, h: 127 },
+    image: projectsImage,
   },
   {
     module: "DOMINIC HUB",
     title: "DOMINIC HUB",
     description: "Mission planning, fleet management, live operations, sensors, alerts and simulation.",
     icon: Factory,
-    crop: { x: 732, y: 485, w: 226, h: 127 },
+    image: hubImage,
   },
   {
     module: "Live Flight",
     title: "Live Flight",
     description: "Real-time aircraft view, telemetry, camera feed and mission monitoring.",
     icon: Activity,
-    crop: { x: 980, y: 485, w: 227, h: 127 },
+    image: liveImage,
   },
   {
     module: "AR View",
     title: "AR View",
     description: "Augmented-reality overlays for field context, alignment and on-site validation.",
     icon: Box,
-    crop: { x: 1227, y: 485, w: 226, h: 127 },
+    image: arImage,
   },
   {
     module: "AI Copilot",
     title: "AI Copilot",
     description: "Mission guidance, checklists, analysis and contextual assistance inside DOMINIC.",
     icon: Sparkles,
-    crop: { x: 1475, y: 485, w: 230, h: 127 },
+    image: aiImage,
   },
 ];
 
-function SpriteCrop({ crop, className }: { crop: Crop; className?: string }) {
+function CardVisual({ src, title }: { src: string; title: string }) {
   return (
-    <div
-      aria-hidden="true"
-      className={className}
-      style={{
-        position: "relative",
-        width: "100%",
-        aspectRatio: `${crop.w} / ${crop.h}`,
-        overflow: "hidden",
-        background: "#0B1117",
-      }}
-    >
+    <div style={{ position: "relative", aspectRatio: "228 / 127", borderBottom: "1px solid " + LINE, overflow: "hidden", background: "#0B1117" }}>
       <Image
-        src={SPRITE}
-        alt=""
-        width={SPRITE_W}
-        height={SPRITE_H}
+        src={src}
+        alt={title + " visual preview"}
+        fill
         unoptimized
-        draggable={false}
-        style={{
-          position: "absolute",
-          width: `${(SPRITE_W / crop.w) * 100}%`,
-          height: `${(SPRITE_H / crop.h) * 100}%`,
-          maxWidth: "none",
-          left: `-${(crop.x / crop.w) * 100}%`,
-          top: `-${(crop.y / crop.h) * 100}%`,
-          objectFit: "fill",
-          display: "block",
-          userSelect: "none",
-          pointerEvents: "none",
-        }}
+        sizes="(min-width: 1200px) 16vw, 33vw"
+        style={{ objectFit: "cover" }}
       />
-    </div>
-  );
-}
-
-function CardVisual({ crop }: { crop: Crop }) {
-  return (
-    <div style={{ borderBottom: "1px solid " + LINE, overflow: "hidden" }}>
-      <SpriteCrop crop={crop} />
     </div>
   );
 }
@@ -131,7 +101,16 @@ export default function DominicWelcome({ onOpen }: { onOpen: (module: string) =>
   return (
     <div style={{ minHeight: 720, background: "#090E13", overflow: "hidden", border: "1px solid #202A34", boxShadow: "0 26px 90px rgba(0,0,0,.38)" }}>
       <section style={{ position: "relative", overflow: "hidden", background: "#0A0F14", borderBottom: "1px solid #202A34" }}>
-        <SpriteCrop crop={HERO} />
+        <Image
+          src={heroImage}
+          alt="DOMINIC preparing a professional drone in a refinery operations environment"
+          width={900}
+          height={237}
+          priority
+          unoptimized
+          sizes="100vw"
+          style={{ width: "100%", height: "auto", display: "block" }}
+        />
       </section>
 
       <section style={{ padding: "10px 12px 14px", background: "#090E13", borderTop: "1px solid #202A34" }}>
@@ -156,7 +135,7 @@ export default function DominicWelcome({ onOpen }: { onOpen: (module: string) =>
                   boxShadow: item.priority ? "0 0 0 1px rgba(244,90,30,.18),0 12px 28px rgba(244,90,30,.12)" : "none",
                 }}
               >
-                <CardVisual crop={item.crop} />
+                <CardVisual src={item.image} title={item.title} />
                 <div style={{ padding: "12px 12px 13px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <div style={{ width: 25, height: 25, display: "grid", placeItems: "center", borderRadius: "50%", background: "rgba(244,90,30,.10)", border: "1px solid rgba(244,90,30,.25)" }}>

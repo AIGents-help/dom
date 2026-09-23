@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -39,6 +39,9 @@ import {
   type NoFlySector,
 } from "@/lib/capturePlanner";
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
+import { WebSocketFlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
+import { connectFlightBridgeAdapter } from "@/lib/aircraft/bridgeConnect";
+import type { DominicAircraftAdapter, AircraftCapabilities } from "@/lib/aircraft/contract";
 import {
   DominicMissionEngine,
   type MissionExecutionSnapshot,
@@ -183,6 +186,17 @@ export default function DominicCapturePlanner() {
   const [aircraftTelemetry, setAircraftTelemetry] = useState<AircraftTelemetry | null>(null);
   const [autonomousSnapshot, setAutonomousSnapshot] = useState<MissionExecutionSnapshot | null>(null);
   const [autonomousRunning, setAutonomousRunning] = useState(false);
+  const [bridgeUrl, setBridgeUrl] = useState("ws://127.0.0.1:8787");
+  const [bridgeStatus, setBridgeStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
+  const [bridgeError, setBridgeError] = useState<string | null>(null);
+  const [bridgeInfo, setBridgeInfo] = useState<{
+    vendor: string;
+    model?: string;
+    aircraftId: string;
+    capabilities: AircraftCapabilities;
+  } | null>(null);
+  const bridgeAdapterRef = useRef<DominicAircraftAdapter | null>(null);
+  const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
 
   const plan = useMemo(
     () => calculateObjectScanPlan({ objectDiameterFt, objectHeightFt, standoffFt, overlapPct, horizontalFovDeg }),
@@ -370,6 +384,50 @@ export default function DominicCapturePlanner() {
   const removeNoFlySector = (id: string) => {
     setMissionArmed(false);
     setNoFlySectors((current) => current.filter((sector) => sector.id !== id));
+  };
+
+  const connectAircraftBridge = async () => {
+    if (bridgeStatus === "connecting" || bridgeStatus === "connected") return;
+    setBridgeStatus("connecting");
+    setBridgeError(null);
+    try {
+      const transport = new WebSocketFlightBridgeTransport(bridgeUrl);
+      const { adapter, hello } = await connectFlightBridgeAdapter(transport, 5000);
+      bridgeAdapterRef.current = adapter;
+      bridgeUnsubscribeRef.current = adapter.subscribe((state) => {
+        setAircraftTelemetry({
+          latitude: state.latitude,
+          longitude: state.longitude,
+          relativeAltitudeFt: state.relativeAltitudeFt,
+          headingDeg: state.headingDeg,
+          gimbalPitchDeg: state.gimbalPitchDeg,
+          timestampMs: state.timestampMs,
+          source: "external",
+        });
+      });
+      setBridgeInfo({
+        vendor: hello.vendor,
+        model: hello.model,
+        aircraftId: hello.aircraftId,
+        capabilities: hello.capabilities,
+      });
+      setTelemetryMode("aircraft");
+      setBridgeStatus("connected");
+    } catch (error) {
+      setBridgeStatus("error");
+      setBridgeError(error instanceof Error ? error.message : "Unable to connect to Flight Bridge.");
+    }
+  };
+
+  const disconnectAircraftBridge = async () => {
+    bridgeUnsubscribeRef.current?.();
+    bridgeUnsubscribeRef.current = null;
+    const adapter = bridgeAdapterRef.current;
+    bridgeAdapterRef.current = null;
+    if (adapter) await adapter.disconnect();
+    setBridgeInfo(null);
+    setBridgeStatus("disconnected");
+    setBridgeError(null);
   };
 
   const runAutonomousSimulation = async () => {
@@ -587,6 +645,55 @@ export default function DominicCapturePlanner() {
                   )}
                 </div>
               </div>
+            </section>
+
+            <section style={{ border: `1px solid rgba(244,90,30,.28)`, borderRadius: 12, background: V.panel, padding: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.text, fontSize: 12, fontWeight: 900 }}>
+                  <Radio size={16} color={V.orange} /> Aircraft bridge
+                </div>
+                <span style={{ color: bridgeStatus === "connected" ? V.green : bridgeStatus === "error" ? "#FF8B7A" : V.muted, fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
+                  {bridgeStatus}
+                </span>
+              </div>
+              <p style={{ margin: "6px 0 9px", color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
+                Connect DOMINIC to a local Flight Bridge. The bridge can represent DJI, MAVLink/PX4/ArduPilot, Autel, or another supported adapter.
+              </p>
+              <input
+                value={bridgeUrl}
+                disabled={bridgeStatus === "connected" || bridgeStatus === "connecting"}
+                onChange={(event) => setBridgeUrl(event.target.value)}
+                placeholder="ws://127.0.0.1:8787"
+                style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 8, padding: "8px 9px", fontSize: 10, outline: 0 }}
+              />
+              <button
+                type="button"
+                onClick={bridgeStatus === "connected" ? disconnectAircraftBridge : connectAircraftBridge}
+                disabled={bridgeStatus === "connecting"}
+                style={{
+                  width: "100%",
+                  marginTop: 8,
+                  border: bridgeStatus === "connected" ? `1px solid ${V.line}` : 0,
+                  background: bridgeStatus === "connected" ? "#0D1319" : bridgeStatus === "connecting" ? "#39424B" : `linear-gradient(90deg,${V.orangeDark},${V.orange})`,
+                  color: bridgeStatus === "connected" ? V.text : bridgeStatus === "connecting" ? "#88939E" : "#180A02",
+                  borderRadius: 8,
+                  padding: "8px 9px",
+                  fontWeight: 900,
+                  cursor: bridgeStatus === "connecting" ? "not-allowed" : "pointer",
+                  fontSize: 9,
+                }}
+              >
+                {bridgeStatus === "connected" ? "Disconnect Aircraft Bridge" : bridgeStatus === "connecting" ? "Connecting..." : "Connect Aircraft Bridge"}
+              </button>
+              {bridgeError ? <div style={{ color: "#FF9A86", fontSize: 8, lineHeight: 1.4, marginTop: 7 }}>{bridgeError}</div> : null}
+              {bridgeInfo ? (
+                <div style={{ marginTop: 9, border: `1px solid rgba(112,214,160,.18)`, background: "rgba(112,214,160,.05)", borderRadius: 8, padding: 8 }}>
+                  <div style={{ color: V.green, fontSize: 9, fontWeight: 900 }}>{bridgeInfo.vendor.toUpperCase()} · {bridgeInfo.model ?? bridgeInfo.aircraftId}</div>
+                  <div style={{ color: V.muted, fontSize: 8, marginTop: 4, lineHeight: 1.4 }}>
+                    {Object.entries(bridgeInfo.capabilities).filter(([, enabled]) => enabled).map(([name]) => name).join(" · ")}
+                  </div>
+                </div>
+              ) : null}
             </section>
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>

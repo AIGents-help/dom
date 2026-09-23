@@ -41,6 +41,19 @@ export type CaptureGuidance = {
   instruction: string;
 };
 
+export type GeographicCheckpoint = {
+  id: string;
+  sequence: number;
+  ringId: CaptureRing["id"];
+  latitude: number;
+  longitude: number;
+  relativeAltitudeFt: number;
+  cameraAngle: number;
+  bearingDeg: number;
+  radiusFt: number;
+  action: "capture_photo";
+};
+
 export type AutonomousCheckpoint = {
   id: string;
   sequence: number;
@@ -247,6 +260,69 @@ export function buildAutonomousCheckpoints(plan: CapturePlan): AutonomousCheckpo
     altitudeRatio: ringById.get(checkpoint.ringId)?.altitudeRatio ?? 0,
     action: "capture_photo",
   }));
+}
+
+
+export function destinationPoint(input: {
+  latitude: number;
+  longitude: number;
+  bearingDeg: number;
+  distanceFt: number;
+}) {
+  const earthRadiusM = 6378137;
+  const distanceM = input.distanceFt * 0.3048;
+  const angularDistance = distanceM / earthRadiusM;
+  const bearing = (normalizeDegrees(input.bearingDeg) * Math.PI) / 180;
+  const lat1 = (input.latitude * Math.PI) / 180;
+  const lon1 = (input.longitude * Math.PI) / 180;
+
+  const lat2 = Math.asin(
+    Math.sin(lat1) * Math.cos(angularDistance) +
+      Math.cos(lat1) * Math.sin(angularDistance) * Math.cos(bearing),
+  );
+  const lon2 =
+    lon1 +
+    Math.atan2(
+      Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(lat1),
+      Math.cos(angularDistance) - Math.sin(lat1) * Math.sin(lat2),
+    );
+
+  return {
+    latitude: (lat2 * 180) / Math.PI,
+    longitude: (((lon2 * 180) / Math.PI + 540) % 360) - 180,
+  };
+}
+
+export function buildGeographicCheckpoints(input: {
+  plan: CapturePlan;
+  centerLatitude: number;
+  centerLongitude: number;
+  objectHeightFt: number;
+  baseRelativeAltitudeFt?: number;
+}): GeographicCheckpoint[] {
+  const ringById = new Map(input.plan.rings.map((ring) => [ring.id, ring]));
+  return buildCaptureSequence(input.plan).map((checkpoint, index) => {
+    const position = destinationPoint({
+      latitude: input.centerLatitude,
+      longitude: input.centerLongitude,
+      bearingDeg: checkpoint.bearingDeg,
+      distanceFt: checkpoint.radiusFt,
+    });
+    const altitudeRatio = ringById.get(checkpoint.ringId)?.altitudeRatio ?? 0;
+    return {
+      id: checkpoint.id,
+      sequence: index + 1,
+      ringId: checkpoint.ringId,
+      latitude: position.latitude,
+      longitude: position.longitude,
+      relativeAltitudeFt:
+        (input.baseRelativeAltitudeFt ?? 0) + Math.max(0, input.objectHeightFt) * altitudeRatio,
+      cameraAngle: checkpoint.cameraAngle,
+      bearingDeg: checkpoint.bearingDeg,
+      radiusFt: checkpoint.radiusFt,
+      action: "capture_photo",
+    };
+  });
 }
 
 function normalizeDegrees(value: number) {

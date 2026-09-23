@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAutonomousCheckpoints, buildCaptureSequence, calculateObjectScanPlan, evaluateCaptureGuidance, signedAngularDelta } from "./capturePlanner";
+import { buildAutonomousCheckpoints, buildCaptureSequence, buildGeographicCheckpoints, calculateObjectScanPlan, destinationPoint, evaluateCaptureGuidance, signedAngularDelta } from "./capturePlanner";
 
 describe("DOMINIC capture planner", () => {
   it("builds three complete object-scan rings", () => {
@@ -93,6 +93,40 @@ describe("DOMINIC capture planner", () => {
       cameraAngle: manual[0].cameraAngle,
       action: "capture_photo",
     });
+  });
+
+
+  it("projects a northbound checkpoint to a higher latitude", () => {
+    const projected = destinationPoint({
+      latitude: 39.95,
+      longitude: -75.16,
+      bearingDeg: 0,
+      distanceFt: 100,
+    });
+    expect(projected.latitude).toBeGreaterThan(39.95);
+    expect(Math.abs(projected.longitude + 75.16)).toBeLessThan(0.00001);
+  });
+
+  it("georeferences every object-scan checkpoint and applies ring altitude", () => {
+    const plan = calculateObjectScanPlan({
+      objectDiameterFt: 10,
+      objectHeightFt: 20,
+      standoffFt: 20,
+      overlapPct: 75,
+      horizontalFovDeg: 84,
+    });
+    const geographic = buildGeographicCheckpoints({
+      plan,
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      objectHeightFt: 20,
+      baseRelativeAltitudeFt: 5,
+    });
+
+    expect(geographic).toHaveLength(plan.totalShots);
+    expect(geographic[0].latitude).not.toBe(39.95);
+    expect(geographic[0].relativeAltitudeFt).toBeGreaterThanOrEqual(5);
+    expect(geographic.some((point) => point.ringId === "high" && point.relativeAltitudeFt > 20)).toBe(true);
   });
 
 });

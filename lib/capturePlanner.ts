@@ -65,6 +65,35 @@ export type AutonomousCheckpoint = {
   action: "capture_photo";
 };
 
+export type NoFlySector = {
+  id: string;
+  label: string;
+  startBearingDeg: number;
+  endBearingDeg: number;
+};
+
+export type MissionCalibration = {
+  homeLatitude: number;
+  homeLongitude: number;
+  minRelativeAltitudeFt: number;
+  maxRelativeAltitudeFt: number;
+  minStandoffFt: number;
+  maxStandoffFt: number;
+  noFlySectors: NoFlySector[];
+};
+
+export type CalibrationIssue = {
+  severity: "blocker" | "warning";
+  code: string;
+  message: string;
+  checkpointIds: string[];
+};
+
+export type CalibrationValidation = {
+  ready: boolean;
+  issues: CalibrationIssue[];
+};
+
 export type CapturePlan = {
   missionType: CaptureMissionType;
   rings: CaptureRing[];
@@ -323,6 +352,103 @@ export function buildGeographicCheckpoints(input: {
       action: "capture_photo",
     };
   });
+}
+
+
+export function bearingInSector(bearingDeg: number, startBearingDeg: number, endBearingDeg: number) {
+  const bearing = normalizeDegrees(bearingDeg);
+  const start = normalizeDegrees(startBearingDeg);
+  const end = normalizeDegrees(endBearingDeg);
+  if (start === end) return false;
+  return start < end ? bearing >= start && bearing <= end : bearing >= start || bearing <= end;
+}
+
+export function validateMissionCalibration(input: {
+  checkpoints: GeographicCheckpoint[];
+  calibration: MissionCalibration;
+}): CalibrationValidation {
+  const issues: CalibrationIssue[] = [];
+  const { checkpoints, calibration } = input;
+
+  const altitudeLow = checkpoints.filter(
+    (point) => point.relativeAltitudeFt < calibration.minRelativeAltitudeFt,
+  );
+  if (altitudeLow.length) {
+    issues.push({
+      severity: "blocker",
+      code: "altitude_below_min",
+      message: `${altitudeLow.length} checkpoint(s) fall below the configured minimum relative altitude.`,
+      checkpointIds: altitudeLow.map((point) => point.id),
+    });
+  }
+
+  const altitudeHigh = checkpoints.filter(
+    (point) => point.relativeAltitudeFt > calibration.maxRelativeAltitudeFt,
+  );
+  if (altitudeHigh.length) {
+    issues.push({
+      severity: "blocker",
+      code: "altitude_above_max",
+      message: `${altitudeHigh.length} checkpoint(s) exceed the configured maximum relative altitude.`,
+      checkpointIds: altitudeHigh.map((point) => point.id),
+    });
+  }
+
+  const tooClose = checkpoints.filter((point) => point.radiusFt < calibration.minStandoffFt);
+  if (tooClose.length) {
+    issues.push({
+      severity: "blocker",
+      code: "standoff_below_min",
+      message: `${tooClose.length} checkpoint(s) are inside the minimum stand-off distance.`,
+      checkpointIds: tooClose.map((point) => point.id),
+    });
+  }
+
+  const tooFar = checkpoints.filter((point) => point.radiusFt > calibration.maxStandoffFt);
+  if (tooFar.length) {
+    issues.push({
+      severity: "warning",
+      code: "standoff_above_max",
+      message: `${tooFar.length} checkpoint(s) exceed the preferred maximum stand-off distance.`,
+      checkpointIds: tooFar.map((point) => point.id),
+    });
+  }
+
+  for (const sector of calibration.noFlySectors) {
+    const blocked = checkpoints.filter((point) =>
+      bearingInSector(point.bearingDeg, sector.startBearingDeg, sector.endBearingDeg),
+    );
+    if (blocked.length) {
+      issues.push({
+        severity: "blocker",
+        code: `no_fly_sector:${sector.id}`,
+        message: `${blocked.length} checkpoint(s) intersect no-fly sector "${sector.label}".`,
+        checkpointIds: blocked.map((point) => point.id),
+      });
+    }
+  }
+
+  const invalidHome =
+    !Number.isFinite(calibration.homeLatitude) ||
+    !Number.isFinite(calibration.homeLongitude) ||
+    calibration.homeLatitude < -90 ||
+    calibration.homeLatitude > 90 ||
+    calibration.homeLongitude < -180 ||
+    calibration.homeLongitude > 180;
+
+  if (invalidHome) {
+    issues.push({
+      severity: "blocker",
+      code: "invalid_home",
+      message: "Launch/home coordinates are invalid.",
+      checkpointIds: [],
+    });
+  }
+
+  return {
+    ready: !issues.some((issue) => issue.severity === "blocker"),
+    issues,
+  };
 }
 
 function normalizeDegrees(value: number) {

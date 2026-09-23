@@ -1,4 +1,6 @@
-import { createReadStream, statSync, writeFileSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, renameSync, statSync, unlinkSync } from "node:fs";
+import { get as httpGet } from "node:http";
+import { get as httpsGet } from "node:https";
 import { basename } from "node:path";
 import { nodeOdmBaseUrl } from "./env";
 
@@ -88,10 +90,85 @@ export async function getTaskInfo(uuid: string): Promise<NodeOdmTaskInfo> {
 }
 
 // GET /task/{uuid}/download/all.zip — the one documented download asset.
-// Streams the archive to a local file path for extraction.
+// Large ODM archives can be hundreds of MB or several GB. Do not route them
+// through fetch().arrayBuffer(): undici can abort long/large localhost
+// transfers and buffering duplicates the entire archive in RAM. Stream the
+// response directly to disk with Node's native HTTP client instead.
 export async function downloadAllOutputs(uuid: string, destZipPath: string): Promise<void> {
-  const res = await fetch(url(`/task/${uuid}/download/all.zip`));
-  if (!res.ok) throw new Error(`NodeODM /task/${uuid}/download/all.zip failed: ${res.status}`);
-  const buffer = Buffer.from(await res.arrayBuffer());
-  writeFileSync(destZipPath, buffer);
+  const sourceUrl = url(`/task/${uuid}/download/all.zip`);
+  const partPath = `${destZipPath}.part`;
+  if (existsSync(partPath)) unlinkSync(partPath);
+
+  await new Promise<void>((resolve, reject) => {
+    const download = (target: string, redirects = 0) => {
+      const parsed = new URL(target);
+      const get = parsed.protocol === "https:" ? httpsGet : httpGet;
+      const req = get(parsed, (res) => {
+        const status = res.statusCode ?? 0;
+
+        if (status >= 300 && status < 400 && res.headers.location) {
+          res.resume();
+          if (redirects >= 5) {
+            reject(new Error("NodeODM output download exceeded 5 redirects."));
+            return;
+          }
+          download(new URL(res.headers.location, parsed).toString(), redirects + 1);
+          return;
+        }
+
+        if (status !== 200) {
+          let body = "";
+          res.setEncoding("utf8");
+          res.on("data", (chunk) => { body += chunk; });
+          res.on("end", () => reject(new Error(
+            `NodeODM /task/${uuid}/download/all.zip failed: ${status}${body ? ` ${body.slice(0, 500)}` : ""}`
+          )));
+          return;
+        }
+
+        const total = Number(res.headers["content-length"] ?? 0);
+        let received = 0;
+        let lastLoggedPct = -1;
+        const file = createWriteStream(partPath);
+
+        res.on("data", (chunk: Buffer) => {
+          received += chunk.length;
+          if (total > 0) {
+            const pct = Math.floor((received / total) * 100);
+            if (pct >= lastLoggedPct + 5 || pct === 100) {
+              lastLoggedPct = pct;
+              console.log(`[nodeodm] Downloading all.zip: ${pct}% (${(received / 1024 / 1024).toFixed(1)} MB / ${(total / 1024 / 1024).toFixed(1)} MB)`);
+            }
+          } else if (received % (100 * 1024 * 1024) < chunk.length) {
+            console.log(`[nodeodm] Downloading all.zip: ${(received / 1024 / 1024).toFixed(1)} MB`);
+          }
+        });
+
+        res.on("error", (error) => {
+          file.destroy();
+          reject(error);
+        });
+        file.on("error", reject);
+        file.on("finish", () => {
+          file.close(() => {
+            renameSync(partPath, destZipPath);
+            console.log(`[nodeodm] all.zip download complete: ${(received / 1024 / 1024).toFixed(1)} MB`);
+            resolve();
+          });
+        });
+
+        res.pipe(file);
+      });
+
+      req.setTimeout(30 * 60 * 1000, () => {
+        req.destroy(new Error("NodeODM output download timed out after 30 minutes."));
+      });
+      req.on("error", reject);
+    };
+
+    download(sourceUrl);
+  }).catch((error) => {
+    if (existsSync(partPath)) unlinkSync(partPath);
+    throw error;
+  });
 }

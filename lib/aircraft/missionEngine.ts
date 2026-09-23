@@ -45,6 +45,10 @@ export type AutonomousMissionInput = {
   checkpoints: GeographicCheckpoint[];
   takeoffAltitudeFt?: number;
   transitSpeedFps?: number;
+  resume?: {
+    nextCheckpointIndex: number;
+    completedCheckpointIds: string[];
+  };
 };
 
 const requiredCapabilities = [
@@ -69,11 +73,15 @@ export class DominicMissionEngine {
     private readonly adapter: DominicAircraftAdapter,
     private readonly mission: AutonomousMissionInput,
   ) {
+    const resumeIndex = Math.max(
+      0,
+      Math.min(mission.checkpoints.length, mission.resume?.nextCheckpointIndex ?? 0),
+    );
     this.snapshot = {
       phase: "IDLE",
-      checkpointIndex: 0,
+      checkpointIndex: resumeIndex,
       checkpointCount: mission.checkpoints.length,
-      completedCheckpointIds: [],
+      completedCheckpointIds: [...(mission.resume?.completedCheckpointIds ?? [])],
       events: [],
     };
   }
@@ -115,7 +123,12 @@ export class DominicMissionEngine {
       await this.adapter.connect();
       this.captureState();
 
-      this.transition("PREFLIGHT", "Checking aircraft capabilities.");
+      this.transition(
+        "PREFLIGHT",
+        this.mission.resume
+          ? `Recovery preflight: ${this.snapshot.completedCheckpointIds.length} checkpoint(s) already completed.`
+          : "Checking aircraft capabilities.",
+      );
       this.assertCapabilities();
 
       if (!this.mission.checkpoints.length) {
@@ -136,7 +149,15 @@ export class DominicMissionEngine {
       );
       this.captureState();
 
-      for (let index = 0; index < this.mission.checkpoints.length; index += 1) {
+      const startIndex = Math.max(
+        0,
+        Math.min(
+          this.mission.checkpoints.length,
+          this.mission.resume?.nextCheckpointIndex ?? 0,
+        ),
+      );
+
+      for (let index = startIndex; index < this.mission.checkpoints.length; index += 1) {
         if (this.aborted) return this.getSnapshot();
         await this.waitIfPaused();
 

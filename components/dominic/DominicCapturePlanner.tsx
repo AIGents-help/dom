@@ -275,6 +275,29 @@ export default function DominicCapturePlanner() {
     setTelemetryCameraAngle(current.cameraAngle);
   };
 
+  const geographicCheckpoints = useMemo(
+    () =>
+      buildGeographicCheckpoints({
+        plan,
+        centerLatitude,
+        centerLongitude,
+        objectHeightFt,
+        baseRelativeAltitudeFt,
+      }),
+    [plan, centerLatitude, centerLongitude, objectHeightFt, baseRelativeAltitudeFt],
+  );
+
+  const homeVector = useMemo(
+    () =>
+      bearingAndDistanceBetween({
+        fromLatitude: centerLatitude,
+        fromLongitude: centerLongitude,
+        toLatitude: homeLatitude,
+        toLongitude: homeLongitude,
+      }),
+    [centerLatitude, centerLongitude, homeLatitude, homeLongitude],
+  );
+
   const simulateAircraftAtCheckpoint = () => {
     if (!current) return;
     const point = geographicCheckpoints.find((checkpoint) => checkpoint.id === current.id);
@@ -307,28 +330,6 @@ export default function DominicCapturePlanner() {
     });
   };
 
-  const geographicCheckpoints = useMemo(
-    () =>
-      buildGeographicCheckpoints({
-        plan,
-        centerLatitude,
-        centerLongitude,
-        objectHeightFt,
-        baseRelativeAltitudeFt,
-      }),
-    [plan, centerLatitude, centerLongitude, objectHeightFt, baseRelativeAltitudeFt],
-  );
-
-  const homeVector = useMemo(
-    () =>
-      bearingAndDistanceBetween({
-        fromLatitude: centerLatitude,
-        fromLongitude: centerLongitude,
-        toLatitude: homeLatitude,
-        toLongitude: homeLongitude,
-      }),
-    [centerLatitude, centerLongitude, homeLatitude, homeLongitude],
-  );
 
   const calibrationValidation = useMemo(
     () => validateMissionCalibration({ checkpoints: geographicCheckpoints, calibration }),

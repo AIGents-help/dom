@@ -214,7 +214,15 @@ export function calculateStockpilePlan(input: {
     verticalFovDeg: input.verticalFovDeg,
     includeObliques: false,
   });
-  const raw = grid.checkpoints.map(({ sequence: _sequence, ...point }) => ({ ...point, id: point.id.replace("roof", "stockpile") }));
+  const raw = grid.checkpoints.map((point) => ({
+    id: point.id.replace("roof", "stockpile"),
+    passId: point.passId,
+    xFt: point.xFt,
+    yFt: point.yFt,
+    relativeAltitudeFt: point.relativeAltitudeFt,
+    cameraAngle: point.cameraAngle,
+    action: point.action,
+  }));
   const margin = Math.max(10, Math.min(lengthFt, widthFt) * 0.2);
   const perimeter = [
     [-lengthFt / 2 - margin, -widthFt / 2 - margin],

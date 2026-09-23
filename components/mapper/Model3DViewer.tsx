@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { DRACOLoader } from "three/addons/loaders/DRACOLoader.js";
 import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
 import { V, panelStyle, btnGhost } from "./theme";
 import { Box, LoaderCircle, TriangleAlert } from "lucide-react";
@@ -162,6 +163,8 @@ export default function Model3DViewer({ signedUrl, name }: { signedUrl: string |
       }
     };
 
+    let dracoLoader: DRACOLoader | null = null;
+
     if (sourcePath.endsWith(".obj")) {
       fetch(signedUrl)
         .then((response) => {
@@ -171,7 +174,15 @@ export default function Model3DViewer({ signedUrl, name }: { signedUrl: string |
         .then((text) => commitModel(new OBJLoader().parse(text)))
         .catch(loadError);
     } else {
-      new GLTFLoader().load(
+      // ODM can emit Draco-compressed GLB geometry. GLTFLoader requires a
+      // DRACOLoader instance before it can decode KHR_draco_mesh_compression.
+      dracoLoader = new DRACOLoader();
+      dracoLoader.setDecoderPath("https://www.gstatic.com/draco/versioned/decoders/1.5.7/");
+      dracoLoader.setDecoderConfig({ type: "wasm" });
+
+      const gltfLoader = new GLTFLoader();
+      gltfLoader.setDRACOLoader(dracoLoader);
+      gltfLoader.load(
         signedUrl,
         (gltf) => commitModel(gltf.scene),
         undefined,
@@ -199,6 +210,7 @@ export default function Model3DViewer({ signedUrl, name }: { signedUrl: string |
       cancelled = true;
       observer.disconnect();
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
+      dracoLoader?.dispose();
       renderer.dispose();
       host.innerHTML = "";
     };

@@ -11,7 +11,6 @@ import {
   CircleHelp,
   GraduationCap,
 } from "lucide-react";
-import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
@@ -34,7 +33,7 @@ type DominicModuleCard = {
   crop: Crop;
 };
 
-const HERO: Crop = { x: 470, y: 70, w: 1040, h: 400 };
+const HERO: Crop = { x: 217, y: 70, w: 1557, h: 410 };
 
 const modules: DominicModuleCard[] = [
   {
@@ -82,83 +81,53 @@ const modules: DominicModuleCard[] = [
   },
 ];
 
-function spriteCrop(crop: Crop): React.CSSProperties {
-  const px = crop.x === 0 ? 0 : (crop.x / (SPRITE_W - crop.w)) * 100;
-  const py = crop.y === 0 ? 0 : (crop.y / (SPRITE_H - crop.h)) * 100;
-  return {
-    backgroundImage: `url("${SPRITE}")`,
-    backgroundRepeat: "no-repeat",
-    backgroundSize: `${(SPRITE_W / crop.w) * 100}% ${(SPRITE_H / crop.h) * 100}%`,
-    backgroundPosition: `${px}% ${py}%`,
-  };
+function SpriteCrop({ crop, className }: { crop: Crop; className?: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={className}
+      style={{
+        position: "relative",
+        width: "100%",
+        aspectRatio: `${crop.w} / ${crop.h}`,
+        overflow: "hidden",
+        background: "#0B1117",
+      }}
+    >
+      <img
+        src={SPRITE}
+        alt=""
+        draggable={false}
+        style={{
+          position: "absolute",
+          width: `${(SPRITE_W / crop.w) * 100}%`,
+          height: `${(SPRITE_H / crop.h) * 100}%`,
+          maxWidth: "none",
+          left: `-${(crop.x / crop.w) * 100}%`,
+          top: `-${(crop.y / crop.h) * 100}%`,
+          objectFit: "fill",
+          display: "block",
+          userSelect: "none",
+          pointerEvents: "none",
+        }}
+      />
+    </div>
+  );
 }
 
 function CardVisual({ crop }: { crop: Crop }) {
   return (
-    <div
-      aria-hidden="true"
-      style={{
-        height: 126,
-        borderBottom: "1px solid " + LINE,
-        backgroundColor: "#0B1117",
-        ...spriteCrop(crop),
-      }}
-    />
+    <div style={{ borderBottom: "1px solid " + LINE, overflow: "hidden" }}>
+      <SpriteCrop crop={crop} />
+    </div>
   );
 }
 
 export default function DominicWelcome({ onOpen }: { onOpen: (module: string) => void }) {
   return (
     <div style={{ minHeight: 720, background: "#090E13", overflow: "hidden", border: "1px solid #202A34", boxShadow: "0 26px 90px rgba(0,0,0,.38)" }}>
-      <section
-        style={{
-          position: "relative",
-          minHeight: 400,
-          overflow: "hidden",
-          background: "#0A0F14",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            left: "27%",
-            right: "12%",
-            top: 0,
-            bottom: 0,
-            ...spriteCrop(HERO),
-          }}
-        />
-        <div
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            inset: 0,
-            background:
-              "linear-gradient(90deg,#090E13 0%,rgba(9,14,19,.96) 21%,rgba(9,14,19,.35) 33%,rgba(9,14,19,0) 48%,rgba(9,14,19,.04) 72%,rgba(9,14,19,.76) 100%),linear-gradient(180deg,rgba(9,14,19,.02) 63%,#090E13 100%)",
-            pointerEvents: "none",
-          }}
-        />
-
-        <div style={{ position: "absolute", left: "4.2%", top: 38, zIndex: 3, width: "28%", minWidth: 300 }}>
-          <div style={{ color: ORANGE, fontSize: 11, fontWeight: 950, letterSpacing: ".19em", textTransform: "uppercase" }}>Welcome to</div>
-          <div style={{ marginTop: 12 }}><DominicBrandLockup size="lg" showTagline /></div>
-          <p style={{ color: "#D0D7DE", fontSize: 15, lineHeight: 1.55, margin: "23px 0 0", maxWidth: 375 }}>
-            Turn images into intelligence.<br />Plan, fly, map, analyze and deliver —<br />all in one workspace.
-          </p>
-          <div style={{ marginTop: 22, color: "#F5F7FA", fontSize: 19, fontStyle: "italic", letterSpacing: ".02em" }}>
-            Same skies. <span style={{ color: ORANGE }}>Smarter missions.</span>
-          </div>
-        </div>
-
-        <div style={{ position: "absolute", right: "3.2%", top: 46, width: 210, zIndex: 3, display: "grid", gap: 9, color: "#E2E7EC", fontSize: 9, fontWeight: 850, letterSpacing: ".11em", textTransform: "uppercase" }}>
-          {["Safer operations", "Higher accuracy", "Real insights", "Greater efficiency"].map((label) => (
-            <div key={label} style={{ display: "flex", gap: 8, alignItems: "center", padding: "6px 8px", borderRadius: 9, background: "rgba(6,11,16,.69)", border: "1px solid rgba(255,255,255,.05)", backdropFilter: "blur(6px)" }}>
-              <span style={{ width: 22, height: 22, border: "1px solid rgba(255,255,255,.32)", borderRadius: "50%", display: "grid", placeItems: "center", color: ORANGE, fontSize: 13 }}>•</span>
-              {label}
-            </div>
-          ))}
-        </div>
+      <section style={{ position: "relative", overflow: "hidden", background: "#0A0F14", borderBottom: "1px solid #202A34" }}>
+        <SpriteCrop crop={HERO} />
       </section>
 
       <section style={{ padding: "10px 12px 14px", background: "#090E13", borderTop: "1px solid #202A34" }}>

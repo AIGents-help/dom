@@ -43,6 +43,12 @@ import { WebSocketFlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
 import { connectFlightBridgeAdapter } from "@/lib/aircraft/bridgeConnect";
 import type { DominicAircraftAdapter, AircraftCapabilities } from "@/lib/aircraft/contract";
 import {
+  assessCoverage,
+  buildRepairPlan,
+  summarizeCoverageByRing,
+  type CaptureObservation,
+} from "@/lib/captureCoverage";
+import {
   calculateBuildingPlan,
   calculateCorridorPlan,
   calculateFacadePlan,
@@ -174,6 +180,7 @@ export default function DominicCapturePlanner() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [captured, setCaptured] = useState<Record<string, boolean>>({});
   const [skipped, setSkipped] = useState<Record<string, boolean>>({});
+  const [captureObservations, setCaptureObservations] = useState<CaptureObservation[]>([]);
   const [safety, setSafety] = useState<Record<number, boolean>>({});
   const [telemetryBearingDeg, setTelemetryBearingDeg] = useState(0);
   const [telemetryDistanceFt, setTelemetryDistanceFt] = useState(24);
@@ -280,28 +287,7 @@ export default function DominicCapturePlanner() {
     setCurrentIndex(0);
     setCaptured({});
     setSkipped({});
-  };
-
-  const markCaptured = () => {
-    if (!current) return;
-    setCaptured((state) => ({ ...state, [current.id]: true }));
-    setSkipped((state) => {
-      const next = { ...state };
-      delete next[current.id];
-      return next;
-    });
-    setCurrentIndex((index) => Math.min(sequence.length - 1, index + 1));
-  };
-
-  const markSkipped = () => {
-    if (!current) return;
-    setSkipped((state) => ({ ...state, [current.id]: true }));
-    setCaptured((state) => {
-      const next = { ...state };
-      delete next[current.id];
-      return next;
-    });
-    setCurrentIndex((index) => Math.min(sequence.length - 1, index + 1));
+    setCaptureObservations([]);
   };
 
   const snapTelemetryToCheckpoint = () => {
@@ -322,6 +308,96 @@ export default function DominicCapturePlanner() {
       }),
     [plan, centerLatitude, centerLongitude, objectHeightFt, baseRelativeAltitudeFt],
   );
+
+  const adaptiveCoverage = useMemo(
+    () =>
+      assessCoverage({
+        checkpoints: geographicCheckpoints,
+        observations: captureObservations,
+        centerLatitude,
+        centerLongitude,
+      }),
+    [geographicCheckpoints, captureObservations, centerLatitude, centerLongitude],
+  );
+
+  const repairPlan = useMemo(
+    () =>
+      buildRepairPlan({
+        checkpoints: geographicCheckpoints,
+        coverage: adaptiveCoverage,
+        includeWeak: true,
+      }),
+    [geographicCheckpoints, adaptiveCoverage],
+  );
+
+  const coverageByRing = useMemo(
+    () => summarizeCoverageByRing(geographicCheckpoints, adaptiveCoverage),
+    [geographicCheckpoints, adaptiveCoverage],
+  );
+
+  const markCaptured = () => {
+    if (!current) return;
+    const checkpoint = geographicCheckpoints.find((point) => point.id === current.id);
+    if (!checkpoint) return;
+
+    const useLiveAircraft =
+      telemetryMode === "aircraft" &&
+      aircraftTelemetry &&
+      !relativeAircraftTelemetry?.stale;
+
+    const observation: CaptureObservation = {
+      id: `capture-${current.id}-${Date.now()}`,
+      checkpointId: current.id,
+      capturedAtMs: Date.now(),
+      latitude: useLiveAircraft ? aircraftTelemetry.latitude : checkpoint.latitude,
+      longitude: useLiveAircraft ? aircraftTelemetry.longitude : checkpoint.longitude,
+      relativeAltitudeFt: useLiveAircraft
+        ? aircraftTelemetry.relativeAltitudeFt
+        : checkpoint.relativeAltitudeFt,
+      cameraAngle: useLiveAircraft
+        ? aircraftTelemetry.gimbalPitchDeg
+        : current.cameraAngle,
+      sharpnessScore: 0.95,
+      exposureScore: 0.95,
+      usable: true,
+    };
+
+    setCaptureObservations((observations) => [
+      ...observations.filter((item) => item.checkpointId !== current.id),
+      observation,
+    ]);
+    setCaptured((state) => ({ ...state, [current.id]: true }));
+    setSkipped((state) => {
+      const next = { ...state };
+      delete next[current.id];
+      return next;
+    });
+    setCurrentIndex((index) => Math.min(sequence.length - 1, index + 1));
+  };
+
+  const markSkipped = () => {
+    if (!current) return;
+    setSkipped((state) => ({ ...state, [current.id]: true }));
+    setCaptured((state) => {
+      const next = { ...state };
+      delete next[current.id];
+      return next;
+    });
+    setCaptureObservations((observations) =>
+      observations.filter((item) => item.checkpointId !== current.id),
+    );
+    setCurrentIndex((index) => Math.min(sequence.length - 1, index + 1));
+  };
+
+  const setObservationQuality = (checkpointId: string, score: number) => {
+    setCaptureObservations((observations) =>
+      observations.map((observation) =>
+        observation.checkpointId === checkpointId
+          ? { ...observation, sharpnessScore: score, exposureScore: score }
+          : observation,
+      ),
+    );
+  };
 
   const homeVector = useMemo(
     () =>

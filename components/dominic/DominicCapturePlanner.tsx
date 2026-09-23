@@ -179,7 +179,6 @@ export default function DominicCapturePlanner() {
   const [horizontalFovDeg, setHorizontalFovDeg] = useState(84);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [captured, setCaptured] = useState<Record<string, boolean>>({});
-  const [skipped, setSkipped] = useState<Record<string, boolean>>({});
   const [captureObservations, setCaptureObservations] = useState<CaptureObservation[]>([]);
   const [safety, setSafety] = useState<Record<number, boolean>>({});
   const [telemetryBearingDeg, setTelemetryBearingDeg] = useState(0);
@@ -283,7 +282,6 @@ export default function DominicCapturePlanner() {
   const resetRun = () => {
     setCurrentIndex(0);
     setCaptured({});
-    setSkipped({});
     setCaptureObservations([]);
   };
 
@@ -364,17 +362,11 @@ export default function DominicCapturePlanner() {
       observation,
     ]);
     setCaptured((state) => ({ ...state, [current.id]: true }));
-    setSkipped((state) => {
-      const next = { ...state };
-      delete next[current.id];
-      return next;
-    });
     setCurrentIndex((index) => Math.min(sequence.length - 1, index + 1));
   };
 
   const markSkipped = () => {
     if (!current) return;
-    setSkipped((state) => ({ ...state, [current.id]: true }));
     setCaptured((state) => {
       const next = { ...state };
       delete next[current.id];

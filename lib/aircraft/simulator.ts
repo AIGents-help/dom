@@ -1,3 +1,4 @@
+import { genericWideRgbPayload } from "@/lib/aircraft/payload";
 import {
   type AircraftCapabilities, type CommandResult, type DominicAircraftAdapter,
   type UniversalAircraftCommand, type UniversalAircraftState, validateCommand,
@@ -12,6 +13,8 @@ export const simulatorCapabilities:AircraftCapabilities={
 export class SimulatorAircraftAdapter implements DominicAircraftAdapter {
   readonly vendor="simulator" as const;
   readonly capabilities={...simulatorCapabilities};
+  readonly payloads=[genericWideRgbPayload];
+  readonly activePayloadId=genericWideRgbPayload.id;
   private listeners=new Set<(state:UniversalAircraftState)=>void>();
   private state:UniversalAircraftState;
 

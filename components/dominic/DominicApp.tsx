@@ -22,6 +22,8 @@ import {
   Factory,
   Crosshair,
   Home,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import MappingTab from "@/components/mapper/MappingTab";
@@ -87,6 +89,7 @@ export default function DominicApp() {
   const [showProjectsSignal, setShowProjectsSignal] = useState(0);
   const [newProjectSignal, setNewProjectSignal] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [projectToolsExpanded, setProjectToolsExpanded] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [compactViewport, setCompactViewport] = useState(false);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
@@ -298,6 +301,8 @@ export default function DominicApp() {
 
           <nav style={{ display: "grid", gap: 4 }}>
             {nav.map(({ label, icon: Icon, upcoming, hub }) => {
+              const projectTool = mappingModules.has(label) && label !== "Projects";
+              if (projectTool && (!activeProjectId || !projectToolsExpanded)) return null;
               const preview = Boolean(upcoming);
               const projectRequired = label !== "Home" && label !== "Projects" && label !== "Capture Planner" && !preview && !hub;
               const disabled = projectRequired && !activeProjectId;
@@ -390,6 +395,34 @@ export default function DominicApp() {
               </button>
               );
             })}
+
+            {!sidebarCollapsed && activeProjectId ? (
+              <button
+                type="button"
+                onClick={() => setProjectToolsExpanded((value) => !value)}
+                aria-expanded={projectToolsExpanded}
+                title={projectToolsExpanded ? "Hide project tools" : "Show project tools"}
+                style={{
+                  order: 2,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  width: "100%",
+                  border: "1px solid " + LINE,
+                  borderRadius: 8,
+                  background: "rgba(255,255,255,.025)",
+                  color: MUTED,
+                  padding: "8px 9px",
+                  cursor: "pointer",
+                  fontSize: 10,
+                  fontWeight: 800,
+                  letterSpacing: ".04em",
+                }}
+              >
+                {projectToolsExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                {projectToolsExpanded ? "Hide Project Tools" : "Show Project Tools"}
+              </button>
+            ) : null}
           </nav>
 
           {!sidebarCollapsed ? (

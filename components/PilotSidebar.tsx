@@ -30,7 +30,7 @@ export type PilotTab =
 const QUEUE_ENABLED = process.env.NEXT_PUBLIC_MISSION_QUEUE_ENABLED === "true";
 
 type SectionId = "missions" | "dominic" | "business" | "operations" | "help";
-type Item = { id: PilotTab; label: string; icon: string; href?: string };
+type Item = { id: PilotTab; label: string; icon: string; href?: string; newTab?: boolean };
 type Section = { id: SectionId; label: string; icon: string; items: Item[] };
 
 const SECTIONS: Section[] = [
@@ -49,8 +49,8 @@ const SECTIONS: Section[] = [
     label: "DOMINIC",
     icon: "◉",
     items: [
-      { id: "mapping", label: "Open Workspace", icon: "◉", href: "/dominic" },
-      { id: "mapping", label: "New Project", icon: "+", href: "/dominic?new=1" },
+      { id: "mapping", label: "Open Workspace", icon: "◉", href: "/dominic", newTab: true },
+      { id: "mapping", label: "New Project", icon: "+", href: "/dominic?new=1", newTab: true },
     ],
   },
   {
@@ -150,7 +150,8 @@ export default function PilotSidebar({
   }
 
   function go(item: Item) {
-    if (item.href) router.push(item.href);
+    if (item.href && item.newTab) window.open(item.href, "_blank", "noopener,noreferrer");
+    else if (item.href) router.push(item.href);
     else setTab(item.id);
   }
 

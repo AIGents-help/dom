@@ -150,24 +150,16 @@ export default function DominicWelcome({ onOpen }: { onOpen: (module: string) =>
     <div style={{ minHeight: 720, background: "#090E13", overflow: "hidden", border: "1px solid #202A34", boxShadow: "0 26px 90px rgba(0,0,0,.38)" }}>
       <section style={{ position: "relative", minHeight: 392, overflow: "hidden", background: "#0A0F14" }}>
         <Image
-          src="/images/city-night-aerial.jpg"
-          alt=""
+          src="/brand/dominic-reference.webp"
+          alt="DOMINIC preparing a professional drone in an industrial operations environment"
           fill
           priority
           sizes="100vw"
-          style={{ objectFit: "cover", objectPosition: "center 55%", filter: "saturate(.78) brightness(.66)" }}
+          style={{ objectFit: "cover", objectPosition: "center 52%" }}
         />
-        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,#090E13 0%,rgba(9,14,19,.97) 18%,rgba(9,14,19,.35) 45%,rgba(9,14,19,.16) 67%,#090E13 100%),linear-gradient(180deg,rgba(9,14,19,.08) 45%,#090E13 100%)" }} />
+        <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,rgba(7,11,15,.92) 0%,rgba(7,11,15,.55) 24%,rgba(7,11,15,.04) 48%,rgba(7,11,15,.08) 72%,rgba(7,11,15,.58) 100%),linear-gradient(180deg,rgba(7,11,15,.08) 55%,#090E13 100%)" }} />
 
-        <div aria-hidden="true" style={{ position: "absolute", left: "30%", right: "20%", bottom: 60, height: 7, borderRadius: 4, background: ORANGE, boxShadow: "0 0 15px rgba(244,90,30,.35)" }} />
-        <div aria-hidden="true" style={{ position: "absolute", left: "29.5%", bottom: 24, width: 14, height: 108, borderRadius: 4, background: "repeating-linear-gradient(180deg,#F45A1E 0 20px,#111820 20px 37px)" }} />
-        <div aria-hidden="true" style={{ position: "absolute", right: "19.5%", bottom: 24, width: 14, height: 108, borderRadius: 4, background: "repeating-linear-gradient(180deg,#F45A1E 0 20px,#111820 20px 37px)" }} />
-
-        <div style={{ position: "absolute", left: "34%", bottom: -8, width: "33%", height: "106%", filter: "drop-shadow(0 30px 44px rgba(0,0,0,.68))" }}>
-          <Image src="/brand/dominic-home-kneeling.webp" alt="DOMINIC preparing a drone mission" fill priority sizes="38vw" style={{ objectFit: "contain", objectPosition: "center bottom" }} />
-        </div>
-
-        <div style={{ position: "absolute", left: "7%", top: 42, zIndex: 3, width: "27%", minWidth: 290 }}>
+        <div style={{ position: "absolute", left: "3.2%", top: 42, zIndex: 3, width: "29%", minWidth: 300 }}>
           <div style={{ color: ORANGE, fontSize: 11, fontWeight: 950, letterSpacing: ".19em", textTransform: "uppercase" }}>Welcome to</div>
           <div style={{ marginTop: 12 }}><DominicBrandLockup size="lg" showTagline /></div>
           <p style={{ color: "#D0D7DE", fontSize: 15, lineHeight: 1.55, margin: "24px 0 0", maxWidth: 370 }}>
@@ -178,9 +170,9 @@ export default function DominicWelcome({ onOpen }: { onOpen: (module: string) =>
           </div>
         </div>
 
-        <div style={{ position: "absolute", right: "5%", top: 48, width: 205, display: "grid", gap: 10, color: "#D9E0E7", fontSize: 9, fontWeight: 850, letterSpacing: ".12em", textTransform: "uppercase" }}>
+        <div style={{ position: "absolute", right: "3.2%", top: 48, width: 205, zIndex: 3, display: "grid", gap: 10, color: "#D9E0E7", fontSize: 9, fontWeight: 850, letterSpacing: ".12em", textTransform: "uppercase" }}>
           {["Safer operations","Higher accuracy","Real insights","Greater efficiency"].map((label) => (
-            <div key={label} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div key={label} style={{ display: "flex", gap: 8, alignItems: "center", padding: "5px 7px", borderRadius: 8, background: "rgba(8,13,18,.46)", backdropFilter: "blur(5px)" }}>
               <span style={{ width: 22, height: 22, border: "1px solid rgba(255,255,255,.3)", borderRadius: "50%", display: "grid", placeItems: "center", color: ORANGE }}>•</span>
               {label}
             </div>

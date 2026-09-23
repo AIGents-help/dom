@@ -331,7 +331,7 @@ export default function PilotDashboard() {
           <span>Missions</span><span>Operate</span><span>Deliver</span><span>Get Paid</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <button onClick={() => router.push("/dominic")} style={{ ...btnPrimary, padding: "9px 13px" }}>Open DOMINIC →</button>
+          <button onClick={() => window.open("/dominic", "_blank", "noopener,noreferrer")} style={{ ...btnPrimary, padding: "9px 13px" }}>Open DOMINIC ↗</button>
           <button onClick={signOut} style={{ ...btnGhost, padding: "9px 13px" }}>Sign out</button>
         </div>
       </header>

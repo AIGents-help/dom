@@ -206,6 +206,7 @@ export default function DominicCapturePlanner() {
   const [patternOverlapPct, setPatternOverlapPct] = useState(75);
   const [autonomousSnapshot, setAutonomousSnapshot] = useState<MissionExecutionSnapshot | null>(null);
   const [autonomousRunning, setAutonomousRunning] = useState(false);
+  const [autonomousMode, setAutonomousMode] = useState<"full" | "repair">("full");
   const [bridgeUrl, setBridgeUrl] = useState("ws://127.0.0.1:8787");
   const [bridgeStatus, setBridgeStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
   const [bridgeError, setBridgeError] = useState<string | null>(null);
@@ -509,10 +510,18 @@ export default function DominicCapturePlanner() {
     setBridgeError(null);
   };
 
-  const runAutonomousSimulation = async () => {
+  const runAutonomousSimulation = async (
+    mode: "full" | "repair" = "full",
+  ) => {
     if (!preflightReady || autonomousRunning) return;
+    const checkpoints =
+      mode === "repair" ? repairPlan : geographicCheckpoints;
+    if (!checkpoints.length) return;
+
+    setAutonomousMode(mode);
     setAutonomousRunning(true);
     setAutonomousSnapshot(null);
+
     const aircraft = new SimulatorAircraftAdapter({
       latitude: homeLatitude,
       longitude: homeLongitude,
@@ -522,8 +531,11 @@ export default function DominicCapturePlanner() {
     const engine = new DominicMissionEngine(aircraft, {
       centerLatitude,
       centerLongitude,
-      checkpoints: geographicCheckpoints,
-      takeoffAltitudeFt: Math.max(10, Math.min(40, geographicCheckpoints[0]?.relativeAltitudeFt ?? 20)),
+      checkpoints,
+      takeoffAltitudeFt: Math.max(
+        10,
+        Math.min(40, checkpoints[0]?.relativeAltitudeFt ?? 20),
+      ),
       transitSpeedFps: 12,
     });
     const unsubscribe = engine.subscribe((snapshot) => setAutonomousSnapshot(snapshot));
@@ -1236,7 +1248,9 @@ export default function DominicCapturePlanner() {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <div>
                   <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>Autonomous mission engine</div>
-                  <div style={{ color: V.text, fontSize: 12, fontWeight: 900, marginTop: 3 }}>Virtual aircraft end-to-end test</div>
+                  <div style={{ color: V.text, fontSize: 12, fontWeight: 900, marginTop: 3 }}>
+                    {autonomousMode === "repair" ? "Adaptive repair mission test" : "Virtual aircraft end-to-end test"}
+                  </div>
                 </div>
                 <span style={{ color: autonomousSnapshot?.phase === "COMPLETE" ? V.green : autonomousSnapshot?.phase === "FAILED" ? "#FF8B7A" : V.muted, fontSize: 9, fontWeight: 900 }}>
                   {autonomousSnapshot?.phase ?? "IDLE"}
@@ -1248,7 +1262,7 @@ export default function DominicCapturePlanner() {
               <button
                 type="button"
                 disabled={!preflightReady || autonomousRunning}
-                onClick={runAutonomousSimulation}
+                onClick={() => runAutonomousSimulation("full")}
                 style={{
                   width: "100%",
                   border: 0,
@@ -1360,17 +1374,36 @@ export default function DominicCapturePlanner() {
                     <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>{repairPlan.length} checkpoint{repairPlan.length === 1 ? "" : "s"} require recapture.</div>
                   </div>
                   {repairPlan.length ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const first = repairPlan[0];
-                        const index = sequence.findIndex((item) => item.id === first.sourceCheckpointId);
-                        if (index >= 0) setCurrentIndex(index);
-                      }}
-                      style={{ border: `1px solid rgba(244,90,30,.3)`, background: "rgba(244,90,30,.08)", color: "#FFD3C0", borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
-                    >
-                      Start repair
-                    </button>
+                    <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const first = repairPlan[0];
+                          const index = sequence.findIndex((item) => item.id === first.sourceCheckpointId);
+                          if (index >= 0) setCurrentIndex(index);
+                        }}
+                        style={{ border: `1px solid rgba(244,90,30,.3)`, background: "rgba(244,90,30,.08)", color: "#FFD3C0", borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                      >
+                        Manual repair
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!preflightReady || autonomousRunning}
+                        onClick={() => runAutonomousSimulation("repair")}
+                        style={{
+                          border: 0,
+                          background: preflightReady && !autonomousRunning ? `linear-gradient(90deg,${V.orangeDark},${V.orange})` : "#39424B",
+                          color: preflightReady && !autonomousRunning ? "#180A02" : "#88939E",
+                          borderRadius: 7,
+                          padding: "6px 8px",
+                          fontSize: 8,
+                          fontWeight: 900,
+                          cursor: preflightReady && !autonomousRunning ? "pointer" : "not-allowed",
+                        }}
+                      >
+                        Simulate repair
+                      </button>
+                    </div>
                   ) : null}
                 </div>
 

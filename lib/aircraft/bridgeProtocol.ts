@@ -1,3 +1,4 @@
+import type { CameraPayloadProfile } from "@/lib/aircraft/payload";
 import type {
   AircraftCapabilities,
   AircraftVendor,
@@ -17,6 +18,8 @@ export type BridgeHello = {
   aircraftId: string;
   model?: string;
   capabilities: AircraftCapabilities;
+  payloads?: CameraPayloadProfile[];
+  activePayloadId?: string;
 };
 
 export type BridgeTelemetry = {

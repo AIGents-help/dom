@@ -1302,27 +1302,122 @@ export default function DominicCapturePlanner() {
               ) : null}
             </section>
 
-            <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
-              <div style={{ color: V.text, fontSize: 12, fontWeight: 900 }}>Coverage & gaps</div>
-              <div style={{ marginTop: 9, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
-                <div style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#0D1319", padding: 9 }}>
-                  <div style={{ color: V.muted, fontSize: 8, textTransform: "uppercase" }}>Captured</div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: V.green, marginTop: 3 }}>{capturedCount}</div>
+            <section style={{ border: `1px solid ${adaptiveCoverage.missing ? "rgba(255,184,107,.28)" : "rgba(112,214,160,.22)"}`, borderRadius: 12, background: V.panel, padding: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div>
+                  <div style={{ color: V.text, fontSize: 12, fontWeight: 900 }}>Adaptive coverage</div>
+                  <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>Captured pose + image quality vs planned views</div>
                 </div>
-                <div style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#0D1319", padding: 9 }}>
-                  <div style={{ color: V.muted, fontSize: 8, textTransform: "uppercase" }}>Open gaps</div>
-                  <div style={{ fontSize: 18, fontWeight: 900, color: gaps.length ? V.amber : V.green, marginTop: 3 }}>{gaps.length}</div>
+                <div style={{ color: adaptiveCoverage.coveragePct >= 90 ? V.green : adaptiveCoverage.coveragePct >= 70 ? V.amber : "#FF8B7A", fontSize: 18, fontWeight: 900 }}>
+                  {adaptiveCoverage.coveragePct}%
                 </div>
               </div>
-              <p style={{ color: V.muted, fontSize: 10, lineHeight: 1.5 }}>
-                Gap detection compares the planned checkpoint set with frames you mark captured. Skipped or passed checkpoints remain visible for a repair pass.
+
+              <div style={{ marginTop: 9, display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+                {[
+                  ["Covered", adaptiveCoverage.covered, V.green],
+                  ["Weak", adaptiveCoverage.weak, V.amber],
+                  ["Missing", adaptiveCoverage.missing, "#FF8B7A"],
+                ].map(([label, value, color]) => (
+                  <div key={String(label)} style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#0D1319", padding: 8 }}>
+                    <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>{label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: String(color), marginTop: 3 }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ marginTop: 9, display: "grid", gap: 5 }}>
+                {Object.entries(coverageByRing).map(([ring, stats]) => (
+                  <div key={ring} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, border: `1px solid ${V.line}`, borderRadius: 7, background: "#0D1319", padding: "6px 7px" }}>
+                    <span style={{ color: "#DCE3EA", fontSize: 9, textTransform: "capitalize" }}>{ring} ring</span>
+                    <span style={{ color: V.muted, fontSize: 8 }}>{stats.covered} good · {stats.weak} weak · {stats.missing} missing</span>
+                  </div>
+                ))}
+              </div>
+
+              <p style={{ color: V.muted, fontSize: 9, lineHeight: 1.5 }}>
+                DOMINIC now evaluates whether each planned view was actually captured from the right location, altitude and camera angle, then factors in image-quality scores. Weak or missing views become a repair pass instead of forcing a complete reflown mission.
               </p>
-              <div style={{ maxHeight: 170, overflowY: "auto", display: "grid", gap: 5 }}>
-                {gaps.length ? gaps.slice(0, 18).map((shot) => (
-                  <button key={shot.id} type="button" onClick={() => setCurrentIndex(sequence.findIndex((item) => item.id === shot.id))} style={{ border: `1px solid rgba(255,184,107,.22)`, background: "rgba(255,184,107,.06)", color: "#FFD0A0", borderRadius: 7, padding: "6px 7px", textAlign: "left", cursor: "pointer", fontSize: 9 }}>
-                    {shot.ringLabel} · frame {shot.shotNumber} · {shot.bearingDeg}°
-                  </button>
-                )) : <div style={{ color: V.green, fontSize: 10, display: "flex", alignItems: "center", gap: 6 }}><CheckCircle2 size={13} /> No detected plan gaps.</div>}
+
+              {captureObservations.length ? (
+                <div style={{ borderTop: `1px solid ${V.line}`, paddingTop: 8, marginTop: 8 }}>
+                  <div style={{ color: V.muted, fontSize: 8, textTransform: "uppercase", letterSpacing: ".08em" }}>Captured image quality test</div>
+                  <div style={{ display: "grid", gap: 5, marginTop: 6, maxHeight: 110, overflowY: "auto" }}>
+                    {captureObservations.slice(-8).reverse().map((observation) => {
+                      const checkpoint = sequence.find((item) => item.id === observation.checkpointId);
+                      const quality = Math.min(observation.sharpnessScore ?? 1, observation.exposureScore ?? 1);
+                      return (
+                        <div key={observation.id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 5, alignItems: "center", color: V.muted, fontSize: 8 }}>
+                          <span>{checkpoint?.ringLabel ?? observation.checkpointId} · {checkpoint ? `frame ${checkpoint.shotNumber}` : ""}</span>
+                          <span style={{ color: quality >= .72 ? V.green : quality >= .55 ? V.amber : "#FF8B7A", fontWeight: 900 }}>{Math.round(quality * 100)}%</span>
+                          <button
+                            type="button"
+                            onClick={() => setObservationQuality(observation.checkpointId ?? "", quality >= .72 ? .6 : .95)}
+                            style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "3px 5px", fontSize: 7, cursor: "pointer" }}
+                          >
+                            {quality >= .72 ? "Sim weak" : "Restore"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
+              <div style={{ borderTop: `1px solid ${V.line}`, paddingTop: 9, marginTop: 9 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                  <div>
+                    <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Repair pass</div>
+                    <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>{repairPlan.length} checkpoint{repairPlan.length === 1 ? "" : "s"} require recapture.</div>
+                  </div>
+                  {repairPlan.length ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const first = repairPlan[0];
+                        const index = sequence.findIndex((item) => item.id === first.sourceCheckpointId);
+                        if (index >= 0) setCurrentIndex(index);
+                      }}
+                      style={{ border: `1px solid rgba(244,90,30,.3)`, background: "rgba(244,90,30,.08)", color: "#FFD3C0", borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                    >
+                      Start repair
+                    </button>
+                  ) : null}
+                </div>
+
+                <div style={{ maxHeight: 160, overflowY: "auto", display: "grid", gap: 5, marginTop: 7 }}>
+                  {repairPlan.length ? repairPlan.slice(0, 18).map((repair) => {
+                    const shot = sequence.find((item) => item.id === repair.sourceCheckpointId);
+                    const assessment = adaptiveCoverage.assessments.find((item) => item.checkpointId === repair.sourceCheckpointId);
+                    return (
+                      <button
+                        key={repair.id}
+                        type="button"
+                        onClick={() => {
+                          const index = sequence.findIndex((item) => item.id === repair.sourceCheckpointId);
+                          if (index >= 0) setCurrentIndex(index);
+                        }}
+                        style={{
+                          border: `1px solid ${repair.priority === 2 ? "rgba(255,139,122,.25)" : "rgba(255,184,107,.22)"}`,
+                          background: repair.priority === 2 ? "rgba(255,139,122,.05)" : "rgba(255,184,107,.05)",
+                          color: repair.priority === 2 ? "#FFB6AA" : "#FFD0A0",
+                          borderRadius: 7,
+                          padding: "6px 7px",
+                          textAlign: "left",
+                          cursor: "pointer",
+                          fontSize: 8,
+                          lineHeight: 1.35,
+                        }}
+                      >
+                        <strong>{assessment?.status === "weak" ? "WEAK" : "MISSING"}</strong> · {shot?.ringLabel} frame {shot?.shotNumber} · {shot?.bearingDeg}°
+                      </button>
+                    );
+                  }) : (
+                    <div style={{ color: V.green, fontSize: 9, display: "flex", alignItems: "center", gap: 6 }}>
+                      <CheckCircle2 size={13} /> Planned views satisfy the current coverage policy.
+                    </div>
+                  )}
+                </div>
               </div>
             </section>
 

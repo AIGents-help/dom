@@ -33,7 +33,7 @@ jobs:
           started=false
           for attempt in 1 2 3 4; do
             echo "Starting Supabase (attempt $attempt of 4)..."
-            if supabase start; then
+            if supabase start --exclude realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor; then
               started=true
               break
             fi

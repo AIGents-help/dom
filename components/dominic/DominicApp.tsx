@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -22,6 +21,7 @@ import {
   WifiOff,
   Factory,
   Crosshair,
+  Home,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import MappingTab from "@/components/mapper/MappingTab";
@@ -30,6 +30,7 @@ import DominicMascotImage from "@/components/dominic/DominicMascotImage";
 import DominicPreviewEnvironment from "@/components/dominic/DominicPreviewEnvironment";
 import DominicHub from "@/components/dominic/DominicHub";
 import DominicCapturePlanner from "@/components/dominic/DominicCapturePlanner";
+import DominicWelcome from "@/components/dominic/DominicWelcome";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
@@ -49,8 +50,19 @@ const workflow = [
 ];
 
 const previewModules = new Set(["Live Flight", "AR View", "AI Copilot"]);
+const mappingModules = new Set([
+  "Projects",
+  "Map Viewer",
+  "Processing",
+  "Measure & Markup",
+  "Analysis",
+  "3D & Point Cloud",
+  "Deliverables",
+  "Data Library",
+]);
 
 const nav = [
+  { label: "Home", icon: Home, upcoming: false, hub: false },
   { label: "Projects", icon: FolderKanban, upcoming: false, hub: false },
   { label: "Map Viewer", icon: Map, upcoming: false, hub: false },
   { label: "Processing", icon: Activity, upcoming: false, hub: false },
@@ -71,7 +83,7 @@ export default function DominicApp() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const [activeModule, setActiveModule] = useState("Projects");
+  const [activeModule, setActiveModule] = useState("Home");
   const [showProjectsSignal, setShowProjectsSignal] = useState(0);
   const [newProjectSignal, setNewProjectSignal] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -93,6 +105,7 @@ export default function DominicApp() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("new") === "1") {
+      setActiveModule("Projects");
       setNewProjectSignal((value) => value + 1);
       window.history.replaceState({}, "", "/dominic");
     }
@@ -140,7 +153,7 @@ export default function DominicApp() {
     return (
       <div style={{ minHeight: "100vh", background: BG, color: TEXT, display: "grid", placeItems: "center" }}>
         <div style={{ textAlign: "center" }}>
-          <Image src="/brand/dom-propeller-3fin.png" alt="DOM" width={74} height={74} priority />
+          <DominicBrandLockup size="sm" />
           <p style={{ marginTop: 16, color: MUTED, fontFamily: "Inter, sans-serif" }}>Opening DOMINIC…</p>
         </div>
       </div>
@@ -166,9 +179,15 @@ export default function DominicApp() {
           zIndex: 40,
         }}
       >
-        <div style={{ minWidth: 280 }}>
+        <button
+          type="button"
+          onClick={() => setActiveModule("Home")}
+          aria-label="Return to DOMINIC home"
+          title="DOMINIC Home"
+          style={{ minWidth: 280, border: 0, padding: 0, background: "transparent", cursor: "pointer", textAlign: "left" }}
+        >
           <DominicBrandLockup size="md" />
-        </div>
+        </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: 22, color: "#E8EDF2", fontSize: 15, whiteSpace: "nowrap" }}>
           <span>Map</span><span>Measure</span><span>Analyze</span><span>Deliver</span>
@@ -280,7 +299,7 @@ export default function DominicApp() {
           <nav style={{ display: "grid", gap: 4 }}>
             {nav.map(({ label, icon: Icon, upcoming, hub }) => {
               const preview = Boolean(upcoming);
-              const projectRequired = label !== "Projects" && label !== "Capture Planner" && !preview && !hub;
+              const projectRequired = label !== "Home" && label !== "Projects" && label !== "Capture Planner" && !preview && !hub;
               const disabled = projectRequired && !activeProjectId;
               const active = activeModule === label;
               const title = hub ? "Open the DOMINIC HUB refinery operations simulator" : preview ? `${label} — Preview environment` : disabled ? "Open a DOMINIC project first" : label;
@@ -432,7 +451,7 @@ export default function DominicApp() {
               borderBottom: `1px solid ${LINE}`,
               background: "#0E141A",
               padding: sidebarCollapsed ? "10px 12px" : "12px 18px",
-              display: "grid",
+              display: mappingModules.has(activeModule) ? "grid" : "none",
               gridTemplateColumns: compactViewport ? "repeat(5, minmax(112px, 1fr))" : "repeat(5, minmax(130px, 1fr))",
               gap: 8,
               overflowX: "auto",
@@ -486,7 +505,14 @@ export default function DominicApp() {
               }}
             >
               <div style={{ padding: "12px 14px", color: TEXT, background: "#0B1117", minHeight: 680 }}>
-                {activeModule === "DOMINIC HUB" ? (
+                {activeModule === "Home" ? (
+                  <DominicWelcome
+                    onOpen={(module) => {
+                      setActiveModule(module);
+                      if (module === "Projects") setShowProjectsSignal((value) => value + 1);
+                    }}
+                  />
+                ) : activeModule === "DOMINIC HUB" ? (
                   <DominicHub />
                 ) : activeModule === "Capture Planner" ? (
                   <DominicCapturePlanner />
@@ -529,12 +555,12 @@ export default function DominicApp() {
           }}
         >
           {[
+            { label: "Home", icon: Home },
+            { label: "Capture Planner", icon: Crosshair },
             { label: "Projects", icon: FolderKanban },
-            { label: "Map Viewer", icon: Map },
-            { label: "Measure & Markup", icon: Ruler },
-            { label: "Deliverables", icon: Layers3 },
+            { label: "DOMINIC HUB", icon: Factory },
           ].map(({ label, icon: DockIcon }) => {
-            const requiresProject = label !== "Projects";
+            const requiresProject = false;
             const disabled = requiresProject && !activeProjectId;
             const active = activeModule === label;
             return (
@@ -563,7 +589,7 @@ export default function DominicApp() {
                 }}
               >
                 <DockIcon size={17} />
-                <span>{label === "Measure & Markup" ? "Measure" : label === "Map Viewer" ? "Map" : label}</span>
+                <span>{label === "Capture Planner" ? "Capture" : label === "DOMINIC HUB" ? "HUB" : label}</span>
               </button>
             );
           })}

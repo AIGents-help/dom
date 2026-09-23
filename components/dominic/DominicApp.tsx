@@ -34,7 +34,6 @@ import DominicWelcome from "@/components/dominic/DominicWelcome";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
-const DJI_GREY = "#171D24";
 const BG = "#0B1015";
 const PANEL = "#10161D";
 const LINE = "#25303B";

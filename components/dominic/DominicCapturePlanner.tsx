@@ -60,6 +60,13 @@ import {
   DominicMissionEngine,
   type MissionExecutionSnapshot,
 } from "@/lib/aircraft/missionEngine";
+import {
+  BrowserMissionRecoveryStore,
+  canResumeMission,
+  createRecoveryRecord,
+  missionPlanHash,
+  type MissionRecoveryRecord,
+} from "@/lib/aircraft/missionRecovery";
 
 const V = {
   bg: "#0B1117",
@@ -207,6 +214,8 @@ export default function DominicCapturePlanner() {
   const [autonomousSnapshot, setAutonomousSnapshot] = useState<MissionExecutionSnapshot | null>(null);
   const [autonomousRunning, setAutonomousRunning] = useState(false);
   const [autonomousMode, setAutonomousMode] = useState<"full" | "repair">("full");
+  const [recoveryRecord, setRecoveryRecord] = useState<MissionRecoveryRecord | null>(null);
+  const [recoveryMessage, setRecoveryMessage] = useState("No recovery state checked.");
   const [bridgeUrl, setBridgeUrl] = useState("ws://127.0.0.1:8787");
   const [bridgeStatus, setBridgeStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
   const [bridgeError, setBridgeError] = useState<string | null>(null);
@@ -218,6 +227,7 @@ export default function DominicCapturePlanner() {
   } | null>(null);
   const bridgeAdapterRef = useRef<DominicAircraftAdapter | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
+  const recoveryStoreRef = useRef(new BrowserMissionRecoveryStore());
 
   const plan = useMemo(
     () => calculateObjectScanPlan({ objectDiameterFt, objectHeightFt, standoffFt, overlapPct, horizontalFovDeg }),
@@ -510,13 +520,51 @@ export default function DominicCapturePlanner() {
     setBridgeError(null);
   };
 
+  const objectMissionKey = "object-scan";
+  const currentMissionHash = missionPlanHash({
+    centerLatitude,
+    centerLongitude,
+    checkpointIds: geographicCheckpoints.map((checkpoint) => checkpoint.id),
+  });
+
+  const checkMissionRecovery = async () => {
+    const record = await recoveryStoreRef.current.load(objectMissionKey);
+    setRecoveryRecord(record);
+    const status = canResumeMission({
+      record,
+      expectedMissionHash: currentMissionHash,
+    });
+    setRecoveryMessage(status.reason);
+  };
+
   const runAutonomousSimulation = async (
     mode: "full" | "repair" = "full",
+    recovery?: MissionRecoveryRecord | null,
   ) => {
     if (!preflightReady || autonomousRunning) return;
     const checkpoints =
       mode === "repair" ? repairPlan : geographicCheckpoints;
     if (!checkpoints.length) return;
+
+    const recoveryStatus = canResumeMission({
+      record: recovery ?? null,
+      expectedMissionHash: currentMissionHash,
+    });
+    const resume =
+      recovery && recoveryStatus.resumable
+        ? {
+            nextCheckpointIndex: Math.min(
+              checkpoints.length,
+              Math.max(
+                recovery.snapshot.completedCheckpointIds.length,
+                recovery.snapshot.checkpointIndex,
+              ),
+            ),
+            completedCheckpointIds: recovery.snapshot.completedCheckpointIds.filter(
+              (id) => checkpoints.some((checkpoint) => checkpoint.id === id),
+            ),
+          }
+        : undefined;
 
     setAutonomousMode(mode);
     setAutonomousRunning(true);
@@ -537,11 +585,35 @@ export default function DominicCapturePlanner() {
         Math.min(40, checkpoints[0]?.relativeAltitudeFt ?? 20),
       ),
       transitSpeedFps: 12,
+      resume,
     });
-    const unsubscribe = engine.subscribe((snapshot) => setAutonomousSnapshot(snapshot));
+
+    const unsubscribe = engine.subscribe((snapshot) => {
+      setAutonomousSnapshot(snapshot);
+      if (!["COMPLETE", "ABORTED", "FAILED"].includes(snapshot.phase)) {
+        void recoveryStoreRef.current.save(
+          createRecoveryRecord({
+            missionKey: objectMissionKey,
+            missionHash: currentMissionHash,
+            snapshot,
+          }),
+        );
+      }
+    });
+
     await engine.execute();
     unsubscribe();
-    setAutonomousSnapshot(engine.getSnapshot());
+    const finalSnapshot = engine.getSnapshot();
+    setAutonomousSnapshot(finalSnapshot);
+
+    if (finalSnapshot.phase === "COMPLETE") {
+      await recoveryStoreRef.current.remove(objectMissionKey);
+      setRecoveryRecord(null);
+      setRecoveryMessage("Mission completed; local recovery journal cleared.");
+    } else {
+      await checkMissionRecovery();
+    }
+
     setAutonomousRunning(false);
   };
 
@@ -1259,6 +1331,32 @@ export default function DominicCapturePlanner() {
               <p style={{ color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
                 Runs this exact Object Scan through DOMINIC's universal aircraft interface: connect, preflight, arm, takeoff, fly every checkpoint, aim, capture, return home and land.
               </p>
+              <div style={{ border: `1px solid ${V.line}`, background: "#0D1319", borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                  <div>
+                    <div style={{ color: V.muted, fontSize: 7, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Offline recovery journal</div>
+                    <div style={{ color: recoveryRecord ? V.amber : V.muted, fontSize: 8, marginTop: 3, lineHeight: 1.35 }}>{recoveryMessage}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={checkMissionRecovery}
+                    style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 6, padding: "5px 6px", fontSize: 7, cursor: "pointer" }}
+                  >
+                    Check
+                  </button>
+                </div>
+                {recoveryRecord && canResumeMission({ record: recoveryRecord, expectedMissionHash: currentMissionHash }).resumable ? (
+                  <button
+                    type="button"
+                    disabled={!preflightReady || autonomousRunning}
+                    onClick={() => runAutonomousSimulation("full", recoveryRecord)}
+                    style={{ width: "100%", marginTop: 7, border: `1px solid rgba(255,184,107,.28)`, background: "rgba(255,184,107,.07)", color: "#FFD0A0", borderRadius: 7, padding: "6px 7px", fontSize: 8, fontWeight: 900, cursor: preflightReady && !autonomousRunning ? "pointer" : "not-allowed" }}
+                  >
+                    Recover remaining checkpoints
+                  </button>
+                ) : null}
+              </div>
+
               <button
                 type="button"
                 disabled={!preflightReady || autonomousRunning}

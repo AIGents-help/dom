@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAutonomousCheckpoints, buildCaptureSequence, buildGeographicCheckpoints, calculateObjectScanPlan, destinationPoint, evaluateCaptureGuidance, signedAngularDelta } from "./capturePlanner";
+import { bearingInSector, buildAutonomousCheckpoints, buildCaptureSequence, buildGeographicCheckpoints, calculateObjectScanPlan, destinationPoint, evaluateCaptureGuidance, signedAngularDelta, validateMissionCalibration } from "./capturePlanner";
 
 describe("DOMINIC capture planner", () => {
   it("builds three complete object-scan rings", () => {
@@ -127,6 +127,79 @@ describe("DOMINIC capture planner", () => {
     expect(geographic[0].latitude).not.toBe(39.95);
     expect(geographic[0].relativeAltitudeFt).toBeGreaterThanOrEqual(5);
     expect(geographic.some((point) => point.ringId === "high" && point.relativeAltitudeFt > 20)).toBe(true);
+  });
+
+
+  it("handles no-fly sectors that cross north", () => {
+    expect(bearingInSector(355, 350, 20)).toBe(true);
+    expect(bearingInSector(10, 350, 20)).toBe(true);
+    expect(bearingInSector(180, 350, 20)).toBe(false);
+  });
+
+  it("blocks launch when checkpoints violate calibration constraints", () => {
+    const plan = calculateObjectScanPlan({
+      objectDiameterFt: 10,
+      objectHeightFt: 20,
+      standoffFt: 20,
+      overlapPct: 75,
+      horizontalFovDeg: 84,
+    });
+    const checkpoints = buildGeographicCheckpoints({
+      plan,
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      objectHeightFt: 20,
+      baseRelativeAltitudeFt: 5,
+    });
+
+    const validation = validateMissionCalibration({
+      checkpoints,
+      calibration: {
+        homeLatitude: 39.9501,
+        homeLongitude: -75.1601,
+        minRelativeAltitudeFt: 0,
+        maxRelativeAltitudeFt: 200,
+        minStandoffFt: 10,
+        maxStandoffFt: 100,
+        noFlySectors: [{ id: "road", label: "Road", startBearingDeg: 350, endBearingDeg: 20 }],
+      },
+    });
+
+    expect(validation.ready).toBe(false);
+    expect(validation.issues.some((issue) => issue.code === "no_fly_sector:road")).toBe(true);
+  });
+
+  it("passes calibration when all checkpoints are inside the safe envelope", () => {
+    const plan = calculateObjectScanPlan({
+      objectDiameterFt: 10,
+      objectHeightFt: 20,
+      standoffFt: 20,
+      overlapPct: 75,
+      horizontalFovDeg: 84,
+    });
+    const checkpoints = buildGeographicCheckpoints({
+      plan,
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      objectHeightFt: 20,
+      baseRelativeAltitudeFt: 5,
+    });
+
+    const validation = validateMissionCalibration({
+      checkpoints,
+      calibration: {
+        homeLatitude: 39.9501,
+        homeLongitude: -75.1601,
+        minRelativeAltitudeFt: 0,
+        maxRelativeAltitudeFt: 200,
+        minStandoffFt: 10,
+        maxStandoffFt: 100,
+        noFlySectors: [],
+      },
+    });
+
+    expect(validation.ready).toBe(true);
+    expect(validation.issues).toHaveLength(0);
   });
 
 });

@@ -1,4 +1,6 @@
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { supabaseAdmin } from "../src/supabaseClient";
 import { createJobWorkspace } from "../src/workspace";
 import { downloadAllOutputs } from "../src/nodeodm";
@@ -50,9 +52,43 @@ async function main() {
 
     console.log(`[recover] Downloading completed NodeODM task ${taskUuid}...`);
     const zipPath = join(workspace.outputDir, "all.zip");
-    await downloadAllOutputs(taskUuid, zipPath);
-    extractAllZip(zipPath, workspace.outputDir);
-    const outputs = locateOutputs(workspace.outputDir).filter((output) => wantsOutput(output.type));
+    let outputRoot = workspace.outputDir;
+
+    try {
+      await downloadAllOutputs(taskUuid, zipPath);
+      extractAllZip(zipPath, workspace.outputDir);
+    } catch (downloadError) {
+      const detail = downloadError instanceof Error
+        ? `${downloadError.name}: ${downloadError.message || "(no message)"}`
+        : JSON.stringify(downloadError);
+      console.warn(`[recover] HTTP archive download failed: ${detail}`);
+      console.warn("[recover] Falling back to copying the completed task directly from the local NodeODM Docker container...");
+
+      const containerName = process.env.NODEODM_CONTAINER_NAME || "nodeodm";
+      const copiedTaskDir = join(workspace.outputDir, "nodeodm-task");
+      try {
+        execFileSync(
+          "docker",
+          ["cp", `${containerName}:/var/www/data/${taskUuid}`, copiedTaskDir],
+          { stdio: "inherit" }
+        );
+      } catch (copyError) {
+        const copyDetail = copyError instanceof Error
+          ? `${copyError.name}: ${copyError.message || "(no message)"}`
+          : JSON.stringify(copyError);
+        throw new Error(
+          `Could not recover NodeODM outputs by HTTP or Docker. HTTP: ${detail}; Docker: ${copyDetail}`
+        );
+      }
+
+      if (!existsSync(copiedTaskDir)) {
+        throw new Error(`Docker reported success but ${copiedTaskDir} was not created.`);
+      }
+      outputRoot = copiedTaskDir;
+      console.log(`[recover] Copied NodeODM task files from ${containerName}:/var/www/data/${taskUuid}`);
+    }
+
+    const outputs = locateOutputs(outputRoot).filter((output) => wantsOutput(output.type));
     if (outputs.length === 0) throw new Error("No requested deliverables were found in the completed NodeODM task.");
 
     const registered: string[] = [];
@@ -114,6 +150,13 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("[recover] FAILED:", error instanceof Error ? error.message : error);
+  if (error instanceof Error) {
+    console.error("[recover] FAILED:", error.name, error.message || "(no message)");
+    if (error.stack) console.error(error.stack);
+    const cause = (error as Error & { cause?: unknown }).cause;
+    if (cause) console.error("[recover] CAUSE:", cause);
+  } else {
+    console.error("[recover] FAILED:", error);
+  }
   process.exitCode = 1;
 });

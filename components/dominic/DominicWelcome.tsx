@@ -79,18 +79,95 @@ export default function DominicWelcome({ onOpen }: { onOpen: (module: string) =>
       <section style={{ position: "relative", minHeight: 420, display: "grid", gridTemplateColumns: "minmax(380px,1.08fr) minmax(420px,.92fr)", overflow: "hidden", background: "#0B1117" }}>
         <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "radial-gradient(circle at 28% 32%, rgba(244,90,30,.24), transparent 22%), linear-gradient(90deg, rgba(10,15,20,.08) 0%, rgba(10,15,20,.18) 42%, #0B1117 66%, #0B1117 100%)", zIndex: 1, pointerEvents: "none" }} />
 
-        <div style={{ position: "relative", minHeight: 420, overflow: "hidden", background: "linear-gradient(180deg,rgba(13,18,23,.12),rgba(10,15,20,.62)), url('/brand/dom-home-hero-left.webp') center / cover no-repeat" }}>
-          <div style={{ position: "absolute", left: "4%", bottom: -22, width: "64%", height: "92%", filter: "drop-shadow(0 28px 42px rgba(0,0,0,.55))", zIndex: 2 }}>
+        <div
+          style={{
+            position: "relative",
+            minHeight: 420,
+            overflow: "hidden",
+            background:
+              "radial-gradient(circle at 33% 28%, rgba(244,90,30,.22), transparent 22%), radial-gradient(circle at 58% 78%, rgba(244,90,30,.09), transparent 30%), linear-gradient(180deg,#202832 0%,#111820 55%,#090E13 100%)",
+          }}
+        >
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              height: "38%",
+              background: "linear-gradient(180deg,rgba(19,27,35,0),rgba(5,9,13,.78)), repeating-linear-gradient(90deg,rgba(255,255,255,.018) 0 1px,transparent 1px 86px)",
+              borderTop: "1px solid rgba(255,255,255,.035)",
+              zIndex: 0,
+            }}
+          />
+
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              left: "44%",
+              bottom: 18,
+              width: 250,
+              height: 66,
+              borderRadius: "50%",
+              transform: "translateX(-15%)",
+              border: "4px solid rgba(244,90,30,.80)",
+              boxShadow: "0 0 0 11px rgba(244,90,30,.08), 0 16px 35px rgba(0,0,0,.38), inset 0 0 28px rgba(244,90,30,.12)",
+              opacity: .92,
+              zIndex: 1,
+            }}
+          />
+
+          <div aria-hidden="true" style={{ position: "absolute", left: 20, bottom: 38, width: 12, height: 118, borderRadius: 5, background: "repeating-linear-gradient(180deg,#F45A1E 0 20px,#111820 20px 38px)", boxShadow: "0 8px 20px rgba(0,0,0,.4)", zIndex: 1 }} />
+          <div aria-hidden="true" style={{ position: "absolute", right: 54, bottom: 38, width: 12, height: 118, borderRadius: 5, background: "repeating-linear-gradient(180deg,#F45A1E 0 20px,#111820 20px 38px)", boxShadow: "0 8px 20px rgba(0,0,0,.4)", zIndex: 1 }} />
+          <div aria-hidden="true" style={{ position: "absolute", left: 27, right: 61, bottom: 104, height: 7, borderRadius: 4, background: "linear-gradient(90deg,#F45A1E,#FF7A33)", boxShadow: "0 5px 16px rgba(0,0,0,.35)", opacity: .82, zIndex: 1 }} />
+
+          <div
+            style={{
+              position: "absolute",
+              left: "4%",
+              bottom: -24,
+              width: "72%",
+              height: "110%",
+              filter: "drop-shadow(0 30px 46px rgba(0,0,0,.60))",
+              zIndex: 2,
+            }}
+          >
             <DominicMascotImage className="object-contain object-bottom" priority />
           </div>
 
-          <div aria-hidden="true" style={{ position: "absolute", left: "50%", bottom: 18, width: 210, height: 56, borderRadius: "50%", transform: "translateX(-15%)", border: "4px solid rgba(244,90,30,.75)", boxShadow: "0 0 0 10px rgba(244,90,30,.10), inset 0 0 30px rgba(244,90,30,.16)", opacity: .85, zIndex: 1 }} />
-
-          <div style={{ position: "absolute", left: 22, top: 22, zIndex: 3, border: "1px solid rgba(244,90,30,.35)", background: "rgba(8,13,18,.72)", backdropFilter: "blur(10px)", borderRadius: 999, padding: "8px 11px", color: "#FFC1A8", fontSize: 9, fontWeight: 900, letterSpacing: ".12em", textTransform: "uppercase" }}>
+          <div
+            style={{
+              position: "absolute",
+              left: 22,
+              top: 22,
+              zIndex: 5,
+              border: "1px solid rgba(244,90,30,.35)",
+              background: "rgba(8,13,18,.62)",
+              backdropFilter: "blur(10px)",
+              borderRadius: 999,
+              padding: "8px 11px",
+              color: "#FFC1A8",
+              fontSize: 9,
+              fontWeight: 900,
+              letterSpacing: ".12em",
+              textTransform: "uppercase",
+            }}
+          >
             Real operations · smarter capture
           </div>
 
-          <div aria-hidden="true" style={{ position: "absolute", inset: 0, background: "linear-gradient(90deg,transparent 0%,transparent 70%,#0B1117 100%),linear-gradient(180deg,transparent 58%,#0B1117 100%)", zIndex: 4, pointerEvents: "none" }} />
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "linear-gradient(90deg,transparent 0%,transparent 72%,#0B1117 100%),linear-gradient(180deg,transparent 68%,#0B1117 100%)",
+              zIndex: 4,
+              pointerEvents: "none",
+            }}
+          />
         </div>
 
         <div style={{ position: "relative", zIndex: 5, display: "flex", flexDirection: "column", justifyContent: "center", padding: "44px 44px 46px 30px" }}>

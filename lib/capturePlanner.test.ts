@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bearingInSector, buildAutonomousCheckpoints, buildCaptureSequence, buildGeographicCheckpoints, calculateObjectScanPlan, destinationPoint, evaluateCaptureGuidance, signedAngularDelta, validateMissionCalibration } from "./capturePlanner";
+import { bearingAndDistanceBetween, bearingInSector, buildAutonomousCheckpoints, buildCaptureSequence, buildGeographicCheckpoints, calculateObjectScanPlan, destinationPoint, evaluateCaptureGuidance, signedAngularDelta, validateMissionCalibration } from "./capturePlanner";
 
 describe("DOMINIC capture planner", () => {
   it("builds three complete object-scan rings", () => {
@@ -200,6 +200,18 @@ describe("DOMINIC capture planner", () => {
 
     expect(validation.ready).toBe(true);
     expect(validation.issues).toHaveLength(0);
+  });
+
+
+  it("calculates home direction and distance from the subject center", () => {
+    const result = bearingAndDistanceBetween({
+      fromLatitude: 39.95,
+      fromLongitude: -75.16,
+      toLatitude: 39.9501,
+      toLongitude: -75.16,
+    });
+    expect(result.bearingDeg).toBeLessThan(1);
+    expect(result.distanceFt).toBeGreaterThan(30);
   });
 
 });

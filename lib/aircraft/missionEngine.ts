@@ -103,9 +103,10 @@ export class DominicMissionEngine {
   }
 
   async abort(reason = "Operator abort") {
+    if (this.aborted) return;
     this.aborted = true;
-    await this.adapter.send({ type: "abort", reason });
     this.transition("ABORTED", reason);
+    await this.adapter.send({ type: "abort", reason });
   }
 
   async execute() {
@@ -202,6 +203,11 @@ export class DominicMissionEngine {
       return this.getSnapshot();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown mission failure.";
+      if (this.aborted) {
+        this.snapshot.error = undefined;
+        if (this.snapshot.phase !== "ABORTED") this.transition("ABORTED", message);
+        return this.getSnapshot();
+      }
       this.snapshot.error = message;
       this.transition("FAILED", message);
       return this.getSnapshot();

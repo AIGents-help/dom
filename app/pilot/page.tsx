@@ -16,12 +16,28 @@ import { sopMarkdownToHtml } from "@/lib/sopMarkdown";
 import MappingTab from "@/components/mapper/MappingTab";
 import PilotAssetsTab from "@/components/PilotAssetsTab";
 import MissionAssetPicker from "@/components/MissionAssetPicker";
-import { V } from "@/lib/theme";
+import Image from "next/image";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 import MissionMapThumbnail from "@/components/MissionMapThumbnail";
 import PilotCRM from "@/components/PilotCRM";
 import PilotSupportCenter from "@/components/PilotSupportCenter";
 import { getPilotAuthorizationState } from "@/lib/pilotAuthorization";
+
+const V = {
+  ground: "#090E13",
+  surface: "#111820",
+  raised: "#0F151C",
+  line: "#2A3540",
+  lineSoft: "#1C2630",
+  ink: "#F5F7FA",
+  inkDim: "#AEB8C2",
+  inkFaint: "#7E8A96",
+  signal: "#F45A1E",
+  telemetry: "#70D6A0",
+  airspace: "#A78BFA",
+  danger: "#FF6B6B",
+  warn: "#FFB86B",
+};
 
 interface Profile {
   id: string; full_name: string; email: string; phone: string | null; status: string;
@@ -63,20 +79,20 @@ interface QueueClaim {
 type Tab = PilotTab;
 
 const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  offered: { bg: "rgba(229,112,31,.07)", text: "#B45309", border: "#E5701F" },
-  accepted: { bg: "rgba(14,165,233,.07)", text: "#0369A1", border: "#0EA5E9" },
-  scheduled: { bg: "rgba(13,148,136,.08)", text: "#0F766E", border: "#0D9488" },
-  in_progress: { bg: "rgba(37,99,235,.07)", text: "#1D4ED8", border: "#2563EB" },
-  submitted: { bg: "rgba(124,58,237,.07)", text: "#6D28D9", border: "#7C3AED" },
-  qc_passed: { bg: "rgba(22,163,74,.08)", text: "#15803D", border: "#16A34A" },
-  paid: { bg: "rgba(22,163,74,.1)", text: "#15803D", border: "#16A34A" },
-  declined: { bg: "rgba(95,107,122,.07)", text: "#475569", border: "#64748B" },
-  cancelled: { bg: "rgba(220,38,38,.055)", text: "#B91C1C", border: "#DC2626" },
+  offered: { bg: "rgba(244,90,30,.10)", text: "#FF9A70", border: "#F45A1E" },
+  accepted: { bg: "rgba(56,189,248,.10)", text: "#7DD3FC", border: "#38BDF8" },
+  scheduled: { bg: "rgba(45,212,191,.10)", text: "#5EEAD4", border: "#2DD4BF" },
+  in_progress: { bg: "rgba(96,165,250,.10)", text: "#93C5FD", border: "#60A5FA" },
+  submitted: { bg: "rgba(167,139,250,.10)", text: "#C4B5FD", border: "#A78BFA" },
+  qc_passed: { bg: "rgba(112,214,160,.10)", text: "#8FE2B2", border: "#70D6A0" },
+  paid: { bg: "rgba(112,214,160,.10)", text: "#8FE2B2", border: "#70D6A0" },
+  declined: { bg: "rgba(148,163,184,.08)", text: "#CBD5E1", border: "#64748B" },
+  cancelled: { bg: "rgba(255,107,107,.08)", text: "#FF9A9A", border: "#FF6B6B" },
 };
 const PILOT_LEGEND = [["Offered", "#E5701F"], ["Accepted", "#0EA5E9"], ["Scheduled", "#0D9488"], ["In progress", "#2563EB"], ["Submitted", "#7C3AED"], ["Completed / paid", "#16A34A"], ["Declined", "#64748B"], ["Cancelled", "#DC2626"]] as const;
-const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
-const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
-const btnGhost: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
+const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface, padding: 18, boxShadow: "0 14px 36px rgba(0,0,0,.14)" };
+const btnPrimary: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: "1px solid rgba(244,90,30,.78)", background: "linear-gradient(90deg,#D9480F,#F45A1E)", color: "#160A02", fontFamily: "Saira, sans-serif", fontWeight: 900, fontSize: 13, cursor: "pointer", boxShadow: "0 8px 22px rgba(244,90,30,.13)" };
+const btnGhost: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: `1px solid ${V.line}`, background: "#111820", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 700, fontSize: 13, cursor: "pointer" };
 
 export default function PilotDashboard() {
   const router = useRouter();
@@ -300,22 +316,43 @@ export default function PilotDashboard() {
   const totalEarned = payouts.filter((p) => ["captured", "paid_out"].includes(p.status)).reduce((s, p) => s + p.contractor_amount_cents, 0);
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: V.ground, color: V.ink, fontFamily: "Inter, system-ui, sans-serif" }}>
-      <PilotSidebar tab={tab} setTab={setTab} onSignOut={signOut} />
-      <main style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 24, flexWrap: "wrap", gap: 16 }}>
-        <div>
-          <h1 className="font-saira" style={{ fontSize: 26, fontWeight: 700 }}>{profile.full_name}</h1>
-          <p style={{ color: V.inkDim, fontSize: 13 }}>{profile.email} · {profile.service_area ?? "No area set"}</p>
+    <div style={{ minHeight: "100vh", background: V.ground, color: V.ink, fontFamily: "Inter, system-ui, sans-serif" }}>
+      <header style={{ minHeight: 78, borderBottom: `1px solid ${V.line}`, background: "#171D24", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 24px", gap: 18, position: "sticky", top: 0, zIndex: 50 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 280 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 10, border: "1px solid rgba(244,90,30,.28)", background: "rgba(244,90,30,.07)", display: "grid", placeItems: "center" }}>
+            <Image src="/brand/dom-icon-mark.png" alt="" width={25} height={25} />
+          </div>
+          <div>
+            <div className="font-saira" style={{ fontSize: 18, lineHeight: 1, fontWeight: 900, letterSpacing: ".04em" }}>DOM PILOT</div>
+            <div style={{ color: V.inkFaint, fontSize: 9, letterSpacing: ".14em", marginTop: 6 }}>MISSION OPERATIONS WORKSPACE</div>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <CredBadge label="Part 107" ok={profile.part107_verified} />
-          <CredBadge label="Personal Insurance" ok={authorization.personalInsuranceCurrent} />
-          <CredBadge label="Mission Auth" ok={authorization.selfServiceAuthorized} />
-          <CredBadge label="Payouts" ok={profile.stripe_payouts_enabled} />
+        <div style={{ display: "flex", alignItems: "center", gap: 24, color: "#D6DDE4", fontSize: 13, fontWeight: 700 }}>
+          <span>Missions</span><span>Operate</span><span>Deliver</span><span>Get Paid</span>
         </div>
-      </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={() => router.push("/dominic")} style={{ ...btnPrimary, padding: "9px 13px" }}>Open DOMINIC →</button>
+          <button onClick={signOut} style={{ ...btnGhost, padding: "9px 13px" }}>Sign out</button>
+        </div>
+      </header>
+
+      <div style={{ display: "flex", minHeight: "calc(100vh - 78px)" }}>
+        <PilotSidebar tab={tab} setTab={setTab} onSignOut={signOut} />
+        <main style={{ flex: 1, minWidth: 0, background: "radial-gradient(circle at 86% 2%, rgba(244,90,30,.055), transparent 24%), #090E13" }}>
+        <div style={{ maxWidth: 1320, margin: "0 auto", padding: "30px 28px 48px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22, flexWrap: "wrap", gap: 16, padding: "16px 18px", border: `1px solid ${V.line}`, borderRadius: 12, background: "#111820" }}>
+          <div>
+            <div style={{ color: V.signal, fontSize: 9, fontWeight: 900, letterSpacing: ".16em", textTransform: "uppercase", marginBottom: 6 }}>Pilot Command Center</div>
+            <h1 className="font-saira" style={{ fontSize: 24, lineHeight: 1.1, fontWeight: 900 }}>{profile.full_name}</h1>
+            <p style={{ color: V.inkDim, fontSize: 12, marginTop: 6 }}>{profile.email} · {profile.service_area ?? "No area set"}</p>
+          </div>
+          <div style={{ display: "flex", gap: 7, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <CredBadge label="Part 107" ok={profile.part107_verified} />
+            <CredBadge label="Personal Insurance" ok={authorization.personalInsuranceCurrent} />
+            <CredBadge label="Mission Auth" ok={authorization.selfServiceAuthorized} />
+            <CredBadge label="Payouts" ok={profile.stripe_payouts_enabled} />
+          </div>
+        </div>
 
       {!cleared && (
         <div style={{ ...panelStyle, borderColor: "rgba(229,112,31,.4)", marginBottom: 18, background: "rgba(229,112,31,.05)" }}>
@@ -353,7 +390,7 @@ export default function PilotDashboard() {
         </div>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, background: V.lineSoft, borderRadius: 12, overflow: "hidden", marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 1, background: V.line, border: `1px solid ${V.line}`, borderRadius: 12, overflow: "hidden", marginBottom: 22 }}>
         <Stat k="Status" v={profile.status.toUpperCase()} color={profile.status === "active" ? V.telemetry : V.warn} />
         <Stat k="Active Missions" v={String(activeAssignments.length)} />
         <Stat k="Completed" v={String(profile.missions_completed)} />
@@ -494,7 +531,7 @@ export default function PilotDashboard() {
             </div>
           )}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, flexWrap: "wrap" }}>
-            <label style={{ color: V.inkDim, fontSize: 12 }}>Show{" "}<select value={missionFilter} onChange={(e) => setMissionFilter(e.target.value)} style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink }}><option value="all">All missions</option><option value="action">Active / action needed</option><option value="complete">Completed / paid</option><option value="inactive">Declined / cancelled</option></select></label>
+            <label style={{ color: V.inkDim, fontSize: 12 }}>Show{" "}<select value={missionFilter} onChange={(e) => setMissionFilter(e.target.value)} style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${V.line}`, background: "#111820", color: V.ink }}><option value="all">All missions</option><option value="action">Active / action needed</option><option value="complete">Completed / paid</option><option value="inactive">Declined / cancelled</option></select></label>
             <label style={{ color: V.inkDim, fontSize: 12 }}>Sort{" "}<select value={missionSort} onChange={(e) => setMissionSort(e.target.value)} style={{ padding: "7px 10px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink }}><option value="action">Action needed</option><option value="scheduled">Scheduled soonest</option><option value="newest">Newest offered</option><option value="payout">Highest payout</option></select></label>
           </div>
           {requestsForMe.length > 0 && (
@@ -732,8 +769,9 @@ export default function PilotDashboard() {
           )}
         </div>
       )}
+        </div>
+        </main>
       </div>
-      </main>
     </div>
   );
 }
@@ -743,11 +781,11 @@ function PilotStatusLegend() {
 }
 
 function Shell({ children }: { children: React.ReactNode }) {
-  return (<div style={{ minHeight: "100vh", background: V.ground, color: V.ink, fontFamily: "Inter, system-ui, sans-serif" }}><div style={{ maxWidth: 1100, margin: "0 auto", padding: "40px 24px" }}>{children}</div></div>);
+  return (<div style={{ minHeight: "100vh", background: V.ground, color: V.ink, fontFamily: "Inter, system-ui, sans-serif", display: "grid", placeItems: "center" }}><div style={{ border: `1px solid ${V.line}`, background: V.surface, borderRadius: 12, padding: "24px 28px" }}>{children}</div></div>);
 }
 function CredBadge({ label, ok }: { label: string; ok: boolean }) {
-  return (<span className="font-mono-ibm" style={{ fontSize: 10, padding: "5px 10px", borderRadius: 8, border: `1px solid ${ok ? V.telemetry : V.line}`, background: ok ? "rgba(22,163,74,.1)" : "transparent", color: ok ? V.telemetry : V.inkFaint, letterSpacing: ".06em" }}>{ok ? "✓ " : "○ "}{label}</span>);
+  return (<span className="font-mono-ibm" style={{ fontSize: 10, padding: "5px 10px", borderRadius: 8, border: `1px solid ${ok ? V.telemetry : V.line}`, background: ok ? "rgba(112,214,160,.08)" : "rgba(255,255,255,.015)", color: ok ? V.telemetry : V.inkFaint, letterSpacing: ".06em" }}>{ok ? "✓ " : "○ "}{label}</span>);
 }
 function Stat({ k, v, color }: { k: string; v: string; color?: string }) {
-  return (<div style={{ background: V.raised, padding: "14px 16px" }}><div className="font-mono-ibm" style={{ fontSize: 10, letterSpacing: ".12em", color: V.inkFaint, textTransform: "uppercase" }}>{k}</div><div className="font-mono-ibm" style={{ fontSize: 18, color: color ?? V.ink, marginTop: 2, fontWeight: 600 }}>{v}</div></div>);
+  return (<div style={{ background: V.raised, padding: "15px 17px" }}><div className="font-mono-ibm" style={{ fontSize: 10, letterSpacing: ".12em", color: V.inkFaint, textTransform: "uppercase" }}>{k}</div><div className="font-mono-ibm" style={{ fontSize: 18, color: color ?? V.ink, marginTop: 2, fontWeight: 600 }}>{v}</div></div>);
 }

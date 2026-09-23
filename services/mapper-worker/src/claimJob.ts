@@ -10,6 +10,7 @@ export interface ProcessingJob {
   priority: number;
   processor: string;
   processor_version: string | null;
+  profile: string | null;
   options: Record<string, unknown> | null;
   progress: number;
   current_stage: string | null;

@@ -131,7 +131,7 @@ describe("dedupeDeliverables", () => {
 describe("DOMINIC output selection", () => {
   it("provides clear job presets for 3D, map, point cloud, survey, and everything", () => {
     expect(DOMINIC_JOB_PRESETS.map((preset) => preset.value)).toEqual([
-      "3d", "map", "point_cloud", "survey", "everything", "custom",
+      "3d_object", "3d", "map", "point_cloud", "survey", "everything", "custom",
     ]);
     expect(DOMINIC_JOB_PRESETS.find((preset) => preset.value === "3d")?.outputs).toEqual(["3d_model", "point_cloud"]);
   });

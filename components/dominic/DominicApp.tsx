@@ -21,6 +21,7 @@ import {
   Wifi,
   WifiOff,
   Factory,
+  Crosshair,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import MappingTab from "@/components/mapper/MappingTab";
@@ -28,6 +29,7 @@ import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 import DominicMascotImage from "@/components/dominic/DominicMascotImage";
 import DominicPreviewEnvironment from "@/components/dominic/DominicPreviewEnvironment";
 import DominicHub from "@/components/dominic/DominicHub";
+import DominicCapturePlanner from "@/components/dominic/DominicCapturePlanner";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
@@ -58,6 +60,7 @@ const nav = [
   { label: "Deliverables", icon: Layers3, upcoming: false, hub: false },
   { label: "Data Library", icon: Database, upcoming: false, hub: false },
   { label: "DOMINIC HUB", icon: Factory, upcoming: false, hub: true },
+  { label: "Capture Planner", icon: Crosshair, upcoming: false, hub: false },
   { label: "Live Flight", icon: Activity, upcoming: true, hub: false },
   { label: "AR View", icon: Layers3, upcoming: true, hub: false },
   { label: "AI Copilot", icon: Sparkles, upcoming: true, hub: false },
@@ -277,7 +280,7 @@ export default function DominicApp() {
           <nav style={{ display: "grid", gap: 4 }}>
             {nav.map(({ label, icon: Icon, upcoming, hub }) => {
               const preview = Boolean(upcoming);
-              const projectRequired = label !== "Projects" && !preview && !hub;
+              const projectRequired = label !== "Projects" && label !== "Capture Planner" && !preview && !hub;
               const disabled = projectRequired && !activeProjectId;
               const active = activeModule === label;
               const title = hub ? "Open the DOMINIC HUB refinery operations simulator" : preview ? `${label} — Preview environment` : disabled ? "Open a DOMINIC project first" : label;
@@ -485,6 +488,8 @@ export default function DominicApp() {
               <div style={{ padding: "12px 14px", color: TEXT, background: "#0B1117", minHeight: 680 }}>
                 {activeModule === "DOMINIC HUB" ? (
                   <DominicHub />
+                ) : activeModule === "Capture Planner" ? (
+                  <DominicCapturePlanner />
                 ) : previewModules.has(activeModule) ? (
                   <DominicPreviewEnvironment module={activeModule as "Live Flight" | "AR View" | "AI Copilot"} />
                 ) : (

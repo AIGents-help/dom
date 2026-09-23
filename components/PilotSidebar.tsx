@@ -5,12 +5,12 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 const V = {
-  surface: "#4B535B",
-  line: "rgba(255,255,255,0.08)",
+  surface: "#171D24",
+  line: "#2A3540",
   ink: "#FFFFFF",
-  inkDim: "#AEB7C4",
-  inkFaint: "#8A95A7",
-  signal: "#FFFFFF",
+  inkDim: "#AEB8C2",
+  inkFaint: "#7E8A96",
+  signal: "#F5F7FA",
 };
 
 export type PilotTab =
@@ -165,10 +165,10 @@ export default function PilotSidebar({
       border: "none",
       cursor: "pointer",
       textAlign: "left",
-      color: active ? V.signal : V.inkDim,
-      background: active ? "rgba(244,90,30,.22)" : "transparent",
+      color: active ? "#160A02" : V.inkDim,
+      background: active ? "linear-gradient(90deg, #D9480F, #F45A1E)" : "transparent",
       fontFamily: "Saira, sans-serif",
-      fontWeight: active ? 700 : 600,
+      fontWeight: active ? 900 : 600,
       fontSize: nested ? 12 : 13,
       justifyContent: collapsed ? "center" : "flex-start",
       width: "100%",
@@ -181,8 +181,8 @@ export default function PilotSidebar({
         width: collapsed ? 64 : 228,
         flexShrink: 0,
         position: "sticky",
-        top: 0,
-        height: "100vh",
+        top: 78,
+        height: "calc(100vh - 78px)",
         background: V.surface,
         borderRight: `1px solid ${V.line}`,
         display: "flex",
@@ -191,11 +191,11 @@ export default function PilotSidebar({
         overflow: "hidden",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", padding: "18px 14px 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", padding: "14px 12px 12px" }}>
         {!collapsed && (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Image src="/brand/dom-icon-mark.png" alt="" width={20} height={20} />
-            <span className="font-saira" style={{ fontWeight: 700, fontSize: 16, color: V.ink }}>DOM Pilot</span>
+            <Image src="/brand/dom-icon-mark.png" alt="" width={22} height={22} />
+            <div><span className="font-saira" style={{ display: "block", fontWeight: 900, fontSize: 14, color: V.ink, letterSpacing: ".04em" }}>PILOT WORKSPACE</span><span style={{ display: "block", color: V.inkFaint, fontSize: 8, letterSpacing: ".13em", marginTop: 2 }}>DRONE OPERATION MANAGEMENT</span></div>
           </div>
         )}
         <button
@@ -219,7 +219,9 @@ export default function PilotSidebar({
                 aria-expanded={!collapsed && open}
                 style={{
                   ...navButtonStyle(sectionActive),
-                  background: sectionActive ? "rgba(244,90,30,.12)" : "transparent",
+                  background: sectionActive ? "rgba(244,90,30,.10)" : "transparent",
+                  border: sectionActive ? "1px solid rgba(244,90,30,.25)" : "1px solid transparent",
+                  color: sectionActive ? "#F1F4F7" : V.inkDim,
                 }}
               >
                 <span style={{ width: 18, textAlign: "center", fontSize: 15 }}>{section.icon}</span>

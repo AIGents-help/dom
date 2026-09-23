@@ -20,6 +20,7 @@ import {
   Trash2,
   Radio,
   RotateCcw,
+  Square,
   ShieldCheck,
   Target,
 } from "lucide-react";
@@ -37,6 +38,11 @@ import {
   type CaptureMissionType,
   type NoFlySector,
 } from "@/lib/capturePlanner";
+import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
+import {
+  DominicMissionEngine,
+  type MissionExecutionSnapshot,
+} from "@/lib/aircraft/missionEngine";
 
 const V = {
   bg: "#0B1117",
@@ -175,6 +181,8 @@ export default function DominicCapturePlanner() {
   const [missionArmed, setMissionArmed] = useState(false);
   const [telemetryMode, setTelemetryMode] = useState<"simulator" | "aircraft">("simulator");
   const [aircraftTelemetry, setAircraftTelemetry] = useState<AircraftTelemetry | null>(null);
+  const [autonomousSnapshot, setAutonomousSnapshot] = useState<MissionExecutionSnapshot | null>(null);
+  const [autonomousRunning, setAutonomousRunning] = useState(false);
 
   const plan = useMemo(
     () => calculateObjectScanPlan({ objectDiameterFt, objectHeightFt, standoffFt, overlapPct, horizontalFovDeg }),
@@ -362,6 +370,30 @@ export default function DominicCapturePlanner() {
   const removeNoFlySector = (id: string) => {
     setMissionArmed(false);
     setNoFlySectors((current) => current.filter((sector) => sector.id !== id));
+  };
+
+  const runAutonomousSimulation = async () => {
+    if (!preflightReady || autonomousRunning) return;
+    setAutonomousRunning(true);
+    setAutonomousSnapshot(null);
+    const aircraft = new SimulatorAircraftAdapter({
+      latitude: homeLatitude,
+      longitude: homeLongitude,
+      homeLatitude,
+      homeLongitude,
+    });
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude,
+      centerLongitude,
+      checkpoints: geographicCheckpoints,
+      takeoffAltitudeFt: Math.max(10, Math.min(40, geographicCheckpoints[0]?.relativeAltitudeFt ?? 20)),
+      transitSpeedFps: 12,
+    });
+    const unsubscribe = engine.subscribe((snapshot) => setAutonomousSnapshot(snapshot));
+    await engine.execute();
+    unsubscribe();
+    setAutonomousSnapshot(engine.getSnapshot());
+    setAutonomousRunning(false);
   };
 
   const downloadCheckpointPayload = () => {
@@ -861,6 +893,65 @@ export default function DominicCapturePlanner() {
           </main>
 
           <aside style={{ display: "grid", gap: 12 }}>
+            <section style={{ border: `1px solid rgba(244,90,30,.28)`, borderRadius: 12, background: "rgba(244,90,30,.055)", padding: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div>
+                  <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>Autonomous mission engine</div>
+                  <div style={{ color: V.text, fontSize: 12, fontWeight: 900, marginTop: 3 }}>Virtual aircraft end-to-end test</div>
+                </div>
+                <span style={{ color: autonomousSnapshot?.phase === "COMPLETE" ? V.green : autonomousSnapshot?.phase === "FAILED" ? "#FF8B7A" : V.muted, fontSize: 9, fontWeight: 900 }}>
+                  {autonomousSnapshot?.phase ?? "IDLE"}
+                </span>
+              </div>
+              <p style={{ color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
+                Runs this exact Object Scan through DOMINIC's universal aircraft interface: connect, preflight, arm, takeoff, fly every checkpoint, aim, capture, return home and land.
+              </p>
+              <button
+                type="button"
+                disabled={!preflightReady || autonomousRunning}
+                onClick={runAutonomousSimulation}
+                style={{
+                  width: "100%",
+                  border: 0,
+                  borderRadius: 8,
+                  padding: "9px 10px",
+                  background: preflightReady && !autonomousRunning ? `linear-gradient(90deg,${V.orangeDark},${V.orange})` : "#39424B",
+                  color: preflightReady && !autonomousRunning ? "#180A02" : "#88939E",
+                  fontWeight: 900,
+                  cursor: preflightReady && !autonomousRunning ? "pointer" : "not-allowed",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 10,
+                }}
+              >
+                {autonomousRunning ? <Square size={12} /> : <Play size={12} />}
+                {autonomousRunning ? "Simulation running..." : "Run Full Autonomous Simulation"}
+              </button>
+              {autonomousSnapshot ? (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 9 }}>
+                    <div style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#0D1319", padding: 8 }}>
+                      <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>Checkpoints</div>
+                      <div style={{ color: V.text, fontSize: 13, fontWeight: 900, marginTop: 3 }}>{autonomousSnapshot.completedCheckpointIds.length}/{autonomousSnapshot.checkpointCount}</div>
+                    </div>
+                    <div style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#0D1319", padding: 8 }}>
+                      <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>Aircraft</div>
+                      <div style={{ color: V.text, fontSize: 11, fontWeight: 900, marginTop: 3 }}>{autonomousSnapshot.lastAircraftState?.flightMode ?? "—"}</div>
+                    </div>
+                  </div>
+                  <div style={{ maxHeight: 130, overflowY: "auto", marginTop: 8, display: "grid", gap: 4 }}>
+                    {autonomousSnapshot.events.slice(-10).reverse().map((event, index) => (
+                      <div key={`${event.atMs}-${event.phase}-${index}`} style={{ color: event.phase === "FAILED" ? "#FF8B7A" : V.muted, fontSize: 8, lineHeight: 1.35 }}>
+                        <strong style={{ color: event.phase === "COMPLETE" ? V.green : V.text }}>{event.phase}</strong> · {event.message}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+            </section>
+
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
               <div style={{ color: V.text, fontSize: 12, fontWeight: 900 }}>Coverage & gaps</div>
               <div style={{ marginTop: 9, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>

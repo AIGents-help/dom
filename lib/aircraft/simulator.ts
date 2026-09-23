@@ -11,7 +11,7 @@ export const simulatorCapabilities:AircraftCapabilities={
 
 export class SimulatorAircraftAdapter implements DominicAircraftAdapter {
   readonly vendor="simulator" as const;
-  readonly capabilities=simulatorCapabilities;
+  readonly capabilities={...simulatorCapabilities};
   private listeners=new Set<(state:UniversalAircraftState)=>void>();
   private state:UniversalAircraftState;
 

@@ -1,0 +1,26 @@
+name: Verify MAVLink Flight Bridge
+
+on:
+  pull_request:
+    paths:
+      - "services/flight-bridge-mavlink/**"
+      - ".github/workflows/verify-flight-bridge.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "services/flight-bridge-mavlink/**"
+      - ".github/workflows/verify-flight-bridge.yml"
+
+jobs:
+  verify-flight-bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install bridge dependencies
+        run: python -m pip install -r services/flight-bridge-mavlink/requirements.txt
+      - name: Compile bridge
+        run: python -m py_compile services/flight-bridge-mavlink/bridge.py

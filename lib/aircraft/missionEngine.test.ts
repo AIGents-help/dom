@@ -84,4 +84,32 @@ describe("DOMINIC autonomous mission engine", () => {
 
     expect(["ABORTED", "COMPLETE"]).toContain(result.phase);
   });
+
+  it("restarts safely from the first incomplete checkpoint", async () => {
+    const { checkpoints } = makeMission();
+    const subset = checkpoints.slice(0, 6);
+    const aircraft = new SimulatorAircraftAdapter();
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      checkpoints: subset,
+      resume: {
+        nextCheckpointIndex: 3,
+        completedCheckpointIds: subset.slice(0, 3).map((point) => point.id),
+      },
+    });
+
+    const result = await engine.execute();
+
+    expect(result.phase).toBe("COMPLETE");
+    expect(result.completedCheckpointIds).toEqual(subset.map((point) => point.id));
+    expect(
+      result.events.some(
+        (event) =>
+          event.phase === "PREFLIGHT" &&
+          event.message.includes("3 checkpoint(s) already completed"),
+      ),
+    ).toBe(true);
+  });
+
 });

@@ -1,4 +1,4 @@
-import Image from "next/image";
+import DominicMark from "@/components/dominic/DominicMark";
 
 export default function DominicBrandLockup({
   size = "md",
@@ -15,14 +15,7 @@ export default function DominicBrandLockup({
 
   return (
     <div style={{ display: "flex", alignItems: "center", gap: compact ? 8 : 12 }}>
-      <Image
-        src="/brand/dom-propeller-3fin.png"
-        alt="DOMINIC brand icon"
-        width={icon}
-        height={icon}
-        priority={size === "lg"}
-        style={{ flexShrink: 0 }}
-      />
+      <DominicMark size={icon} />
       <div>
         <div
           aria-label="DOMINIC"

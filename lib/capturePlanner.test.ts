@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bearingAndDistanceBetween, bearingInSector, buildAutonomousCheckpoints, buildCaptureSequence, buildGeographicCheckpoints, calculateObjectScanPlan, destinationPoint, evaluateCaptureGuidance, signedAngularDelta, validateMissionCalibration } from "./capturePlanner";
+import { bearingAndDistanceBetween, bearingInSector, deriveRelativeCaptureTelemetry, buildAutonomousCheckpoints, buildCaptureSequence, buildGeographicCheckpoints, calculateObjectScanPlan, destinationPoint, evaluateCaptureGuidance, signedAngularDelta, validateMissionCalibration } from "./capturePlanner";
 
 describe("DOMINIC capture planner", () => {
   it("builds three complete object-scan rings", () => {
@@ -212,6 +212,57 @@ describe("DOMINIC capture planner", () => {
     });
     expect(result.bearingDeg).toBeLessThan(1);
     expect(result.distanceFt).toBeGreaterThan(30);
+  });
+
+
+  it("normalizes aircraft GPS and gimbal telemetry into capture guidance coordinates", () => {
+    const aircraftPosition = destinationPoint({
+      latitude: 39.95,
+      longitude: -75.16,
+      bearingDeg: 90,
+      distanceFt: 40,
+    });
+    const relative = deriveRelativeCaptureTelemetry({
+      aircraft: {
+        ...aircraftPosition,
+        relativeAltitudeFt: 22,
+        headingDeg: 271,
+        gimbalPitchDeg: -18,
+        timestampMs: 9_500,
+        source: "dji",
+      },
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      nowMs: 10_000,
+    });
+
+    expect(relative.bearingDeg).toBeGreaterThan(89);
+    expect(relative.bearingDeg).toBeLessThan(91);
+    expect(relative.distanceFt).toBeGreaterThan(39);
+    expect(relative.distanceFt).toBeLessThan(41);
+    expect(relative.cameraAngle).toBe(-18);
+    expect(relative.stale).toBe(false);
+    expect(relative.source).toBe("dji");
+  });
+
+  it("marks old telemetry stale so guidance cannot trust an expired aircraft position", () => {
+    const relative = deriveRelativeCaptureTelemetry({
+      aircraft: {
+        latitude: 39.95,
+        longitude: -75.16,
+        relativeAltitudeFt: 10,
+        headingDeg: 0,
+        gimbalPitchDeg: 0,
+        timestampMs: 1_000,
+        source: "external",
+      },
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      nowMs: 10_000,
+      staleAfterMs: 3_000,
+    });
+    expect(relative.stale).toBe(true);
+    expect(relative.ageMs).toBe(9_000);
   });
 
 });

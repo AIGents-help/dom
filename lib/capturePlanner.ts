@@ -18,6 +18,26 @@ export type CaptureRing = {
 
 
 
+
+
+export type AircraftTelemetry = {
+  latitude: number;
+  longitude: number;
+  relativeAltitudeFt: number;
+  headingDeg: number;
+  gimbalPitchDeg: number;
+  timestampMs: number;
+  source: "simulator" | "browser" | "dji" | "external";
+};
+
+export type RelativeCaptureTelemetry = CaptureTelemetry & {
+  relativeAltitudeFt: number;
+  headingDeg: number;
+  ageMs: number;
+  stale: boolean;
+  source: AircraftTelemetry["source"];
+};
+
 export type CaptureTelemetry = {
   bearingDeg: number;
   distanceFt: number;
@@ -221,6 +241,34 @@ export function buildCaptureSequence(plan: CapturePlan) {
   );
 }
 
+
+
+export function deriveRelativeCaptureTelemetry(input: {
+  aircraft: AircraftTelemetry;
+  centerLatitude: number;
+  centerLongitude: number;
+  nowMs?: number;
+  staleAfterMs?: number;
+}): RelativeCaptureTelemetry {
+  const subjectToAircraft = bearingAndDistanceBetween({
+    fromLatitude: input.centerLatitude,
+    fromLongitude: input.centerLongitude,
+    toLatitude: input.aircraft.latitude,
+    toLongitude: input.aircraft.longitude,
+  });
+  const ageMs = Math.max(0, (input.nowMs ?? Date.now()) - input.aircraft.timestampMs);
+
+  return {
+    bearingDeg: subjectToAircraft.bearingDeg,
+    distanceFt: subjectToAircraft.distanceFt,
+    cameraAngle: input.aircraft.gimbalPitchDeg,
+    relativeAltitudeFt: input.aircraft.relativeAltitudeFt,
+    headingDeg: normalizeDegrees(input.aircraft.headingDeg),
+    ageMs,
+    stale: ageMs > (input.staleAfterMs ?? 3000),
+    source: input.aircraft.source,
+  };
+}
 
 export function signedAngularDelta(targetDeg: number, actualDeg: number) {
   const target = normalizeDegrees(targetDeg);

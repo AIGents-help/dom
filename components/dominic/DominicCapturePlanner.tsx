@@ -29,9 +29,11 @@ import {
   buildCaptureSequence,
   buildGeographicCheckpoints,
   calculateObjectScanPlan,
+  deriveRelativeCaptureTelemetry,
   evaluateCaptureGuidance,
   missionProfiles,
   validateMissionCalibration,
+  type AircraftTelemetry,
   type CaptureMissionType,
   type NoFlySector,
 } from "@/lib/capturePlanner";
@@ -171,6 +173,8 @@ export default function DominicCapturePlanner() {
   const [maxStandoffFt, setMaxStandoffFt] = useState(80);
   const [noFlySectors, setNoFlySectors] = useState<NoFlySector[]>([]);
   const [missionArmed, setMissionArmed] = useState(false);
+  const [telemetryMode, setTelemetryMode] = useState<"simulator" | "aircraft">("simulator");
+  const [aircraftTelemetry, setAircraftTelemetry] = useState<AircraftTelemetry | null>(null);
 
   const plan = useMemo(
     () => calculateObjectScanPlan({ objectDiameterFt, objectHeightFt, standoffFt, overlapPct, horizontalFovDeg }),
@@ -183,13 +187,34 @@ export default function DominicCapturePlanner() {
   const skippedShots = sequence.filter((shot) => skipped[shot.id]);
   const outstandingShots = sequence.filter((shot, index) => index < currentIndex && !captured[shot.id] && !skipped[shot.id]);
   const gaps = [...skippedShots, ...outstandingShots.filter((shot) => !skipped[shot.id])];
+  const relativeAircraftTelemetry = useMemo(
+    () =>
+      aircraftTelemetry
+        ? deriveRelativeCaptureTelemetry({
+            aircraft: aircraftTelemetry,
+            centerLatitude,
+            centerLongitude,
+          })
+        : null,
+    [aircraftTelemetry, centerLatitude, centerLongitude],
+  );
+  const activeTelemetry =
+    telemetryMode === "aircraft" && relativeAircraftTelemetry
+      ? relativeAircraftTelemetry
+      : {
+          bearingDeg: telemetryBearingDeg,
+          distanceFt: telemetryDistanceFt,
+          cameraAngle: telemetryCameraAngle,
+          stale: false,
+          source: "simulator" as const,
+        };
   const guidance = current
     ? evaluateCaptureGuidance(
         current,
         {
-          bearingDeg: telemetryBearingDeg,
-          distanceFt: telemetryDistanceFt,
-          cameraAngle: telemetryCameraAngle,
+          bearingDeg: activeTelemetry.bearingDeg,
+          distanceFt: activeTelemetry.distanceFt,
+          cameraAngle: activeTelemetry.cameraAngle,
         },
         { bearingDeg: 5, distanceFt: 3, cameraAngle: 4 },
       )
@@ -250,6 +275,38 @@ export default function DominicCapturePlanner() {
     setTelemetryCameraAngle(current.cameraAngle);
   };
 
+  const simulateAircraftAtCheckpoint = () => {
+    if (!current) return;
+    const point = geographicCheckpoints.find((checkpoint) => checkpoint.id === current.id);
+    if (!point) return;
+    setAircraftTelemetry({
+      latitude: point.latitude,
+      longitude: point.longitude,
+      relativeAltitudeFt: point.relativeAltitudeFt,
+      headingDeg: (current.bearingDeg + 180) % 360,
+      gimbalPitchDeg: current.cameraAngle,
+      timestampMs: Date.now(),
+      source: "simulator",
+    });
+    setTelemetryMode("aircraft");
+  };
+
+  const useBrowserAircraftPosition = () => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition((position) => {
+      setAircraftTelemetry((previous) => ({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        relativeAltitudeFt: previous?.relativeAltitudeFt ?? baseRelativeAltitudeFt,
+        headingDeg: previous?.headingDeg ?? 0,
+        gimbalPitchDeg: previous?.gimbalPitchDeg ?? 0,
+        timestampMs: Date.now(),
+        source: "browser",
+      }));
+      setTelemetryMode("aircraft");
+    });
+  };
+
   const geographicCheckpoints = useMemo(
     () =>
       buildGeographicCheckpoints({
@@ -278,7 +335,8 @@ export default function DominicCapturePlanner() {
     [geographicCheckpoints, calibration],
   );
   const preflightReady = safetyReady && calibrationValidation.ready;
-  const captureAllowed = missionArmed && preflightReady && (!guidanceLock || Boolean(guidance?.ready));
+  const telemetryTrusted = telemetryMode === "simulator" || Boolean(relativeAircraftTelemetry && !relativeAircraftTelemetry.stale);
+  const captureAllowed = missionArmed && preflightReady && telemetryTrusted && (!guidanceLock || Boolean(guidance?.ready));
 
   const addNoFlySector = () => {
     setMissionArmed(false);
@@ -705,21 +763,56 @@ export default function DominicCapturePlanner() {
 
                   <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "minmax(210px,.85fr) minmax(0,1.15fr)", gap: 10 }}>
                     <div style={{ border: `1px solid ${guidance?.ready ? "rgba(112,214,160,.45)" : V.line}`, borderRadius: 10, background: guidance?.ready ? "rgba(112,214,160,.07)" : V.panel, padding: 11 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, color: V.text, fontSize: 10, fontWeight: 900 }}>
-                          <Radio size={13} color={guidance?.ready ? V.green : V.orange} /> Relative telemetry
+                          <Radio size={13} color={telemetryTrusted ? V.green : V.orange} /> Flight telemetry
                         </div>
-                        <button type="button" onClick={snapTelemetryToCheckpoint} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: "pointer" }}>
-                          Simulate on target
-                        </button>
+                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                          <button type="button" onClick={() => setTelemetryMode("simulator")} style={{ border: `1px solid ${telemetryMode === "simulator" ? V.orange : V.line}`, background: "#0D1319", color: telemetryMode === "simulator" ? "#FFD3C0" : V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: "pointer" }}>
+                            Manual
+                          </button>
+                          <button type="button" onClick={simulateAircraftAtCheckpoint} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: "pointer" }}>
+                            Sim aircraft
+                          </button>
+                          <button type="button" onClick={useBrowserAircraftPosition} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: "pointer" }}>
+                            Device GPS
+                          </button>
+                        </div>
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 7, marginTop: 9 }}>
-                        <Field label="Bearing" value={telemetryBearingDeg} min={0} max={359} suffix="deg" onChange={setTelemetryBearingDeg} />
-                        <Field label="Radius" value={telemetryDistanceFt} min={1} max={500} step={0.5} suffix="ft" onChange={setTelemetryDistanceFt} />
-                        <Field label="Camera" value={telemetryCameraAngle} min={-90} max={30} suffix="deg" onChange={setTelemetryCameraAngle} />
-                      </div>
+                      {telemetryMode === "simulator" ? (
+                        <>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 7, marginTop: 9 }}>
+                            <Field label="Bearing" value={telemetryBearingDeg} min={0} max={359} suffix="deg" onChange={setTelemetryBearingDeg} />
+                            <Field label="Radius" value={telemetryDistanceFt} min={1} max={500} step={0.5} suffix="ft" onChange={setTelemetryDistanceFt} />
+                            <Field label="Camera" value={telemetryCameraAngle} min={-90} max={30} suffix="deg" onChange={setTelemetryCameraAngle} />
+                          </div>
+                          <button type="button" onClick={snapTelemetryToCheckpoint} style={{ marginTop: 8, border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: "pointer" }}>
+                            Snap manual telemetry to checkpoint
+                          </button>
+                        </>
+                      ) : (
+                        <div style={{ marginTop: 9, display: "grid", gap: 6 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6 }}>
+                            {[
+                              ["Bearing", relativeAircraftTelemetry ? `${relativeAircraftTelemetry.bearingDeg.toFixed(0)}°` : "—"],
+                              ["Radius", relativeAircraftTelemetry ? `${relativeAircraftTelemetry.distanceFt.toFixed(1)} ft` : "—"],
+                              ["Gimbal", relativeAircraftTelemetry ? `${relativeAircraftTelemetry.cameraAngle.toFixed(0)}°` : "—"],
+                            ].map(([label, value]) => (
+                              <div key={label} style={{ border: `1px solid ${V.line}`, background: "#0D1319", borderRadius: 7, padding: 7 }}>
+                                <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>{label}</div>
+                                <div style={{ color: V.text, fontSize: 11, fontWeight: 900, marginTop: 2 }}>{value}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div style={{ color: telemetryTrusted ? V.green : V.amber, fontSize: 8, lineHeight: 1.45 }}>
+                            {relativeAircraftTelemetry
+                              ? `${relativeAircraftTelemetry.source.toUpperCase()} feed · ${relativeAircraftTelemetry.ageMs} ms old${relativeAircraftTelemetry.stale ? " · STALE — capture locked" : " · LIVE"}`
+                              : "No aircraft telemetry received. Capture is locked in aircraft mode."}
+                          </div>
+                        </div>
+                      )}
                       <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 8 }}>
-                        Manual telemetry/simulator in this build. DJI/controller telemetry will feed these same three values later.
+                        DOMINIC now accepts aircraft latitude/longitude, relative altitude, heading and gimbal pitch through one normalized telemetry model. Device GPS and the simulator exercise the same adapter that a DJI bridge can feed next.
                       </div>
                     </div>
 

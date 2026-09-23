@@ -227,9 +227,6 @@ export default function DominicCapturePlanner() {
   const current = sequence[Math.min(currentIndex, sequence.length - 1)];
   const safetyReady = safetyItems.every((_, index) => safety[index]);
   const capturedCount = sequence.filter((shot) => captured[shot.id]).length;
-  const skippedShots = sequence.filter((shot) => skipped[shot.id]);
-  const outstandingShots = sequence.filter((shot, index) => index < currentIndex && !captured[shot.id] && !skipped[shot.id]);
-  const gaps = [...skippedShots, ...outstandingShots.filter((shot) => !skipped[shot.id])];
   const relativeAircraftTelemetry = useMemo(
     () =>
       aircraftTelemetry

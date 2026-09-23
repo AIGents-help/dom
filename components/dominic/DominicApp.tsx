@@ -34,8 +34,8 @@ import DominicWelcome from "@/components/dominic/DominicWelcome";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
-const DJI_GREY = "#4B535B";
-const BG = DJI_GREY;
+const DJI_GREY = "#171D24";
+const BG = "#0B1015";
 const PANEL = "#10161D";
 const LINE = "#25303B";
 const TEXT = "#F5F7FA";
@@ -168,7 +168,7 @@ export default function DominicApp() {
         style={{
           minHeight: 78,
           borderBottom: `1px solid ${LINE}`,
-          background: DJI_GREY,
+          background: "#171D24",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -261,7 +261,7 @@ export default function DominicApp() {
         <aside
           style={{
             borderRight: `1px solid ${LINE}`,
-            background: DJI_GREY,
+            background: "#171D24",
             padding: sidebarCollapsed ? 10 : 12,
             position: "sticky",
             top: 78,
@@ -427,7 +427,7 @@ export default function DominicApp() {
               border: `1px solid ${LINE}`,
               borderRadius: 14,
               overflow: "hidden",
-              background: `radial-gradient(circle at 50% 0%, rgba(244,90,30,.14), transparent 62%), ${DJI_GREY}`,
+              background: "radial-gradient(circle at 50% 0%, rgba(244,90,30,.14), transparent 62%), #171D24",
               textAlign: "center",
               display: sidebarCollapsed ? "none" : "block",
             }}
@@ -493,18 +493,18 @@ export default function DominicApp() {
             ))}
           </section>
 
-          <section style={{ padding: compactViewport ? "8px 8px 86px" : "12px 14px 18px" }}>
+          <section style={{ padding: activeModule === "Home" ? (compactViewport ? "6px 6px 86px" : "0 0 18px") : (compactViewport ? "8px 8px 86px" : "12px 14px 18px") }}>
             <div
               style={{
                 border: `1px solid ${LINE}`,
-                borderRadius: 12,
+                borderRadius: activeModule === "Home" ? 0 : 12,
                 background: PANEL,
                 minHeight: "calc(100vh - 170px)",
                 boxShadow: "0 24px 80px rgba(0,0,0,.24)",
                 overflow: "hidden",
               }}
             >
-              <div style={{ padding: "12px 14px", color: TEXT, background: "#0B1117", minHeight: 680 }}>
+              <div style={{ padding: activeModule === "Home" ? 0 : "12px 14px", color: TEXT, background: "#0B1117", minHeight: 680 }}>
                 {activeModule === "Home" ? (
                   <DominicWelcome
                     onOpen={(module) => {

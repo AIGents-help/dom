@@ -43,6 +43,11 @@ import { WebSocketFlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
 import { connectFlightBridgeAdapter } from "@/lib/aircraft/bridgeConnect";
 import type { DominicAircraftAdapter, AircraftCapabilities } from "@/lib/aircraft/contract";
 import {
+  deriveFieldOfView,
+  genericWideRgbPayload,
+  type CameraPayloadProfile,
+} from "@/lib/aircraft/payload";
+import {
   assessCoverage,
   buildRepairPlan,
   summarizeCoverageByRing,
@@ -215,9 +220,24 @@ export default function DominicCapturePlanner() {
     model?: string;
     aircraftId: string;
     capabilities: AircraftCapabilities;
+    payloads: CameraPayloadProfile[];
+    activePayloadId?: string;
   } | null>(null);
   const bridgeAdapterRef = useRef<DominicAircraftAdapter | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
+  const activePayload = useMemo(() => {
+    if (!bridgeInfo?.payloads?.length) return genericWideRgbPayload;
+    return (
+      bridgeInfo.payloads.find((payload) => payload.id === bridgeInfo.activePayloadId) ??
+      bridgeInfo.payloads[0]
+    );
+  }, [bridgeInfo]);
+
+  const activePayloadFov = useMemo(
+    () => deriveFieldOfView(activePayload),
+    [activePayload],
+  );
+
 
   const plan = useMemo(
     () => calculateObjectScanPlan({ objectDiameterFt, objectHeightFt, standoffFt, overlapPct, horizontalFovDeg }),
@@ -490,6 +510,8 @@ export default function DominicCapturePlanner() {
         model: hello.model,
         aircraftId: hello.aircraftId,
         capabilities: hello.capabilities,
+        payloads: hello.payloads ?? [],
+        activePayloadId: hello.activePayloadId,
       });
       setTelemetryMode("aircraft");
       setBridgeStatus("connected");
@@ -935,6 +957,25 @@ export default function DominicCapturePlanner() {
                   <div style={{ color: V.green, fontSize: 9, fontWeight: 900 }}>{bridgeInfo.vendor.toUpperCase()} · {bridgeInfo.model ?? bridgeInfo.aircraftId}</div>
                   <div style={{ color: V.muted, fontSize: 8, marginTop: 4, lineHeight: 1.4 }}>
                     {Object.entries(bridgeInfo.capabilities).filter(([, enabled]) => enabled).map(([name]) => name).join(" · ")}
+                  </div>
+                  <div style={{ borderTop: `1px solid rgba(112,214,160,.15)`, marginTop: 8, paddingTop: 7 }}>
+                    <div style={{ color: "#DCE3EA", fontSize: 9, fontWeight: 900 }}>
+                      Payload · {activePayload.name}
+                    </div>
+                    <div style={{ color: V.muted, fontSize: 8, marginTop: 3, lineHeight: 1.4 }}>
+                      {activePayload.kind.toUpperCase()}
+                      {activePayloadFov.horizontalFovDeg ? ` · H-FOV ${activePayloadFov.horizontalFovDeg.toFixed(1)}°` : ""}
+                      {activePayloadFov.verticalFovDeg ? ` · V-FOV ${activePayloadFov.verticalFovDeg.toFixed(1)}°` : ""}
+                    </div>
+                    {activePayloadFov.horizontalFovDeg ? (
+                      <button
+                        type="button"
+                        onClick={() => setHorizontalFovDeg(Number(activePayloadFov.horizontalFovDeg?.toFixed(2)))}
+                        style={{ width: "100%", marginTop: 7, border: `1px solid rgba(244,90,30,.25)`, background: "rgba(244,90,30,.08)", color: "#FFD3C0", borderRadius: 7, padding: "6px 7px", fontSize: 8, fontWeight: 800, cursor: "pointer" }}
+                      >
+                        Use payload FOV for capture geometry
+                      </button>
+                    ) : null}
                   </div>
                 </div>
               ) : null}

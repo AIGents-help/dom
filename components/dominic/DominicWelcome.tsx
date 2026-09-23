@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   Activity,
   ArrowRight,
@@ -94,9 +95,12 @@ function SpriteCrop({ crop, className }: { crop: Crop; className?: string }) {
         background: "#0B1117",
       }}
     >
-      <img
+      <Image
         src={SPRITE}
         alt=""
+        width={SPRITE_W}
+        height={SPRITE_H}
+        unoptimized
         draggable={false}
         style={{
           position: "absolute",

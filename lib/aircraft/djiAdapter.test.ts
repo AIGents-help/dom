@@ -32,7 +32,7 @@ function snapshot(): DjiSdkSnapshot {
 function makeDriver() {
   const calls: string[] = [];
   const listeners = new Set<(state: DjiSdkSnapshot) => void>();
-  let state = snapshot();
+  const state = snapshot();
 
   const driver: DjiSdkDriver = {
     capabilities: {

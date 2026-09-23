@@ -43,6 +43,14 @@ import { WebSocketFlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
 import { connectFlightBridgeAdapter } from "@/lib/aircraft/bridgeConnect";
 import type { DominicAircraftAdapter, AircraftCapabilities } from "@/lib/aircraft/contract";
 import {
+  calculateBuildingPlan,
+  calculateCorridorPlan,
+  calculateFacadePlan,
+  calculateInteriorPlan,
+  calculateRoofPlan,
+  calculateStockpilePlan,
+} from "@/lib/capturePatterns";
+import {
   DominicMissionEngine,
   type MissionExecutionSnapshot,
 } from "@/lib/aircraft/missionEngine";
@@ -184,6 +192,12 @@ export default function DominicCapturePlanner() {
   const [missionArmed, setMissionArmed] = useState(false);
   const [telemetryMode, setTelemetryMode] = useState<"simulator" | "aircraft">("simulator");
   const [aircraftTelemetry, setAircraftTelemetry] = useState<AircraftTelemetry | null>(null);
+  const [patternLengthFt, setPatternLengthFt] = useState(100);
+  const [patternWidthFt, setPatternWidthFt] = useState(60);
+  const [patternHeightFt, setPatternHeightFt] = useState(40);
+  const [patternAltitudeFt, setPatternAltitudeFt] = useState(75);
+  const [patternStandoffFt, setPatternStandoffFt] = useState(30);
+  const [patternOverlapPct, setPatternOverlapPct] = useState(75);
   const [autonomousSnapshot, setAutonomousSnapshot] = useState<MissionExecutionSnapshot | null>(null);
   const [autonomousRunning, setAutonomousRunning] = useState(false);
   const [bridgeUrl, setBridgeUrl] = useState("ws://127.0.0.1:8787");
@@ -486,6 +500,78 @@ export default function DominicCapturePlanner() {
     URL.revokeObjectURL(url);
   };
 
+  const secondaryPlan = useMemo(() => {
+    if (missionType === "object") return null;
+    switch (missionType) {
+      case "roof":
+        return calculateRoofPlan({
+          lengthFt: patternLengthFt,
+          widthFt: patternWidthFt,
+          altitudeFt: patternAltitudeFt,
+          frontOverlapPct: patternOverlapPct,
+          sideOverlapPct: Math.max(40, patternOverlapPct - 5),
+          horizontalFovDeg,
+          verticalFovDeg: 60,
+          includeObliques: true,
+        });
+      case "building":
+        return calculateBuildingPlan({
+          lengthFt: patternLengthFt,
+          widthFt: patternWidthFt,
+          heightFt: patternHeightFt,
+          standoffFt: patternStandoffFt,
+          overlapPct: patternOverlapPct,
+          horizontalFovDeg,
+          verticalFovDeg: 60,
+        });
+      case "facade":
+        return calculateFacadePlan({
+          widthFt: patternWidthFt,
+          heightFt: patternHeightFt,
+          standoffFt: patternStandoffFt,
+          overlapPct: patternOverlapPct,
+          horizontalFovDeg,
+          verticalFovDeg: 60,
+        });
+      case "interior":
+        return calculateInteriorPlan({
+          lengthFt: patternLengthFt,
+          widthFt: patternWidthFt,
+          heightFt: patternHeightFt,
+          wallStandoffFt: Math.min(6, Math.max(2, patternStandoffFt / 5)),
+        });
+      case "stockpile":
+        return calculateStockpilePlan({
+          lengthFt: patternLengthFt,
+          widthFt: patternWidthFt,
+          pileHeightFt: patternHeightFt,
+          altitudeAboveTopFt: patternAltitudeFt,
+          overlapPct: patternOverlapPct,
+          horizontalFovDeg,
+          verticalFovDeg: 60,
+        });
+      case "corridor":
+        return calculateCorridorPlan({
+          lengthFt: patternLengthFt,
+          widthFt: patternWidthFt,
+          altitudeFt: patternAltitudeFt,
+          frontOverlapPct: patternOverlapPct,
+          sideOverlapPct: Math.max(40, patternOverlapPct - 10),
+          horizontalFovDeg,
+          verticalFovDeg: 60,
+        });
+    }
+  }, [
+    missionType,
+    patternLengthFt,
+    patternWidthFt,
+    patternHeightFt,
+    patternAltitudeFt,
+    patternStandoffFt,
+    patternOverlapPct,
+    horizontalFovDeg,
+  ]);
+
   const activeProfile = missionProfiles[missionType];
 
   return (
@@ -538,29 +624,110 @@ export default function DominicCapturePlanner() {
       </div>
 
       {missionType !== "object" ? (
-        <div style={{ padding: 18, display: "grid", gridTemplateColumns: "minmax(0,1.2fr) minmax(280px,.8fr)", gap: 14 }}>
-          <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 18 }}>
-            <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".12em", textTransform: "uppercase" }}>{activeProfile.label}</div>
-            <h2 style={{ margin: "8px 0 6px", fontSize: 22 }}>Manual capture pattern</h2>
-            <p style={{ color: V.muted, fontSize: 12, lineHeight: 1.6, maxWidth: 720 }}>{activeProfile.summary}</p>
-            <div style={{ display: "grid", gap: 9, marginTop: 16 }}>
-              {manualGuidance[missionType as Exclude<CaptureMissionType, "object">].map((item, index) => (
-                <div key={item} style={{ display: "grid", gridTemplateColumns: "28px 1fr", gap: 9, alignItems: "start", border: `1px solid ${V.line}`, borderRadius: 9, padding: 10, background: "#0D1319" }}>
-                  <span style={{ width: 26, height: 26, borderRadius: "50%", background: V.orange, color: "#180A02", display: "grid", placeItems: "center", fontSize: 11, fontWeight: 900 }}>{index + 1}</span>
-                  <span style={{ color: "#DCE3EA", fontSize: 12, lineHeight: 1.5 }}>{item}</span>
-                </div>
-              ))}
-            </div>
-          </section>
-          <aside style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 18 }}>
-            <Target size={25} color={V.orange} />
-            <h3 style={{ margin: "10px 0 6px", fontSize: 16 }}>Shared planning engine</h3>
-            <p style={{ margin: 0, color: V.muted, fontSize: 11, lineHeight: 1.6 }}>
-              This mission type already lives inside the Capture Planner and uses a defined manual capture pattern. Object Scan is the first pattern with full calculated checkpoints, live progress and gap tracking; the same engine will be extended to calculate this pattern geometrically.
-            </p>
+        <div style={{ padding: 18, display: "grid", gridTemplateColumns: "minmax(280px,.75fr) minmax(0,1.25fr)", gap: 14, alignItems: "start" }}>
+          <aside style={{ display: "grid", gap: 12 }}>
+            <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 14 }}>
+              <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".12em", textTransform: "uppercase" }}>{activeProfile.label} geometry</div>
+              <p style={{ color: V.muted, fontSize: 10, lineHeight: 1.5 }}>{activeProfile.summary}</p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <Field label="Length" value={patternLengthFt} min={4} max={20000} suffix="ft" onChange={setPatternLengthFt} />
+                <Field label="Width" value={patternWidthFt} min={4} max={2000} suffix="ft" onChange={setPatternWidthFt} />
+                <Field label="Height" value={patternHeightFt} min={4} max={1000} suffix="ft" onChange={setPatternHeightFt} />
+                <Field label="Altitude" value={patternAltitudeFt} min={8} max={1000} suffix="ft" onChange={setPatternAltitudeFt} />
+                <Field label="Stand-off" value={patternStandoffFt} min={2} max={500} suffix="ft" onChange={setPatternStandoffFt} />
+                <Field label="Overlap" value={patternOverlapPct} min={40} max={95} suffix="%" onChange={setPatternOverlapPct} />
+              </div>
+            </section>
+
+            <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 14 }}>
+              <div style={{ color: V.text, fontSize: 11, fontWeight: 900 }}>Capture logic</div>
+              <div style={{ display: "grid", gap: 7, marginTop: 9 }}>
+                {manualGuidance[missionType as Exclude<CaptureMissionType, "object">].map((item, index) => (
+                  <div key={item} style={{ display: "grid", gridTemplateColumns: "24px 1fr", gap: 7, alignItems: "start", color: "#DCE3EA", fontSize: 10, lineHeight: 1.45 }}>
+                    <span style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(244,90,30,.15)", border: `1px solid rgba(244,90,30,.3)`, color: V.orange, display: "grid", placeItems: "center", fontWeight: 900 }}>{index + 1}</span>
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </section>
           </aside>
-        </div>
-      ) : (
+
+          <main style={{ display: "grid", gap: 12 }}>
+            <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, overflow: "hidden" }}>
+              <div style={{ padding: "12px 14px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                <div>
+                  <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>Calculated capture pattern</div>
+                  <div style={{ color: V.muted, fontSize: 10, marginTop: 3 }}>DOMINIC is generating real checkpoints for this mission type—not just instructions.</div>
+                </div>
+                <div style={{ color: V.green, fontSize: 9, fontWeight: 900 }}>GEOMETRY ACTIVE</div>
+              </div>
+
+              <div style={{ padding: 14, display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8 }}>
+                {[
+                  ["Checkpoints", secondaryPlan?.checkpoints.length ?? 0],
+                  ["Passes", secondaryPlan?.passCount ?? 0],
+                  ["Est. time", `${secondaryPlan?.estimatedMinutes ?? 0} min`],
+                  ["Warnings", secondaryPlan?.warnings.length ?? 0],
+                ].map(([label, value]) => (
+                  <div key={String(label)} style={{ border: `1px solid ${V.line}`, background: "#0D1319", borderRadius: 8, padding: 10 }}>
+                    <div style={{ color: V.muted, fontSize: 8, textTransform: "uppercase" }}>{label}</div>
+                    <div style={{ color: V.text, fontSize: 16, fontWeight: 900, marginTop: 4 }}>{value}</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ padding: "0 14px 14px", display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(220px,.6fr)", gap: 12 }}>
+                <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", minHeight: 310, position: "relative", overflow: "hidden" }}>
+                  <svg viewBox="0 0 100 70" style={{ width: "100%", height: "100%" }} role="img" aria-label={`${activeProfile.label} calculated capture pattern`}>
+                    <rect x="20" y="14" width="60" height="42" rx="2" fill="rgba(244,90,30,.05)" stroke="rgba(244,90,30,.35)" strokeWidth=".6" />
+                    {(secondaryPlan?.checkpoints ?? []).map((point, index, all) => {
+                      const xs = all.map((p) => p.xFt);
+                      const ys = all.map((p) => p.yFt);
+                      const minX = Math.min(...xs, -1), maxX = Math.max(...xs, 1);
+                      const minY = Math.min(...ys, -1), maxY = Math.max(...ys, 1);
+                      const x = 8 + ((point.xFt - minX) / Math.max(1, maxX - minX)) * 84;
+                      const y = 62 - ((point.yFt - minY) / Math.max(1, maxY - minY)) * 54;
+                      const previous = index > 0 ? all[index - 1] : null;
+                      let px = x, py = y;
+                      if (previous) {
+                        px = 8 + ((previous.xFt - minX) / Math.max(1, maxX - minX)) * 84;
+                        py = 62 - ((previous.yFt - minY) / Math.max(1, maxY - minY)) * 54;
+                      }
+                      return (
+                        <g key={point.id}>
+                          {previous ? <line x1={px} y1={py} x2={x} y2={y} stroke="rgba(244,90,30,.28)" strokeWidth=".35" /> : null}
+                          <circle cx={x} cy={y} r=".75" fill={point.cameraAngle <= -80 ? "#F5F7FA" : V.orange} />
+                        </g>
+                      );
+                    })}
+                  </svg>
+                  <div style={{ position: "absolute", left: 10, bottom: 8, color: V.muted, fontSize: 8 }}>
+                    White = nadir · Orange = oblique / horizontal capture
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gap: 8, alignContent: "start" }}>
+                  <div style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: "#0D1319", padding: 10 }}>
+                    <div style={{ color: V.muted, fontSize: 8, textTransform: "uppercase" }}>Pattern metrics</div>
+                    {Object.entries(secondaryPlan?.metrics ?? {}).map(([key, value]) => (
+                      <div key={key} style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, color: "#DCE3EA", fontSize: 9 }}>
+                        <span>{key}</span><strong>{value.toFixed(1)}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  {(secondaryPlan?.warnings ?? []).map((warning) => (
+                    <div key={warning} style={{ border: `1px solid rgba(255,184,107,.22)`, background: "rgba(255,184,107,.05)", color: "#FFD0A0", borderRadius: 8, padding: 9, fontSize: 9, lineHeight: 1.45 }}>
+                      <AlertTriangle size={12} style={{ marginRight: 5, verticalAlign: "text-bottom" }} /> {warning}
+                    </div>
+                  ))}
+                  <div style={{ border: `1px solid rgba(112,214,160,.18)`, background: "rgba(112,214,160,.04)", color: "#BFEBD2", borderRadius: 8, padding: 9, fontSize: 9, lineHeight: 1.45 }}>
+                    This pattern uses the same checkpoint concept as Object Scan and can be georeferenced for manual guidance or passed to the universal mission engine.
+                  </div>
+                </div>
+              </div>
+            </section>
+          </main>
+        </div>      ) : (
         <div style={{ padding: 14, display: "grid", gridTemplateColumns: "minmax(270px,.72fr) minmax(420px,1.5fr) minmax(270px,.78fr)", gap: 12, alignItems: "start" }}>
           <aside style={{ display: "grid", gap: 12 }}>
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>

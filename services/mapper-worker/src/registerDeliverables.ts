@@ -59,26 +59,42 @@ export async function registerDeliverable(
 
   const revisionNumber = previousRevision ? Math.max(2, Number(previousRevision.revision_number ?? 1) + 1) : 1;
 
+  const payload = {
+    job_id: jobId,
+    supersedes_deliverable_id: previousRevision?.id ?? null,
+    revision_number: revisionNumber,
+    name: `${projectName} — ${TYPE_LABEL[output.type]}`,
+    type: output.type,
+    storage_url: location.provider === "supabase" ? location.storagePath : null,
+    storage_provider: location.provider,
+    external_file_id: location.provider === "google_drive" ? location.externalFileId : null,
+    mapping_processing_job_id: processingJobId,
+    ...(potree ? { potree } : {}),
+  };
+
   const { data: registered, error } = await supabaseAdmin
     .from("deliverables")
-    .upsert(
-      {
-        job_id: jobId,
-        supersedes_deliverable_id: previousRevision?.id ?? null,
-        revision_number: revisionNumber,
-        name: `${projectName} — ${TYPE_LABEL[output.type]}`,
-        type: output.type,
-        storage_url: location.provider === "supabase" ? location.storagePath : null,
-        storage_provider: location.provider,
-        external_file_id: location.provider === "google_drive" ? location.externalFileId : null,
-        mapping_processing_job_id: processingJobId,
-        ...(potree ? { potree } : {}),
-      },
-      { onConflict: "mapping_processing_job_id,type", ignoreDuplicates: true }
-    )
+    .insert(payload)
     .select("id, supersedes_deliverable_id")
     .maybeSingle();
-  if (error) throw new Error(`Failed to register deliverable (${output.type}): ${error.message}`);
+
+  if (error) {
+    // Idempotency is enforced by the partial unique index
+    // deliverables_processing_job_type_uidx. PostgREST cannot target a
+    // partial unique index via ON CONFLICT by column list, so an upsert with
+    // onConflict=mapping_processing_job_id,type fails even though the index
+    // exists. Treat a duplicate-key race as success after confirming the row.
+    if (error.code === "23505") {
+      const { data: existing, error: existingError } = await supabaseAdmin
+        .from("deliverables")
+        .select("id")
+        .eq("mapping_processing_job_id", processingJobId)
+        .eq("type", output.type)
+        .maybeSingle();
+      if (existing && !existingError) return;
+    }
+    throw new Error(`Failed to register deliverable (${output.type}): ${error.message}`);
+  }
 
   // Keep the client-requested revision active until its corrected replacement
   // passes QC. Registration only establishes lineage; QC owns the handoff.

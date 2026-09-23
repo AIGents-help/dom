@@ -9,14 +9,20 @@ import {
   ChevronRight,
   CircleDot,
   Crosshair,
+  Download,
+  Gauge,
+  LocateFixed,
   Navigation,
+  Radio,
   RotateCcw,
   ShieldCheck,
   Target,
 } from "lucide-react";
 import {
+  buildAutonomousCheckpoints,
   buildCaptureSequence,
   calculateObjectScanPlan,
+  evaluateCaptureGuidance,
   missionProfiles,
   type CaptureMissionType,
 } from "@/lib/capturePlanner";
@@ -121,6 +127,10 @@ export default function DominicCapturePlanner() {
   const [captured, setCaptured] = useState<Record<string, boolean>>({});
   const [skipped, setSkipped] = useState<Record<string, boolean>>({});
   const [safety, setSafety] = useState<Record<number, boolean>>({});
+  const [telemetryBearingDeg, setTelemetryBearingDeg] = useState(0);
+  const [telemetryDistanceFt, setTelemetryDistanceFt] = useState(24);
+  const [telemetryCameraAngle, setTelemetryCameraAngle] = useState(5);
+  const [guidanceLock, setGuidanceLock] = useState(false);
 
   const plan = useMemo(
     () => calculateObjectScanPlan({ objectDiameterFt, objectHeightFt, standoffFt, overlapPct, horizontalFovDeg }),
@@ -133,6 +143,18 @@ export default function DominicCapturePlanner() {
   const skippedShots = sequence.filter((shot) => skipped[shot.id]);
   const outstandingShots = sequence.filter((shot, index) => index < currentIndex && !captured[shot.id] && !skipped[shot.id]);
   const gaps = [...skippedShots, ...outstandingShots.filter((shot) => !skipped[shot.id])];
+  const guidance = current
+    ? evaluateCaptureGuidance(
+        current,
+        {
+          bearingDeg: telemetryBearingDeg,
+          distanceFt: telemetryDistanceFt,
+          cameraAngle: telemetryCameraAngle,
+        },
+        { bearingDeg: 5, distanceFt: 3, cameraAngle: 4 },
+      )
+    : null;
+  const captureAllowed = safetyReady && (!guidanceLock || Boolean(guidance?.ready));
 
   const resetRun = () => {
     setCurrentIndex(0);
@@ -160,6 +182,37 @@ export default function DominicCapturePlanner() {
       return next;
     });
     setCurrentIndex((index) => Math.min(sequence.length - 1, index + 1));
+  };
+
+  const snapTelemetryToCheckpoint = () => {
+    if (!current) return;
+    setTelemetryBearingDeg(current.bearingDeg);
+    setTelemetryDistanceFt(Number(current.radiusFt.toFixed(1)));
+    setTelemetryCameraAngle(current.cameraAngle);
+  };
+
+  const downloadCheckpointPayload = () => {
+    const payload = {
+      schema: "dominic.capture-plan.v1",
+      missionType: plan.missionType,
+      generatedAt: new Date().toISOString(),
+      object: {
+        diameterFt: objectDiameterFt,
+        heightFt: objectHeightFt,
+        standoffFt,
+      },
+      overlapPct,
+      horizontalFovDeg,
+      safetyConstraints: safetyItems,
+      checkpoints: buildAutonomousCheckpoints(plan),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "dominic-object-scan-checkpoints.json";
+    anchor.click();
+    URL.revokeObjectURL(url);
   };
 
   const activeProfile = missionProfiles[missionType];
@@ -316,9 +369,19 @@ export default function DominicCapturePlanner() {
             </section>
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 900 }}><Navigation size={15} color={V.orange} /> Guided manual run</div>
-                <div style={{ color: V.muted, fontSize: 9 }}>{capturedCount}/{plan.totalShots} captured</div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 900 }}><Navigation size={15} color={V.orange} /> Live guided capture</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ color: V.muted, fontSize: 9 }}>{capturedCount}/{plan.totalShots} captured</div>
+                  <button
+                    type="button"
+                    onClick={downloadCheckpointPayload}
+                    style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 8, padding: "6px 8px", display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 9, fontWeight: 800 }}
+                    title="Export DOMINIC checkpoint payload for future autonomous translation"
+                  >
+                    <Download size={12} /> Export checkpoints
+                  </button>
+                </div>
               </div>
 
               {current ? (
@@ -334,9 +397,60 @@ export default function DominicCapturePlanner() {
                     <Crosshair size={36} color={V.orange} />
                   </div>
 
+                  <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "minmax(210px,.85fr) minmax(0,1.15fr)", gap: 10 }}>
+                    <div style={{ border: `1px solid ${guidance?.ready ? "rgba(112,214,160,.45)" : V.line}`, borderRadius: 10, background: guidance?.ready ? "rgba(112,214,160,.07)" : V.panel, padding: 11 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, color: V.text, fontSize: 10, fontWeight: 900 }}>
+                          <Radio size={13} color={guidance?.ready ? V.green : V.orange} /> Relative telemetry
+                        </div>
+                        <button type="button" onClick={snapTelemetryToCheckpoint} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: "pointer" }}>
+                          Simulate on target
+                        </button>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 7, marginTop: 9 }}>
+                        <Field label="Bearing" value={telemetryBearingDeg} min={0} max={359} suffix="deg" onChange={setTelemetryBearingDeg} />
+                        <Field label="Radius" value={telemetryDistanceFt} min={1} max={500} step={0.5} suffix="ft" onChange={setTelemetryDistanceFt} />
+                        <Field label="Camera" value={telemetryCameraAngle} min={-90} max={30} suffix="deg" onChange={setTelemetryCameraAngle} />
+                      </div>
+                      <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 8 }}>
+                        Manual telemetry/simulator in this build. DJI/controller telemetry will feed these same three values later.
+                      </div>
+                    </div>
+
+                    <div style={{ border: `1px solid ${guidance?.ready ? "rgba(112,214,160,.45)" : "rgba(244,90,30,.25)"}`, borderRadius: 10, background: guidance?.ready ? "rgba(112,214,160,.07)" : "rgba(244,90,30,.05)", padding: 11 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                        <div>
+                          <div style={{ color: guidance?.ready ? V.green : V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>
+                            {guidance?.ready ? "Capture ready" : "Guidance correction"}
+                          </div>
+                          <div style={{ color: V.text, fontSize: 14, fontWeight: 900, marginTop: 4 }}>
+                            {guidance?.instruction ?? "Waiting for checkpoint"}
+                          </div>
+                        </div>
+                        <LocateFixed size={27} color={guidance?.ready ? V.green : V.orange} />
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 6, marginTop: 10 }}>
+                        {[
+                          ["Bearing", guidance?.bearingReady, guidance ? `${Math.abs(guidance.bearingErrorDeg).toFixed(0)}°` : "—"],
+                          ["Distance", guidance?.distanceReady, guidance ? `${Math.abs(guidance.distanceErrorFt).toFixed(1)} ft` : "—"],
+                          ["Camera", guidance?.cameraReady, guidance ? `${Math.abs(guidance.cameraAngleError).toFixed(0)}°` : "—"],
+                        ].map(([label, ready, error]) => (
+                          <div key={String(label)} style={{ border: `1px solid ${ready ? "rgba(112,214,160,.25)" : V.line}`, borderRadius: 8, background: "#0D1319", padding: "7px 8px" }}>
+                            <div style={{ color: V.muted, fontSize: 8, textTransform: "uppercase" }}>{label}</div>
+                            <div style={{ marginTop: 3, color: ready ? V.green : V.amber, fontSize: 11, fontWeight: 900 }}>{ready ? "IN RANGE" : error}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <label style={{ display: "flex", alignItems: "center", gap: 7, color: V.muted, fontSize: 9, marginTop: 9, cursor: "pointer" }}>
+                        <input type="checkbox" checked={guidanceLock} onChange={(event) => setGuidanceLock(event.target.checked)} />
+                        Guidance lock: require position/camera tolerance before capture confirmation.
+                      </label>
+                    </div>
+                  </div>
+
                   <div style={{ display: "grid", gridTemplateColumns: "auto auto 1fr auto auto", gap: 7, alignItems: "center", marginTop: 12 }}>
                     <button type="button" onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 8, width: 36, height: 36, display: "grid", placeItems: "center", cursor: "pointer" }}><ChevronLeft size={16} /></button>
-                    <button type="button" disabled={!safetyReady} onClick={markCaptured} style={{ border: "none", background: safetyReady ? `linear-gradient(90deg,${V.orangeDark},${V.orange})` : "#39424B", color: safetyReady ? "#180A02" : "#88939E", borderRadius: 8, padding: "10px 13px", fontWeight: 900, cursor: safetyReady ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: 6 }}><Check size={15} /> Captured</button>
+                    <button type="button" disabled={!captureAllowed} onClick={markCaptured} style={{ border: "none", background: captureAllowed ? `linear-gradient(90deg,${V.orangeDark},${V.orange})` : "#39424B", color: captureAllowed ? "#180A02" : "#88939E", borderRadius: 8, padding: "10px 13px", fontWeight: 900, cursor: captureAllowed ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: 6 }}><Check size={15} /> Captured</button>
                     <div style={{ height: 5, background: "#222C35", borderRadius: 99, overflow: "hidden" }}><div style={{ width: `${Math.round((capturedCount / plan.totalShots) * 100)}%`, height: "100%", background: V.orange }} /></div>
                     <button type="button" disabled={!safetyReady} onClick={markSkipped} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.amber, borderRadius: 8, padding: "9px 10px", fontSize: 10, fontWeight: 800, cursor: safetyReady ? "pointer" : "not-allowed" }}>Skip / gap</button>
                     <button type="button" onClick={() => setCurrentIndex((index) => Math.min(sequence.length - 1, index + 1))} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 8, width: 36, height: 36, display: "grid", placeItems: "center", cursor: "pointer" }}><ChevronRight size={16} /></button>
@@ -383,10 +497,13 @@ export default function DominicCapturePlanner() {
             </section>
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: "rgba(244,90,30,.07)", padding: 13 }}>
-              <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>Autonomy-ready structure</div>
-              <p style={{ color: "#C9D2DA", fontSize: 10, lineHeight: 1.55, marginBottom: 0 }}>
-                Each frame already has ring, bearing, radius and camera-angle metadata. The later DJI layer can translate those checkpoints into aircraft positions, gimbal commands, triggers and safety actions instead of inventing a second planner.
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}><Gauge size={12} /> Autonomy-ready structure</div>
+              <p style={{ color: "#C9D2DA", fontSize: 10, lineHeight: 1.55, marginBottom: 8 }}>
+                Manual guidance and future autonomous flight now share the exact same checkpoint list. Every point contains ring, sequence, bearing, radius, altitude ratio, gimbal angle and capture action.
               </p>
+              <button type="button" onClick={downloadCheckpointPayload} style={{ width: "100%", border: `1px solid rgba(244,90,30,.28)`, background: "rgba(244,90,30,.08)", color: "#FFD3C0", borderRadius: 8, padding: "8px 9px", fontSize: 9, fontWeight: 800, cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: 6 }}>
+                <Download size={12} /> Download waypoint payload
+              </button>
             </section>
           </aside>
         </div>

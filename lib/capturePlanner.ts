@@ -16,6 +16,42 @@ export type CaptureRing = {
   radiusFt: number;
 };
 
+
+
+export type CaptureTelemetry = {
+  bearingDeg: number;
+  distanceFt: number;
+  cameraAngle: number;
+};
+
+export type CaptureTolerance = {
+  bearingDeg: number;
+  distanceFt: number;
+  cameraAngle: number;
+};
+
+export type CaptureGuidance = {
+  bearingErrorDeg: number;
+  distanceErrorFt: number;
+  cameraAngleError: number;
+  bearingReady: boolean;
+  distanceReady: boolean;
+  cameraReady: boolean;
+  ready: boolean;
+  instruction: string;
+};
+
+export type AutonomousCheckpoint = {
+  id: string;
+  sequence: number;
+  ringId: CaptureRing["id"];
+  bearingDeg: number;
+  radiusFt: number;
+  cameraAngle: number;
+  altitudeRatio: number;
+  action: "capture_photo";
+};
+
 export type CapturePlan = {
   missionType: CaptureMissionType;
   rings: CaptureRing[];
@@ -141,6 +177,81 @@ export function buildCaptureSequence(plan: CapturePlan) {
       radiusFt: ring.radiusFt,
     })),
   );
+}
+
+
+export function signedAngularDelta(targetDeg: number, actualDeg: number) {
+  const target = normalizeDegrees(targetDeg);
+  const actual = normalizeDegrees(actualDeg);
+  return ((target - actual + 540) % 360) - 180;
+}
+
+export function evaluateCaptureGuidance(
+  checkpoint: ReturnType<typeof buildCaptureSequence>[number],
+  telemetry: CaptureTelemetry,
+  tolerance: CaptureTolerance = { bearingDeg: 5, distanceFt: 3, cameraAngle: 4 },
+): CaptureGuidance {
+  const bearingErrorDeg = signedAngularDelta(checkpoint.bearingDeg, telemetry.bearingDeg);
+  const distanceErrorFt = checkpoint.radiusFt - telemetry.distanceFt;
+  const cameraAngleError = checkpoint.cameraAngle - telemetry.cameraAngle;
+
+  const bearingReady = Math.abs(bearingErrorDeg) <= tolerance.bearingDeg;
+  const distanceReady = Math.abs(distanceErrorFt) <= tolerance.distanceFt;
+  const cameraReady = Math.abs(cameraAngleError) <= tolerance.cameraAngle;
+  const ready = bearingReady && distanceReady && cameraReady;
+
+  const instructions: string[] = [];
+  if (!bearingReady) {
+    instructions.push(
+      bearingErrorDeg > 0
+        ? `move clockwise ${Math.abs(Math.round(bearingErrorDeg))}°`
+        : `move counter-clockwise ${Math.abs(Math.round(bearingErrorDeg))}°`,
+    );
+  }
+  if (!distanceReady) {
+    instructions.push(
+      distanceErrorFt > 0
+        ? `move out ${Math.abs(distanceErrorFt).toFixed(1)} ft`
+        : `move in ${Math.abs(distanceErrorFt).toFixed(1)} ft`,
+    );
+  }
+  if (!cameraReady) {
+    instructions.push(
+      cameraAngleError > 0
+        ? `tilt camera up ${Math.abs(Math.round(cameraAngleError))}°`
+        : `tilt camera down ${Math.abs(Math.round(cameraAngleError))}°`,
+    );
+  }
+
+  return {
+    bearingErrorDeg,
+    distanceErrorFt,
+    cameraAngleError,
+    bearingReady,
+    distanceReady,
+    cameraReady,
+    ready,
+    instruction: ready ? "Hold position and capture." : instructions.join(" · "),
+  };
+}
+
+export function buildAutonomousCheckpoints(plan: CapturePlan): AutonomousCheckpoint[] {
+  const ringById = new Map(plan.rings.map((ring) => [ring.id, ring]));
+  return buildCaptureSequence(plan).map((checkpoint, index) => ({
+    id: checkpoint.id,
+    sequence: index + 1,
+    ringId: checkpoint.ringId,
+    bearingDeg: checkpoint.bearingDeg,
+    radiusFt: checkpoint.radiusFt,
+    cameraAngle: checkpoint.cameraAngle,
+    altitudeRatio: ringById.get(checkpoint.ringId)?.altitudeRatio ?? 0,
+    action: "capture_photo",
+  }));
+}
+
+function normalizeDegrees(value: number) {
+  const normalized = value % 360;
+  return normalized < 0 ? normalized + 360 : normalized;
 }
 
 function clamp(value: number, min: number, max: number) {

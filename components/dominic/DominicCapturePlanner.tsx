@@ -210,6 +210,18 @@ export default function DominicCapturePlanner() {
   const [autonomousMode, setAutonomousMode] = useState<"full" | "repair">("full");
   const [lastFlightRunId, setLastFlightRunId] = useState<string | null>(null);
   const [flightAuditStatus, setFlightAuditStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [recentFlightRuns, setRecentFlightRuns] = useState<Array<{
+    id: string;
+    mission_type: string;
+    status: string;
+    aircraft_vendor?: string | null;
+    aircraft_model?: string | null;
+    coverage_summary?: { coveragePct?: number };
+    started_at?: string | null;
+    completed_at?: string | null;
+    created_at: string;
+  }>>([]);
+  const [flightHistoryLoading, setFlightHistoryLoading] = useState(false);
   const [bridgeUrl, setBridgeUrl] = useState("ws://127.0.0.1:8787");
   const [bridgeStatus, setBridgeStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
   const [bridgeError, setBridgeError] = useState<string | null>(null);
@@ -516,6 +528,22 @@ export default function DominicCapturePlanner() {
   const pilotAccessToken = async () => {
     const { data } = await getSupabaseBrowser().auth.getSession();
     return data.session?.access_token ?? "";
+  };
+
+  const loadRecentFlightRuns = async () => {
+    setFlightHistoryLoading(true);
+    try {
+      const token = await pilotAccessToken();
+      if (!token) return;
+      const response = await fetch("/api/pilot/dominic/flights?limit=8", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      const body = await response.json();
+      setRecentFlightRuns(Array.isArray(body?.runs) ? body.runs : []);
+    } finally {
+      setFlightHistoryLoading(false);
+    }
   };
 
   const startFlightAudit = async (input: {
@@ -1440,6 +1468,40 @@ export default function DominicCapturePlanner() {
                   </div>
                 </>
               ) : null}
+            </section>
+
+            <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div>
+                  <div style={{ color: V.text, fontSize: 12, fontWeight: 900 }}>Flight audit history</div>
+                  <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>Persistent DOMINIC execution records</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={loadRecentFlightRuns}
+                  disabled={flightHistoryLoading}
+                  style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: flightHistoryLoading ? "not-allowed" : "pointer" }}
+                >
+                  {flightHistoryLoading ? "Loading..." : "Refresh"}
+                </button>
+              </div>
+              <div style={{ display: "grid", gap: 6, marginTop: 9 }}>
+                {recentFlightRuns.length ? recentFlightRuns.map((run) => (
+                  <div key={run.id} style={{ border: `1px solid ${V.line}`, background: "#0D1319", borderRadius: 8, padding: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                      <strong style={{ color: V.text, fontSize: 9 }}>{run.mission_type.toUpperCase()} · {run.aircraft_model ?? run.aircraft_vendor ?? "Aircraft"}</strong>
+                      <span style={{ color: run.status === "complete" ? V.green : run.status === "failed" ? "#FF8B7A" : V.amber, fontSize: 7, fontWeight: 900, textTransform: "uppercase" }}>{run.status}</span>
+                    </div>
+                    <div style={{ color: V.muted, fontSize: 8, marginTop: 4 }}>
+                      {new Date(run.started_at ?? run.created_at).toLocaleString()}
+                      {typeof run.coverage_summary?.coveragePct === "number" ? ` · coverage ${run.coverage_summary.coveragePct}%` : ""}
+                    </div>
+                    <div style={{ color: "#66727D", fontSize: 7, marginTop: 3, fontFamily: "monospace" }}>{run.id}</div>
+                  </div>
+                )) : (
+                  <div style={{ color: V.muted, fontSize: 9, lineHeight: 1.45 }}>Refresh to load your recent persisted DOMINIC flight records.</div>
+                )}
+              </div>
             </section>
 
             <section style={{ border: `1px solid ${adaptiveCoverage.missing ? "rgba(255,184,107,.28)" : "rgba(112,214,160,.22)"}`, borderRadius: 12, background: V.panel, padding: 13 }}>

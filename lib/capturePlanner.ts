@@ -451,6 +451,34 @@ export function validateMissionCalibration(input: {
   };
 }
 
+
+export function bearingAndDistanceBetween(input: {
+  fromLatitude: number;
+  fromLongitude: number;
+  toLatitude: number;
+  toLongitude: number;
+}) {
+  const earthRadiusM = 6378137;
+  const lat1 = (input.fromLatitude * Math.PI) / 180;
+  const lat2 = (input.toLatitude * Math.PI) / 180;
+  const dLat = ((input.toLatitude - input.fromLatitude) * Math.PI) / 180;
+  const dLon = ((input.toLongitude - input.fromLongitude) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2;
+  const centralAngle = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const distanceFt = earthRadiusM * centralAngle / 0.3048;
+
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  const bearingDeg = normalizeDegrees((Math.atan2(y, x) * 180) / Math.PI);
+
+  return { bearingDeg, distanceFt };
+}
+
 function normalizeDegrees(value: number) {
   const normalized = value % 360;
   return normalized < 0 ? normalized + 360 : normalized;

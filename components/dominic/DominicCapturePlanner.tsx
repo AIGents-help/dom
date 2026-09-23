@@ -11,9 +11,13 @@ import {
   Crosshair,
   Download,
   Gauge,
+  Home,
   LocateFixed,
   MapPinned,
   Navigation,
+  Play,
+  Plus,
+  Trash2,
   Radio,
   RotateCcw,
   ShieldCheck,
@@ -26,7 +30,9 @@ import {
   calculateObjectScanPlan,
   evaluateCaptureGuidance,
   missionProfiles,
+  validateMissionCalibration,
   type CaptureMissionType,
+  type NoFlySector,
 } from "@/lib/capturePlanner";
 
 const V = {
@@ -136,6 +142,14 @@ export default function DominicCapturePlanner() {
   const [centerLatitude, setCenterLatitude] = useState(39.95);
   const [centerLongitude, setCenterLongitude] = useState(-75.16);
   const [baseRelativeAltitudeFt, setBaseRelativeAltitudeFt] = useState(0);
+  const [homeLatitude, setHomeLatitude] = useState(39.9501);
+  const [homeLongitude, setHomeLongitude] = useState(-75.1601);
+  const [minRelativeAltitudeFt, setMinRelativeAltitudeFt] = useState(0);
+  const [maxRelativeAltitudeFt, setMaxRelativeAltitudeFt] = useState(120);
+  const [minStandoffFt, setMinStandoffFt] = useState(10);
+  const [maxStandoffFt, setMaxStandoffFt] = useState(80);
+  const [noFlySectors, setNoFlySectors] = useState<NoFlySector[]>([]);
+  const [missionArmed, setMissionArmed] = useState(false);
 
   const plan = useMemo(
     () => calculateObjectScanPlan({ objectDiameterFt, objectHeightFt, standoffFt, overlapPct, horizontalFovDeg }),
@@ -159,7 +173,26 @@ export default function DominicCapturePlanner() {
         { bearingDeg: 5, distanceFt: 3, cameraAngle: 4 },
       )
     : null;
-  const captureAllowed = safetyReady && (!guidanceLock || Boolean(guidance?.ready));
+  const calibration = useMemo(
+    () => ({
+      homeLatitude,
+      homeLongitude,
+      minRelativeAltitudeFt,
+      maxRelativeAltitudeFt,
+      minStandoffFt,
+      maxStandoffFt,
+      noFlySectors,
+    }),
+    [
+      homeLatitude,
+      homeLongitude,
+      minRelativeAltitudeFt,
+      maxRelativeAltitudeFt,
+      minStandoffFt,
+      maxStandoffFt,
+      noFlySectors,
+    ],
+  );
 
   const resetRun = () => {
     setCurrentIndex(0);
@@ -208,6 +241,38 @@ export default function DominicCapturePlanner() {
     [plan, centerLatitude, centerLongitude, objectHeightFt, baseRelativeAltitudeFt],
   );
 
+  const calibrationValidation = useMemo(
+    () => validateMissionCalibration({ checkpoints: geographicCheckpoints, calibration }),
+    [geographicCheckpoints, calibration],
+  );
+  const preflightReady = safetyReady && calibrationValidation.ready;
+  const captureAllowed = missionArmed && preflightReady && (!guidanceLock || Boolean(guidance?.ready));
+
+  const addNoFlySector = () => {
+    setMissionArmed(false);
+    setNoFlySectors((current) => [
+      ...current,
+      {
+        id: `sector-${current.length + 1}`,
+        label: `No-fly sector ${current.length + 1}`,
+        startBearingDeg: 0,
+        endBearingDeg: 20,
+      },
+    ]);
+  };
+
+  const updateNoFlySector = (id: string, patch: Partial<NoFlySector>) => {
+    setMissionArmed(false);
+    setNoFlySectors((current) =>
+      current.map((sector) => (sector.id === id ? { ...sector, ...patch } : sector)),
+    );
+  };
+
+  const removeNoFlySector = (id: string) => {
+    setMissionArmed(false);
+    setNoFlySectors((current) => current.filter((sector) => sector.id !== id));
+  };
+
   const downloadCheckpointPayload = () => {
     const payload = {
       schema: "dominic.capture-plan.v1",
@@ -228,6 +293,8 @@ export default function DominicCapturePlanner() {
       },
       checkpoints: buildAutonomousCheckpoints(plan),
       geographicCheckpoints,
+      calibration,
+      calibrationValidation,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -348,6 +415,58 @@ export default function DominicCapturePlanner() {
             </section>
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.text, fontSize: 12, fontWeight: 900 }}>
+                  <Home size={16} color={V.orange} /> Mission calibration
+                </div>
+                <span style={{ color: calibrationValidation.ready ? V.green : V.amber, fontSize: 8, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
+                  {calibrationValidation.ready ? "Geometry clear" : "Action required"}
+                </span>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+                <Field label="Home latitude" value={homeLatitude} min={-90} max={90} step={0.000001} onChange={(value) => { setMissionArmed(false); setHomeLatitude(value); }} />
+                <Field label="Home longitude" value={homeLongitude} min={-180} max={180} step={0.000001} onChange={(value) => { setMissionArmed(false); setHomeLongitude(value); }} />
+                <Field label="Min altitude" value={minRelativeAltitudeFt} min={-200} max={2000} suffix="ft" onChange={(value) => { setMissionArmed(false); setMinRelativeAltitudeFt(value); }} />
+                <Field label="Max altitude" value={maxRelativeAltitudeFt} min={0} max={2000} suffix="ft" onChange={(value) => { setMissionArmed(false); setMaxRelativeAltitudeFt(value); }} />
+                <Field label="Min stand-off" value={minStandoffFt} min={1} max={500} suffix="ft" onChange={(value) => { setMissionArmed(false); setMinStandoffFt(value); }} />
+                <Field label="Max stand-off" value={maxStandoffFt} min={1} max={1000} suffix="ft" onChange={(value) => { setMissionArmed(false); setMaxStandoffFt(value); }} />
+              </div>
+
+              <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 12, paddingTop: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                  <div style={{ color: V.muted, fontSize: 9, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>Obstacle / no-fly sectors</div>
+                  <button type="button" onClick={addNoFlySector} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "5px 7px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 8 }}>
+                    <Plus size={11} /> Add sector
+                  </button>
+                </div>
+
+                <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+                  {noFlySectors.length ? noFlySectors.map((sector) => (
+                    <div key={sector.id} style={{ border: `1px solid rgba(255,184,107,.2)`, borderRadius: 8, background: "rgba(255,184,107,.04)", padding: 8 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 6 }}>
+                        <input
+                          value={sector.label}
+                          onChange={(event) => updateNoFlySector(sector.id, { label: event.target.value })}
+                          style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 6, padding: "6px 7px", fontSize: 9 }}
+                        />
+                        <button type="button" onClick={() => removeNoFlySector(sector.id)} aria-label={`Remove ${sector.label}`} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: "#FF8B7A", borderRadius: 6, width: 30, cursor: "pointer", display: "grid", placeItems: "center" }}>
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 7 }}>
+                        <Field label="Start bearing" value={sector.startBearingDeg} min={0} max={359} suffix="deg" onChange={(value) => updateNoFlySector(sector.id, { startBearingDeg: value })} />
+                        <Field label="End bearing" value={sector.endBearingDeg} min={0} max={359} suffix="deg" onChange={(value) => updateNoFlySector(sector.id, { endBearingDeg: value })} />
+                      </div>
+                    </div>
+                  )) : (
+                    <div style={{ color: V.muted, fontSize: 9, lineHeight: 1.45 }}>No blocked sectors defined. Add sectors for roads, wires, structures, people, or any direction the planned orbit must not enter.</div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.text, fontSize: 12, fontWeight: 900 }}><ShieldCheck size={16} color={V.orange} /> Safety gate</div>
               <div style={{ display: "grid", gap: 8, marginTop: 11 }}>
                 {safetyItems.map((item, index) => (
@@ -424,6 +543,51 @@ export default function DominicCapturePlanner() {
                     <Download size={12} /> Export checkpoints
                   </button>
                 </div>
+              </div>
+
+              <div style={{ marginTop: 11, border: `1px solid ${preflightReady ? "rgba(112,214,160,.35)" : "rgba(255,184,107,.28)"}`, borderRadius: 10, background: preflightReady ? "rgba(112,214,160,.05)" : "rgba(255,184,107,.05)", padding: 11 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ color: preflightReady ? V.green : V.amber, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
+                      {missionArmed ? "Guided capture armed" : preflightReady ? "Preflight ready" : "Preflight blocked"}
+                    </div>
+                    <div style={{ color: V.muted, fontSize: 9, marginTop: 3 }}>
+                      {preflightReady
+                        ? "Safety acknowledgements and calibration constraints are clear."
+                        : "Resolve safety acknowledgements and calibration blockers before starting."}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!preflightReady}
+                    onClick={() => setMissionArmed((value) => !value)}
+                    style={{
+                      border: 0,
+                      background: preflightReady ? (missionArmed ? "#23312C" : `linear-gradient(90deg,${V.orangeDark},${V.orange})`) : "#39424B",
+                      color: preflightReady ? (missionArmed ? V.green : "#180A02") : "#88939E",
+                      borderRadius: 8,
+                      padding: "9px 11px",
+                      fontWeight: 900,
+                      cursor: preflightReady ? "pointer" : "not-allowed",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      fontSize: 10,
+                    }}
+                  >
+                    <Play size={13} /> {missionArmed ? "Disarm capture" : "Start Guided Capture"}
+                  </button>
+                </div>
+
+                {calibrationValidation.issues.length ? (
+                  <div style={{ display: "grid", gap: 5, marginTop: 8 }}>
+                    {calibrationValidation.issues.map((issue) => (
+                      <div key={issue.code} style={{ color: issue.severity === "blocker" ? "#FFB6AA" : "#FFD0A0", fontSize: 9, lineHeight: 1.4 }}>
+                        {issue.severity === "blocker" ? "BLOCKER" : "WARNING"} · {issue.message}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
 
               {current ? (

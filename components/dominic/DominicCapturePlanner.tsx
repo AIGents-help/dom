@@ -24,6 +24,7 @@ import {
   Target,
 } from "lucide-react";
 import {
+  bearingAndDistanceBetween,
   buildAutonomousCheckpoints,
   buildCaptureSequence,
   buildGeographicCheckpoints,
@@ -122,6 +123,26 @@ function Field({
       </div>
     </label>
   );
+}
+
+
+function polarPoint(bearingDeg: number, radius: number) {
+  const radians = ((bearingDeg - 90) * Math.PI) / 180;
+  return {
+    x: 50 + Math.cos(radians) * radius,
+    y: 50 + Math.sin(radians) * radius,
+  };
+}
+
+function sectorPath(startBearingDeg: number, endBearingDeg: number, radius = 46) {
+  const start = ((startBearingDeg % 360) + 360) % 360;
+  const end = ((endBearingDeg % 360) + 360) % 360;
+  const delta = (end - start + 360) % 360;
+  if (delta === 0) return "";
+  const startPoint = polarPoint(start, radius);
+  const endPoint = polarPoint(end, radius);
+  const largeArc = delta > 180 ? 1 : 0;
+  return `M 50 50 L ${startPoint.x.toFixed(3)} ${startPoint.y.toFixed(3)} A ${radius} ${radius} 0 ${largeArc} 1 ${endPoint.x.toFixed(3)} ${endPoint.y.toFixed(3)} Z`;
 }
 
 export default function DominicCapturePlanner() {
@@ -239,6 +260,17 @@ export default function DominicCapturePlanner() {
         baseRelativeAltitudeFt,
       }),
     [plan, centerLatitude, centerLongitude, objectHeightFt, baseRelativeAltitudeFt],
+  );
+
+  const homeVector = useMemo(
+    () =>
+      bearingAndDistanceBetween({
+        fromLatitude: centerLatitude,
+        fromLongitude: centerLongitude,
+        toLatitude: homeLatitude,
+        toLongitude: homeLongitude,
+      }),
+    [centerLatitude, centerLongitude, homeLatitude, homeLongitude],
   );
 
   const calibrationValidation = useMemo(
@@ -483,6 +515,74 @@ export default function DominicCapturePlanner() {
           </aside>
 
           <main style={{ display: "grid", gap: 12 }}>
+            <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, overflow: "hidden" }}>
+              <div style={{ padding: "11px 13px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>Preflight flight envelope</div>
+                  <div style={{ color: V.muted, fontSize: 10, marginTop: 3 }}>Subject center, three capture rings, home direction and blocked sectors.</div>
+                </div>
+                <div style={{ color: preflightReady ? V.green : V.amber, fontSize: 9, fontWeight: 900 }}>
+                  {preflightReady ? "PREFLIGHT CLEAR" : "PREFLIGHT BLOCKED"}
+                </div>
+              </div>
+
+              <div style={{ minHeight: 330, display: "grid", placeItems: "center", background: "radial-gradient(circle at center, rgba(244,90,30,.08), transparent 63%)", position: "relative" }}>
+                <svg viewBox="0 0 100 100" role="img" aria-label="DOMINIC object scan preflight flight envelope" style={{ width: "min(92%, 440px)", height: "auto", overflow: "visible" }}>
+                  <circle cx="50" cy="50" r="46" fill="none" stroke="#26313A" strokeWidth="0.7" />
+                  {noFlySectors.map((sector) => (
+                    <path key={sector.id} d={sectorPath(sector.startBearingDeg, sector.endBearingDeg)} fill="rgba(255,107,91,.18)" stroke="rgba(255,139,122,.6)" strokeWidth="0.45" />
+                  ))}
+                  {[36, 29, 22].map((radius, index) => (
+                    <circle
+                      key={radius}
+                      cx="50"
+                      cy="50"
+                      r={radius}
+                      fill="none"
+                      stroke={index === 1 ? V.orange : "#66727D"}
+                      strokeWidth={index === 1 ? 1.1 : 0.65}
+                      strokeDasharray={index === 1 ? undefined : "2.4 2.4"}
+                    />
+                  ))}
+                  {sequence.filter((_, index) => index % Math.max(1, Math.floor(sequence.length / 72)) === 0).map((shot) => {
+                    const ringIndex = shot.ringId === "low" ? 2 : shot.ringId === "mid" ? 1 : 0;
+                    const radius = [36, 29, 22][ringIndex];
+                    const point = polarPoint(shot.bearingDeg, radius);
+                    const blocked = noFlySectors.some((sector) => {
+                      const start = ((sector.startBearingDeg % 360) + 360) % 360;
+                      const end = ((sector.endBearingDeg % 360) + 360) % 360;
+                      const bearing = ((shot.bearingDeg % 360) + 360) % 360;
+                      return start < end ? bearing >= start && bearing <= end : start > end ? bearing >= start || bearing <= end : false;
+                    });
+                    return <circle key={shot.id} cx={point.x} cy={point.y} r="0.75" fill={blocked ? "#FF8B7A" : "#F5F7FA"} opacity={blocked ? .95 : .72} />;
+                  })}
+                  <circle cx="50" cy="50" r="5.2" fill="#1C252D" stroke={V.orange} strokeWidth="0.8" />
+                  <circle cx="50" cy="50" r="1.2" fill={V.orange} />
+                  {(() => {
+                    const orbitRadiusFt = Math.max(plan.rings[0]?.radiusFt ?? 1, 1);
+                    const displayRadius = Math.min(45, Math.max(8, (homeVector.distanceFt / (orbitRadiusFt * 1.65)) * 36));
+                    const home = polarPoint(homeVector.bearingDeg, displayRadius);
+                    return (
+                      <>
+                        <line x1="50" y1="50" x2={home.x} y2={home.y} stroke="rgba(112,214,160,.55)" strokeWidth="0.5" strokeDasharray="1.5 1.5" />
+                        <circle cx={home.x} cy={home.y} r="2.2" fill={V.green} stroke="#0B1117" strokeWidth="0.8" />
+                      </>
+                    );
+                  })()}
+                  <text x="50" y="3.8" textAnchor="middle" fill="#8F9CAA" fontSize="3">N</text>
+                  <text x="96" y="51" textAnchor="middle" fill="#8F9CAA" fontSize="3">E</text>
+                  <text x="50" y="99" textAnchor="middle" fill="#8F9CAA" fontSize="3">S</text>
+                  <text x="4" y="51" textAnchor="middle" fill="#8F9CAA" fontSize="3">W</text>
+                </svg>
+
+                <div style={{ position: "absolute", left: 13, bottom: 11, display: "grid", gap: 4, color: V.muted, fontSize: 9 }}>
+                  <div><span style={{ color: V.green }}>●</span> Home · {homeVector.distanceFt.toFixed(0)} ft · {homeVector.bearingDeg.toFixed(0)}°</div>
+                  <div><span style={{ color: V.orange }}>○</span> Planned capture rings · {plan.totalShots} frames</div>
+                  <div><span style={{ color: "#FF8B7A" }}>◢</span> Blocked sectors · {noFlySectors.length}</div>
+                </div>
+              </div>
+            </section>
+
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, overflow: "hidden" }}>
               <div style={{ padding: "11px 13px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
                 <div>

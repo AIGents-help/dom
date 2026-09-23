@@ -22,7 +22,18 @@ const LINE = "#2A3540";
 const TEXT = "#F5F7FA";
 const MUTED = "#96A2AE";
 
-const modules = [
+type DominicModuleCard = {
+  module: "Capture Planner" | "Projects" | "DOMINIC HUB" | "Live Flight" | "AR View" | "AI Copilot";
+  title: string;
+  description: string;
+  icon: typeof Crosshair;
+  badge?: string;
+  priority?: boolean;
+  image: string;
+  kind: "capture" | "mapping" | "hub" | "live" | "ar" | "ai";
+};
+
+const modules: DominicModuleCard[] = [
   {
     module: "Capture Planner",
     title: "Capture Planner",
@@ -77,9 +88,9 @@ const modules = [
     image: "/brand/dominic-home-kneeling.webp",
     kind: "ai",
   },
-] as const;
+];
 
-function CardVisual({ item }: { item: (typeof modules)[number] }) {
+function CardVisual({ item }: { item: DominicModuleCard }) {
   return (
     <div style={{ position: "relative", height: 122, overflow: "hidden", borderBottom: "1px solid " + LINE, background: "#0B1117" }}>
       <Image

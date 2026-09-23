@@ -68,11 +68,28 @@ async function createTusUpload(bucketName: string, objectName: string, size: num
   return new URL(location, storageEndpoint()).toString();
 }
 
+async function getTusOffset(uploadUrl: string): Promise<number> {
+  const response = await fetch(uploadUrl, {
+    method: "HEAD",
+    headers: tusHeaders(),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(`TUS HEAD failed (${response.status}): ${body || response.statusText}`);
+  }
+  const offset = Number(response.headers.get("upload-offset"));
+  if (!Number.isFinite(offset)) throw new Error("TUS HEAD did not return a valid Upload-Offset.");
+  return offset;
+}
+
 async function patchChunk(uploadUrl: string, chunk: Buffer, offset: number): Promise<number> {
   let lastError: unknown;
+  const expectedEnd = offset + chunk.byteLength;
+
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
     const delay = RETRY_DELAYS_MS[attempt];
     if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+
     try {
       const response = await fetch(uploadUrl, {
         method: "PATCH",
@@ -84,16 +101,54 @@ async function patchChunk(uploadUrl: string, chunk: Buffer, offset: number): Pro
         },
         body: chunk,
       });
-      if (!response.ok) {
-        const body = await response.text().catch(() => "");
-        throw new Error(`TUS chunk failed (${response.status}): ${body || response.statusText}`);
+
+      if (response.ok) {
+        const next = Number(response.headers.get("upload-offset"));
+        return Number.isFinite(next) ? next : expectedEnd;
       }
-      const next = Number(response.headers.get("upload-offset"));
-      return Number.isFinite(next) ? next : offset + chunk.byteLength;
+
+      const body = await response.text().catch(() => "");
+      if (response.status === 409) {
+        const serverOffset = await getTusOffset(uploadUrl);
+        console.warn(
+          `[uploadOutput] TUS offset conflict at ${offset}; server reports ${serverOffset}. Resynchronizing.`
+        );
+        if (serverOffset > offset) {
+          if (serverOffset > expectedEnd) {
+            throw new Error(
+              `TUS server offset ${serverOffset} advanced beyond current chunk end ${expectedEnd}.`
+            );
+          }
+          return serverOffset;
+        }
+      }
+
+      throw new Error(`TUS chunk failed (${response.status}): ${body || response.statusText}`);
     } catch (error) {
       lastError = error;
+
+      // A network failure can happen after the server has already committed
+      // the chunk but before the client receives the response. Ask the TUS
+      // server for its authoritative offset before retrying the same bytes.
+      try {
+        const serverOffset = await getTusOffset(uploadUrl);
+        if (serverOffset > offset) {
+          if (serverOffset > expectedEnd) {
+            throw new Error(
+              `TUS server offset ${serverOffset} advanced beyond current chunk end ${expectedEnd}.`
+            );
+          }
+          console.warn(
+            `[uploadOutput] TUS request failed but server advanced to ${serverOffset}; continuing from server offset.`
+          );
+          return serverOffset;
+        }
+      } catch {
+        // Keep the original failure as the retry reason.
+      }
     }
   }
+
   throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }
 

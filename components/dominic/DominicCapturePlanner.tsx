@@ -12,6 +12,7 @@ import {
   Download,
   Gauge,
   LocateFixed,
+  MapPinned,
   Navigation,
   Radio,
   RotateCcw,
@@ -21,6 +22,7 @@ import {
 import {
   buildAutonomousCheckpoints,
   buildCaptureSequence,
+  buildGeographicCheckpoints,
   calculateObjectScanPlan,
   evaluateCaptureGuidance,
   missionProfiles,
@@ -131,6 +133,9 @@ export default function DominicCapturePlanner() {
   const [telemetryDistanceFt, setTelemetryDistanceFt] = useState(24);
   const [telemetryCameraAngle, setTelemetryCameraAngle] = useState(5);
   const [guidanceLock, setGuidanceLock] = useState(false);
+  const [centerLatitude, setCenterLatitude] = useState(39.95);
+  const [centerLongitude, setCenterLongitude] = useState(-75.16);
+  const [baseRelativeAltitudeFt, setBaseRelativeAltitudeFt] = useState(0);
 
   const plan = useMemo(
     () => calculateObjectScanPlan({ objectDiameterFt, objectHeightFt, standoffFt, overlapPct, horizontalFovDeg }),
@@ -191,6 +196,18 @@ export default function DominicCapturePlanner() {
     setTelemetryCameraAngle(current.cameraAngle);
   };
 
+  const geographicCheckpoints = useMemo(
+    () =>
+      buildGeographicCheckpoints({
+        plan,
+        centerLatitude,
+        centerLongitude,
+        objectHeightFt,
+        baseRelativeAltitudeFt,
+      }),
+    [plan, centerLatitude, centerLongitude, objectHeightFt, baseRelativeAltitudeFt],
+  );
+
   const downloadCheckpointPayload = () => {
     const payload = {
       schema: "dominic.capture-plan.v1",
@@ -204,7 +221,13 @@ export default function DominicCapturePlanner() {
       overlapPct,
       horizontalFovDeg,
       safetyConstraints: safetyItems,
+      subjectCenter: {
+        latitude: centerLatitude,
+        longitude: centerLongitude,
+        baseRelativeAltitudeFt,
+      },
       checkpoints: buildAutonomousCheckpoints(plan),
+      geographicCheckpoints,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -302,6 +325,25 @@ export default function DominicCapturePlanner() {
               </div>
               <div style={{ marginTop: 9 }}>
                 <Field label="Horizontal camera FOV" value={horizontalFovDeg} min={25} max={120} suffix="deg" onChange={setHorizontalFovDeg} />
+              </div>
+            </section>
+
+            <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.text, fontSize: 12, fontWeight: 900 }}>
+                <MapPinned size={16} color={V.orange} /> Subject center
+              </div>
+              <p style={{ margin: "6px 0 10px", color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
+                Georeference the object once. DOMINIC projects every ring checkpoint into latitude/longitude for the future autonomous mission layer.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <Field label="Latitude" value={centerLatitude} min={-90} max={90} step={0.000001} onChange={setCenterLatitude} />
+                <Field label="Longitude" value={centerLongitude} min={-180} max={180} step={0.000001} onChange={setCenterLongitude} />
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <Field label="Base relative altitude" value={baseRelativeAltitudeFt} min={-200} max={2000} step={1} suffix="ft" onChange={setBaseRelativeAltitudeFt} />
+              </div>
+              <div style={{ marginTop: 9, border: `1px solid rgba(112,214,160,.18)`, background: "rgba(112,214,160,.05)", borderRadius: 8, padding: 8, color: "#BFEBD2", fontSize: 9, lineHeight: 1.45 }}>
+                {geographicCheckpoints.length} geographic checkpoints generated. First point: {geographicCheckpoints[0]?.latitude.toFixed(6)}, {geographicCheckpoints[0]?.longitude.toFixed(6)}.
               </div>
             </section>
 
@@ -499,7 +541,7 @@ export default function DominicCapturePlanner() {
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: "rgba(244,90,30,.07)", padding: 13 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, color: V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}><Gauge size={12} /> Autonomy-ready structure</div>
               <p style={{ color: "#C9D2DA", fontSize: 10, lineHeight: 1.55, marginBottom: 8 }}>
-                Manual guidance and future autonomous flight now share the exact same checkpoint list. Every point contains ring, sequence, bearing, radius, altitude ratio, gimbal angle and capture action.
+                Manual guidance and future autonomous flight now share the exact same checkpoint list. Every point contains ring, sequence, bearing, radius, geographic coordinates, relative altitude, gimbal angle and capture action.
               </p>
               <button type="button" onClick={downloadCheckpointPayload} style={{ width: "100%", border: `1px solid rgba(244,90,30,.28)`, background: "rgba(244,90,30,.08)", color: "#FFD3C0", borderRadius: 8, padding: "8px 9px", fontSize: 9, fontWeight: 800, cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: 6 }}>
                 <Download size={12} /> Download waypoint payload

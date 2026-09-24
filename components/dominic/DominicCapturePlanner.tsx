@@ -41,8 +41,12 @@ import {
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 import { WebSocketFlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
 import { connectFlightBridgeAdapter } from "@/lib/aircraft/bridgeConnect";
-import type { DominicAircraftAdapter, AircraftCapabilities } from "@/lib/aircraft/contract";
-import { analyzeImageFile, type ImageQualityAssessment } from "@/lib/imageQuality";
+import type {
+  DominicAircraftAdapter,
+  AircraftCapabilities,
+  UniversalMediaCapture,
+} from "@/lib/aircraft/contract";
+import { analyzeImageFile, analyzeImageUrl, type ImageQualityAssessment } from "@/lib/imageQuality";
 import {
   assessCoverage,
   buildRepairPlan,
@@ -222,6 +226,9 @@ export default function DominicCapturePlanner() {
   } | null>(null);
   const bridgeAdapterRef = useRef<DominicAircraftAdapter | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
+  const bridgeMediaUnsubscribeRef = useRef<(() => void) | null>(null);
+  const [automaticMediaCount, setAutomaticMediaCount] = useState(0);
+  const [automaticMediaStatus, setAutomaticMediaStatus] = useState<string | null>(null);
 
   const plan = useMemo(
     () => calculateObjectScanPlan({ objectDiameterFt, objectHeightFt, standoffFt, overlapPct, horizontalFovDeg }),
@@ -513,6 +520,58 @@ export default function DominicCapturePlanner() {
     setNoFlySectors((current) => current.filter((sector) => sector.id !== id));
   };
 
+  const ingestBridgeMediaCapture = async (capture: UniversalMediaCapture) => {
+    setAutomaticMediaStatus(`Received ${capture.filename ?? capture.id} from aircraft.`);
+    if (!capture.mediaUrl) {
+      setAutomaticMediaStatus("Aircraft reported a photo, but no media URL was provided for quality analysis.");
+      return;
+    }
+
+    try {
+      const quality = await analyzeImageUrl(
+        capture.mediaUrl,
+        capture.filename ?? `${capture.id}.jpg`,
+      );
+      const observation: CaptureObservation = {
+        id: capture.id,
+        checkpointId: capture.checkpointId,
+        capturedAtMs: capture.capturedAtMs,
+        latitude: capture.latitude,
+        longitude: capture.longitude,
+        relativeAltitudeFt: capture.relativeAltitudeFt,
+        cameraAngle: capture.gimbalPitchDeg,
+        sharpnessScore: quality.sharpnessScore,
+        exposureScore: quality.exposureScore,
+        usable: quality.usable,
+      };
+      setCaptureObservations((observations) => [
+        ...observations.filter((item) => item.id !== capture.id),
+        observation,
+      ]);
+      if (capture.checkpointId) {
+        setCaptured((state) => ({ ...state, [capture.checkpointId as string]: true }));
+      }
+      setLastImageQuality(quality);
+      setImageAnalysisStatus("done");
+      setImageAnalysisMessage(
+        quality.warnings.length
+          ? quality.warnings.join(" ")
+          : "Aircraft capture automatically passed DOMINIC image-quality analysis.",
+      );
+      setAutomaticMediaCount((count) => count + 1);
+      setAutomaticMediaStatus(
+        `${capture.filename ?? capture.id} analyzed automatically · sharpness ${Math.round(quality.sharpnessScore * 100)}% · exposure ${Math.round(quality.exposureScore * 100)}%.`,
+      );
+    } catch (error) {
+      setImageAnalysisStatus("error");
+      setAutomaticMediaStatus(
+        error instanceof Error
+          ? `Aircraft image received, but automatic analysis failed: ${error.message}`
+          : "Aircraft image received, but automatic analysis failed.",
+      );
+    }
+  };
+
   const connectAircraftBridge = async () => {
     if (bridgeStatus === "connecting" || bridgeStatus === "connected") return;
     setBridgeStatus("connecting");
@@ -532,6 +591,11 @@ export default function DominicCapturePlanner() {
           source: "external",
         });
       });
+      bridgeMediaUnsubscribeRef.current = adapter.subscribeMedia
+        ? adapter.subscribeMedia((capture) => {
+            void ingestBridgeMediaCapture(capture);
+          })
+        : null;
       setBridgeInfo({
         vendor: hello.vendor,
         model: hello.model,
@@ -549,12 +613,15 @@ export default function DominicCapturePlanner() {
   const disconnectAircraftBridge = async () => {
     bridgeUnsubscribeRef.current?.();
     bridgeUnsubscribeRef.current = null;
+    bridgeMediaUnsubscribeRef.current?.();
+    bridgeMediaUnsubscribeRef.current = null;
     const adapter = bridgeAdapterRef.current;
     bridgeAdapterRef.current = null;
     if (adapter) await adapter.disconnect();
     setBridgeInfo(null);
     setBridgeStatus("disconnected");
     setBridgeError(null);
+    setAutomaticMediaStatus(null);
   };
 
   const runAutonomousSimulation = async (
@@ -982,6 +1049,14 @@ export default function DominicCapturePlanner() {
                   <div style={{ color: V.green, fontSize: 9, fontWeight: 900 }}>{bridgeInfo.vendor.toUpperCase()} · {bridgeInfo.model ?? bridgeInfo.aircraftId}</div>
                   <div style={{ color: V.muted, fontSize: 8, marginTop: 4, lineHeight: 1.4 }}>
                     {Object.entries(bridgeInfo.capabilities).filter(([, enabled]) => enabled).map(([name]) => name).join(" · ")}
+                  </div>
+                  <div style={{ borderTop: `1px solid rgba(112,214,160,.16)`, marginTop: 7, paddingTop: 7 }}>
+                    <div style={{ color: "#BFEBD2", fontSize: 8, fontWeight: 900 }}>
+                      Automatic media ingestion · {automaticMediaCount} analyzed
+                    </div>
+                    <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 3 }}>
+                      {automaticMediaStatus ?? "Waiting for aircraft capture events. Photos with a bridge media URL are quality-checked and added to coverage automatically."}
+                    </div>
                   </div>
                 </div>
               ) : null}

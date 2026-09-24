@@ -227,6 +227,8 @@ export default function DominicCapturePlanner() {
     capabilities: AircraftCapabilities;
   } | null>(null);
   const bridgeAdapterRef = useRef<DominicAircraftAdapter | null>(null);
+  const autonomousEngineRef = useRef<DominicMissionEngine | null>(null);
+  const [missionControlMessage, setMissionControlMessage] = useState<string | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
   const bridgeMediaUnsubscribeRef = useRef<(() => void) | null>(null);
   const [automaticMediaCount, setAutomaticMediaCount] = useState(0);
@@ -674,10 +676,13 @@ export default function DominicCapturePlanner() {
       ),
       transitSpeedFps: 12,
     });
+    autonomousEngineRef.current = engine;
+    setMissionControlMessage(null);
     const unsubscribe = engine.subscribe((snapshot) => setAutonomousSnapshot(snapshot));
     await engine.execute();
     unsubscribe();
     setAutonomousSnapshot(engine.getSnapshot());
+    autonomousEngineRef.current = null;
     setAutonomousRunning(false);
   };
 
@@ -708,14 +713,50 @@ export default function DominicCapturePlanner() {
       ),
       transitSpeedFps: 12,
     });
+    autonomousEngineRef.current = engine;
+    setMissionControlMessage(null);
     const unsubscribe = engine.subscribe((snapshot) =>
       setAutonomousSnapshot(snapshot),
     );
     await engine.execute();
     unsubscribe();
     setAutonomousSnapshot(engine.getSnapshot());
+    autonomousEngineRef.current = null;
     setAutonomousRunning(false);
     setRealFlightApprovalSignature(null);
+  };
+
+  const pauseActiveMission = async () => {
+    const engine = autonomousEngineRef.current;
+    if (!engine) return;
+    try {
+      await engine.pause();
+      setMissionControlMessage("Mission paused. Aircraft remains under the connected adapter's hold behavior.");
+    } catch (error) {
+      setMissionControlMessage(
+        error instanceof Error ? error.message : "Unable to pause mission.",
+      );
+    }
+  };
+
+  const resumeActiveMission = async () => {
+    const engine = autonomousEngineRef.current;
+    if (!engine) return;
+    try {
+      await engine.resume();
+      setMissionControlMessage("DOMINIC safety checks are clear. Mission resumed.");
+    } catch (error) {
+      setMissionControlMessage(
+        error instanceof Error ? error.message : "Unable to resume mission.",
+      );
+    }
+  };
+
+  const abortActiveMission = async () => {
+    const engine = autonomousEngineRef.current;
+    if (!engine) return;
+    setMissionControlMessage("Operator abort requested. DOMINIC is handing emergency recovery to the aircraft adapter.");
+    await engine.abort("Operator abort from DOMINIC Capture Planner.");
   };
 
   const downloadCheckpointPayload = () => {
@@ -1485,7 +1526,11 @@ export default function DominicCapturePlanner() {
                 }}
               >
                 {autonomousRunning ? <Square size={12} /> : <Play size={12} />}
-                {autonomousRunning ? "Simulation running..." : "Run Full Autonomous Simulation"}
+                {autonomousRunning
+                  ? autonomousTarget === "simulator"
+                    ? "Simulation running..."
+                    : "Mission in progress..."
+                  : "Run Full Autonomous Simulation"}
               </button>
 
               <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 10, paddingTop: 10 }}>
@@ -1539,6 +1584,53 @@ export default function DominicCapturePlanner() {
                   Execute Object Scan on Connected Aircraft
                 </button>
               </div>
+              {autonomousRunning && autonomousSnapshot ? (
+                <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 10, paddingTop: 10 }}>
+                  <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>Live mission controls</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 7 }}>
+                    <button
+                      type="button"
+                      disabled={
+                        !["TRANSIT", "AIMING", "CAPTURING"].includes(autonomousSnapshot.phase) ||
+                        (autonomousTarget === "connected" && !bridgeInfo?.capabilities.pauseResume)
+                      }
+                      onClick={() => void pauseActiveMission()}
+                      style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.amber, borderRadius: 7, padding: "7px 6px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                    >
+                      Pause
+                    </button>
+                    <button
+                      type="button"
+                      disabled={
+                        autonomousSnapshot.phase !== "PAUSED" ||
+                        (autonomousTarget === "connected" && !bridgeInfo?.capabilities.pauseResume)
+                      }
+                      onClick={() => void resumeActiveMission()}
+                      style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.green, borderRadius: 7, padding: "7px 6px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                    >
+                      Resume
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void abortActiveMission()}
+                      style={{ border: "1px solid rgba(255,139,122,.35)", background: "rgba(255,139,122,.08)", color: "#FFB6AA", borderRadius: 7, padding: "7px 6px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                    >
+                      Abort / Recover
+                    </button>
+                  </div>
+                  {missionControlMessage ? (
+                    <div style={{ color: autonomousSnapshot.safetyIssues.length ? V.amber : V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 6 }}>
+                      {missionControlMessage}
+                    </div>
+                  ) : null}
+                  {autonomousTarget === "connected" && !bridgeInfo?.capabilities.pauseResume ? (
+                    <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 5 }}>
+                      This aircraft adapter does not expose pause/resume. Abort/recovery remains available.
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
               {autonomousSnapshot ? (
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 9 }}>

@@ -1,4 +1,5 @@
 import type { UniversalAircraftState } from "@/lib/aircraft/contract";
+import { bearingAndDistanceBetween } from "@/lib/capturePlanner";
 
 export type FlightSafetySeverity = "info" | "warning" | "critical";
 export type FlightSafetyAction = "continue" | "pause" | "return_home" | "abort";
@@ -12,6 +13,13 @@ export type FlightSafetyPolicy = {
   requireRtkFixed?: boolean;
   telemetryStaleAfterMs: number;
   obstacleAction: Exclude<FlightSafetyAction, "continue">;
+};
+
+export type FlightSafetyEnvelope = {
+  centerLatitude: number;
+  centerLongitude: number;
+  maxRadiusFt: number;
+  maxRelativeAltitudeFt?: number;
 };
 
 export type FlightSafetyIssue = {
@@ -54,6 +62,7 @@ export function evaluateFlightSafety(input: {
   nowMs?: number;
   phase: "preflight" | "flight";
   policy?: Partial<FlightSafetyPolicy>;
+  envelope?: FlightSafetyEnvelope;
 }): FlightSafetyAssessment {
   const policy = { ...defaultFlightSafetyPolicy, ...input.policy };
   const state = input.state;
@@ -159,6 +168,40 @@ export function evaluateFlightSafety(input: {
       action: policy.obstacleAction,
       message: "Aircraft obstacle alert is active.",
     });
+  }
+
+  if (
+    input.envelope &&
+    Number.isFinite(state.latitude) &&
+    Number.isFinite(state.longitude)
+  ) {
+    const distanceFromCenterFt = bearingAndDistanceBetween({
+      fromLatitude: input.envelope.centerLatitude,
+      fromLongitude: input.envelope.centerLongitude,
+      toLatitude: state.latitude,
+      toLongitude: state.longitude,
+    }).distanceFt;
+
+    if (distanceFromCenterFt > input.envelope.maxRadiusFt) {
+      push({
+        code: "mission_geofence_exceeded",
+        severity: "critical",
+        action: input.phase === "preflight" ? "abort" : "return_home",
+        message: `Aircraft is ${distanceFromCenterFt.toFixed(0)} ft from mission center; approved flight envelope is ${input.envelope.maxRadiusFt.toFixed(0)} ft.`,
+      });
+    }
+
+    if (
+      typeof input.envelope.maxRelativeAltitudeFt === "number" &&
+      state.relativeAltitudeFt > input.envelope.maxRelativeAltitudeFt
+    ) {
+      push({
+        code: "mission_altitude_exceeded",
+        severity: "critical",
+        action: input.phase === "preflight" ? "abort" : "return_home",
+        message: `Aircraft altitude ${state.relativeAltitudeFt.toFixed(1)} ft exceeds the approved ${input.envelope.maxRelativeAltitudeFt.toFixed(1)} ft envelope.`,
+      });
+    }
   }
 
   let highestAction: FlightSafetyAction = "continue";

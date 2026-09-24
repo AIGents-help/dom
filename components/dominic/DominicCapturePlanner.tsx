@@ -212,6 +212,8 @@ export default function DominicCapturePlanner() {
   const [autonomousSnapshot, setAutonomousSnapshot] = useState<MissionExecutionSnapshot | null>(null);
   const [autonomousRunning, setAutonomousRunning] = useState(false);
   const [autonomousMode, setAutonomousMode] = useState<"full" | "repair">("full");
+  const [autonomousTarget, setAutonomousTarget] = useState<"simulator" | "connected">("simulator");
+  const [realFlightApprovalSignature, setRealFlightApprovalSignature] = useState<string | null>(null);
   const [bridgeUrl, setBridgeUrl] = useState("ws://127.0.0.1:8787");
   const [bridgeStatus, setBridgeStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
   const [bridgeError, setBridgeError] = useState<string | null>(null);
@@ -339,6 +341,24 @@ export default function DominicCapturePlanner() {
       }),
     [geographicCheckpoints, adaptiveCoverage],
   );
+
+  const realFlightPlanSignature = useMemo(
+    () =>
+      JSON.stringify({
+        missionType,
+        checkpoints: geographicCheckpoints.map((point) => [
+          point.id,
+          point.latitude,
+          point.longitude,
+          point.relativeAltitudeFt,
+          point.cameraAngle,
+        ]),
+        calibration,
+      }),
+    [missionType, geographicCheckpoints, calibration],
+  );
+  const realFlightApproved =
+    realFlightApprovalSignature === realFlightPlanSignature;
 
   const coverageByRing = useMemo(
     () => summarizeCoverageByRing(geographicCheckpoints, adaptiveCoverage),
@@ -622,6 +642,7 @@ export default function DominicCapturePlanner() {
     setBridgeStatus("disconnected");
     setBridgeError(null);
     setAutomaticMediaStatus(null);
+    setRealFlightApprovalSignature(null);
   };
 
   const runAutonomousSimulation = async (
@@ -633,6 +654,7 @@ export default function DominicCapturePlanner() {
     if (!checkpoints.length) return;
 
     setAutonomousMode(mode);
+    setAutonomousTarget("simulator");
     setAutonomousRunning(true);
     setAutonomousSnapshot(null);
 
@@ -657,6 +679,43 @@ export default function DominicCapturePlanner() {
     unsubscribe();
     setAutonomousSnapshot(engine.getSnapshot());
     setAutonomousRunning(false);
+  };
+
+  const runConnectedAircraftMission = async (
+    mode: "full" | "repair" = "full",
+  ) => {
+    if (!preflightReady || autonomousRunning || !realFlightApproved) return;
+    if (bridgeStatus !== "connected") return;
+    const adapter = bridgeAdapterRef.current;
+    if (!adapter) return;
+
+    const checkpoints =
+      mode === "repair" ? repairPlan : geographicCheckpoints;
+    if (!checkpoints.length) return;
+
+    setAutonomousMode(mode);
+    setAutonomousTarget("connected");
+    setAutonomousRunning(true);
+    setAutonomousSnapshot(null);
+
+    const engine = new DominicMissionEngine(adapter, {
+      centerLatitude,
+      centerLongitude,
+      checkpoints,
+      takeoffAltitudeFt: Math.max(
+        10,
+        Math.min(40, checkpoints[0]?.relativeAltitudeFt ?? 20),
+      ),
+      transitSpeedFps: 12,
+    });
+    const unsubscribe = engine.subscribe((snapshot) =>
+      setAutonomousSnapshot(snapshot),
+    );
+    await engine.execute();
+    unsubscribe();
+    setAutonomousSnapshot(engine.getSnapshot());
+    setAutonomousRunning(false);
+    setRealFlightApprovalSignature(null);
   };
 
   const downloadCheckpointPayload = () => {
@@ -1371,7 +1430,13 @@ export default function DominicCapturePlanner() {
                 <div>
                   <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>Autonomous mission engine</div>
                   <div style={{ color: V.text, fontSize: 12, fontWeight: 900, marginTop: 3 }}>
-                    {autonomousMode === "repair" ? "Adaptive repair mission test" : "Virtual aircraft end-to-end test"}
+                    {autonomousTarget === "connected"
+                      ? autonomousMode === "repair"
+                        ? "Connected-aircraft repair mission"
+                        : "Connected-aircraft autonomous mission"
+                      : autonomousMode === "repair"
+                        ? "Adaptive repair mission test"
+                        : "Virtual aircraft end-to-end test"}
                   </div>
                 </div>
                 <span style={{ color: autonomousSnapshot?.phase === "COMPLETE" ? V.green : autonomousSnapshot?.phase === "FAILED" ? "#FF8B7A" : V.muted, fontSize: 9, fontWeight: 900 }}>
@@ -1404,6 +1469,58 @@ export default function DominicCapturePlanner() {
                 {autonomousRunning ? <Square size={12} /> : <Play size={12} />}
                 {autonomousRunning ? "Simulation running..." : "Run Full Autonomous Simulation"}
               </button>
+
+              <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 10, paddingTop: 10 }}>
+                <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>Connected aircraft execution</div>
+                <label style={{ display: "grid", gridTemplateColumns: "16px 1fr", gap: 7, alignItems: "start", color: bridgeStatus === "connected" ? "#DCE3EA" : V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 7, cursor: bridgeStatus === "connected" ? "pointer" : "not-allowed" }}>
+                  <input
+                    type="checkbox"
+                    disabled={bridgeStatus !== "connected" || !preflightReady || autonomousRunning}
+                    checked={realFlightApproved}
+                    onChange={(event) =>
+                      setRealFlightApprovalSignature(
+                        event.target.checked ? realFlightPlanSignature : null,
+                      )
+                    }
+                  />
+                  <span>
+                    I confirm the connected aircraft, home/RTH point, airspace, people/obstacles, and this displayed capture plan are safe for autonomous execution.
+                  </span>
+                </label>
+                <button
+                  type="button"
+                  disabled={
+                    bridgeStatus !== "connected" ||
+                    !preflightReady ||
+                    !realFlightApproved ||
+                    autonomousRunning
+                  }
+                  onClick={() => runConnectedAircraftMission("full")}
+                  style={{
+                    width: "100%",
+                    marginTop: 8,
+                    border: `1px solid ${realFlightApproved ? "rgba(112,214,160,.35)" : V.line}`,
+                    borderRadius: 8,
+                    padding: "9px 10px",
+                    background:
+                      bridgeStatus === "connected" && preflightReady && realFlightApproved && !autonomousRunning
+                        ? "rgba(112,214,160,.12)"
+                        : "#1B222A",
+                    color:
+                      bridgeStatus === "connected" && preflightReady && realFlightApproved && !autonomousRunning
+                        ? V.green
+                        : "#6F7A84",
+                    fontWeight: 900,
+                    cursor:
+                      bridgeStatus === "connected" && preflightReady && realFlightApproved && !autonomousRunning
+                        ? "pointer"
+                        : "not-allowed",
+                    fontSize: 9,
+                  }}
+                >
+                  Execute Object Scan on Connected Aircraft
+                </button>
+              </div>
               {autonomousSnapshot ? (
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 9 }}>
@@ -1562,6 +1679,16 @@ export default function DominicCapturePlanner() {
                       >
                         Simulate repair
                       </button>
+                      {bridgeStatus === "connected" ? (
+                        <button
+                          type="button"
+                          disabled={!realFlightApproved || !preflightReady || autonomousRunning}
+                          onClick={() => runConnectedAircraftMission("repair")}
+                          style={{ border: `1px solid rgba(112,214,160,.3)`, background: realFlightApproved ? "rgba(112,214,160,.08)" : "#1B222A", color: realFlightApproved ? V.green : "#6F7A84", borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: realFlightApproved ? "pointer" : "not-allowed" }}
+                        >
+                          Fly repair
+                        </button>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>

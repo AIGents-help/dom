@@ -10,6 +10,7 @@ import {
   evaluateFlightSafety,
   type FlightSafetyIssue,
   type FlightSafetyPolicy,
+  type FlightSafetyEnvelope,
 } from "@/lib/aircraft/flightSafety";
 
 export type MissionPhase =
@@ -63,6 +64,7 @@ export type AutonomousMissionInput = {
   emergencyCommandTimeoutMs?: number;
   connectTimeoutMs?: number;
   safetyPollIntervalMs?: number;
+  flightEnvelope?: FlightSafetyEnvelope;
 };
 
 const requiredCapabilities = [
@@ -130,6 +132,7 @@ export class DominicMissionEngine {
       state: this.adapter.getState(),
       phase: "flight",
       policy: this.mission.safetyPolicy,
+      envelope: this.mission.flightEnvelope,
     });
     this.snapshot.safetyIssues = safety.issues;
     if (safety.highestAction !== "continue") {
@@ -408,6 +411,7 @@ export class DominicMissionEngine {
         state,
         phase: "flight",
         policy: this.mission.safetyPolicy,
+        envelope: this.mission.flightEnvelope,
       });
       this.snapshot.safetyIssues = assessment.issues;
       this.captureState();

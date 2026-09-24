@@ -147,3 +147,19 @@ export async function analyzeImageFile(file: File): Promise<ImageQualityAssessme
     bitmap.close();
   }
 }
+
+
+export async function analyzeImageUrl(
+  url: string,
+  filename = "capture-image",
+): Promise<ImageQualityAssessment> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Unable to load captured image (${response.status}).`);
+  }
+  const blob = await response.blob();
+  const file = new File([blob], filename, {
+    type: blob.type || "image/jpeg",
+  });
+  return analyzeImageFile(file);
+}

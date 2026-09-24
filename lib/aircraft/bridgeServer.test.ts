@@ -74,10 +74,12 @@ describe("DOMINIC Flight Bridge server session", () => {
       command: { type: "capturePhoto", checkpointId: "high-7" },
     });
 
-    const media = messages.find((message) => message.type === "media_capture");
-    expect(media).toBeTruthy();
-    expect(media.capture.checkpointId).toBe("high-7");
-    expect(media.capture.aircraftId).toBe("sim-media");
+    const media = messages.find(
+      (message): message is Extract<FlightBridgeMessage, { type: "media_capture" }> =>
+        message.type === "media_capture",
+    );
+    expect(media?.capture.checkpointId).toBe("high-7");
+    expect(media?.capture.aircraftId).toBe("sim-media");
 
     await session.stop();
   });

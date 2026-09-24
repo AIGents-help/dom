@@ -314,4 +314,38 @@ describe("DOMINIC autonomous mission engine", () => {
     expect(result.phase).toBe("COMPLETE");
   });
 
+
+  it("detects complete telemetry silence even when no new state event arrives", async () => {
+    const { checkpoints } = makeMission();
+
+    class SilentTelemetrySimulator extends SimulatorAircraftAdapter {
+      async send(command: UniversalAircraftCommand) {
+        if (command.type === "goTo") {
+          return { accepted: true, command: command.type };
+        }
+        return super.send(command);
+      }
+    }
+
+    const aircraft = new SilentTelemetrySimulator();
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      checkpoints: checkpoints.slice(0, 1),
+      arrivalTimeoutMs: 500,
+      safetyPollIntervalMs: 10,
+      safetyPolicy: { telemetryStaleAfterMs: 30 },
+    });
+
+    const result = await engine.execute();
+
+    expect(result.phase).toBe("ABORTED");
+    expect(
+      result.events.some((event) => event.message.includes("Safety return-home")),
+    ).toBe(true);
+    expect(
+      result.safetyIssues.some((issue) => issue.code === "telemetry_stale"),
+    ).toBe(true);
+  });
+
 });

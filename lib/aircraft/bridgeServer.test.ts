@@ -55,4 +55,30 @@ describe("DOMINIC Flight Bridge server session", () => {
 
     await session.stop();
   });
+  it("correlates aircraft photos with capture-plan checkpoints", async () => {
+    const aircraft = new SimulatorAircraftAdapter({ aircraftId: "sim-media" });
+    const session = new FlightBridgeServerSession(aircraft, {
+      bridgeId: "bridge-local",
+      adapterVersion: "1.0.0",
+      heartbeatIntervalMs: 10_000,
+    });
+
+    const messages: any[] = [];
+    session.subscribe((message) => messages.push(message));
+    await session.start();
+
+    await session.receive({
+      type: "command",
+      protocol: DOMINIC_BRIDGE_PROTOCOL,
+      requestId: "capture-1",
+      command: { type: "capturePhoto", checkpointId: "high-7" },
+    });
+
+    const media = messages.find((message) => message.type === "media_capture");
+    expect(media).toBeTruthy();
+    expect(media.capture.checkpointId).toBe("high-7");
+    expect(media.capture.aircraftId).toBe("sim-media");
+
+    await session.stop();
+  });
 });

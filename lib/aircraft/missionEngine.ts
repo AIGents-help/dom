@@ -4,6 +4,11 @@ import type {
   DominicAircraftAdapter,
   UniversalAircraftState,
 } from "@/lib/aircraft/contract";
+import {
+  evaluateFlightSafety,
+  type FlightSafetyIssue,
+  type FlightSafetyPolicy,
+} from "@/lib/aircraft/flightSafety";
 
 export type MissionPhase =
   | "IDLE"
@@ -37,6 +42,7 @@ export type MissionExecutionSnapshot = {
   lastAircraftState?: UniversalAircraftState;
   events: MissionEvent[];
   error?: string;
+  safetyIssues: FlightSafetyIssue[];
 };
 
 export type AutonomousMissionInput = {
@@ -45,6 +51,7 @@ export type AutonomousMissionInput = {
   checkpoints: GeographicCheckpoint[];
   takeoffAltitudeFt?: number;
   transitSpeedFps?: number;
+  safetyPolicy?: Partial<FlightSafetyPolicy>;
 };
 
 const requiredCapabilities = [
@@ -64,6 +71,8 @@ export class DominicMissionEngine {
   private listeners = new Set<(snapshot: MissionExecutionSnapshot) => void>();
   private paused = false;
   private aborted = false;
+  private safetyActionInFlight = false;
+  private unsubscribeSafety?: () => void;
 
   constructor(
     private readonly adapter: DominicAircraftAdapter,
@@ -75,6 +84,7 @@ export class DominicMissionEngine {
       checkpointCount: mission.checkpoints.length,
       completedCheckpointIds: [],
       events: [],
+      safetyIssues: [],
     };
   }
 
@@ -117,8 +127,10 @@ export class DominicMissionEngine {
       }
       this.captureState();
 
-      this.transition("PREFLIGHT", "Checking aircraft capabilities.");
+      this.transition("PREFLIGHT", "Checking aircraft capabilities and flight safety.");
       this.assertCapabilities();
+      this.assertPreflightSafety();
+      this.startSafetySupervisor();
 
       if (!this.mission.checkpoints.length) {
         throw new Error("Mission contains no checkpoints.");
@@ -202,9 +214,11 @@ export class DominicMissionEngine {
       this.snapshot.currentCheckpointId = undefined;
       this.snapshot.checkpointIndex = this.mission.checkpoints.length;
       this.transition("COMPLETE", "Mission complete.");
+      this.stopSafetySupervisor();
       return this.getSnapshot();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown mission failure.";
+      this.stopSafetySupervisor();
       if (this.aborted) {
         this.snapshot.error = undefined;
         if (this.snapshot.phase !== "ABORTED") this.transition("ABORTED", message);
@@ -214,6 +228,86 @@ export class DominicMissionEngine {
       this.transition("FAILED", message);
       return this.getSnapshot();
     }
+  }
+
+  private assertPreflightSafety() {
+    const assessment = evaluateFlightSafety({
+      state: this.adapter.getState(),
+      phase: "preflight",
+      policy: this.mission.safetyPolicy,
+    });
+    this.snapshot.safetyIssues = assessment.issues;
+    if (!assessment.safeToLaunch) {
+      throw new Error(
+        assessment.issues.map((issue) => issue.message).join(" ") ||
+          "Aircraft failed DOMINIC preflight safety checks.",
+      );
+    }
+  }
+
+  private startSafetySupervisor() {
+    this.unsubscribeSafety?.();
+    this.unsubscribeSafety = this.adapter.subscribe((state) => {
+      if (
+        ["IDLE", "CONNECTING", "PREFLIGHT", "COMPLETE", "ABORTED", "FAILED"].includes(
+          this.snapshot.phase,
+        )
+      ) {
+        return;
+      }
+
+      const assessment = evaluateFlightSafety({
+        state,
+        phase: "flight",
+        policy: this.mission.safetyPolicy,
+      });
+      this.snapshot.safetyIssues = assessment.issues;
+      this.captureState();
+      this.emit();
+
+      if (
+        assessment.highestAction !== "continue" &&
+        !this.safetyActionInFlight &&
+        !this.aborted
+      ) {
+        this.safetyActionInFlight = true;
+        void this.applySafetyAction(assessment.highestAction, assessment.issues)
+          .finally(() => {
+            this.safetyActionInFlight = false;
+          });
+      }
+    });
+  }
+
+  private stopSafetySupervisor() {
+    this.unsubscribeSafety?.();
+    this.unsubscribeSafety = undefined;
+  }
+
+  private async applySafetyAction(
+    action: "pause" | "return_home" | "abort",
+    issues: FlightSafetyIssue[],
+  ) {
+    const reason =
+      issues.find((issue) => issue.action === action)?.message ??
+      issues[0]?.message ??
+      "DOMINIC flight safety intervention.";
+
+    if (action === "pause" && this.adapter.capabilities.pauseResume) {
+      this.paused = true;
+      await this.adapter.send({ type: "pause" });
+      this.transition("PAUSED", `Safety hold: ${reason}`);
+      return;
+    }
+
+    if (action === "return_home") {
+      this.aborted = true;
+      this.transition("ABORTED", `Safety return-home: ${reason}`);
+      await this.adapter.send({ type: "returnHome" });
+      return;
+    }
+
+    await this.abort(`Safety abort: ${reason}`);
   }
 
   private assertCapabilities() {

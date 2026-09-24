@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { calculateObjectScanPlan, buildGeographicCheckpoints } from "@/lib/capturePlanner";
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 import { DominicMissionEngine } from "@/lib/aircraft/missionEngine";
+import type { UniversalAircraftCommand } from "@/lib/aircraft/contract";
 
 function makeMission() {
   const plan = calculateObjectScanPlan({
@@ -124,6 +125,78 @@ describe("DOMINIC autonomous mission engine", () => {
 
     expect(result.phase).toBe("FAILED");
     expect(result.error).toContain("minimum launch battery");
+    expect(result.completedCheckpointIds).toHaveLength(0);
+  });
+
+
+  it("waits for delayed aircraft position convergence before capture", async () => {
+    const { checkpoints } = makeMission();
+    class DelayedSimulator extends SimulatorAircraftAdapter {
+      capturePositions: Array<{ latitude: number; longitude: number }> = [];
+      async send(command: UniversalAircraftCommand) {
+        if (command.type === "goTo") {
+          setTimeout(() => {
+            void super.send(command);
+          }, 20);
+          return { accepted: true, command: command.type };
+        }
+        if (command.type === "capturePhoto") {
+          const state = this.getState();
+          this.capturePositions.push({
+            latitude: state.latitude,
+            longitude: state.longitude,
+          });
+        }
+        return super.send(command);
+      }
+    }
+
+    const aircraft = new DelayedSimulator({
+      latitude: 39.949,
+      longitude: -75.161,
+    });
+    const target = checkpoints[0];
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      checkpoints: [target],
+      arrivalTimeoutMs: 500,
+    });
+
+    const result = await engine.execute();
+
+    expect(result.phase).toBe("COMPLETE");
+    expect(aircraft.capturePositions).toHaveLength(1);
+    expect(aircraft.capturePositions[0].latitude).toBeCloseTo(target.latitude, 6);
+    expect(aircraft.capturePositions[0].longitude).toBeCloseTo(target.longitude, 6);
+  });
+
+  it("fails instead of capturing when an aircraft never reaches the checkpoint", async () => {
+    const { checkpoints } = makeMission();
+    class StuckSimulator extends SimulatorAircraftAdapter {
+      async send(command: UniversalAircraftCommand) {
+        if (command.type === "goTo") {
+          return { accepted: true, command: command.type };
+        }
+        return super.send(command);
+      }
+    }
+
+    const aircraft = new StuckSimulator({
+      latitude: 39.94,
+      longitude: -75.17,
+    });
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      checkpoints: checkpoints.slice(0, 1),
+      arrivalTimeoutMs: 40,
+    });
+
+    const result = await engine.execute();
+
+    expect(result.phase).toBe("FAILED");
+    expect(result.error).toContain("did not converge");
     expect(result.completedCheckpointIds).toHaveLength(0);
   });
 

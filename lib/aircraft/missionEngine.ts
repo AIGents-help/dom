@@ -52,6 +52,11 @@ export type AutonomousMissionInput = {
   takeoffAltitudeFt?: number;
   transitSpeedFps?: number;
   safetyPolicy?: Partial<FlightSafetyPolicy>;
+  arrivalTimeoutMs?: number;
+  positionToleranceFt?: number;
+  altitudeToleranceFt?: number;
+  headingToleranceDeg?: number;
+  gimbalToleranceDeg?: number;
 };
 
 const requiredCapabilities = [
@@ -172,6 +177,7 @@ export class DominicMissionEngine {
             speedFps: this.mission.transitSpeedFps,
           }),
         );
+        await this.waitForCheckpointArrival(checkpoint);
 
         const yawToSubject = bearingAndDistanceBetween({
           fromLatitude: checkpoint.latitude,
@@ -190,6 +196,7 @@ export class DominicMissionEngine {
             pitchDeg: checkpoint.cameraAngle,
           }),
         );
+        await this.waitForCaptureOrientation(yawToSubject, checkpoint.cameraAngle);
 
         this.transition("CAPTURING", "Capturing image.", checkpoint.id);
         await this.requireAccepted(await this.adapter.send({ type: "capturePhoto", checkpointId: checkpoint.id }));
@@ -228,6 +235,99 @@ export class DominicMissionEngine {
       this.transition("FAILED", message);
       return this.getSnapshot();
     }
+  }
+
+  private async waitForCheckpointArrival(checkpoint: GeographicCheckpoint) {
+    const positionToleranceFt = this.mission.positionToleranceFt ?? 5;
+    const altitudeToleranceFt = this.mission.altitudeToleranceFt ?? 4;
+    const timeoutMs = this.mission.arrivalTimeoutMs ?? 45_000;
+
+    await this.waitForState(
+      (state) => {
+        const positionErrorFt = bearingAndDistanceBetween({
+          fromLatitude: checkpoint.latitude,
+          fromLongitude: checkpoint.longitude,
+          toLatitude: state.latitude,
+          toLongitude: state.longitude,
+        }).distanceFt;
+        const altitudeErrorFt = Math.abs(
+          checkpoint.relativeAltitudeFt - state.relativeAltitudeFt,
+        );
+        return (
+          positionErrorFt <= positionToleranceFt &&
+          altitudeErrorFt <= altitudeToleranceFt
+        );
+      },
+      timeoutMs,
+      `Aircraft did not converge on checkpoint ${checkpoint.id} within ${timeoutMs} ms.`,
+    );
+  }
+
+  private async waitForCaptureOrientation(
+    targetHeadingDeg: number,
+    targetGimbalPitchDeg: number,
+  ) {
+    const headingToleranceDeg = this.mission.headingToleranceDeg ?? 8;
+    const gimbalToleranceDeg = this.mission.gimbalToleranceDeg ?? 5;
+    const timeoutMs = Math.min(this.mission.arrivalTimeoutMs ?? 45_000, 20_000);
+
+    await this.waitForState(
+      (state) => {
+        const headingError = Math.abs(
+          ((state.headingDeg - targetHeadingDeg + 540) % 360) - 180,
+        );
+        const gimbalError = Math.abs(
+          state.gimbalPitchDeg - targetGimbalPitchDeg,
+        );
+        return (
+          headingError <= headingToleranceDeg &&
+          gimbalError <= gimbalToleranceDeg
+        );
+      },
+      timeoutMs,
+      `Aircraft/camera did not settle within capture tolerances in ${timeoutMs} ms.`,
+    );
+  }
+
+  private async waitForState(
+    predicate: (state: UniversalAircraftState) => boolean,
+    timeoutMs: number,
+    timeoutMessage: string,
+  ) {
+    if (predicate(this.adapter.getState())) return;
+
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const cleanup: {
+        unsubscribe?: () => void;
+        timer?: ReturnType<typeof setTimeout>;
+        abortPoll?: ReturnType<typeof setInterval>;
+      } = {};
+
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        if (cleanup.timer) clearTimeout(cleanup.timer);
+        if (cleanup.abortPoll) clearInterval(cleanup.abortPoll);
+        cleanup.unsubscribe?.();
+        if (error) reject(error);
+        else resolve();
+      };
+
+      cleanup.timer = setTimeout(
+        () => finish(new Error(timeoutMessage)),
+        timeoutMs,
+      );
+      cleanup.abortPoll = setInterval(() => {
+        if (this.aborted) {
+          finish(new Error("Mission interrupted while waiting for aircraft convergence."));
+        }
+      }, 50);
+
+      cleanup.unsubscribe = this.adapter.subscribe((state) => {
+        if (predicate(state)) finish();
+      });
+    });
   }
 
   private assertPreflightSafety() {

@@ -195,8 +195,60 @@ describe("DOMINIC autonomous mission engine", () => {
 
     const result = await engine.execute();
 
-    expect(result.phase).toBe("FAILED");
+    expect(result.phase).toBe("ABORTED");
     expect(result.error).toContain("did not converge");
+    expect(result.events.some((event) => event.message.includes("Emergency recovery"))).toBe(true);
+    expect(result.completedCheckpointIds).toHaveLength(0);
+  });
+
+
+  it("times out a hung in-flight command and attempts emergency recovery", async () => {
+    const { checkpoints } = makeMission();
+    class HungGoToSimulator extends SimulatorAircraftAdapter {
+      async send(command: UniversalAircraftCommand) {
+        if (command.type === "goTo") {
+          return new Promise<Awaited<ReturnType<SimulatorAircraftAdapter["send"]>>>(() => {});
+        }
+        return super.send(command);
+      }
+    }
+
+    const aircraft = new HungGoToSimulator();
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      checkpoints: checkpoints.slice(0, 1),
+      commandTimeoutMs: 30,
+      emergencyCommandTimeoutMs: 30,
+    });
+
+    const result = await engine.execute();
+
+    expect(result.phase).toBe("ABORTED");
+    expect(result.error).toContain("goTo timed out");
+    expect(result.events.some((event) => event.message.includes("Emergency recovery"))).toBe(true);
+  });
+
+  it("times out a stalled aircraft connection before launch", async () => {
+    const { checkpoints } = makeMission();
+    class HungConnectSimulator extends SimulatorAircraftAdapter {
+      async connect() {
+        await new Promise<void>(() => {});
+      }
+    }
+
+    const aircraft = new HungConnectSimulator();
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      checkpoints: checkpoints.slice(0, 1),
+      connectTimeoutMs: 25,
+    });
+
+    const result = await engine.execute();
+
+    expect(result.phase).toBe("FAILED");
+    expect(result.error).toContain("connection timed out");
     expect(result.completedCheckpointIds).toHaveLength(0);
   });
 

@@ -3,6 +3,8 @@ import { bearingAndDistanceBetween } from "@/lib/capturePlanner";
 import type {
   DominicAircraftAdapter,
   UniversalAircraftState,
+  UniversalAircraftCommand,
+  CommandResult,
 } from "@/lib/aircraft/contract";
 import {
   evaluateFlightSafety,
@@ -57,6 +59,9 @@ export type AutonomousMissionInput = {
   altitudeToleranceFt?: number;
   headingToleranceDeg?: number;
   gimbalToleranceDeg?: number;
+  commandTimeoutMs?: number;
+  emergencyCommandTimeoutMs?: number;
+  connectTimeoutMs?: number;
 };
 
 const requiredCapabilities = [
@@ -106,14 +111,14 @@ export class DominicMissionEngine {
   async pause() {
     if (!["TRANSIT", "AIMING", "CAPTURING"].includes(this.snapshot.phase)) return;
     this.paused = true;
-    await this.adapter.send({ type: "pause" });
+    await this.requireAccepted(await this.sendCommand({ type: "pause" }));
     this.transition("PAUSED", "Mission paused by operator.");
   }
 
   async resume() {
     if (!this.paused) return;
     this.paused = false;
-    await this.adapter.send({ type: "resume" });
+    await this.requireAccepted(await this.sendCommand({ type: "resume" }));
     this.transition("TRANSIT", "Mission resumed by operator.");
   }
 
@@ -121,14 +126,18 @@ export class DominicMissionEngine {
     if (this.aborted) return;
     this.aborted = true;
     this.transition("ABORTED", reason);
-    await this.adapter.send({ type: "abort", reason });
+    await this.sendCommand({ type: "abort", reason }, this.mission.emergencyCommandTimeoutMs ?? 3000).catch(() => undefined);
   }
 
   async execute() {
     try {
       this.transition("CONNECTING", "Connecting to aircraft.");
       if (!this.adapter.getState().connected) {
-        await this.adapter.connect();
+        await this.withTimeout(
+          this.adapter.connect(),
+          this.mission.connectTimeoutMs ?? 10_000,
+          "Aircraft connection timed out.",
+        );
       }
       this.captureState();
 
@@ -142,7 +151,7 @@ export class DominicMissionEngine {
       }
 
       this.transition("ARMING", "Arming aircraft.");
-      await this.requireAccepted(await this.adapter.send({ type: "arm" }));
+      await this.requireAccepted(await this.sendCommand({ type: "arm" }));
 
       const first = this.mission.checkpoints[0];
       const takeoffAltitudeFt =
@@ -151,7 +160,7 @@ export class DominicMissionEngine {
 
       this.transition("TAKEOFF", `Taking off to ${takeoffAltitudeFt.toFixed(1)} ft.`);
       await this.requireAccepted(
-        await this.adapter.send({ type: "takeoff", altitudeFt: takeoffAltitudeFt }),
+        await this.sendCommand({ type: "takeoff", altitudeFt: takeoffAltitudeFt }),
       );
       this.captureState();
 
@@ -169,7 +178,7 @@ export class DominicMissionEngine {
           checkpoint.id,
         );
         await this.requireAccepted(
-          await this.adapter.send({
+          await this.sendCommand({
             type: "goTo",
             latitude: checkpoint.latitude,
             longitude: checkpoint.longitude,
@@ -188,10 +197,10 @@ export class DominicMissionEngine {
 
         this.transition("AIMING", "Aiming aircraft and camera.", checkpoint.id);
         await this.requireAccepted(
-          await this.adapter.send({ type: "setYaw", headingDeg: yawToSubject }),
+          await this.sendCommand({ type: "setYaw", headingDeg: yawToSubject }),
         );
         await this.requireAccepted(
-          await this.adapter.send({
+          await this.sendCommand({
             type: "setGimbal",
             pitchDeg: checkpoint.cameraAngle,
           }),
@@ -199,7 +208,7 @@ export class DominicMissionEngine {
         await this.waitForCaptureOrientation(yawToSubject, checkpoint.cameraAngle);
 
         this.transition("CAPTURING", "Capturing image.", checkpoint.id);
-        await this.requireAccepted(await this.adapter.send({ type: "capturePhoto", checkpointId: checkpoint.id }));
+        await this.requireAccepted(await this.sendCommand({ type: "capturePhoto", checkpointId: checkpoint.id }));
 
         this.snapshot.completedCheckpointIds = [
           ...this.snapshot.completedCheckpointIds,
@@ -212,10 +221,10 @@ export class DominicMissionEngine {
       if (this.aborted) return this.getSnapshot();
 
       this.transition("RETURNING", "Returning aircraft to home.");
-      await this.requireAccepted(await this.adapter.send({ type: "returnHome" }));
+      await this.requireAccepted(await this.sendCommand({ type: "returnHome" }));
 
       this.transition("LANDING", "Landing aircraft.");
-      await this.requireAccepted(await this.adapter.send({ type: "land" }));
+      await this.requireAccepted(await this.sendCommand({ type: "land" }));
       this.captureState();
 
       this.snapshot.currentCheckpointId = undefined;
@@ -225,12 +234,23 @@ export class DominicMissionEngine {
       return this.getSnapshot();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown mission failure.";
+      const phaseAtFailure = this.snapshot.phase;
       this.stopSafetySupervisor();
       if (this.aborted) {
         this.snapshot.error = undefined;
         if (this.snapshot.phase !== "ABORTED") this.transition("ABORTED", message);
         return this.getSnapshot();
       }
+
+      if (
+        ["TAKEOFF", "TRANSIT", "AIMING", "CAPTURING", "PAUSED", "RETURNING"].includes(
+          phaseAtFailure,
+        )
+      ) {
+        await this.attemptEmergencyRecovery(message);
+        return this.getSnapshot();
+      }
+
       this.snapshot.error = message;
       this.transition("FAILED", message);
       return this.getSnapshot();
@@ -395,7 +415,7 @@ export class DominicMissionEngine {
 
     if (action === "pause" && this.adapter.capabilities.pauseResume) {
       this.paused = true;
-      await this.adapter.send({ type: "pause" });
+      await this.sendCommand({ type: "pause" }).catch(() => undefined);
       this.transition("PAUSED", `Safety hold: ${reason}`);
       return;
     }
@@ -403,11 +423,66 @@ export class DominicMissionEngine {
     if (action === "return_home") {
       this.aborted = true;
       this.transition("ABORTED", `Safety return-home: ${reason}`);
-      await this.adapter.send({ type: "returnHome" });
+      await this.sendCommand({ type: "returnHome" }, this.mission.emergencyCommandTimeoutMs ?? 3000).catch(() => undefined);
       return;
     }
 
     await this.abort(`Safety abort: ${reason}`);
+  }
+
+  private async attemptEmergencyRecovery(reason: string) {
+    this.aborted = true;
+    this.snapshot.error = reason;
+    this.transition("ABORTED", `Emergency recovery: ${reason}`);
+
+    const timeoutMs = this.mission.emergencyCommandTimeoutMs ?? 3000;
+    try {
+      const result = await this.sendCommand(
+        { type: "abort", reason: `DOMINIC emergency recovery: ${reason}` },
+        timeoutMs,
+      );
+      if (result.accepted) return;
+    } catch {
+      // Fall through to an explicit return-home attempt.
+    }
+
+    try {
+      await this.sendCommand({ type: "returnHome" }, timeoutMs);
+    } catch {
+      // Mission remains ABORTED; aircraft/vendor failsafes are now authoritative.
+    }
+  }
+
+  private async sendCommand(
+    command: UniversalAircraftCommand,
+    timeoutMs = this.mission.commandTimeoutMs ?? 8000,
+  ): Promise<CommandResult> {
+    return this.withTimeout(
+      this.adapter.send(command),
+      timeoutMs,
+      `Aircraft command ${command.type} timed out after ${timeoutMs} ms.`,
+    );
+  }
+
+  private async withTimeout<T>(
+    promise: Promise<T>,
+    timeoutMs: number,
+    message: string,
+  ): Promise<T> {
+    const cleanup: { timer?: ReturnType<typeof setTimeout> } = {};
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          cleanup.timer = setTimeout(
+            () => reject(new Error(message)),
+            timeoutMs,
+          );
+        }),
+      ]);
+    } finally {
+      if (cleanup.timer) clearTimeout(cleanup.timer);
+    }
   }
 
   private assertCapabilities() {

@@ -4,6 +4,7 @@ import type {
   DominicAircraftAdapter,
   UniversalAircraftCommand,
   UniversalAircraftState,
+  UniversalMediaCapture,
 } from "@/lib/aircraft/contract";
 
 export type AutelSdkSnapshot = {
@@ -40,6 +41,7 @@ export interface AutelSdkDriver {
   disconnect(): Promise<void>;
   getSnapshot(): AutelSdkSnapshot;
   subscribe(listener: (snapshot: AutelSdkSnapshot) => void): () => void;
+  subscribeMedia?(listener: (capture: UniversalMediaCapture) => void): () => void;
 
   arm(): Promise<void>;
   takeoff(altitudeFt: number): Promise<void>;
@@ -101,7 +103,9 @@ export class AutelAircraftAdapter implements DominicAircraftAdapter {
   readonly capabilities: AircraftCapabilities;
   private state: UniversalAircraftState;
   private listeners = new Set<(state: UniversalAircraftState) => void>();
+  private mediaListeners = new Set<(capture: UniversalMediaCapture) => void>();
   private unsubscribeDriver?: () => void;
+  private unsubscribeMediaDriver?: () => void;
 
   constructor(private readonly driver: AutelSdkDriver) {
     this.capabilities = { ...driver.capabilities };
@@ -114,6 +118,9 @@ export class AutelAircraftAdapter implements DominicAircraftAdapter {
       this.state = mapAutelSnapshot(snapshot);
       this.emit();
     });
+    this.unsubscribeMediaDriver = this.driver.subscribeMedia?.((capture) => {
+      this.emitMedia(capture);
+    });
     this.state = mapAutelSnapshot(this.driver.getSnapshot());
     this.emit();
   }
@@ -121,6 +128,8 @@ export class AutelAircraftAdapter implements DominicAircraftAdapter {
   async disconnect() {
     this.unsubscribeDriver?.();
     this.unsubscribeDriver = undefined;
+    this.unsubscribeMediaDriver?.();
+    this.unsubscribeMediaDriver = undefined;
     await this.driver.disconnect();
     this.state = mapAutelSnapshot(this.driver.getSnapshot());
     this.emit();
@@ -134,6 +143,11 @@ export class AutelAircraftAdapter implements DominicAircraftAdapter {
     this.listeners.add(listener);
     listener(this.getState());
     return () => this.listeners.delete(listener);
+  }
+
+  subscribeMedia(listener: (capture: UniversalMediaCapture) => void) {
+    this.mediaListeners.add(listener);
+    return () => this.mediaListeners.delete(listener);
   }
 
   async send(command: UniversalAircraftCommand): Promise<CommandResult> {
@@ -224,5 +238,9 @@ export class AutelAircraftAdapter implements DominicAircraftAdapter {
   private emit() {
     const snapshot = this.getState();
     for (const listener of this.listeners) listener(snapshot);
+  }
+
+  private emitMedia(capture: UniversalMediaCapture) {
+    for (const listener of this.mediaListeners) listener({ ...capture });
   }
 }

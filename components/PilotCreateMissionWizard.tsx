@@ -237,40 +237,50 @@ export default function PilotCreateMissionWizard({
         warnings: data.quote.warnings ?? [],
       };
 
-      const draftRes = await fetch("/api/pilot/missions/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({
-          draftId,
-          clientName,
-          clientEmail,
-          clientCompany,
-          clientPhone,
-          location: address,
-          latitude: lat,
-          longitude: lng,
-          airspace,
-          travelOrigin,
-          distanceMiles,
-          serviceType,
-          customMissionTitle: serviceType === "custom" ? customMissionTitle : undefined,
-          customMissionScope: serviceType === "custom" ? customMissionScope : undefined,
-          customDeliverables: serviceType === "custom" ? customDeliverables : undefined,
-          siteComplexity: complexity,
-          urgency,
-          deliverableTier,
-          billingMode,
-          noChargeReason: billingMode === "no_charge" ? noChargeReason.trim() : undefined,
-          quote: nextQuote,
-        }),
-      });
-      const draftData = await draftRes.json();
-      if (!draftRes.ok) throw new Error(draftData.error ?? "Quote calculated, but the mission draft could not be saved.");
-      setDraftId(draftData.draft.id);
+      // Show the quote immediately. Draft persistence is a resilience layer,
+      // not a prerequisite for the pilot to review or create the mission.
       setQuote(nextQuote);
       setUninsuredConsent(false);
       setStep("quote");
-      onDraftSaved?.();
+
+      try {
+        const draftRes = await fetch("/api/pilot/missions/draft", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+          body: JSON.stringify({
+            draftId,
+            clientName,
+            clientEmail,
+            clientCompany,
+            clientPhone,
+            location: address,
+            latitude: lat,
+            longitude: lng,
+            airspace,
+            travelOrigin,
+            distanceMiles,
+            serviceType,
+            customMissionTitle: serviceType === "custom" ? customMissionTitle : undefined,
+            customMissionScope: serviceType === "custom" ? customMissionScope : undefined,
+            customDeliverables: serviceType === "custom" ? customDeliverables : undefined,
+            siteComplexity: complexity,
+            urgency,
+            deliverableTier,
+            billingMode,
+            noChargeReason: billingMode === "no_charge" ? noChargeReason.trim() : undefined,
+            quote: nextQuote,
+          }),
+        });
+        const draftData = await draftRes.json();
+        if (!draftRes.ok) {
+          setError(draftData.error ?? "Quote is ready, but the draft could not be saved. You can still create the mission from this screen.");
+        } else {
+          setDraftId(draftData.draft.id);
+          onDraftSaved?.();
+        }
+      } catch (draftError: any) {
+        setError(draftError?.message ?? "Quote is ready, but the draft could not be saved. You can still create the mission from this screen.");
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {

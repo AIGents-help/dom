@@ -53,6 +53,10 @@ import type {
 } from "@/lib/aircraft/contract";
 import { analyzeImageFile, analyzeImageUrl, type ImageQualityAssessment } from "@/lib/imageQuality";
 import {
+  runBenchReadiness,
+  type BenchReadinessReport,
+} from "@/lib/aircraft/benchReadiness";
+import {
   assessCoverage,
   buildRepairPlan,
   summarizeCoverageByRing,
@@ -241,6 +245,9 @@ export default function DominicCapturePlanner() {
   const bridgeMediaUnsubscribeRef = useRef<(() => void) | null>(null);
   const [automaticMediaCount, setAutomaticMediaCount] = useState(0);
   const [automaticMediaStatus, setAutomaticMediaStatus] = useState<string | null>(null);
+  const [benchReport, setBenchReport] = useState<BenchReadinessReport | null>(null);
+  const [benchRunning, setBenchRunning] = useState(false);
+  const [benchRequireRtk, setBenchRequireRtk] = useState(false);
   const [safetyScenario, setSafetyScenario] = useState<SafetyScenario>("battery_rth_on_first_transit");
   const [safetyScenarioResult, setSafetyScenarioResult] = useState<string | null>(null);
 
@@ -642,6 +649,28 @@ export default function DominicCapturePlanner() {
     }
   };
 
+  const runConnectedBenchReadiness = async () => {
+    const adapter = bridgeAdapterRef.current;
+    if (!adapter || bridgeStatus !== "connected" || benchRunning) return;
+
+    setBenchRunning(true);
+    setBenchReport(null);
+    try {
+      const report = await runBenchReadiness(adapter, {
+        requireRtkFixed: benchRequireRtk,
+        minimumBatteryPercent: 40,
+        telemetryMaxAgeMs: 3000,
+        commandTimeoutMs: 3000,
+        mediaTimeoutMs: 5000,
+        testCommandRoundTrips: true,
+        testMediaCapture: true,
+      });
+      setBenchReport(report);
+    } finally {
+      setBenchRunning(false);
+    }
+  };
+
   const disconnectAircraftBridge = async () => {
     bridgeUnsubscribeRef.current?.();
     bridgeUnsubscribeRef.current = null;
@@ -655,6 +684,7 @@ export default function DominicCapturePlanner() {
     setBridgeError(null);
     setAutomaticMediaStatus(null);
     setRealFlightApprovalSignature(null);
+    setBenchReport(null);
   };
 
   const runAutonomousSimulation = async (
@@ -771,6 +801,10 @@ export default function DominicCapturePlanner() {
   ) => {
     if (!preflightReady || autonomousRunning || !realFlightApproved) return;
     if (bridgeStatus !== "connected") return;
+    if (!benchReport?.readyForPropOnFieldTest) {
+      setMissionControlMessage("Connected aircraft has not passed DOMINIC field-test readiness.");
+      return;
+    }
     const adapter = bridgeAdapterRef.current;
     if (!adapter) return;
 
@@ -853,6 +887,7 @@ export default function DominicCapturePlanner() {
       autonomousRunning ||
       !secondaryFlightApproved ||
       bridgeStatus !== "connected" ||
+      !benchReport?.readyForPropOnFieldTest ||
       missionType === "interior"
     ) {
       return;
@@ -1267,7 +1302,11 @@ export default function DominicCapturePlanner() {
                         <label style={{ display: "grid", gridTemplateColumns: "16px 1fr", gap: 6, alignItems: "start", color: bridgeStatus === "connected" ? "#DCE3EA" : V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 8 }}>
                           <input
                             type="checkbox"
-                            disabled={bridgeStatus !== "connected" || autonomousRunning}
+                            disabled={
+                              bridgeStatus !== "connected" ||
+                              !benchReport?.readyForPropOnFieldTest ||
+                              autonomousRunning
+                            }
                             checked={secondaryFlightApproved}
                             onChange={(event) =>
                               setSecondaryFlightApprovalSignature(
@@ -1283,6 +1322,7 @@ export default function DominicCapturePlanner() {
                           type="button"
                           disabled={
                             bridgeStatus !== "connected" ||
+                            !benchReport?.readyForPropOnFieldTest ||
                             !secondaryFlightApproved ||
                             autonomousRunning
                           }
@@ -1444,6 +1484,52 @@ export default function DominicCapturePlanner() {
                     <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 3 }}>
                       {automaticMediaStatus ?? "Waiting for aircraft capture events. Photos with a bridge media URL are quality-checked and added to coverage automatically."}
                     </div>
+                  </div>
+                  <div style={{ borderTop: `1px solid rgba(112,214,160,.16)`, marginTop: 8, paddingTop: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                      <div style={{ color: V.text, fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
+                        Bench / HITL readiness
+                      </div>
+                      <span style={{ color: benchReport?.readyForPropOnFieldTest ? V.green : benchReport?.readyForPropsOffBench ? V.amber : V.muted, fontSize: 8, fontWeight: 900 }}>
+                        {benchReport
+                          ? benchReport.readyForPropOnFieldTest
+                            ? "FIELD READY"
+                            : benchReport.readyForPropsOffBench
+                              ? "BENCH READY"
+                              : "BLOCKED"
+                          : "NOT RUN"}
+                      </span>
+                    </div>
+                    <label style={{ display: "flex", gap: 6, alignItems: "center", color: V.muted, fontSize: 8, marginTop: 6 }}>
+                      <input
+                        type="checkbox"
+                        checked={benchRequireRtk}
+                        disabled={benchRunning}
+                        onChange={(event) => {
+                          setBenchRequireRtk(event.target.checked);
+                          setBenchReport(null);
+                        }}
+                      />
+                      Require RTK FIX for field readiness
+                    </label>
+                    <button
+                      type="button"
+                      disabled={benchRunning}
+                      onClick={() => void runConnectedBenchReadiness()}
+                      style={{ width: "100%", marginTop: 7, border: `1px solid ${V.line}`, background: "#0D1319", color: benchRunning ? "#6F7A84" : V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: benchRunning ? "not-allowed" : "pointer" }}
+                    >
+                      {benchRunning ? "Running Bench Checks..." : "Run Bench / HITL Readiness"}
+                    </button>
+                    {benchReport ? (
+                      <div style={{ display: "grid", gap: 4, marginTop: 7 }}>
+                        {benchReport.checks.map((check) => (
+                          <div key={check.id} style={{ display: "grid", gridTemplateColumns: "12px 1fr", gap: 5, alignItems: "start", color: check.status === "pass" ? "#BFEBD2" : check.status === "fail" ? "#FFB6AA" : check.status === "warn" ? "#FFD0A0" : V.muted, fontSize: 8, lineHeight: 1.35 }}>
+                            <span>{check.status === "pass" ? "✓" : check.status === "fail" ? "×" : check.status === "warn" ? "!" : "–"}</span>
+                            <span><strong>{check.label}</strong> · {check.message}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -1857,7 +1943,12 @@ export default function DominicCapturePlanner() {
                 <label style={{ display: "grid", gridTemplateColumns: "16px 1fr", gap: 7, alignItems: "start", color: bridgeStatus === "connected" ? "#DCE3EA" : V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 7, cursor: bridgeStatus === "connected" ? "pointer" : "not-allowed" }}>
                   <input
                     type="checkbox"
-                    disabled={bridgeStatus !== "connected" || !preflightReady || autonomousRunning}
+                    disabled={
+                      bridgeStatus !== "connected" ||
+                      !preflightReady ||
+                      !benchReport?.readyForPropOnFieldTest ||
+                      autonomousRunning
+                    }
                     checked={realFlightApproved}
                     onChange={(event) =>
                       setRealFlightApprovalSignature(
@@ -1874,6 +1965,7 @@ export default function DominicCapturePlanner() {
                   disabled={
                     bridgeStatus !== "connected" ||
                     !preflightReady ||
+                    !benchReport?.readyForPropOnFieldTest ||
                     !realFlightApproved ||
                     autonomousRunning
                   }

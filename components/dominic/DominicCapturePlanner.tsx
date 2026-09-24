@@ -775,6 +775,9 @@ export default function DominicCapturePlanner() {
             : {
                 aircraftFingerprint: fingerprint,
                 planSignature: realFlightPlanSignature,
+                benchVerifiedAtMs: benchReport?.readyForPropOnFieldTest
+                  ? benchReport.generatedAtMs
+                  : undefined,
               },
         ),
       );
@@ -954,6 +957,9 @@ export default function DominicCapturePlanner() {
             : {
                 aircraftFingerprint: fingerprint,
                 planSignature: secondaryFlightPlanSignature,
+                benchVerifiedAtMs: benchReport?.readyForPropOnFieldTest
+                  ? benchReport.generatedAtMs
+                  : undefined,
               },
         ),
       );

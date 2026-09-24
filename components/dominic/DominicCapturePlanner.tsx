@@ -57,6 +57,14 @@ import {
   type BenchReadinessReport,
 } from "@/lib/aircraft/benchReadiness";
 import {
+  aircraftFingerprint,
+  attestControlledFieldValidation,
+  updateBenchVerification,
+  updateSimulationVerification,
+  validationStatus,
+  type FlightValidationRecord,
+} from "@/lib/aircraft/flightValidation";
+import {
   assessCoverage,
   buildRepairPlan,
   summarizeCoverageByRing,
@@ -248,6 +256,9 @@ export default function DominicCapturePlanner() {
   const [benchReport, setBenchReport] = useState<BenchReadinessReport | null>(null);
   const [benchRunning, setBenchRunning] = useState(false);
   const [benchRequireRtk, setBenchRequireRtk] = useState(false);
+  const [flightValidation, setFlightValidation] = useState<FlightValidationRecord | null>(null);
+  const [controlledFieldNotes, setControlledFieldNotes] = useState("");
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [safetyScenario, setSafetyScenario] = useState<SafetyScenario>("battery_rth_on_first_transit");
   const [safetyScenarioResult, setSafetyScenarioResult] = useState<string | null>(null);
 
@@ -378,6 +389,28 @@ export default function DominicCapturePlanner() {
   );
   const realFlightApproved =
     realFlightApprovalSignature === realFlightPlanSignature;
+
+  const connectedAircraftFingerprint = bridgeInfo
+    ? aircraftFingerprint({
+        vendor: bridgeInfo.vendor,
+        aircraftId: bridgeInfo.aircraftId,
+        model: bridgeInfo.model,
+      })
+    : "";
+  const activeValidationPlanSignature =
+    missionType === "object"
+      ? realFlightPlanSignature
+      : secondaryFlightPlanSignature;
+  const flightValidationStatus =
+    flightValidation && connectedAircraftFingerprint
+      ? validationStatus(flightValidation, {
+          aircraftFingerprint: connectedAircraftFingerprint,
+          planSignature: activeValidationPlanSignature,
+        })
+      : null;
+  const productionFlightUnlocked =
+    Boolean(benchReport?.readyForPropOnFieldTest) &&
+    Boolean(flightValidationStatus?.productionUnlocked);
 
   const coverageByRing = useMemo(
     () => summarizeCoverageByRing(geographicCheckpoints, adaptiveCoverage),
@@ -666,6 +699,26 @@ export default function DominicCapturePlanner() {
         testMediaCapture: true,
       });
       setBenchReport(report);
+      if (report.readyForPropOnFieldTest && bridgeInfo) {
+        const fingerprint = aircraftFingerprint({
+          vendor: bridgeInfo.vendor,
+          aircraftId: bridgeInfo.aircraftId,
+          model: bridgeInfo.model,
+        });
+        setFlightValidation((current) =>
+          updateBenchVerification(
+            current &&
+              current.aircraftFingerprint === fingerprint &&
+              current.planSignature === activeValidationPlanSignature
+              ? current
+              : {
+                  aircraftFingerprint: fingerprint,
+                  planSignature: activeValidationPlanSignature,
+                },
+            report,
+          ),
+        );
+      }
     } finally {
       setBenchRunning(false);
     }
@@ -685,6 +738,9 @@ export default function DominicCapturePlanner() {
     setAutomaticMediaStatus(null);
     setRealFlightApprovalSignature(null);
     setBenchReport(null);
+    setFlightValidation(null);
+    setControlledFieldNotes("");
+    setValidationMessage(null);
   };
 
   const runAutonomousSimulation = async (
@@ -719,9 +775,32 @@ export default function DominicCapturePlanner() {
     autonomousEngineRef.current = engine;
     setMissionControlMessage(null);
     const unsubscribe = engine.subscribe((snapshot) => setAutonomousSnapshot(snapshot));
-    await engine.execute();
+    const result = await engine.execute();
     unsubscribe();
-    setAutonomousSnapshot(engine.getSnapshot());
+    setAutonomousSnapshot(result);
+    if (
+      mode === "full" &&
+      result.phase === "COMPLETE" &&
+      bridgeInfo
+    ) {
+      const fingerprint = aircraftFingerprint({
+        vendor: bridgeInfo.vendor,
+        aircraftId: bridgeInfo.aircraftId,
+        model: bridgeInfo.model,
+      });
+      setFlightValidation((current) =>
+        updateSimulationVerification(
+          current &&
+            current.aircraftFingerprint === fingerprint &&
+            current.planSignature === realFlightPlanSignature
+            ? current
+            : {
+                aircraftFingerprint: fingerprint,
+                planSignature: realFlightPlanSignature,
+              },
+        ),
+      );
+    }
     autonomousEngineRef.current = null;
     setAutonomousRunning(false);
   };
@@ -801,6 +880,10 @@ export default function DominicCapturePlanner() {
   ) => {
     if (!preflightReady || autonomousRunning || !realFlightApproved) return;
     if (bridgeStatus !== "connected") return;
+    if (!productionFlightUnlocked) {
+      setMissionControlMessage("Connected aircraft has not completed DOMINIC's staged flight validation ladder.");
+      return;
+    }
     if (!benchReport?.readyForPropOnFieldTest) {
       setMissionControlMessage("Connected aircraft has not passed DOMINIC field-test readiness.");
       return;
@@ -878,6 +961,25 @@ export default function DominicCapturePlanner() {
     const result = await engine.execute();
     unsubscribe();
     setAutonomousSnapshot(result);
+    if (result.phase === "COMPLETE" && bridgeInfo) {
+      const fingerprint = aircraftFingerprint({
+        vendor: bridgeInfo.vendor,
+        aircraftId: bridgeInfo.aircraftId,
+        model: bridgeInfo.model,
+      });
+      setFlightValidation((current) =>
+        updateSimulationVerification(
+          current &&
+            current.aircraftFingerprint === fingerprint &&
+            current.planSignature === secondaryFlightPlanSignature
+            ? current
+            : {
+                aircraftFingerprint: fingerprint,
+                planSignature: secondaryFlightPlanSignature,
+              },
+        ),
+      );
+    }
     autonomousEngineRef.current = null;
     setAutonomousRunning(false);
   };
@@ -887,6 +989,7 @@ export default function DominicCapturePlanner() {
       autonomousRunning ||
       !secondaryFlightApproved ||
       bridgeStatus !== "connected" ||
+      !productionFlightUnlocked ||
       !benchReport?.readyForPropOnFieldTest ||
       missionType === "interior"
     ) {
@@ -924,6 +1027,35 @@ export default function DominicCapturePlanner() {
     autonomousEngineRef.current = null;
     setAutonomousRunning(false);
     setSecondaryFlightApprovalSignature(null);
+  };
+
+  const recordControlledFieldValidation = () => {
+    if (!bridgeInfo) return;
+    const fingerprint = aircraftFingerprint({
+      vendor: bridgeInfo.vendor,
+      aircraftId: bridgeInfo.aircraftId,
+      model: bridgeInfo.model,
+    });
+    try {
+      const base =
+        flightValidation &&
+        flightValidation.aircraftFingerprint === fingerprint &&
+        flightValidation.planSignature === activeValidationPlanSignature
+          ? flightValidation
+          : {
+              aircraftFingerprint: fingerprint,
+              planSignature: activeValidationPlanSignature,
+            };
+      const updated = attestControlledFieldValidation(base, {
+        notes: controlledFieldNotes,
+      });
+      setFlightValidation(updated);
+      setValidationMessage("Controlled field validation recorded for this aircraft and capture plan.");
+    } catch (error) {
+      setValidationMessage(
+        error instanceof Error ? error.message : "Unable to record controlled field validation.",
+      );
+    }
   };
 
   const pauseActiveMission = async () => {

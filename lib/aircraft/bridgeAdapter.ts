@@ -5,6 +5,7 @@ import type {
   DominicAircraftAdapter,
   UniversalAircraftCommand,
   UniversalAircraftState,
+  UniversalMediaCapture,
 } from "@/lib/aircraft/contract";
 import {
   DOMINIC_BRIDGE_PROTOCOL,
@@ -23,6 +24,7 @@ export class FlightBridgeAircraftAdapter implements DominicAircraftAdapter {
   readonly capabilities: AircraftCapabilities;
   private state: UniversalAircraftState;
   private listeners = new Set<(state: UniversalAircraftState) => void>();
+  private mediaListeners = new Set<(capture: UniversalMediaCapture) => void>();
   private pending = new Map<string, PendingCommand>();
   private unsubscribeTransport?: () => void;
   private requestSequence = 0;
@@ -52,6 +54,11 @@ export class FlightBridgeAircraftAdapter implements DominicAircraftAdapter {
     await this.transport.connect();
     this.unsubscribeTransport = this.transport.subscribe((message) => this.handleMessage(message));
     this.updateState({ connected: true });
+  }
+
+  subscribeMedia(listener: (capture: UniversalMediaCapture) => void) {
+    this.mediaListeners.add(listener);
+    return () => this.mediaListeners.delete(listener);
   }
 
   async disconnect() {
@@ -113,6 +120,10 @@ export class FlightBridgeAircraftAdapter implements DominicAircraftAdapter {
     if (message.type === "telemetry") {
       this.state = { ...message.state, connected: true };
       this.emit();
+      return;
+    }
+    if (message.type === "media_capture") {
+      for (const listener of this.mediaListeners) listener({ ...message.capture });
       return;
     }
     if (message.type === "command_result") {

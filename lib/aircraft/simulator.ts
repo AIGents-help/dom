@@ -1,6 +1,6 @@
 import {
   type AircraftCapabilities, type CommandResult, type DominicAircraftAdapter,
-  type UniversalAircraftCommand, type UniversalAircraftState, validateCommand,
+  type UniversalAircraftCommand, type UniversalAircraftState, type UniversalMediaCapture, validateCommand,
 } from "./contract";
 
 export const simulatorCapabilities:AircraftCapabilities={
@@ -13,6 +13,7 @@ export class SimulatorAircraftAdapter implements DominicAircraftAdapter {
   readonly vendor="simulator" as const;
   readonly capabilities={...simulatorCapabilities};
   private listeners=new Set<(state:UniversalAircraftState)=>void>();
+  private mediaListeners=new Set<(capture:UniversalMediaCapture)=>void>();
   private state:UniversalAircraftState;
 
   constructor(initial?:Partial<UniversalAircraftState>){
@@ -26,6 +27,7 @@ export class SimulatorAircraftAdapter implements DominicAircraftAdapter {
   async disconnect(){this.patch({connected:false,flightMode:"DISCONNECTED"});}
   getState(){return {...this.state};}
   subscribe(listener:(state:UniversalAircraftState)=>void){this.listeners.add(listener);listener(this.getState());return()=>this.listeners.delete(listener);}
+  subscribeMedia(listener:(capture:UniversalMediaCapture)=>void){this.mediaListeners.add(listener);return()=>this.mediaListeners.delete(listener);}
   async send(command:UniversalAircraftCommand):Promise<CommandResult>{
     const validation=validateCommand(this.capabilities,command); if(!validation.accepted)return validation;
     switch(command.type){
@@ -33,6 +35,26 @@ export class SimulatorAircraftAdapter implements DominicAircraftAdapter {
       case "goTo":this.patch({latitude:command.latitude,longitude:command.longitude,relativeAltitudeFt:command.relativeAltitudeFt,flightMode:"FLYING"});break;
       case "setYaw":this.patch({headingDeg:command.headingDeg});break;
       case "setGimbal":this.patch({gimbalPitchDeg:command.pitchDeg,gimbalYawDeg:command.yawDeg});break;
+      case "capturePhoto":{
+        const capture:UniversalMediaCapture={
+          id:`sim-capture-${Date.now()}`,
+          aircraftId:this.state.aircraftId,
+          capturedAtMs:Date.now(),
+          mimeType:"image/png",
+          mediaUrl:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+          filename:`${command.checkpointId ?? "capture"}.png`,
+          checkpointId:command.checkpointId,
+          latitude:this.state.latitude,
+          longitude:this.state.longitude,
+          relativeAltitudeFt:this.state.relativeAltitudeFt,
+          headingDeg:this.state.headingDeg,
+          gimbalPitchDeg:this.state.gimbalPitchDeg,
+          gimbalYawDeg:this.state.gimbalYawDeg,
+        };
+        for(const listener of this.mediaListeners)listener({...capture});
+        this.patch({});
+        break;
+      }
       case "returnHome":this.patch({flightMode:"RETURN_HOME"});break;
       case "land":this.patch({relativeAltitudeFt:0,flightMode:"LANDED"});break;
       case "pause":this.patch({flightMode:"PAUSED"});break;

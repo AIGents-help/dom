@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FlightBridgeServerSession } from "@/lib/aircraft/bridgeServer";
-import { DOMINIC_BRIDGE_PROTOCOL } from "@/lib/aircraft/bridgeProtocol";
+import { DOMINIC_BRIDGE_PROTOCOL, type FlightBridgeMessage } from "@/lib/aircraft/bridgeProtocol";
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 
 describe("DOMINIC Flight Bridge server session", () => {
@@ -12,7 +12,7 @@ describe("DOMINIC Flight Bridge server session", () => {
       heartbeatIntervalMs: 10_000,
     });
 
-    const messages: any[] = [];
+    const messages: FlightBridgeMessage[] = [];
     const unsubscribe = session.subscribe((message) => messages.push(message));
 
     await session.start();
@@ -32,7 +32,7 @@ describe("DOMINIC Flight Bridge server session", () => {
       heartbeatIntervalMs: 10_000,
     });
 
-    const messages: any[] = [];
+    const messages: FlightBridgeMessage[] = [];
     session.subscribe((message) => messages.push(message));
     await session.start();
 
@@ -52,6 +52,34 @@ describe("DOMINIC Flight Bridge server session", () => {
       ),
     ).toBe(true);
     expect(aircraft.getState().relativeAltitudeFt).toBe(25);
+
+    await session.stop();
+  });
+  it("correlates aircraft photos with capture-plan checkpoints", async () => {
+    const aircraft = new SimulatorAircraftAdapter({ aircraftId: "sim-media" });
+    const session = new FlightBridgeServerSession(aircraft, {
+      bridgeId: "bridge-local",
+      adapterVersion: "1.0.0",
+      heartbeatIntervalMs: 10_000,
+    });
+
+    const messages: FlightBridgeMessage[] = [];
+    session.subscribe((message) => messages.push(message));
+    await session.start();
+
+    await session.receive({
+      type: "command",
+      protocol: DOMINIC_BRIDGE_PROTOCOL,
+      requestId: "capture-1",
+      command: { type: "capturePhoto", checkpointId: "high-7" },
+    });
+
+    const media = messages.find(
+      (message): message is Extract<FlightBridgeMessage, { type: "media_capture" }> =>
+        message.type === "media_capture",
+    );
+    expect(media?.capture.checkpointId).toBe("high-7");
+    expect(media?.capture.aircraftId).toBe("sim-media");
 
     await session.stop();
   });

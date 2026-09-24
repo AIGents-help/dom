@@ -14,8 +14,11 @@ export type BridgeServerSessionOptions = {
 export class FlightBridgeServerSession {
   private listeners = new Set<(message: FlightBridgeMessage) => void>();
   private unsubscribeAircraft?: () => void;
+  private unsubscribeMedia?: () => void;
   private heartbeatTimer?: ReturnType<typeof setInterval>;
   private telemetrySequence = 0;
+  private mediaSequence = 0;
+  private pendingMediaCheckpointIds: string[] = [];
   private started = false;
 
   constructor(
@@ -57,6 +60,22 @@ export class FlightBridgeServerSession {
       });
     });
 
+    if (this.adapter.subscribeMedia) {
+      this.unsubscribeMedia = this.adapter.subscribeMedia((capture) => {
+        const queuedCheckpointId = this.pendingMediaCheckpointIds.shift();
+        this.mediaSequence += 1;
+        this.emit({
+          type: "media_capture",
+          protocol: DOMINIC_BRIDGE_PROTOCOL,
+          sequence: this.mediaSequence,
+          capture: {
+            ...capture,
+            checkpointId: capture.checkpointId ?? queuedCheckpointId,
+          },
+        });
+      });
+    }
+
     const heartbeatIntervalMs = this.options.heartbeatIntervalMs ?? 1000;
     this.heartbeatTimer = setInterval(() => {
       this.emit({
@@ -72,6 +91,9 @@ export class FlightBridgeServerSession {
     this.started = false;
     this.unsubscribeAircraft?.();
     this.unsubscribeAircraft = undefined;
+    this.unsubscribeMedia?.();
+    this.unsubscribeMedia = undefined;
+    this.pendingMediaCheckpointIds = [];
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = undefined;
     await this.adapter.disconnect();
@@ -91,7 +113,15 @@ export class FlightBridgeServerSession {
     if (message.type !== "command") return;
 
     try {
+      const queuedCheckpointId =
+        message.command.type === "capturePhoto" ? message.command.checkpointId : undefined;
+      if (queuedCheckpointId) this.pendingMediaCheckpointIds.push(queuedCheckpointId);
+
       const result = await this.adapter.send(message.command);
+      if (!result.accepted && queuedCheckpointId) {
+        const index = this.pendingMediaCheckpointIds.lastIndexOf(queuedCheckpointId);
+        if (index >= 0) this.pendingMediaCheckpointIds.splice(index, 1);
+      }
       this.emit({
         type: "command_result",
         protocol: DOMINIC_BRIDGE_PROTOCOL,

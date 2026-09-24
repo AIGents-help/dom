@@ -178,7 +178,7 @@ export class DominicMissionEngine {
         );
 
         this.transition("CAPTURING", "Capturing image.", checkpoint.id);
-        await this.requireAccepted(await this.adapter.send({ type: "capturePhoto" }));
+        await this.requireAccepted(await this.adapter.send({ type: "capturePhoto", checkpointId: checkpoint.id }));
 
         this.snapshot.completedCheckpointIds = [
           ...this.snapshot.completedCheckpointIds,

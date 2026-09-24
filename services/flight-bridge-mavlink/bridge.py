@@ -82,6 +82,8 @@ class MavlinkDriver:
         self._command_lock = asyncio.Lock()
         self._ack_waiters: dict[int, asyncio.Future[Any]] = {}
         self._state_callback: Callable[[dict[str, Any]], Awaitable[None]] | None = None
+        self._media_callback: Callable[[dict[str, Any]], Awaitable[None]] | None = None
+        self.media_url_prefix = os.getenv("MAVLINK_MEDIA_URL_PREFIX", "").rstrip("/")
 
     @property
     def capabilities(self) -> dict[str, bool]:
@@ -131,11 +133,13 @@ class MavlinkDriver:
     async def run_reader(
         self,
         on_state: Callable[[dict[str, Any]], Awaitable[None]],
+        on_media: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
     ) -> None:
         if self.connection is None:
             raise RuntimeError("MAVLink driver is not connected.")
 
         self._state_callback = on_state
+        self._media_callback = on_media
         self._running = True
         await self.publish_state()
 
@@ -228,6 +232,12 @@ class MavlinkDriver:
                 current_m > 0 and current_m <= self.obstacle_threshold_m
             )
 
+        elif message_type == "CAMERA_IMAGE_CAPTURED":
+            media = self.media_from_camera_message(message)
+            if media is not None and self._media_callback is not None:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._media_callback(media))
+
         elif message_type == "COMMAND_ACK":
             command_id = int(message.command)
             waiter = self._ack_waiters.pop(command_id, None)
@@ -239,6 +249,58 @@ class MavlinkDriver:
     async def publish_state(self) -> None:
         if self._state_callback is not None:
             await self._state_callback(self.state.as_dict())
+
+    def media_from_camera_message(self, message: Any) -> dict[str, Any] | None:
+        result = int(getattr(message, "capture_result", 1))
+        if result == 0:
+            return None
+
+        raw_url = getattr(message, "file_url", "")
+        if isinstance(raw_url, (bytes, bytearray)):
+            raw_url = raw_url.decode("utf-8", errors="ignore")
+        raw_url = str(raw_url or "").split("\x00", 1)[0].strip()
+
+        media_url: str | None = None
+        if raw_url.startswith(("http://", "https://", "data:")):
+            media_url = raw_url
+        elif raw_url and self.media_url_prefix:
+            filename = os.path.basename(raw_url.replace("file://", ""))
+            if filename:
+                media_url = f"{self.media_url_prefix}/{filename}"
+
+        latitude = float(getattr(message, "lat", 0) or 0) / 1e7
+        longitude = float(getattr(message, "lng", 0) or 0) / 1e7
+        if latitude == 0:
+            latitude = self.state.latitude
+        if longitude == 0:
+            longitude = self.state.longitude
+
+        relative_alt_m = getattr(message, "relative_alt", None)
+        relative_altitude_ft = (
+            float(relative_alt_m) * FEET_PER_METER
+            if relative_alt_m is not None
+            else self.state.relativeAltitudeFt
+        )
+
+        image_index = int(getattr(message, "image_index", 0) or 0)
+        filename = os.path.basename(raw_url.replace("file://", "")) if raw_url else None
+
+        capture = {
+            "id": f"mavlink-image-{image_index}-{int(time.time() * 1000)}",
+            "aircraftId": self.state.aircraftId,
+            "capturedAtMs": int(time.time() * 1000),
+            "mimeType": "image/jpeg",
+            "filename": filename,
+            "latitude": latitude,
+            "longitude": longitude,
+            "relativeAltitudeFt": relative_altitude_ft,
+            "headingDeg": self.state.headingDeg,
+            "gimbalPitchDeg": self.state.gimbalPitchDeg,
+            "gimbalYawDeg": self.state.gimbalYawDeg,
+        }
+        if media_url:
+            capture["mediaUrl"] = media_url
+        return capture
 
     def touch(self) -> None:
         self.state.timestampMs = int(time.time() * 1000)
@@ -462,10 +524,12 @@ class DominicBridgeServer:
         self.bridge_id = os.getenv("DOMINIC_BRIDGE_ID", "mavlink-local")
         self.adapter_version = "1.0.0"
         self.clients: set[ServerConnection] = set()
+        self.pending_checkpoint_ids: list[str] = []
+        self.media_sequence = 0
 
     async def run(self) -> None:
         await self.driver.connect()
-        reader_task = asyncio.create_task(self.driver.run_reader(self.broadcast_telemetry))
+        reader_task = asyncio.create_task(self.driver.run_reader(self.broadcast_telemetry, self.broadcast_media))
         try:
             async with websockets.serve(self.handle_client, self.host, self.port):
                 print(
@@ -532,6 +596,31 @@ class DominicBridgeServer:
         for client in stale:
             self.clients.discard(client)
 
+    async def broadcast_media(self, capture: dict[str, Any]) -> None:
+        if self.pending_checkpoint_ids and not capture.get("checkpointId"):
+            capture["checkpointId"] = self.pending_checkpoint_ids.pop(0)
+
+        if not self.clients:
+            return
+
+        self.media_sequence += 1
+        message = json.dumps(
+            {
+                "type": "media_capture",
+                "protocol": PROTOCOL,
+                "sequence": self.media_sequence,
+                "capture": capture,
+            }
+        )
+        stale: list[ServerConnection] = []
+        for client in self.clients:
+            try:
+                await client.send(message)
+            except Exception:
+                stale.append(client)
+        for client in stale:
+            self.clients.discard(client)
+
     async def heartbeat_loop(self, websocket: ServerConnection) -> None:
         while True:
             await asyncio.sleep(1)
@@ -569,6 +658,14 @@ class DominicBridgeServer:
         command = message.get("command") or {}
         command_type = str(command.get("type") or "")
 
+        queued_checkpoint_id = (
+            str(command.get("checkpointId") or "")
+            if command_type == "capturePhoto"
+            else ""
+        )
+        if queued_checkpoint_id:
+            self.pending_checkpoint_ids.append(queued_checkpoint_id)
+
         try:
             await self.execute_command(command_type, command)
             response = {
@@ -582,6 +679,11 @@ class DominicBridgeServer:
             }
             await websocket.send(json.dumps(response))
         except Exception as exc:
+            if queued_checkpoint_id:
+                try:
+                    self.pending_checkpoint_ids.remove(queued_checkpoint_id)
+                except ValueError:
+                    pass
             response = {
                 "type": "command_result",
                 "protocol": PROTOCOL,

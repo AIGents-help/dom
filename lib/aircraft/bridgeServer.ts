@@ -14,8 +14,10 @@ export type BridgeServerSessionOptions = {
 export class FlightBridgeServerSession {
   private listeners = new Set<(message: FlightBridgeMessage) => void>();
   private unsubscribeAircraft?: () => void;
+  private unsubscribeMedia?: () => void;
   private heartbeatTimer?: ReturnType<typeof setInterval>;
   private telemetrySequence = 0;
+  private mediaSequence = 0;
   private started = false;
 
   constructor(
@@ -57,6 +59,18 @@ export class FlightBridgeServerSession {
       });
     });
 
+    if (this.adapter.subscribeMedia) {
+      this.unsubscribeMedia = this.adapter.subscribeMedia((capture) => {
+        this.mediaSequence += 1;
+        this.emit({
+          type: "media_capture",
+          protocol: DOMINIC_BRIDGE_PROTOCOL,
+          sequence: this.mediaSequence,
+          capture,
+        });
+      });
+    }
+
     const heartbeatIntervalMs = this.options.heartbeatIntervalMs ?? 1000;
     this.heartbeatTimer = setInterval(() => {
       this.emit({
@@ -72,6 +86,8 @@ export class FlightBridgeServerSession {
     this.started = false;
     this.unsubscribeAircraft?.();
     this.unsubscribeAircraft = undefined;
+    this.unsubscribeMedia?.();
+    this.unsubscribeMedia = undefined;
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     this.heartbeatTimer = undefined;
     await this.adapter.disconnect();

@@ -1,0 +1,1 @@
+alter type public.assignment_status add value if not exists 'scheduled' after 'accepted';

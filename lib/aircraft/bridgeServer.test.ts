@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FlightBridgeServerSession } from "@/lib/aircraft/bridgeServer";
-import { DOMINIC_BRIDGE_PROTOCOL } from "@/lib/aircraft/bridgeProtocol";
+import { DOMINIC_BRIDGE_PROTOCOL, type FlightBridgeMessage } from "@/lib/aircraft/bridgeProtocol";
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 
 describe("DOMINIC Flight Bridge server session", () => {
@@ -12,7 +12,7 @@ describe("DOMINIC Flight Bridge server session", () => {
       heartbeatIntervalMs: 10_000,
     });
 
-    const messages: any[] = [];
+    const messages: FlightBridgeMessage[] = [];
     const unsubscribe = session.subscribe((message) => messages.push(message));
 
     await session.start();
@@ -32,7 +32,7 @@ describe("DOMINIC Flight Bridge server session", () => {
       heartbeatIntervalMs: 10_000,
     });
 
-    const messages: any[] = [];
+    const messages: FlightBridgeMessage[] = [];
     session.subscribe((message) => messages.push(message));
     await session.start();
 
@@ -63,7 +63,7 @@ describe("DOMINIC Flight Bridge server session", () => {
       heartbeatIntervalMs: 10_000,
     });
 
-    const messages: any[] = [];
+    const messages: FlightBridgeMessage[] = [];
     session.subscribe((message) => messages.push(message));
     await session.start();
 

@@ -227,6 +227,8 @@ export default function DominicCapturePlanner() {
     capabilities: AircraftCapabilities;
   } | null>(null);
   const bridgeAdapterRef = useRef<DominicAircraftAdapter | null>(null);
+  const autonomousEngineRef = useRef<DominicMissionEngine | null>(null);
+  const [missionControlMessage, setMissionControlMessage] = useState<string | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
   const bridgeMediaUnsubscribeRef = useRef<(() => void) | null>(null);
   const [automaticMediaCount, setAutomaticMediaCount] = useState(0);
@@ -674,10 +676,13 @@ export default function DominicCapturePlanner() {
       ),
       transitSpeedFps: 12,
     });
+    autonomousEngineRef.current = engine;
+    setMissionControlMessage(null);
     const unsubscribe = engine.subscribe((snapshot) => setAutonomousSnapshot(snapshot));
     await engine.execute();
     unsubscribe();
     setAutonomousSnapshot(engine.getSnapshot());
+    autonomousEngineRef.current = null;
     setAutonomousRunning(false);
   };
 
@@ -708,14 +713,50 @@ export default function DominicCapturePlanner() {
       ),
       transitSpeedFps: 12,
     });
+    autonomousEngineRef.current = engine;
+    setMissionControlMessage(null);
     const unsubscribe = engine.subscribe((snapshot) =>
       setAutonomousSnapshot(snapshot),
     );
     await engine.execute();
     unsubscribe();
     setAutonomousSnapshot(engine.getSnapshot());
+    autonomousEngineRef.current = null;
     setAutonomousRunning(false);
     setRealFlightApprovalSignature(null);
+  };
+
+  const pauseActiveMission = async () => {
+    const engine = autonomousEngineRef.current;
+    if (!engine) return;
+    try {
+      await engine.pause();
+      setMissionControlMessage("Mission paused. Aircraft remains under the connected adapter's hold behavior.");
+    } catch (error) {
+      setMissionControlMessage(
+        error instanceof Error ? error.message : "Unable to pause mission.",
+      );
+    }
+  };
+
+  const resumeActiveMission = async () => {
+    const engine = autonomousEngineRef.current;
+    if (!engine) return;
+    try {
+      await engine.resume();
+      setMissionControlMessage("DOMINIC safety checks are clear. Mission resumed.");
+    } catch (error) {
+      setMissionControlMessage(
+        error instanceof Error ? error.message : "Unable to resume mission.",
+      );
+    }
+  };
+
+  const abortActiveMission = async () => {
+    const engine = autonomousEngineRef.current;
+    if (!engine) return;
+    setMissionControlMessage("Operator abort requested. DOMINIC is handing emergency recovery to the aircraft adapter.");
+    await engine.abort("Operator abort from DOMINIC Capture Planner.");
   };
 
   const downloadCheckpointPayload = () => {

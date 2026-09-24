@@ -390,28 +390,6 @@ export default function DominicCapturePlanner() {
   const realFlightApproved =
     realFlightApprovalSignature === realFlightPlanSignature;
 
-  const connectedAircraftFingerprint = bridgeInfo
-    ? aircraftFingerprint({
-        vendor: bridgeInfo.vendor,
-        aircraftId: bridgeInfo.aircraftId,
-        model: bridgeInfo.model,
-      })
-    : "";
-  const activeValidationPlanSignature =
-    missionType === "object"
-      ? realFlightPlanSignature
-      : secondaryFlightPlanSignature;
-  const flightValidationStatus =
-    flightValidation && connectedAircraftFingerprint
-      ? validationStatus(flightValidation, {
-          aircraftFingerprint: connectedAircraftFingerprint,
-          planSignature: activeValidationPlanSignature,
-        })
-      : null;
-  const productionFlightUnlocked =
-    Boolean(benchReport?.readyForPropOnFieldTest) &&
-    Boolean(flightValidationStatus?.productionUnlocked);
-
   const coverageByRing = useMemo(
     () => summarizeCoverageByRing(geographicCheckpoints, adaptiveCoverage),
     [geographicCheckpoints, adaptiveCoverage],
@@ -1219,6 +1197,28 @@ export default function DominicCapturePlanner() {
   });
   const secondaryFlightApproved =
     secondaryFlightApprovalSignature === secondaryFlightPlanSignature;
+
+  const connectedAircraftFingerprint = bridgeInfo
+    ? aircraftFingerprint({
+        vendor: bridgeInfo.vendor,
+        aircraftId: bridgeInfo.aircraftId,
+        model: bridgeInfo.model,
+      })
+    : "";
+  const activeValidationPlanSignature =
+    missionType === "object"
+      ? realFlightPlanSignature
+      : secondaryFlightPlanSignature;
+  const flightValidationStatus =
+    flightValidation && connectedAircraftFingerprint
+      ? validationStatus(flightValidation, {
+          aircraftFingerprint: connectedAircraftFingerprint,
+          planSignature: activeValidationPlanSignature,
+        })
+      : null;
+  const productionFlightUnlocked =
+    Boolean(benchReport?.readyForPropOnFieldTest) &&
+    Boolean(flightValidationStatus?.productionUnlocked);
 
   const activeProfile = missionProfiles[missionType];
 

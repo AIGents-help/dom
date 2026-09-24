@@ -299,27 +299,29 @@ export class DominicMissionEngine {
     await new Promise<void>((resolve, reject) => {
       let settled = false;
       let unsubscribe: (() => void) | undefined;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let abortPoll: ReturnType<typeof setInterval> | undefined;
 
       const finish = (error?: Error) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
-        clearInterval(abortPoll);
+        if (timer) clearTimeout(timer);
+        if (abortPoll) clearInterval(abortPoll);
         unsubscribe?.();
         if (error) reject(error);
         else resolve();
       };
 
-      unsubscribe = this.adapter.subscribe((state) => {
-        if (predicate(state)) finish();
-      });
-
-      const timer = setTimeout(() => finish(new Error(timeoutMessage)), timeoutMs);
-      const abortPoll = setInterval(() => {
+      timer = setTimeout(() => finish(new Error(timeoutMessage)), timeoutMs);
+      abortPoll = setInterval(() => {
         if (this.aborted) {
           finish(new Error("Mission interrupted while waiting for aircraft convergence."));
         }
       }, 50);
+
+      unsubscribe = this.adapter.subscribe((state) => {
+        if (predicate(state)) finish();
+      });
     });
   }
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { calculateObjectScanPlan, buildGeographicCheckpoints } from "@/lib/capturePlanner";
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 import { DominicMissionEngine } from "@/lib/aircraft/missionEngine";
@@ -84,4 +84,26 @@ describe("DOMINIC autonomous mission engine", () => {
 
     expect(["ABORTED", "COMPLETE"]).toContain(result.phase);
   });
+
+  it("reuses an already-connected aircraft bridge without reconnecting it", async () => {
+    const { checkpoints } = makeMission();
+    const aircraft = new SimulatorAircraftAdapter({
+      latitude: 39.9499,
+      longitude: -75.1601,
+    });
+    await aircraft.connect();
+    const connectSpy = vi.spyOn(aircraft, "connect");
+
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      checkpoints: checkpoints.slice(0, 2),
+    });
+
+    const result = await engine.execute();
+
+    expect(result.phase).toBe("COMPLETE");
+    expect(connectSpy).not.toHaveBeenCalled();
+  });
+
 });

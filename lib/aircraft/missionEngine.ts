@@ -62,6 +62,7 @@ export type AutonomousMissionInput = {
   commandTimeoutMs?: number;
   emergencyCommandTimeoutMs?: number;
   connectTimeoutMs?: number;
+  safetyPollIntervalMs?: number;
 };
 
 const requiredCapabilities = [
@@ -83,6 +84,7 @@ export class DominicMissionEngine {
   private aborted = false;
   private safetyActionInFlight = false;
   private unsubscribeSafety?: () => void;
+  private safetyPollTimer?: ReturnType<typeof setInterval>;
 
   constructor(
     private readonly adapter: DominicAircraftAdapter,
@@ -391,8 +393,9 @@ export class DominicMissionEngine {
   }
 
   private startSafetySupervisor() {
-    this.unsubscribeSafety?.();
-    this.unsubscribeSafety = this.adapter.subscribe((state) => {
+    this.stopSafetySupervisor();
+
+    const evaluate = (state: UniversalAircraftState) => {
       if (
         ["IDLE", "CONNECTING", "PREFLIGHT", "COMPLETE", "ABORTED", "FAILED"].includes(
           this.snapshot.phase,
@@ -421,12 +424,20 @@ export class DominicMissionEngine {
             this.safetyActionInFlight = false;
           });
       }
-    });
+    };
+
+    this.unsubscribeSafety = this.adapter.subscribe((state) => evaluate(state));
+    this.safetyPollTimer = setInterval(
+      () => evaluate(this.adapter.getState()),
+      this.mission.safetyPollIntervalMs ?? 500,
+    );
   }
 
   private stopSafetySupervisor() {
     this.unsubscribeSafety?.();
     this.unsubscribeSafety = undefined;
+    if (this.safetyPollTimer) clearInterval(this.safetyPollTimer);
+    this.safetyPollTimer = undefined;
   }
 
   private async applySafetyAction(

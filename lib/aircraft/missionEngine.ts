@@ -110,6 +110,9 @@ export class DominicMissionEngine {
 
   async pause() {
     if (!["TRANSIT", "AIMING", "CAPTURING"].includes(this.snapshot.phase)) return;
+    if (!this.adapter.capabilities.pauseResume) {
+      throw new Error("Connected aircraft does not support pause/resume.");
+    }
     this.paused = true;
     await this.requireAccepted(await this.sendCommand({ type: "pause" }));
     this.transition("PAUSED", "Mission paused by operator.");
@@ -117,6 +120,24 @@ export class DominicMissionEngine {
 
   async resume() {
     if (!this.paused) return;
+    if (!this.adapter.capabilities.pauseResume) {
+      throw new Error("Connected aircraft does not support pause/resume.");
+    }
+
+    const safety = evaluateFlightSafety({
+      state: this.adapter.getState(),
+      phase: "flight",
+      policy: this.mission.safetyPolicy,
+    });
+    this.snapshot.safetyIssues = safety.issues;
+    if (safety.highestAction !== "continue") {
+      this.emit();
+      throw new Error(
+        safety.issues.map((issue) => issue.message).join(" ") ||
+          "DOMINIC safety checks are not clear for resume.",
+      );
+    }
+
     this.paused = false;
     await this.requireAccepted(await this.sendCommand({ type: "resume" }));
     this.transition("TRANSIT", "Mission resumed by operator.");

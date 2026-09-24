@@ -65,6 +65,7 @@ import {
   calculateInteriorPlan,
   calculateRoofPlan,
   calculateStockpilePlan,
+  georeferencePattern,
 } from "@/lib/capturePatterns";
 import {
   DominicMissionEngine,
@@ -214,6 +215,8 @@ export default function DominicCapturePlanner() {
   const [patternAltitudeFt, setPatternAltitudeFt] = useState(75);
   const [patternStandoffFt, setPatternStandoffFt] = useState(30);
   const [patternOverlapPct, setPatternOverlapPct] = useState(75);
+  const [patternHeadingDeg, setPatternHeadingDeg] = useState(0);
+  const [secondaryFlightApprovalSignature, setSecondaryFlightApprovalSignature] = useState<string | null>(null);
   const [autonomousSnapshot, setAutonomousSnapshot] = useState<MissionExecutionSnapshot | null>(null);
   const [autonomousRunning, setAutonomousRunning] = useState(false);
   const [autonomousMode, setAutonomousMode] = useState<"full" | "repair">("full");
@@ -803,6 +806,91 @@ export default function DominicCapturePlanner() {
     setRealFlightApprovalSignature(null);
   };
 
+  const runSecondarySimulation = async () => {
+    if (autonomousRunning || !secondaryGeographicCheckpoints.length) return;
+    setAutonomousMode("full");
+    setAutonomousTarget("simulator");
+    setAutonomousRunning(true);
+    setAutonomousSnapshot(null);
+    setMissionControlMessage(null);
+
+    const aircraft = new SimulatorAircraftAdapter({
+      latitude: homeLatitude,
+      longitude: homeLongitude,
+      homeLatitude,
+      homeLongitude,
+      batteryPercent: 90,
+      satellites: 18,
+      gnssQuality: "good",
+      rtkState: "fixed",
+    });
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude,
+      centerLongitude,
+      checkpoints: secondaryGeographicCheckpoints,
+      takeoffAltitudeFt: Math.max(
+        10,
+        Math.min(
+          40,
+          secondaryGeographicCheckpoints[0]?.relativeAltitudeFt ?? 20,
+        ),
+      ),
+      transitSpeedFps: 12,
+    });
+    autonomousEngineRef.current = engine;
+    const unsubscribe = engine.subscribe((snapshot) =>
+      setAutonomousSnapshot(snapshot),
+    );
+    const result = await engine.execute();
+    unsubscribe();
+    setAutonomousSnapshot(result);
+    autonomousEngineRef.current = null;
+    setAutonomousRunning(false);
+  };
+
+  const runSecondaryConnectedMission = async () => {
+    if (
+      autonomousRunning ||
+      !secondaryFlightApproved ||
+      bridgeStatus !== "connected" ||
+      missionType === "interior"
+    ) {
+      return;
+    }
+    const adapter = bridgeAdapterRef.current;
+    if (!adapter || !secondaryGeographicCheckpoints.length) return;
+
+    setAutonomousMode("full");
+    setAutonomousTarget("connected");
+    setAutonomousRunning(true);
+    setAutonomousSnapshot(null);
+    setMissionControlMessage(null);
+
+    const engine = new DominicMissionEngine(adapter, {
+      centerLatitude,
+      centerLongitude,
+      checkpoints: secondaryGeographicCheckpoints,
+      takeoffAltitudeFt: Math.max(
+        10,
+        Math.min(
+          40,
+          secondaryGeographicCheckpoints[0]?.relativeAltitudeFt ?? 20,
+        ),
+      ),
+      transitSpeedFps: 12,
+    });
+    autonomousEngineRef.current = engine;
+    const unsubscribe = engine.subscribe((snapshot) =>
+      setAutonomousSnapshot(snapshot),
+    );
+    const result = await engine.execute();
+    unsubscribe();
+    setAutonomousSnapshot(result);
+    autonomousEngineRef.current = null;
+    setAutonomousRunning(false);
+    setSecondaryFlightApprovalSignature(null);
+  };
+
   const pauseActiveMission = async () => {
     const engine = autonomousEngineRef.current;
     if (!engine) return;
@@ -940,6 +1028,31 @@ export default function DominicCapturePlanner() {
     horizontalFovDeg,
   ]);
 
+  const secondaryGeographicCheckpoints = secondaryPlan
+    ? georeferencePattern(
+        secondaryPlan,
+        centerLatitude,
+        centerLongitude,
+        patternHeadingDeg,
+      )
+    : [];
+
+  const secondaryFlightPlanSignature = JSON.stringify({
+    missionType,
+    centerLatitude,
+    centerLongitude,
+    patternHeadingDeg,
+    checkpoints: secondaryGeographicCheckpoints.map((point) => [
+      point.id,
+      point.latitude,
+      point.longitude,
+      point.relativeAltitudeFt,
+      point.cameraAngle,
+    ]),
+  });
+  const secondaryFlightApproved =
+    secondaryFlightApprovalSignature === secondaryFlightPlanSignature;
+
   const activeProfile = missionProfiles[missionType];
 
   return (
@@ -1004,6 +1117,7 @@ export default function DominicCapturePlanner() {
                 <Field label="Altitude" value={patternAltitudeFt} min={8} max={1000} suffix="ft" onChange={setPatternAltitudeFt} />
                 <Field label="Stand-off" value={patternStandoffFt} min={2} max={500} suffix="ft" onChange={setPatternStandoffFt} />
                 <Field label="Overlap" value={patternOverlapPct} min={40} max={95} suffix="%" onChange={setPatternOverlapPct} />
+                <Field label="Route heading" value={patternHeadingDeg} min={0} max={359} suffix="deg" onChange={setPatternHeadingDeg} />
               </div>
             </section>
 
@@ -1016,6 +1130,43 @@ export default function DominicCapturePlanner() {
                     <span>{item}</span>
                   </div>
                 ))}
+              </div>
+            </section>
+
+            <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 14 }}>
+              <div style={{ color: V.text, fontSize: 11, fontWeight: 900 }}>Mission origin & aircraft</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 9 }}>
+                <Field label="Center latitude" value={centerLatitude} min={-90} max={90} step={0.000001} onChange={setCenterLatitude} />
+                <Field label="Center longitude" value={centerLongitude} min={-180} max={180} step={0.000001} onChange={setCenterLongitude} />
+              </div>
+              <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 7 }}>
+                {secondaryGeographicCheckpoints.length} geographic checkpoints generated · route heading {patternHeadingDeg}°.
+              </div>
+              <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 9, paddingTop: 9 }}>
+                <div style={{ color: bridgeStatus === "connected" ? V.green : V.muted, fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>
+                  Aircraft bridge · {bridgeStatus}
+                </div>
+                {bridgeStatus !== "connected" ? (
+                  <>
+                    <input
+                      value={bridgeUrl}
+                      onChange={(event) => setBridgeUrl(event.target.value)}
+                      style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8, marginTop: 7 }}
+                    />
+                    <button
+                      type="button"
+                      disabled={bridgeStatus === "connecting"}
+                      onClick={() => void connectAircraftBridge()}
+                      style={{ width: "100%", marginTop: 6, border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                    >
+                      {bridgeStatus === "connecting" ? "Connecting..." : "Connect Aircraft Bridge"}
+                    </button>
+                  </>
+                ) : (
+                  <div style={{ color: V.muted, fontSize: 8, marginTop: 5 }}>
+                    {bridgeInfo?.vendor.toUpperCase()} · {bridgeInfo?.model ?? bridgeInfo?.aircraftId}
+                  </div>
+                )}
               </div>
             </section>
           </aside>
@@ -1090,6 +1241,65 @@ export default function DominicCapturePlanner() {
                   ))}
                   <div style={{ border: `1px solid rgba(112,214,160,.18)`, background: "rgba(112,214,160,.04)", color: "#BFEBD2", borderRadius: 8, padding: 9, fontSize: 9, lineHeight: 1.45 }}>
                     This pattern uses the same checkpoint concept as Object Scan and can be georeferenced for manual guidance or passed to the universal mission engine.
+                  </div>
+                  <div style={{ border: `1px solid rgba(244,90,30,.24)`, background: "rgba(244,90,30,.04)", borderRadius: 9, padding: 9 }}>
+                    <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
+                      Universal mission execution
+                    </div>
+                    <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 4 }}>
+                      Run this calculated {activeProfile.label.toLowerCase()} pattern through the same safety-supervised mission engine used by Object Scan.
+                    </div>
+                    <button
+                      type="button"
+                      disabled={autonomousRunning || !secondaryGeographicCheckpoints.length}
+                      onClick={() => void runSecondarySimulation()}
+                      style={{ width: "100%", marginTop: 7, border: 0, background: autonomousRunning ? "#39424B" : `linear-gradient(90deg,${V.orangeDark},${V.orange})`, color: autonomousRunning ? "#88939E" : "#180A02", borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: autonomousRunning ? "not-allowed" : "pointer" }}
+                    >
+                      Run {activeProfile.label} Simulation
+                    </button>
+
+                    {missionType === "interior" ? (
+                      <div style={{ color: V.amber, fontSize: 8, lineHeight: 1.4, marginTop: 7 }}>
+                        Connected autonomous Interior execution remains locked until a supported local-positioning / SLAM navigation source is available.
+                      </div>
+                    ) : (
+                      <>
+                        <label style={{ display: "grid", gridTemplateColumns: "16px 1fr", gap: 6, alignItems: "start", color: bridgeStatus === "connected" ? "#DCE3EA" : V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 8 }}>
+                          <input
+                            type="checkbox"
+                            disabled={bridgeStatus !== "connected" || autonomousRunning}
+                            checked={secondaryFlightApproved}
+                            onChange={(event) =>
+                              setSecondaryFlightApprovalSignature(
+                                event.target.checked
+                                  ? secondaryFlightPlanSignature
+                                  : null,
+                              )
+                            }
+                          />
+                          <span>I confirm this displayed pattern, mission center/orientation, aircraft, RTH point, airspace and obstacles are safe for autonomous execution.</span>
+                        </label>
+                        <button
+                          type="button"
+                          disabled={
+                            bridgeStatus !== "connected" ||
+                            !secondaryFlightApproved ||
+                            autonomousRunning
+                          }
+                          onClick={() => void runSecondaryConnectedMission()}
+                          style={{ width: "100%", marginTop: 7, border: `1px solid ${secondaryFlightApproved ? "rgba(112,214,160,.35)" : V.line}`, background: secondaryFlightApproved ? "rgba(112,214,160,.1)" : "#1B222A", color: secondaryFlightApproved ? V.green : "#6F7A84", borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: secondaryFlightApproved ? "pointer" : "not-allowed" }}
+                        >
+                          Execute {activeProfile.label} on Connected Aircraft
+                        </button>
+                      </>
+                    )}
+
+                    {autonomousSnapshot ? (
+                      <div style={{ marginTop: 7, color: autonomousSnapshot.phase === "COMPLETE" ? V.green : autonomousSnapshot.phase === "ABORTED" || autonomousSnapshot.phase === "FAILED" ? "#FFB6AA" : V.muted, fontSize: 8, lineHeight: 1.4 }}>
+                        {autonomousSnapshot.phase} · {autonomousSnapshot.completedCheckpointIds.length}/{autonomousSnapshot.checkpointCount} checkpoints
+                        {autonomousSnapshot.safetyIssues.length ? ` · ${autonomousSnapshot.safetyIssues[0].message}` : ""}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>

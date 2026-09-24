@@ -1,4 +1,3 @@
-import type { GeographicCheckpoint } from "@/lib/capturePlanner";
 import { bearingAndDistanceBetween } from "@/lib/capturePlanner";
 import type {
   DominicAircraftAdapter,
@@ -47,10 +46,19 @@ export type MissionExecutionSnapshot = {
   safetyIssues: FlightSafetyIssue[];
 };
 
+export type MissionCheckpoint = {
+  id: string;
+  sequence: number;
+  latitude: number;
+  longitude: number;
+  relativeAltitudeFt: number;
+  cameraAngle: number;
+};
+
 export type AutonomousMissionInput = {
   centerLatitude: number;
   centerLongitude: number;
-  checkpoints: GeographicCheckpoint[];
+  checkpoints: MissionCheckpoint[];
   takeoffAltitudeFt?: number;
   transitSpeedFps?: number;
   safetyPolicy?: Partial<FlightSafetyPolicy>;
@@ -284,7 +292,7 @@ export class DominicMissionEngine {
     }
   }
 
-  private async waitForCheckpointArrival(checkpoint: GeographicCheckpoint) {
+  private async waitForCheckpointArrival(checkpoint: MissionCheckpoint) {
     const positionToleranceFt = this.mission.positionToleranceFt ?? 5;
     const altitudeToleranceFt = this.mission.altitudeToleranceFt ?? 4;
     const timeoutMs = this.mission.arrivalTimeoutMs ?? 45_000;

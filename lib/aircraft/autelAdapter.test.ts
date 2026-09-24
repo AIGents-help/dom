@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { UniversalMediaCapture } from "@/lib/aircraft/contract";
 import {
   AutelAircraftAdapter,
   type AutelSdkDriver,
@@ -32,6 +33,7 @@ function snapshot(): AutelSdkSnapshot {
 function makeDriver() {
   const calls: string[] = [];
   const listeners = new Set<(state: AutelSdkSnapshot) => void>();
+  const mediaListeners = new Set<(capture: UniversalMediaCapture) => void>();
   const state = snapshot();
 
   const driver: AutelSdkDriver = {
@@ -59,6 +61,10 @@ function makeDriver() {
       listener({ ...state });
       return () => listeners.delete(listener);
     },
+    subscribeMedia(listener) {
+      mediaListeners.add(listener);
+      return () => mediaListeners.delete(listener);
+    },
     async arm() { calls.push("arm"); },
     async takeoff(altitudeFt) { calls.push(`takeoff:${altitudeFt}`); },
     async goTo(input) { calls.push(`goto:${input.latitude.toFixed(4)}`); },
@@ -75,7 +81,13 @@ function makeDriver() {
     async abort(reason) { calls.push(`abort:${reason}`); },
   };
 
-  return { driver, calls };
+  return {
+    driver,
+    calls,
+    publishMedia(capture: UniversalMediaCapture) {
+      for (const listener of mediaListeners) listener({ ...capture });
+    },
+  };
 }
 
 describe("DOMINIC Autel adapter", () => {
@@ -126,5 +138,30 @@ describe("DOMINIC Autel adapter", () => {
 
     expect(result.accepted).toBe(false);
     expect(result.message).toContain("does not support");
+  });
+
+  it("forwards vendor camera media into the universal capture stream", async () => {
+    const fake = makeDriver();
+    const adapter = new AutelAircraftAdapter(fake.driver);
+    const received: UniversalMediaCapture[] = [];
+    adapter.subscribeMedia((capture) => received.push(capture));
+    await adapter.connect();
+
+    fake.publishMedia({
+      id: "photo-42",
+      aircraftId: "autel-evo-1",
+      capturedAtMs: 2000,
+      mimeType: "image/jpeg",
+      mediaUrl: "http://127.0.0.1:8788/media/photo-42.jpg",
+      latitude: 39.95,
+      longitude: -75.16,
+      relativeAltitudeFt: 30,
+      headingDeg: 180,
+      gimbalPitchDeg: -25,
+    });
+
+    expect(received).toHaveLength(1);
+    expect(received[0].id).toBe("photo-42");
+    expect(received[0].mediaUrl).toContain("photo-42.jpg");
   });
 });

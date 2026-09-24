@@ -269,7 +269,8 @@ class MavlinkDriver:
                 media_url = f"{self.media_url_prefix}/{filename}"
 
         latitude = float(getattr(message, "lat", 0) or 0) / 1e7
-        longitude = float(getattr(message, "lng", 0) or 0) / 1e7
+        longitude_raw = getattr(message, "lon", getattr(message, "lng", 0))
+        longitude = float(longitude_raw or 0) / 1e7
         if latitude == 0:
             latitude = self.state.latitude
         if longitude == 0:
@@ -277,7 +278,7 @@ class MavlinkDriver:
 
         relative_alt_m = getattr(message, "relative_alt", None)
         relative_altitude_ft = (
-            float(relative_alt_m) * FEET_PER_METER
+            float(relative_alt_m) / 1000.0 * FEET_PER_METER
             if relative_alt_m is not None
             else self.state.relativeAltitudeFt
         )

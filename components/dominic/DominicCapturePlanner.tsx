@@ -1028,42 +1028,28 @@ export default function DominicCapturePlanner() {
     horizontalFovDeg,
   ]);
 
-  const secondaryGeographicCheckpoints = useMemo(
-    () =>
-      secondaryPlan
-        ? georeferencePattern(
-            secondaryPlan,
-            centerLatitude,
-            centerLongitude,
-            patternHeadingDeg,
-          )
-        : [],
-    [secondaryPlan, centerLatitude, centerLongitude, patternHeadingDeg],
-  );
-
-  const secondaryFlightPlanSignature = useMemo(
-    () =>
-      JSON.stringify({
-        missionType,
+  const secondaryGeographicCheckpoints = secondaryPlan
+    ? georeferencePattern(
+        secondaryPlan,
         centerLatitude,
         centerLongitude,
         patternHeadingDeg,
-        checkpoints: secondaryGeographicCheckpoints.map((point) => [
-          point.id,
-          point.latitude,
-          point.longitude,
-          point.relativeAltitudeFt,
-          point.cameraAngle,
-        ]),
-      }),
-    [
-      missionType,
-      centerLatitude,
-      centerLongitude,
-      patternHeadingDeg,
-      secondaryGeographicCheckpoints,
-    ],
-  );
+      )
+    : [];
+
+  const secondaryFlightPlanSignature = JSON.stringify({
+    missionType,
+    centerLatitude,
+    centerLongitude,
+    patternHeadingDeg,
+    checkpoints: secondaryGeographicCheckpoints.map((point) => [
+      point.id,
+      point.latitude,
+      point.longitude,
+      point.relativeAltitudeFt,
+      point.cameraAngle,
+    ]),
+  });
   const secondaryFlightApproved =
     secondaryFlightApprovalSignature === secondaryFlightPlanSignature;
 

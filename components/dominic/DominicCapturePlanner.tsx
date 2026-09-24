@@ -42,6 +42,7 @@ import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 import { WebSocketFlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
 import { connectFlightBridgeAdapter } from "@/lib/aircraft/bridgeConnect";
 import type { DominicAircraftAdapter, AircraftCapabilities } from "@/lib/aircraft/contract";
+import { analyzeImageFile, type ImageQualityAssessment } from "@/lib/imageQuality";
 import {
   assessCoverage,
   buildRepairPlan,
@@ -210,6 +211,9 @@ export default function DominicCapturePlanner() {
   const [bridgeUrl, setBridgeUrl] = useState("ws://127.0.0.1:8787");
   const [bridgeStatus, setBridgeStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
   const [bridgeError, setBridgeError] = useState<string | null>(null);
+  const [imageAnalysisStatus, setImageAnalysisStatus] = useState<"idle" | "analyzing" | "done" | "error">("idle");
+  const [imageAnalysisMessage, setImageAnalysisMessage] = useState<string | null>(null);
+  const [lastImageQuality, setLastImageQuality] = useState<ImageQualityAssessment | null>(null);
   const [bridgeInfo, setBridgeInfo] = useState<{
     vendor: string;
     model?: string;
@@ -284,6 +288,9 @@ export default function DominicCapturePlanner() {
     setCurrentIndex(0);
     setCaptured({});
     setCaptureObservations([]);
+    setLastImageQuality(null);
+    setImageAnalysisStatus("idle");
+    setImageAnalysisMessage(null);
   };
 
   const snapTelemetryToCheckpoint = () => {
@@ -330,6 +337,46 @@ export default function DominicCapturePlanner() {
     () => summarizeCoverageByRing(geographicCheckpoints, adaptiveCoverage),
     [geographicCheckpoints, adaptiveCoverage],
   );
+
+  const analyzeCapturedImage = async (file: File) => {
+    if (!current) return;
+    const checkpoint = geographicCheckpoints.find((point) => point.id === current.id);
+    if (!checkpoint) return;
+    setImageAnalysisStatus("analyzing");
+    setImageAnalysisMessage(null);
+    try {
+      const quality = await analyzeImageFile(file);
+      setLastImageQuality(quality);
+      const useLiveAircraft =
+        telemetryMode === "aircraft" &&
+        aircraftTelemetry &&
+        !relativeAircraftTelemetry?.stale;
+      const observation: CaptureObservation = {
+        id: `image-${current.id}-${Date.now()}`,
+        checkpointId: current.id,
+        capturedAtMs: Date.now(),
+        latitude: useLiveAircraft ? aircraftTelemetry.latitude : checkpoint.latitude,
+        longitude: useLiveAircraft ? aircraftTelemetry.longitude : checkpoint.longitude,
+        relativeAltitudeFt: useLiveAircraft ? aircraftTelemetry.relativeAltitudeFt : checkpoint.relativeAltitudeFt,
+        cameraAngle: useLiveAircraft ? aircraftTelemetry.gimbalPitchDeg : current.cameraAngle,
+        sharpnessScore: quality.sharpnessScore,
+        exposureScore: quality.exposureScore,
+        usable: quality.usable,
+      };
+      setCaptureObservations((observations) => [
+        ...observations.filter((item) => item.checkpointId !== current.id),
+        observation,
+      ]);
+      setCaptured((state) => ({ ...state, [current.id]: true }));
+      setImageAnalysisStatus("done");
+      setImageAnalysisMessage(
+        quality.warnings.length ? quality.warnings.join(" ") : "Image quality meets the current DOMINIC capture policy.",
+      );
+    } catch (error) {
+      setImageAnalysisStatus("error");
+      setImageAnalysisMessage(error instanceof Error ? error.message : "Image analysis failed.");
+    }
+  };
 
   const markCaptured = () => {
     if (!current) return;
@@ -1341,6 +1388,43 @@ export default function DominicCapturePlanner() {
               <p style={{ color: V.muted, fontSize: 9, lineHeight: 1.5 }}>
                 DOMINIC now evaluates whether each planned view was actually captured from the right location, altitude and camera angle, then factors in image-quality scores. Weak or missing views become a repair pass instead of forcing a complete reflown mission.
               </p>
+              <div style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: "#0D1319", padding: 9, marginTop: 8 }}>
+                <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>Analyze actual capture</div>
+                <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 4 }}>
+                  Select the image for the current checkpoint. DOMINIC measures sharpness, exposure, contrast and clipping locally in the browser, then feeds the scores into adaptive coverage.
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={imageAnalysisStatus === "analyzing"}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) void analyzeCapturedImage(file);
+                    event.currentTarget.value = "";
+                  }}
+                  style={{ width: "100%", marginTop: 7, color: V.muted, fontSize: 8 }}
+                />
+                {imageAnalysisStatus === "analyzing" ? <div style={{ color: V.amber, fontSize: 8, marginTop: 6 }}>Analyzing image pixels…</div> : null}
+                {lastImageQuality ? (
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 5, marginTop: 7 }}>
+                    {[
+                      ["Sharpness", Math.round(lastImageQuality.sharpnessScore * 100) + "%"],
+                      ["Exposure", Math.round(lastImageQuality.exposureScore * 100) + "%"],
+                      ["Megapixels", lastImageQuality.megapixels.toFixed(1)],
+                    ].map(([label, value]) => (
+                      <div key={label} style={{ border: `1px solid ${V.line}`, borderRadius: 7, padding: 6, background: V.panel2 }}>
+                        <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>{label}</div>
+                        <div style={{ color: V.text, fontSize: 10, fontWeight: 900, marginTop: 2 }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                {imageAnalysisMessage ? (
+                  <div style={{ color: imageAnalysisStatus === "error" ? "#FF8B7A" : lastImageQuality?.usable ? V.green : V.amber, fontSize: 8, lineHeight: 1.4, marginTop: 6 }}>
+                    {imageAnalysisMessage}
+                  </div>
+                ) : null}
+              </div>
 
               {captureObservations.length ? (
                 <div style={{ borderTop: `1px solid ${V.line}`, paddingTop: 8, marginTop: 8 }}>

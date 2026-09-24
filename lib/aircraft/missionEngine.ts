@@ -112,7 +112,9 @@ export class DominicMissionEngine {
   async execute() {
     try {
       this.transition("CONNECTING", "Connecting to aircraft.");
-      await this.adapter.connect();
+      if (!this.adapter.getState().connected) {
+        await this.adapter.connect();
+      }
       this.captureState();
 
       this.transition("PREFLIGHT", "Checking aircraft capabilities.");

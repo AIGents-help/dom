@@ -39,6 +39,11 @@ import {
   type NoFlySector,
 } from "@/lib/capturePlanner";
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
+import {
+  SafetyScenarioAircraftAdapter,
+  safetyScenarioLabels,
+  type SafetyScenario,
+} from "@/lib/aircraft/safetyScenarioAdapter";
 import { WebSocketFlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
 import { connectFlightBridgeAdapter } from "@/lib/aircraft/bridgeConnect";
 import type {
@@ -233,6 +238,8 @@ export default function DominicCapturePlanner() {
   const bridgeMediaUnsubscribeRef = useRef<(() => void) | null>(null);
   const [automaticMediaCount, setAutomaticMediaCount] = useState(0);
   const [automaticMediaStatus, setAutomaticMediaStatus] = useState<string | null>(null);
+  const [safetyScenario, setSafetyScenario] = useState<SafetyScenario>("battery_rth_on_first_transit");
+  const [safetyScenarioResult, setSafetyScenarioResult] = useState<string | null>(null);
 
   const plan = useMemo(
     () => calculateObjectScanPlan({ objectDiameterFt, objectHeightFt, standoffFt, overlapPct, horizontalFovDeg }),
@@ -684,6 +691,76 @@ export default function DominicCapturePlanner() {
     setAutonomousSnapshot(engine.getSnapshot());
     autonomousEngineRef.current = null;
     setAutonomousRunning(false);
+  };
+
+  const runSafetyScenario = async () => {
+    if (!preflightReady || autonomousRunning) return;
+    setAutonomousMode("full");
+    setAutonomousTarget("simulator");
+    setAutonomousRunning(true);
+    setAutonomousSnapshot(null);
+    setSafetyScenarioResult(null);
+
+    const baseAircraft = new SimulatorAircraftAdapter({
+      latitude: homeLatitude,
+      longitude: homeLongitude,
+      homeLatitude,
+      homeLongitude,
+      batteryPercent: 90,
+      satellites: 18,
+      gnssQuality: "good",
+      rtkState: "fixed",
+    });
+    const aircraft = new SafetyScenarioAircraftAdapter(
+      baseAircraft,
+      safetyScenario,
+    );
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude,
+      centerLongitude,
+      checkpoints: geographicCheckpoints.slice(
+        0,
+        Math.min(4, geographicCheckpoints.length),
+      ),
+      takeoffAltitudeFt: Math.max(
+        10,
+        Math.min(40, geographicCheckpoints[0]?.relativeAltitudeFt ?? 20),
+      ),
+      transitSpeedFps: 12,
+      arrivalTimeoutMs: 800,
+      safetyPollIntervalMs: 10,
+      safetyPolicy:
+        safetyScenario === "telemetry_loss_on_first_transit"
+          ? { telemetryStaleAfterMs: 40 }
+          : safetyScenario === "obstacle_on_first_transit"
+            ? { obstacleAction: "return_home" }
+            : undefined,
+    });
+
+    autonomousEngineRef.current = engine;
+    const unsubscribe = engine.subscribe((snapshot) =>
+      setAutonomousSnapshot(snapshot),
+    );
+    const result = await engine.execute();
+    unsubscribe();
+    setAutonomousSnapshot(result);
+    autonomousEngineRef.current = null;
+    setAutonomousRunning(false);
+
+    const intervention = result.events
+      .slice()
+      .reverse()
+      .find(
+        (event) =>
+          event.message.includes("Safety") ||
+          event.message.includes("Emergency recovery"),
+      );
+    setSafetyScenarioResult(
+      intervention?.message ??
+        (result.phase === "COMPLETE"
+          ? "Scenario completed without a safety intervention."
+          : result.error ?? "Scenario ended without a reported intervention."),
+    );
   };
 
   const runConnectedAircraftMission = async (
@@ -1505,6 +1582,38 @@ export default function DominicCapturePlanner() {
                   </div>
                 )}
               </div>
+              <div style={{ border: `1px solid rgba(255,184,107,.22)`, background: "rgba(255,184,107,.04)", borderRadius: 8, padding: 8, marginBottom: 9 }}>
+                <div style={{ color: V.amber, fontSize: 8, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
+                  Safety Scenario Lab
+                </div>
+                <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 4 }}>
+                  Inject a deterministic failure into the virtual aircraft and verify DOMINIC responds before any hardware test.
+                </div>
+                <select
+                  value={safetyScenario}
+                  disabled={autonomousRunning}
+                  onChange={(event) => setSafetyScenario(event.target.value as SafetyScenario)}
+                  style={{ width: "100%", marginTop: 7, border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8 }}
+                >
+                  {Object.entries(safetyScenarioLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={!preflightReady || autonomousRunning}
+                  onClick={() => void runSafetyScenario()}
+                  style={{ width: "100%", marginTop: 7, border: `1px solid rgba(255,184,107,.28)`, background: "#0D1319", color: V.amber, borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: preflightReady && !autonomousRunning ? "pointer" : "not-allowed" }}
+                >
+                  Run Safety Scenario
+                </button>
+                {safetyScenarioResult ? (
+                  <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 6 }}>
+                    {safetyScenarioResult}
+                  </div>
+                ) : null}
+              </div>
+
               <button
                 type="button"
                 disabled={!preflightReady || autonomousRunning}

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FlightBridgeAircraftAdapter } from "@/lib/aircraft/bridgeAdapter";
 import { DOMINIC_BRIDGE_PROTOCOL, parseFlightBridgeMessage } from "@/lib/aircraft/bridgeProtocol";
+import type { UniversalMediaCapture } from "@/lib/aircraft/contract";
 import { LoopbackFlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
 import { SimulatorAircraftAdapter, simulatorCapabilities } from "@/lib/aircraft/simulator";
 
@@ -55,7 +56,7 @@ describe("DOMINIC Flight Bridge", () => {
 
     await bridgeAdapter.connect();
 
-    const media: any[] = [];
+    const media: UniversalMediaCapture[] = [];
     bridgeAdapter.subscribeMedia((capture) => media.push(capture));
 
     const result = await bridgeAdapter.send({ type: "takeoff", altitudeFt: 25 });

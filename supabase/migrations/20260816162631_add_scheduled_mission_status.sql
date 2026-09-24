@@ -1,0 +1,1 @@
+alter type public.mission_status add value if not exists 'scheduled' after 'assigned';

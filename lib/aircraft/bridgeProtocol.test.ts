@@ -15,7 +15,7 @@ describe("DOMINIC Flight Bridge", () => {
     expect(() => parseFlightBridgeMessage('{"type":"heartbeat","protocol":"wrong"}')).toThrow();
   });
 
-  it("carries universal commands and telemetry across a bridge transport", async () => {
+  it("carries universal commands, telemetry, and media across a bridge transport", async () => {
     const transport = new LoopbackFlightBridgeTransport();
     const simulator = new SimulatorAircraftAdapter({
       aircraftId: "bridge-sim-1",
@@ -55,10 +55,35 @@ describe("DOMINIC Flight Bridge", () => {
 
     await bridgeAdapter.connect();
 
+    const media: any[] = [];
+    bridgeAdapter.subscribeMedia((capture) => media.push(capture));
+
     const result = await bridgeAdapter.send({ type: "takeoff", altitudeFt: 25 });
     expect(result.accepted).toBe(true);
 
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(bridgeAdapter.getState().relativeAltitudeFt).toBe(25);
+
+    await transport.send({
+      type: "media_capture",
+      protocol: DOMINIC_BRIDGE_PROTOCOL,
+      sequence: 2,
+      capture: {
+        id: "photo-1",
+        aircraftId: "bridge-sim-1",
+        capturedAtMs: 123,
+        mimeType: "image/jpeg",
+        mediaUrl: "http://127.0.0.1:8787/media/photo-1.jpg",
+        checkpointId: "mid-4",
+        latitude: 39.95,
+        longitude: -75.16,
+        relativeAltitudeFt: 30,
+        headingDeg: 180,
+        gimbalPitchDeg: -15,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(media).toHaveLength(1);
+    expect(media[0].checkpointId).toBe("mid-4");
   });
 });

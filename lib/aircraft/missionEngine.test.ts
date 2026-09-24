@@ -252,4 +252,66 @@ describe("DOMINIC autonomous mission engine", () => {
     expect(result.completedCheckpointIds).toHaveLength(0);
   });
 
+
+  it("keeps a paused mission stopped and refuses resume until safety clears", async () => {
+    const { checkpoints } = makeMission();
+
+    class ControllableSimulator extends SimulatorAircraftAdapter {
+      obstacle = false;
+
+      getState() {
+        return { ...super.getState(), obstacleAlert: this.obstacle };
+      }
+
+      subscribe(listener: Parameters<SimulatorAircraftAdapter["subscribe"]>[0]) {
+        return super.subscribe((state) =>
+          listener({ ...state, obstacleAlert: this.obstacle }),
+        );
+      }
+
+      async send(command: UniversalAircraftCommand) {
+        if (command.type === "goTo") {
+          setTimeout(() => {
+            void super.send(command);
+          }, 80);
+          return { accepted: true, command: command.type };
+        }
+        return super.send(command);
+      }
+    }
+
+    const aircraft = new ControllableSimulator();
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      checkpoints: checkpoints.slice(0, 1),
+      arrivalTimeoutMs: 1000,
+    });
+
+    let resolveTransit: (() => void) | undefined;
+    const reachedTransit = new Promise<void>((resolve) => {
+      resolveTransit = resolve;
+    });
+    const unsubscribe = engine.subscribe((snapshot) => {
+      if (snapshot.phase === "TRANSIT") resolveTransit?.();
+    });
+
+    const execution = engine.execute();
+    await reachedTransit;
+    await engine.pause();
+
+    expect(engine.getSnapshot().phase).toBe("PAUSED");
+
+    aircraft.obstacle = true;
+    await expect(engine.resume()).rejects.toThrow("obstacle");
+    expect(engine.getSnapshot().phase).toBe("PAUSED");
+
+    aircraft.obstacle = false;
+    await engine.resume();
+    const result = await execution;
+    unsubscribe();
+
+    expect(result.phase).toBe("COMPLETE");
+  });
+
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { calculateObjectScanPlan, buildGeographicCheckpoints } from "@/lib/capturePlanner";
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
+import { calculateRoofPlan, georeferencePattern } from "@/lib/capturePatterns";
 import { DominicMissionEngine } from "@/lib/aircraft/missionEngine";
 import type { UniversalAircraftCommand } from "@/lib/aircraft/contract";
 
@@ -346,6 +347,46 @@ describe("DOMINIC autonomous mission engine", () => {
     expect(
       result.safetyIssues.some((issue) => issue.code === "telemetry_stale"),
     ).toBe(true);
+  });
+
+
+  it("executes a non-Object calculated mission through the same universal engine", async () => {
+    const roof = calculateRoofPlan({
+      lengthFt: 40,
+      widthFt: 30,
+      altitudeFt: 35,
+      frontOverlapPct: 75,
+      sideOverlapPct: 70,
+      horizontalFovDeg: 84,
+      verticalFovDeg: 60,
+      includeObliques: false,
+    });
+    const roofCheckpoints = georeferencePattern(
+      roof,
+      39.95,
+      -75.16,
+      25,
+    ).slice(0, 4);
+
+    const aircraft = new SimulatorAircraftAdapter({
+      latitude: 39.9499,
+      longitude: -75.1601,
+      batteryPercent: 90,
+      satellites: 18,
+      gnssQuality: "good",
+    });
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      checkpoints: roofCheckpoints,
+      arrivalTimeoutMs: 500,
+    });
+
+    const result = await engine.execute();
+
+    expect(result.phase).toBe("COMPLETE");
+    expect(result.completedCheckpointIds).toHaveLength(4);
+    expect(result.events.filter((event) => event.phase === "CAPTURING")).toHaveLength(4);
   });
 
 });

@@ -39,5 +39,8 @@ jobs:
       - name: Verify DOMINIC processing output contract
         run: npm run verify:pipeline --prefix services/mapper-worker
 
+      - name: Verify MAVLink Flight Bridge syntax
+        run: python -m py_compile services/flight-bridge-mavlink/bridge.py
+
       - name: Run complete verification
         run: npm run verify

@@ -1,0 +1,10 @@
+alter table public.admin_messages drop constraint if exists admin_messages_category_check;
+alter table public.admin_messages add constraint admin_messages_category_check check (category in ('general_inquiry','thank_you_feedback','partnership_opportunity','media_inquiry','vendor_inquiry','pilot_question','request_drone_services','website_feedback','billing','other'));
+alter table public.admin_messages drop constraint if exists admin_messages_status_check;
+alter table public.admin_messages add constraint admin_messages_status_check check (status in ('unread','read','in_progress','replied','closed','archived'));
+alter table public.admin_messages add column if not exists replied_at timestamptz;
+alter table public.admin_messages add column if not exists closed_at timestamptz;
+alter table public.admin_messages enable row level security;
+revoke all on public.admin_messages from anon,authenticated;
+grant select,insert,update,delete on public.admin_messages to service_role;
+drop table if exists public.contact_messages;

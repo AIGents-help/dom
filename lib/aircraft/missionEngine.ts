@@ -208,6 +208,8 @@ export class DominicMissionEngine {
           }),
         );
         await this.waitForCheckpointArrival(checkpoint);
+        await this.waitIfPaused();
+        if (this.aborted) return this.getSnapshot();
 
         const yawToSubject = bearingAndDistanceBetween({
           fromLatitude: checkpoint.latitude,
@@ -227,6 +229,8 @@ export class DominicMissionEngine {
           }),
         );
         await this.waitForCaptureOrientation(yawToSubject, checkpoint.cameraAngle);
+        await this.waitIfPaused();
+        if (this.aborted) return this.getSnapshot();
 
         this.transition("CAPTURING", "Capturing image.", checkpoint.id);
         await this.requireAccepted(await this.sendCommand({ type: "capturePhoto", checkpointId: checkpoint.id }));

@@ -195,8 +195,9 @@ describe("DOMINIC autonomous mission engine", () => {
 
     const result = await engine.execute();
 
-    expect(result.phase).toBe("FAILED");
+    expect(result.phase).toBe("ABORTED");
     expect(result.error).toContain("did not converge");
+    expect(result.events.some((event) => event.message.includes("Emergency recovery"))).toBe(true);
     expect(result.completedCheckpointIds).toHaveLength(0);
   });
 

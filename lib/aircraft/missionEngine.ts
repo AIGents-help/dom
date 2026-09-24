@@ -298,28 +298,33 @@ export class DominicMissionEngine {
 
     await new Promise<void>((resolve, reject) => {
       let settled = false;
-      let unsubscribe: (() => void) | undefined;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      let abortPoll: ReturnType<typeof setInterval> | undefined;
+      const cleanup: {
+        unsubscribe?: () => void;
+        timer?: ReturnType<typeof setTimeout>;
+        abortPoll?: ReturnType<typeof setInterval>;
+      } = {};
 
       const finish = (error?: Error) => {
         if (settled) return;
         settled = true;
-        if (timer) clearTimeout(timer);
-        if (abortPoll) clearInterval(abortPoll);
-        unsubscribe?.();
+        if (cleanup.timer) clearTimeout(cleanup.timer);
+        if (cleanup.abortPoll) clearInterval(cleanup.abortPoll);
+        cleanup.unsubscribe?.();
         if (error) reject(error);
         else resolve();
       };
 
-      timer = setTimeout(() => finish(new Error(timeoutMessage)), timeoutMs);
-      abortPoll = setInterval(() => {
+      cleanup.timer = setTimeout(
+        () => finish(new Error(timeoutMessage)),
+        timeoutMs,
+      );
+      cleanup.abortPoll = setInterval(() => {
         if (this.aborted) {
           finish(new Error("Mission interrupted while waiting for aircraft convergence."));
         }
       }, 50);
 
-      unsubscribe = this.adapter.subscribe((state) => {
+      cleanup.unsubscribe = this.adapter.subscribe((state) => {
         if (predicate(state)) finish();
       });
     });

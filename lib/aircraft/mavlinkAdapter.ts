@@ -4,6 +4,7 @@ import type {
   DominicAircraftAdapter,
   UniversalAircraftCommand,
   UniversalAircraftState,
+  UniversalMediaCapture,
 } from "@/lib/aircraft/contract";
 
 export type MavlinkVehicleSnapshot = {
@@ -54,6 +55,7 @@ export interface MavlinkDriver {
   disconnect(): Promise<void>;
   getSnapshot(): MavlinkVehicleSnapshot;
   subscribe(listener: (snapshot: MavlinkVehicleSnapshot) => void): () => void;
+  subscribeMedia?(listener: (capture: UniversalMediaCapture) => void): () => void;
 
   arm(): Promise<void>;
   takeoff(altitudeFt: number): Promise<void>;
@@ -136,7 +138,9 @@ export class MavlinkAircraftAdapter implements DominicAircraftAdapter {
   readonly capabilities: AircraftCapabilities;
   private state: UniversalAircraftState;
   private listeners = new Set<(state: UniversalAircraftState) => void>();
+  private mediaListeners = new Set<(capture: UniversalMediaCapture) => void>();
   private unsubscribeDriver?: () => void;
+  private unsubscribeMediaDriver?: () => void;
 
   constructor(private readonly driver: MavlinkDriver) {
     this.capabilities = mapMavlinkCapabilities(driver.capabilities);
@@ -149,6 +153,9 @@ export class MavlinkAircraftAdapter implements DominicAircraftAdapter {
       this.state = mapMavlinkSnapshot(snapshot);
       this.emit();
     });
+    this.unsubscribeMediaDriver = this.driver.subscribeMedia?.((capture) => {
+      this.emitMedia(capture);
+    });
     this.state = mapMavlinkSnapshot(this.driver.getSnapshot());
     this.emit();
   }
@@ -156,6 +163,8 @@ export class MavlinkAircraftAdapter implements DominicAircraftAdapter {
   async disconnect() {
     this.unsubscribeDriver?.();
     this.unsubscribeDriver = undefined;
+    this.unsubscribeMediaDriver?.();
+    this.unsubscribeMediaDriver = undefined;
     await this.driver.disconnect();
     this.state = mapMavlinkSnapshot(this.driver.getSnapshot());
     this.emit();
@@ -169,6 +178,11 @@ export class MavlinkAircraftAdapter implements DominicAircraftAdapter {
     this.listeners.add(listener);
     listener(this.getState());
     return () => this.listeners.delete(listener);
+  }
+
+  subscribeMedia(listener: (capture: UniversalMediaCapture) => void) {
+    this.mediaListeners.add(listener);
+    return () => this.mediaListeners.delete(listener);
   }
 
   async send(command: UniversalAircraftCommand): Promise<CommandResult> {
@@ -260,5 +274,9 @@ export class MavlinkAircraftAdapter implements DominicAircraftAdapter {
   private emit() {
     const snapshot = this.getState();
     for (const listener of this.listeners) listener(snapshot);
+  }
+
+  private emitMedia(capture: UniversalMediaCapture) {
+    for (const listener of this.mediaListeners) listener({ ...capture });
   }
 }

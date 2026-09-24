@@ -4,6 +4,7 @@ import type {
   DominicAircraftAdapter,
   UniversalAircraftCommand,
   UniversalAircraftState,
+  UniversalMediaCapture,
 } from "@/lib/aircraft/contract";
 
 export type DjiSdkSnapshot = {
@@ -55,6 +56,7 @@ export interface DjiSdkDriver {
   disconnect(): Promise<void>;
   getSnapshot(): DjiSdkSnapshot;
   subscribe(listener: (snapshot: DjiSdkSnapshot) => void): () => void;
+  subscribeMedia?(listener: (capture: UniversalMediaCapture) => void): () => void;
 
   arm(): Promise<void>;
   takeoff(altitudeFt: number): Promise<void>;
@@ -120,7 +122,9 @@ export class DjiAircraftAdapter implements DominicAircraftAdapter {
   readonly capabilities: AircraftCapabilities;
   private state: UniversalAircraftState;
   private listeners = new Set<(state: UniversalAircraftState) => void>();
+  private mediaListeners = new Set<(capture: UniversalMediaCapture) => void>();
   private unsubscribeDriver?: () => void;
+  private unsubscribeMediaDriver?: () => void;
 
   constructor(private readonly driver: DjiSdkDriver) {
     this.capabilities = mapDjiCapabilities(driver.capabilities);
@@ -133,6 +137,9 @@ export class DjiAircraftAdapter implements DominicAircraftAdapter {
       this.state = mapDjiSnapshot(snapshot);
       this.emit();
     });
+    this.unsubscribeMediaDriver = this.driver.subscribeMedia?.((capture) => {
+      this.emitMedia(capture);
+    });
     this.state = mapDjiSnapshot(this.driver.getSnapshot());
     this.emit();
   }
@@ -140,6 +147,8 @@ export class DjiAircraftAdapter implements DominicAircraftAdapter {
   async disconnect() {
     this.unsubscribeDriver?.();
     this.unsubscribeDriver = undefined;
+    this.unsubscribeMediaDriver?.();
+    this.unsubscribeMediaDriver = undefined;
     await this.driver.disconnect();
     this.state = mapDjiSnapshot(this.driver.getSnapshot());
     this.emit();
@@ -153,6 +162,11 @@ export class DjiAircraftAdapter implements DominicAircraftAdapter {
     this.listeners.add(listener);
     listener(this.getState());
     return () => this.listeners.delete(listener);
+  }
+
+  subscribeMedia(listener: (capture: UniversalMediaCapture) => void) {
+    this.mediaListeners.add(listener);
+    return () => this.mediaListeners.delete(listener);
   }
 
   async send(command: UniversalAircraftCommand): Promise<CommandResult> {
@@ -242,5 +256,9 @@ export class DjiAircraftAdapter implements DominicAircraftAdapter {
   private emit() {
     const snapshot = this.getState();
     for (const listener of this.listeners) listener(snapshot);
+  }
+
+  private emitMedia(capture: UniversalMediaCapture) {
+    for (const listener of this.mediaListeners) listener({ ...capture });
   }
 }

@@ -1436,7 +1436,7 @@ export default function DominicCapturePlanner() {
                             type="checkbox"
                             disabled={
                               bridgeStatus !== "connected" ||
-                              !benchReport?.readyForPropOnFieldTest ||
+                              !productionFlightUnlocked ||
                               autonomousRunning
                             }
                             checked={secondaryFlightApproved}
@@ -1454,7 +1454,7 @@ export default function DominicCapturePlanner() {
                           type="button"
                           disabled={
                             bridgeStatus !== "connected" ||
-                            !benchReport?.readyForPropOnFieldTest ||
+                            !productionFlightUnlocked ||
                             !secondaryFlightApproved ||
                             autonomousRunning
                           }
@@ -1662,6 +1662,67 @@ export default function DominicCapturePlanner() {
                         ))}
                       </div>
                     ) : null}
+
+                    <div style={{ borderTop: `1px solid rgba(112,214,160,.16)`, marginTop: 9, paddingTop: 9 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                        <div style={{ color: V.text, fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
+                          Flight validation ladder
+                        </div>
+                        <span style={{ color: productionFlightUnlocked ? V.green : V.amber, fontSize: 8, fontWeight: 900 }}>
+                          {productionFlightUnlocked
+                            ? "PRODUCTION UNLOCKED"
+                            : (flightValidationStatus?.currentStage ?? "simulation").replace("_", " ").toUpperCase()}
+                        </span>
+                      </div>
+                      <div style={{ display: "grid", gap: 4, marginTop: 7 }}>
+                        {[
+                          ["Simulation", Boolean(flightValidation?.simulationVerifiedAtMs)],
+                          ["Bench / HITL", Boolean(flightValidation?.benchVerifiedAtMs)],
+                          ["Controlled field", Boolean(flightValidation?.controlledFieldVerifiedAtMs)],
+                        ].map(([label, done]) => (
+                          <div key={String(label)} style={{ display: "flex", justifyContent: "space-between", gap: 8, color: done ? "#BFEBD2" : V.muted, fontSize: 8 }}>
+                            <span>{done ? "✓" : "○"} {label}</span>
+                            <span>{done ? "verified" : "required"}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 7 }}>
+                        Full simulation and Bench/HITL are recorded automatically for this exact aircraft and capture plan. Controlled field validation is a pilot attestation after a supervised proving flight.
+                      </div>
+                      <textarea
+                        value={controlledFieldNotes}
+                        disabled={!flightValidation?.simulationVerifiedAtMs || !flightValidation?.benchVerifiedAtMs || productionFlightUnlocked}
+                        onChange={(event) => setControlledFieldNotes(event.target.value)}
+                        placeholder="Controlled field test notes: location, short route, result, anomalies..."
+                        style={{ width: "100%", boxSizing: "border-box", minHeight: 54, marginTop: 7, border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8, resize: "vertical" }}
+                      />
+                      <button
+                        type="button"
+                        disabled={
+                          !flightValidation?.simulationVerifiedAtMs ||
+                          !flightValidation?.benchVerifiedAtMs ||
+                          productionFlightUnlocked
+                        }
+                        onClick={recordControlledFieldValidation}
+                        style={{ width: "100%", marginTop: 6, border: `1px solid ${V.line}`, background: productionFlightUnlocked ? "rgba(112,214,160,.08)" : "#0D1319", color: productionFlightUnlocked ? V.green : V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: productionFlightUnlocked ? "default" : "pointer" }}
+                      >
+                        {productionFlightUnlocked ? "Controlled Field Validation Recorded" : "Record Controlled Field Validation"}
+                      </button>
+                      {validationMessage ? (
+                        <div style={{ color: productionFlightUnlocked ? V.green : V.amber, fontSize: 8, lineHeight: 1.4, marginTop: 6 }}>
+                          {validationMessage}
+                        </div>
+                      ) : null}
+                      {flightValidationStatus?.blockers.length ? (
+                        <div style={{ display: "grid", gap: 3, marginTop: 6 }}>
+                          {flightValidationStatus.blockers.slice(0, 4).map((blocker) => (
+                            <div key={blocker} style={{ color: V.muted, fontSize: 8, lineHeight: 1.35 }}>
+                              • {blocker}
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
               ) : null}
@@ -2078,7 +2139,7 @@ export default function DominicCapturePlanner() {
                     disabled={
                       bridgeStatus !== "connected" ||
                       !preflightReady ||
-                      !benchReport?.readyForPropOnFieldTest ||
+                      !productionFlightUnlocked ||
                       autonomousRunning
                     }
                     checked={realFlightApproved}
@@ -2097,7 +2158,7 @@ export default function DominicCapturePlanner() {
                   disabled={
                     bridgeStatus !== "connected" ||
                     !preflightReady ||
-                    !benchReport?.readyForPropOnFieldTest ||
+                    !productionFlightUnlocked ||
                     !realFlightApproved ||
                     autonomousRunning
                   }

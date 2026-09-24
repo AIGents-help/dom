@@ -106,4 +106,25 @@ describe("DOMINIC autonomous mission engine", () => {
     expect(connectSpy).not.toHaveBeenCalled();
   });
 
+
+  it("blocks autonomous launch when preflight safety is not satisfied", async () => {
+    const { checkpoints } = makeMission();
+    const aircraft = new SimulatorAircraftAdapter({
+      batteryPercent: 18,
+      satellites: 20,
+      gnssQuality: "good",
+    });
+    const engine = new DominicMissionEngine(aircraft, {
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      checkpoints: checkpoints.slice(0, 2),
+    });
+
+    const result = await engine.execute();
+
+    expect(result.phase).toBe("FAILED");
+    expect(result.error).toContain("minimum launch battery");
+    expect(result.completedCheckpointIds).toHaveLength(0);
+  });
+
 });

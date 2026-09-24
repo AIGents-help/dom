@@ -1446,6 +1446,24 @@ export default function DominicCapturePlanner() {
               <p style={{ color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
                 Runs this exact Object Scan through DOMINIC's universal aircraft interface: connect, preflight, arm, takeoff, fly every checkpoint, aim, capture, return home and land.
               </p>
+              <div style={{ border: `1px solid ${autonomousSnapshot?.safetyIssues.length ? "rgba(255,184,107,.28)" : "rgba(112,214,160,.18)"}`, background: autonomousSnapshot?.safetyIssues.length ? "rgba(255,184,107,.05)" : "rgba(112,214,160,.04)", borderRadius: 8, padding: 8, marginBottom: 9 }}>
+                <div style={{ color: autonomousSnapshot?.safetyIssues.length ? V.amber : V.green, fontSize: 8, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
+                  Flight safety supervisor · {autonomousSnapshot?.safetyIssues.length ? `${autonomousSnapshot.safetyIssues.length} active issue${autonomousSnapshot.safetyIssues.length === 1 ? "" : "s"}` : "clear"}
+                </div>
+                {autonomousSnapshot?.safetyIssues.length ? (
+                  <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
+                    {autonomousSnapshot.safetyIssues.slice(0, 4).map((issue) => (
+                      <div key={issue.code} style={{ color: issue.severity === "critical" ? "#FFB6AA" : "#FFD0A0", fontSize: 8, lineHeight: 1.4 }}>
+                        {issue.action.replace("_", " ").toUpperCase()} · {issue.message}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 4 }}>
+                    DOMINIC continuously evaluates link freshness, battery, GNSS, optional RTK policy, aircraft failsafe state, and obstacle alerts while autonomous execution is active.
+                  </div>
+                )}
+              </div>
               <button
                 type="button"
                 disabled={!preflightReady || autonomousRunning}

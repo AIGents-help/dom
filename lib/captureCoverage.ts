@@ -3,6 +3,9 @@ import {
   signedAngularDelta,
   type GeographicCheckpoint,
 } from "@/lib/capturePlanner";
+import type { GeographicPatternCheckpoint } from "@/lib/capturePatterns";
+
+export type CoverageCheckpoint = GeographicCheckpoint | GeographicPatternCheckpoint;
 
 export type CaptureObservation = {
   id: string;
@@ -40,7 +43,7 @@ export type CoverageSummary = {
   assessments: CoverageAssessment[];
 };
 
-export type RepairCheckpoint = GeographicCheckpoint & {
+export type RepairCheckpoint = CoverageCheckpoint & {
   repairReason: string;
   priority: number;
   sourceCheckpointId: string;
@@ -72,7 +75,7 @@ function observationQuality(observation: CaptureObservation) {
 }
 
 function compareObservation(
-  checkpoint: GeographicCheckpoint,
+  checkpoint: CoverageCheckpoint,
   observation: CaptureObservation,
   centerLatitude: number,
   centerLongitude: number,
@@ -83,7 +86,14 @@ function compareObservation(
     toLatitude: observation.latitude,
     toLongitude: observation.longitude,
   });
-  const expectedBearing = checkpoint.bearingDeg;
+  const expectedBearing = "bearingDeg" in checkpoint
+    ? checkpoint.bearingDeg
+    : bearingAndDistanceBetween({
+        fromLatitude: centerLatitude,
+        fromLongitude: centerLongitude,
+        toLatitude: checkpoint.latitude,
+        toLongitude: checkpoint.longitude,
+      }).bearingDeg;
   const actualBearing = bearingAndDistanceBetween({
     fromLatitude: centerLatitude,
     fromLongitude: centerLongitude,
@@ -104,7 +114,7 @@ function compareObservation(
 }
 
 export function assessCoverage(input: {
-  checkpoints: GeographicCheckpoint[];
+  checkpoints: CoverageCheckpoint[];
   observations: CaptureObservation[];
   centerLatitude: number;
   centerLongitude: number;
@@ -223,7 +233,7 @@ export function assessCoverage(input: {
 }
 
 export function buildRepairPlan(input: {
-  checkpoints: GeographicCheckpoint[];
+  checkpoints: CoverageCheckpoint[];
   coverage: CoverageSummary;
   includeWeak?: boolean;
 }): RepairCheckpoint[] {
@@ -253,7 +263,7 @@ export function buildRepairPlan(input: {
 }
 
 export function summarizeCoverageByRing(
-  checkpoints: GeographicCheckpoint[],
+  checkpoints: CoverageCheckpoint[],
   coverage: CoverageSummary,
 ) {
   const checkpointById = new Map(
@@ -266,7 +276,9 @@ export function summarizeCoverageByRing(
 
   for (const assessment of coverage.assessments) {
     const checkpoint = checkpointById.get(assessment.checkpointId);
-    const key = checkpoint?.ringId ?? "unknown";
+    const key = checkpoint
+      ? ("ringId" in checkpoint ? checkpoint.ringId : checkpoint.passId)
+      : "unknown";
     const current = groups.get(key) ?? {
       total: 0,
       covered: 0,

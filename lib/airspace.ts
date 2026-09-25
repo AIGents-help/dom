@@ -99,7 +99,8 @@ function parseAirHubResponse(data: any): AirspaceResult {
     );
   }
 
-  let airspaceClass: AirspaceResult["airspace_class"] = "G";
+  let airspaceClass: AirspaceResult["airspace_class"] = "UNKNOWN";
+  let airspaceClassificationFound = false;
   let maxAlt = 400;
   let laancRequired = false;
   let riskLevel: AirspaceResult["risk_level"] = "low";
@@ -112,10 +113,11 @@ function parseAirHubResponse(data: any): AirspaceResult {
 
     if (type.includes("airspace") || type.includes("controlled")) {
       const cls = (adv.properties?.airspaceClass ?? adv.airspaceClass ?? "").toUpperCase();
-      if (["B", "C", "D", "E"].includes(cls)) {
+      if (["B", "C", "D", "E", "G"].includes(cls)) {
         airspaceClass = cls as AirspaceResult["airspace_class"];
-        laancRequired = true;
-        riskLevel = cls === "B" ? "high" : cls === "C" ? "elevated" : "moderate";
+        airspaceClassificationFound = true;
+        laancRequired = cls !== "G";
+        riskLevel = cls === "B" ? "high" : cls === "C" ? "elevated" : cls === "G" ? "low" : "moderate";
       }
       if (adv.properties?.ceiling || adv.ceiling) {
         maxAlt = Math.min(maxAlt, adv.properties?.ceiling ?? adv.ceiling ?? 400);
@@ -142,6 +144,12 @@ function parseAirHubResponse(data: any): AirspaceResult {
         };
       }
     }
+  }
+
+  if (!airspaceClassificationFound) {
+    return unavailableAirspace(
+      "Airspace provider did not return an explicit airspace classification. Verify this location in an FAA-approved LAANC source before flight."
+    );
   }
 
   return {

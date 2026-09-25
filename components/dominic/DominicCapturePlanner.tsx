@@ -1635,9 +1635,9 @@ export default function DominicCapturePlanner() {
                           {missionType !== "interior" ? (
                             <button
                               type="button"
-                              disabled={!secondaryFlightApproved || bridgeStatus !== "connected" || !productionFlightUnlocked || autonomousRunning}
+                              disabled={!secondaryFlightApproved || bridgeStatus !== "connected" || !productionFlightUnlocked || !benchReport?.readyForPropOnFieldTest || autonomousRunning}
                               onClick={() => void runSecondaryConnectedMission("repair")}
-                              style={{ border: `1px solid rgba(112,214,160,.28)`, background: "rgba(112,214,160,.06)", color: V.green, borderRadius: 6, padding: "6px 7px", fontSize: 8, fontWeight: 900, cursor: secondaryFlightApproved && bridgeStatus === "connected" && productionFlightUnlocked && !autonomousRunning ? "pointer" : "not-allowed", opacity: secondaryFlightApproved && bridgeStatus === "connected" && productionFlightUnlocked ? 1 : .5 }}
+                              style={{ border: `1px solid rgba(112,214,160,.28)`, background: "rgba(112,214,160,.06)", color: V.green, borderRadius: 6, padding: "6px 7px", fontSize: 8, fontWeight: 900, cursor: secondaryFlightApproved && bridgeStatus === "connected" && productionFlightUnlocked && benchReport?.readyForPropOnFieldTest && !autonomousRunning ? "pointer" : "not-allowed", opacity: secondaryFlightApproved && bridgeStatus === "connected" && productionFlightUnlocked && benchReport?.readyForPropOnFieldTest ? 1 : .5 }}
                             >
                               Fly repair pass
                             </button>

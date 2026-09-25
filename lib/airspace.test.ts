@@ -1,70 +1,135 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { classifyAirspace } from "@/lib/airspace";
 
-const originalKey = process.env.AIRHUB_API_KEY;
-
 afterEach(() => {
-  if (originalKey === undefined) delete process.env.AIRHUB_API_KEY;
-  else process.env.AIRHUB_API_KEY = originalKey;
   vi.unstubAllGlobals();
 });
 
-describe("classifyAirspace safety behavior", () => {
-  it("fails closed when no authoritative provider is configured", async () => {
-    delete process.env.AIRHUB_API_KEY;
-    const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
-
-    const result = await classifyAirspace(39.916, -75.388);
-
-    expect(result.airspace_class).toBe("UNKNOWN");
-    expect(result.operationally_verified).toBe(false);
-    expect(result.laanc_status).toBe("unavailable");
-    expect(result.max_altitude_ft).toBe(0);
-    expect(fetchSpy).not.toHaveBeenCalled();
+function response(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
   });
+}
 
-  it("fails closed when the provider is unavailable", async () => {
-    process.env.AIRHUB_API_KEY = "test-key";
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("down", { status: 503 })));
-
-    const result = await classifyAirspace(39.916, -75.388);
-
-    expect(result.airspace_class).toBe("UNKNOWN");
-    expect(result.operationally_verified).toBe(false);
-    expect(result.raw_source).toBe("unavailable");
+function mockFaa({
+  uasfm,
+  classAirspace,
+  uasfmStatus = 200,
+  classStatus = 200,
+}: {
+  uasfm?: unknown;
+  classAirspace?: unknown;
+  uasfmStatus?: number;
+  classStatus?: number;
+}) {
+  const fetchMock = vi.fn(async (url: string | URL | Request) => {
+    const value = String(url);
+    if (value.includes("FAA_UAS_FacilityMap_Data")) return response(uasfm ?? { features: [] }, uasfmStatus);
+    if (value.includes("Class_Airspace")) return response(classAirspace ?? { features: [] }, classStatus);
+    throw new Error(`Unexpected URL: ${value}`);
   });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
 
-  it("requires an explicit provider airspace classification", async () => {
-    process.env.AIRHUB_API_KEY = "test-key";
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ advisories: [{ type: "airport", properties: { name: "Example" } }] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    ));
-
-    const result = await classifyAirspace(39.916, -75.388);
-
-    expect(result.airspace_class).toBe("UNKNOWN");
-    expect(result.operationally_verified).toBe(false);
-  });
-
-  it("accepts an explicit controlled-airspace class from the provider", async () => {
-    process.env.AIRHUB_API_KEY = "test-key";
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({
-        advisories: [{ type: "controlled airspace", properties: { airspaceClass: "B", ceiling: 100 } }],
-      }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
-    ));
+describe("classifyAirspace FAA safety behavior", () => {
+  it("uses FAA UASFM airspace class and ceiling when present", async () => {
+    mockFaa({
+      uasfm: {
+        features: [{
+          attributes: {
+            CEILING: 100,
+            AIRSPACE_1: "CLASS B",
+            APT1_LAANC: 1,
+            APT1_Enabled: "Enabled",
+          },
+        }],
+      },
+      classAirspace: {
+        features: [{
+          attributes: { CLASS: "B", LOWER_DESC: "SFC", LOWER_VAL: 0 },
+        }],
+      },
+    });
 
     const result = await classifyAirspace(39.916, -75.388);
 
     expect(result.airspace_class).toBe("B");
-    expect(result.operationally_verified).toBe(true);
+    expect(result.max_altitude_ft).toBe(100);
     expect(result.laanc_required).toBe(true);
+    expect(result.laanc_status).toBe("available");
+    expect(result.raw_source).toBe("faa_official");
+    expect(result.operationally_verified).toBe(true);
+  });
+
+  it("chooses the most restrictive intersecting FAA surface class", async () => {
+    mockFaa({
+      uasfm: { features: [] },
+      classAirspace: {
+        features: [
+          { attributes: { CLASS: "E", LOWER_DESC: "SFC", LOWER_VAL: 0 } },
+          { attributes: { CLASS: "C", LOWER_DESC: "SFC", LOWER_VAL: 0 } },
+          { attributes: { CLASS: "B", LOWER_DESC: "SFC", LOWER_VAL: 0 } },
+        ],
+      },
+    });
+
+    const result = await classifyAirspace(39.916, -75.388);
+
+    expect(result.airspace_class).toBe("B");
+    expect(result.max_altitude_ft).toBe(0);
+    expect(result.laanc_status).toBe("unavailable");
+    expect(result.operationally_verified).toBe(true);
+  });
+
+  it("treats a successful FAA class query with no surface controlled polygon as Class G below 400 AGL", async () => {
+    mockFaa({
+      uasfm: { features: [] },
+      classAirspace: {
+        features: [
+          { attributes: { CLASS: "E", LOWER_DESC: "700 AGL", LOWER_VAL: 700 } },
+        ],
+      },
+    });
+
+    const result = await classifyAirspace(39.916, -75.388);
+
+    expect(result.airspace_class).toBe("G");
+    expect(result.max_altitude_ft).toBe(400);
+    expect(result.laanc_required).toBe(false);
+    expect(result.operationally_verified).toBe(true);
+  });
+
+  it("fails closed when FAA datasets cannot establish the class", async () => {
+    mockFaa({
+      uasfm: { error: { message: "unavailable" } },
+      classAirspace: { error: { message: "unavailable" } },
+      uasfmStatus: 503,
+      classStatus: 503,
+    });
+
+    const result = await classifyAirspace(39.916, -75.388);
+
+    expect(result.airspace_class).toBe("UNKNOWN");
+    expect(result.operationally_verified).toBe(false);
+    expect(result.max_altitude_ft).toBe(0);
+    expect(result.laanc_status).toBe("unavailable");
+  });
+
+  it("never promotes an above-surface Class E shelf to the low-altitude operating class", async () => {
+    mockFaa({
+      uasfm: { features: [] },
+      classAirspace: {
+        features: [
+          { attributes: { CLASS: "E", LOWER_DESC: "1200 AGL", LOWER_VAL: 1200 } },
+          { attributes: { CLASS: "C", LOWER_DESC: "SFC", LOWER_VAL: 0 } },
+        ],
+      },
+    });
+
+    const result = await classifyAirspace(39.916, -75.388);
+
+    expect(result.airspace_class).toBe("C");
   });
 });

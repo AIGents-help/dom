@@ -60,10 +60,21 @@ function faaPointQuery(url: string, lat: number, lng: number, outFields: string)
 
 function normalizeClass(value: unknown): AirspaceResult["airspace_class"] | null {
   const normalized = String(value ?? "").toUpperCase().replaceAll("_", " ");
-  const match = normalized.match(/(?:CLASS\s*)?\b([BCDEG])\b/);
-  return match && ["B", "C", "D", "E", "G"].includes(match[1])
-    ? match[1] as AirspaceResult["airspace_class"]
-    : null;
+  const direct = normalized.match(/(?:CLASS\s*)?\b([BCDG])\b/);
+  if (direct && ["B", "C", "D", "G"].includes(direct[1])) {
+    return direct[1] as AirspaceResult["airspace_class"];
+  }
+  if (/(?:CLASS\s*)?\bE\d*\b/.test(normalized)) return "E";
+  return null;
+}
+
+interface ArcGisFeature {
+  attributes?: Record<string, unknown>;
+}
+
+interface ArcGisFeatureResponse {
+  features?: ArcGisFeature[];
+  error?: unknown;
 }
 
 function mostRestrictive(classes: AirspaceResult["airspace_class"][]) {
@@ -90,25 +101,25 @@ async function classifyViaFaa(lat: number, lng: number): Promise<AirspaceResult>
     fetch(classUrl, { headers: { Accept: "application/json" }, cache: "no-store" }),
   ]);
 
-  let uasfmData: any = null;
-  let classData: any = null;
+  let uasfmData: ArcGisFeatureResponse | null = null;
+  let classData: ArcGisFeatureResponse | null = null;
 
   if (uasfmResponse.status === "fulfilled" && uasfmResponse.value.ok) {
-    uasfmData = await uasfmResponse.value.json().catch(() => null);
+    uasfmData = await uasfmResponse.value.json().catch(() => null) as ArcGisFeatureResponse | null;
   }
   if (classResponse.status === "fulfilled" && classResponse.value.ok) {
-    classData = await classResponse.value.json().catch(() => null);
+    classData = await classResponse.value.json().catch(() => null) as ArcGisFeatureResponse | null;
   }
 
-  const uasfmFeatures = Array.isArray(uasfmData?.features) ? uasfmData.features : [];
-  const classFeatures = Array.isArray(classData?.features) ? classData.features : [];
-  const uasfmClasses = uasfmFeatures.flatMap((feature: any) =>
+  const uasfmFeatures: ArcGisFeature[] = Array.isArray(uasfmData?.features) ? uasfmData.features : [];
+  const classFeatures: ArcGisFeature[] = Array.isArray(classData?.features) ? classData.features : [];
+  const uasfmClasses = uasfmFeatures.flatMap((feature) =>
     [1, 2, 3, 4, 5]
       .map((index) => normalizeClass(feature?.attributes?.[`AIRSPACE_${index}`]))
       .filter((value): value is AirspaceResult["airspace_class"] => value !== null)
   );
 
-  const surfaceClasses = classFeatures.flatMap((feature: any) => {
+  const surfaceClasses = classFeatures.flatMap((feature) => {
     const attrs = feature?.attributes ?? {};
     const cls = normalizeClass(attrs.CLASS);
     if (!cls) return [];
@@ -133,13 +144,13 @@ async function classifyViaFaa(lat: number, lng: number): Promise<AirspaceResult>
   }
 
   const ceilings = uasfmFeatures
-    .map((feature: any) => Number(feature?.attributes?.CEILING))
+    .map((feature) => Number(feature?.attributes?.CEILING))
     .filter((value: number) => Number.isFinite(value) && value >= 0);
   const maxAlt = ceilings.length ? Math.min(...ceilings) : 400;
   const controlled = ["B", "C", "D", "E"].includes(airspaceClass);
-  const laancEnabled = uasfmFeatures.some((feature: any) =>
+  const laancEnabled = uasfmFeatures.some((feature) =>
     [1, 2, 3, 4, 5].some((index) => {
-      const attrs = feature?.attributes ?? {};
+      const attrs: Record<string, unknown> = feature?.attributes ?? {};
       return Number(attrs[`APT${index}_LAANC`]) === 1
         || String(attrs[`APT${index}_Enabled`] ?? "").toLowerCase().includes("enabled");
     })

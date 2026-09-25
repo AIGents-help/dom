@@ -163,7 +163,7 @@ export default function PilotAssetsTab({ accessToken }: { accessToken: string })
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
         <p style={{ color: V.inkDim, fontSize: 13, maxWidth: 520 }}>
-          Your equipment inventory. DOM uses each asset's capabilities to match you to eligible missions in the Queue —
+          Your equipment inventory is part of your operational profile. Enter each aircraft and support asset individually. DOM recognizes supported aircraft models and uses their capabilities to match you to eligible missions —
           identifiers and notes marked <strong>Private</strong> are never shown publicly, even if this asset's public toggle is on.
         </p>
         <div style={{ display: "flex", gap: 8 }}>
@@ -209,6 +209,7 @@ export default function PilotAssetsTab({ accessToken }: { accessToken: string })
                     {typeLabel}
                     {isAssetActive(a) ? "" : " · inactive for eligibility"}
                   </div>
+                  {a.asset_type === "uav" && <div style={{ color: a.registration_number ? V.telemetry : V.danger, fontSize: 11, marginTop: 7, fontWeight: 700 }}>{a.registration_number ? `FAA registration: ${a.registration_number}` : "FAA registration missing"}</div>}
                   {a.capabilities.length > 0 && (
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
                       {a.capabilities.map((c) => (
@@ -312,10 +313,10 @@ function AssetForm({
         </div>
       </div>
 
-      <label style={labelStyle}>Capabilities</label>
+      <label style={labelStyle}>Recognized capabilities</label>
       {isNew && suggestedCapabilities.length > 0 && (
         <p style={{ color: V.inkDim, fontSize: 11, margin: "0 0 8px" }}>
-          DOM selected the standard capabilities for this drone model. Click any capability to turn it on or off before saving. Admin verification is still required before capabilities count for mission matching.
+          DOM recognized this aircraft model and loaded its standard capabilities automatically. Review them before saving; DOM verification records that the aircraft identity and capability profile have been checked.
         </p>
       )}
       {isNew && form.asset_type === "uav" && suggestedCapabilities.length === 0 && (

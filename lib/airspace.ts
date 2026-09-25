@@ -28,7 +28,9 @@ export interface AirspaceResult {
   notams: string[];
   risk_level: "low" | "moderate" | "elevated" | "high";
   authorization_summary: string;
-  raw_source: "airhub_api" | "faa_estimate" | "manual";
+  raw_source: "airhub_api" | "faa_estimate" | "manual" | "unavailable";
+  operationally_verified: boolean;
+  data_warning: string | null;
   queried_at: string;
 }
 
@@ -46,8 +48,12 @@ export async function classifyAirspace(
     return classifyViaAirHub(lat, lng, apiKey);
   }
 
-  // Fallback: airport-proximity estimation using public data
-  return classifyViaEstimation(lat, lng);
+  // Safety-critical rule: never present a geometric airport-proximity
+  // estimate as an FAA/LAANC airspace classification. Without a configured
+  // provider DOM must fail closed and require external verification.
+  return unavailableAirspace(
+    "Authoritative airspace data is not configured. Verify this location in an FAA-approved LAANC source before flight."
+  );
 }
 
 // ── AirHub API path (primary, when key is configured) ──
@@ -68,21 +74,30 @@ async function classifyViaAirHub(
 
     if (!res.ok) {
       console.error("AirHub API error:", res.status, await res.text());
-      return classifyViaEstimation(lat, lng);
+      return unavailableAirspace(
+        "Airspace verification provider is unavailable. Verify this location in an FAA-approved LAANC source before flight."
+      );
     }
 
     const data = await res.json();
     return parseAirHubResponse(data);
   } catch (err) {
-    console.error("AirHub API call failed, falling back to estimation:", err);
-    return classifyViaEstimation(lat, lng);
+    console.error("AirHub API call failed:", err);
+    return unavailableAirspace(
+      "Airspace verification provider could not be reached. Verify this location in an FAA-approved LAANC source before flight."
+    );
   }
 }
 
 function parseAirHubResponse(data: any): AirspaceResult {
   // AirHub returns advisory layers — extract the relevant ones.
   // This parsing adapts to their response schema; update if their API evolves.
-  const advisories = data?.advisories ?? data?.data ?? [];
+  const advisories = data?.advisories ?? data?.data;
+  if (!Array.isArray(advisories)) {
+    return unavailableAirspace(
+      "Airspace provider returned an unrecognized response. Verify this location in an FAA-approved LAANC source before flight."
+    );
+  }
 
   let airspaceClass: AirspaceResult["airspace_class"] = "G";
   let maxAlt = 400;
@@ -141,6 +156,8 @@ function parseAirHubResponse(data: any): AirspaceResult {
     risk_level: riskLevel,
     authorization_summary: buildAuthSummary(airspaceClass, laancRequired, tfrs.length > 0),
     raw_source: "airhub_api",
+    operationally_verified: true,
+    data_warning: null,
     queried_at: new Date().toISOString(),
   };
 }
@@ -292,6 +309,27 @@ async function classifyViaEstimation(lat: number, lng: number): Promise<Airspace
     risk_level: riskLevel,
     authorization_summary: buildAuthSummary(airspaceClass, laancRequired, false),
     raw_source: "faa_estimate",
+    operationally_verified: false,
+    data_warning: "Airport-proximity estimate only. Do not use as an FAA/LAANC airspace determination.",
+    queried_at: new Date().toISOString(),
+  };
+}
+
+function unavailableAirspace(message: string): AirspaceResult {
+  return {
+    airspace_class: "UNKNOWN",
+    max_altitude_ft: 0,
+    nearest_airport: null,
+    laanc_required: true,
+    laanc_status: "unavailable",
+    tfr_active: false,
+    tfr_details: [],
+    notams: [],
+    risk_level: "high",
+    authorization_summary: message,
+    raw_source: "unavailable",
+    operationally_verified: false,
+    data_warning: message,
     queried_at: new Date().toISOString(),
   };
 }

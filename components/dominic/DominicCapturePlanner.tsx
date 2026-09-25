@@ -1622,6 +1622,28 @@ export default function DominicCapturePlanner() {
                           ))}
                         </div>
                       ) : null}
+                      {secondaryRepairPlan.length ? (
+                        <div style={{ display: "grid", gridTemplateColumns: missionType === "interior" ? "1fr" : "1fr 1fr", gap: 5, marginTop: 7 }}>
+                          <button
+                            type="button"
+                            disabled={autonomousRunning}
+                            onClick={() => void runSecondarySimulation("repair")}
+                            style={{ border: `1px solid rgba(255,184,107,.28)`, background: "rgba(255,184,107,.06)", color: "#FFD0A0", borderRadius: 6, padding: "6px 7px", fontSize: 8, fontWeight: 900, cursor: autonomousRunning ? "not-allowed" : "pointer" }}
+                          >
+                            Simulate repair pass
+                          </button>
+                          {missionType !== "interior" ? (
+                            <button
+                              type="button"
+                              disabled={!secondaryFlightApproved || bridgeStatus !== "connected" || !productionFlightUnlocked || autonomousRunning}
+                              onClick={() => void runSecondaryConnectedMission("repair")}
+                              style={{ border: `1px solid rgba(112,214,160,.28)`, background: "rgba(112,214,160,.06)", color: V.green, borderRadius: 6, padding: "6px 7px", fontSize: 8, fontWeight: 900, cursor: secondaryFlightApproved && bridgeStatus === "connected" && productionFlightUnlocked && !autonomousRunning ? "pointer" : "not-allowed", opacity: secondaryFlightApproved && bridgeStatus === "connected" && productionFlightUnlocked ? 1 : .5 }}
+                            >
+                              Fly repair pass
+                            </button>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                   <div style={{ border: `1px solid rgba(244,90,30,.24)`, background: "rgba(244,90,30,.04)", borderRadius: 9, padding: 9 }}>

@@ -908,9 +908,10 @@ export default function DominicCapturePlanner() {
     setRealFlightApprovalSignature(null);
   };
 
-  const runSecondarySimulation = async () => {
-    if (autonomousRunning || !secondaryGeographicCheckpoints.length) return;
-    setAutonomousMode("full");
+  const runSecondarySimulation = async (mode: "full" | "repair" = "full") => {
+    const checkpoints = mode === "repair" ? secondaryRepairPlan : secondaryGeographicCheckpoints;
+    if (autonomousRunning || !checkpoints.length) return;
+    setAutonomousMode(mode);
     setAutonomousTarget("simulator");
     setAutonomousRunning(true);
     setAutonomousSnapshot(null);
@@ -929,12 +930,12 @@ export default function DominicCapturePlanner() {
     const engine = new DominicMissionEngine(aircraft, {
       centerLatitude,
       centerLongitude,
-      checkpoints: secondaryGeographicCheckpoints,
+      checkpoints,
       takeoffAltitudeFt: Math.max(
         10,
         Math.min(
           40,
-          secondaryGeographicCheckpoints[0]?.relativeAltitudeFt ?? 20,
+          checkpoints[0]?.relativeAltitudeFt ?? 20,
         ),
       ),
       transitSpeedFps: 12,
@@ -972,9 +973,11 @@ export default function DominicCapturePlanner() {
     setAutonomousRunning(false);
   };
 
-  const runSecondaryConnectedMission = async () => {
+  const runSecondaryConnectedMission = async (mode: "full" | "repair" = "full") => {
+    const checkpoints = mode === "repair" ? secondaryRepairPlan : secondaryGeographicCheckpoints;
     if (
       autonomousRunning ||
+      !checkpoints.length ||
       !secondaryFlightApproved ||
       bridgeStatus !== "connected" ||
       !productionFlightUnlocked ||
@@ -984,9 +987,9 @@ export default function DominicCapturePlanner() {
       return;
     }
     const adapter = bridgeAdapterRef.current;
-    if (!adapter || !secondaryGeographicCheckpoints.length) return;
+    if (!adapter) return;
 
-    setAutonomousMode("full");
+    setAutonomousMode(mode);
     setAutonomousTarget("connected");
     setAutonomousRunning(true);
     setAutonomousSnapshot(null);
@@ -995,12 +998,12 @@ export default function DominicCapturePlanner() {
     const engine = new DominicMissionEngine(adapter, {
       centerLatitude,
       centerLongitude,
-      checkpoints: secondaryGeographicCheckpoints,
+      checkpoints,
       takeoffAltitudeFt: Math.max(
         10,
         Math.min(
           40,
-          secondaryGeographicCheckpoints[0]?.relativeAltitudeFt ?? 20,
+          checkpoints[0]?.relativeAltitudeFt ?? 20,
         ),
       ),
       transitSpeedFps: 12,

@@ -1528,6 +1528,99 @@ export default function DominicCapturePlanner() {
                   <div style={{ border: `1px solid rgba(112,214,160,.18)`, background: "rgba(112,214,160,.04)", color: "#BFEBD2", borderRadius: 8, padding: 9, fontSize: 9, lineHeight: 1.45 }}>
                     This pattern uses the same checkpoint concept as Object Scan and can be georeferenced for manual guidance or passed to the universal mission engine.
                   </div>
+
+                  <div style={{ border: `1px solid ${secondaryCoverage.missing ? "rgba(255,184,107,.25)" : "rgba(112,214,160,.25)"}`, background: "#0D1319", borderRadius: 9, padding: 10 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                      <div>
+                        <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Capture QA · did I get everything?</div>
+                        <div style={{ color: V.muted, fontSize: 8, marginTop: 3 }}>Pose + image quality checked against every planned view.</div>
+                      </div>
+                      <div style={{ color: secondaryCoverage.coveragePct >= 90 ? V.green : secondaryCoverage.coveragePct >= 70 ? V.amber : "#FF8B7A", fontSize: 18, fontWeight: 900 }}>
+                        {secondaryCoverage.coveragePct}%
+                      </div>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 5, marginTop: 8 }}>
+                      {[
+                        ["Good", secondaryCoverage.covered, V.green],
+                        ["Weak", secondaryCoverage.weak, V.amber],
+                        ["Missing", secondaryCoverage.missing, "#FF8B7A"],
+                      ].map(([label, value, color]) => (
+                        <div key={String(label)} style={{ border: `1px solid ${V.line}`, borderRadius: 7, padding: 6 }}>
+                          <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>{label}</div>
+                          <div style={{ color: String(color), fontSize: 13, fontWeight: 900, marginTop: 2 }}>{value}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {currentSecondaryCheckpoint ? (
+                      <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 8, paddingTop: 8 }}>
+                        <div style={{ color: V.text, fontSize: 9, fontWeight: 900 }}>
+                          Checkpoint {activeSecondaryIndex + 1}/{secondaryGeographicCheckpoints.length}
+                        </div>
+                        <div style={{ color: V.muted, fontSize: 8, marginTop: 3 }}>
+                          {currentSecondaryCheckpoint.passId} · {currentSecondaryCheckpoint.relativeAltitudeFt.toFixed(1)} ft · camera {currentSecondaryCheckpoint.cameraAngle}°
+                        </div>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5, marginTop: 7 }}>
+                          <button type="button" disabled={activeSecondaryIndex === 0} onClick={() => setSecondaryIndex((index) => Math.max(0, index - 1))} style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 800 }}>Previous</button>
+                          <button type="button" onClick={markSecondaryCaptured} style={{ border: 0, background: V.orange, color: "#180A02", borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 900 }}>Mark captured</button>
+                          <button type="button" disabled={activeSecondaryIndex >= secondaryGeographicCheckpoints.length - 1} onClick={() => setSecondaryIndex((index) => Math.min(secondaryGeographicCheckpoints.length - 1, index + 1))} style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 800 }}>Next</button>
+                        </div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={secondaryImageStatus === "analyzing"}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            if (file) void analyzeSecondaryImage(file);
+                            event.currentTarget.value = "";
+                          }}
+                          style={{ width: "100%", marginTop: 7, color: V.muted, fontSize: 8 }}
+                        />
+                        {secondaryImageMessage ? (
+                          <div style={{ color: secondaryImageStatus === "error" ? "#FF8B7A" : V.green, fontSize: 8, lineHeight: 1.4, marginTop: 5 }}>{secondaryImageMessage}</div>
+                        ) : null}
+                      </div>
+                    ) : null}
+
+                    <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 8, paddingTop: 8 }}>
+                      <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>Coverage by pass</div>
+                      <div style={{ display: "grid", gap: 4, maxHeight: 92, overflowY: "auto", marginTop: 5 }}>
+                        {Object.entries(secondaryCoverageByPass).map(([pass, stats]) => (
+                          <div key={pass} style={{ display: "flex", justifyContent: "space-between", gap: 7, color: "#DCE3EA", fontSize: 8 }}>
+                            <span>{pass}</span>
+                            <span style={{ color: V.muted }}>{stats.covered} good · {stats.weak} weak · {stats.missing} missing</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 8, paddingTop: 8 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                        <div style={{ color: secondaryRepairPlan.length ? V.amber : V.green, fontSize: 8, fontWeight: 900 }}>
+                          {secondaryRepairPlan.length ? `${secondaryRepairPlan.length} views need repair` : "Capture set passes current QA"}
+                        </div>
+                        <button type="button" onClick={resetSecondaryCaptureQa} style={{ border: 0, background: "transparent", color: V.muted, fontSize: 8, textDecoration: "underline", cursor: "pointer" }}>Reset QA</button>
+                      </div>
+                      {secondaryRepairPlan.length ? (
+                        <div style={{ display: "grid", gap: 4, maxHeight: 92, overflowY: "auto", marginTop: 5 }}>
+                          {secondaryRepairPlan.slice(0, 12).map((repair) => (
+                            <button
+                              key={repair.id}
+                              type="button"
+                              onClick={() => {
+                                const index = secondaryGeographicCheckpoints.findIndex((point) => point.id === repair.sourceCheckpointId);
+                                if (index >= 0) setSecondaryIndex(index);
+                              }}
+                              style={{ border: `1px solid ${repair.priority === 2 ? "rgba(255,139,122,.2)" : "rgba(255,184,107,.2)"}`, background: "transparent", color: repair.priority === 2 ? "#FFB6AA" : "#FFD0A0", borderRadius: 6, padding: "5px 6px", textAlign: "left", fontSize: 7, cursor: "pointer" }}
+                            >
+                              {repair.priority === 2 ? "MISSING" : "WEAK"} · {"passId" in repair ? repair.passId : "capture"} · #{repair.sequence}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
                   <div style={{ border: `1px solid rgba(244,90,30,.24)`, background: "rgba(244,90,30,.04)", borderRadius: 9, padding: 9 }}>
                     <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
                       Universal mission execution

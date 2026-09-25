@@ -430,7 +430,8 @@ export default function PilotCreateMissionWizard({
               <p style={{ color: airspace.operationally_verified ? V.telemetry : V.danger, fontSize: 13, fontWeight: 700 }}>
                 {airspace.operationally_verified ? `✓ Verified · Class ${airspace.airspace_class}` : "⛔ Airspace not verified — mission creation blocked"}
               </p>
-              <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>{airspace.data_warning ?? airspace.authorization_summary}</p>
+              <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>{airspace.authorization_summary}</p>
+              {airspace.data_warning && <p style={{ color: V.warn, fontSize: 11, marginTop: 5 }}>{airspace.data_warning}</p>}
             </div>
           )}
 

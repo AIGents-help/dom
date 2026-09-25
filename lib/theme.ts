@@ -15,7 +15,7 @@ export const V = {
   lineSoft: "#E8EDF2", // subtle dividers
   ink: "#172033", // primary text
   inkDim: "#5F6B7A", // secondary text
-  inkFaint: "#8A95A7", // tertiary / faint text
+  inkFaint: "#667085", // tertiary text — kept readable on white/light cards
   signal: "#F45A1E", // PRIMARY action / accent (DOM orange)
   telemetry: "#16A34A", // success / completed / won (green)
   airspace: "#7C3AED", // distinct status (purple)
@@ -24,7 +24,7 @@ export const V = {
   djiGrey: "#4B535B", // SECONDARY brand neutral / software chrome\n  navy: "#4B535B", // nav / sidebar shell (legacy token now maps to DJI Grey)
 };
 
-export const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
+export const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, color: V.ink, padding: 18 };
 export const btnPrimary: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: "none", background: V.signal, color: "#FFFFFF", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 export const btnGhost: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 export const inputStyle: React.CSSProperties = { width: "100%", padding: "9px 11px", borderRadius: 8, border: `1px solid ${V.line}`, background: "#FFFFFF", color: V.ink, fontSize: 13, outline: "none" };

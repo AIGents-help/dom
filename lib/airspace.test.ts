@@ -117,6 +117,22 @@ describe("classifyAirspace FAA safety behavior", () => {
     expect(result.laanc_status).toBe("unavailable");
   });
 
+  it("normalizes FAA Class E subtype labels such as E2", async () => {
+    mockFaa({
+      uasfm: {
+        features: [{ attributes: { CEILING: 200, AIRSPACE_1: "E2" } }],
+      },
+      classAirspace: {
+        features: [{ attributes: { CLASS: "E2", LOWER_DESC: "SFC", LOWER_VAL: 0 } }],
+      },
+    });
+
+    const result = await classifyAirspace(39.916, -75.388);
+
+    expect(result.airspace_class).toBe("E");
+    expect(result.operationally_verified).toBe(true);
+  });
+
   it("never promotes an above-surface Class E shelf to the low-altitude operating class", async () => {
     mockFaa({
       uasfm: { features: [] },

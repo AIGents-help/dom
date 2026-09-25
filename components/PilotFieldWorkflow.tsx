@@ -132,7 +132,7 @@ export default function PilotFieldWorkflow({
       : data.submission.blockers[0] ?? "Continue the required checklist";
 
   return (
-    <section id="field-workflow" style={panelStyle}>
+    <section id="field-workflow" style={{ ...panelStyle, color: V.ink }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
         <div>
           <div className="font-mono-ibm" style={{ fontSize: 12, color: V.signal, textTransform: "uppercase", letterSpacing: ".1em" }}>Field Workflow</div>
@@ -317,7 +317,7 @@ function Panel({ children }: { children: React.ReactNode }) {
   return <div style={panelStyle}>{children}</div>;
 }
 
-const panelStyle: React.CSSProperties = { padding: 18, border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface };
+const panelStyle: React.CSSProperties = { padding: 18, border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, color: V.ink };
 const primaryButton: React.CSSProperties = { padding: "9px 13px", border: 0, borderRadius: 8, background: V.signal, color: V.ground, fontWeight: 700 };
 const dangerButton: React.CSSProperties = { ...primaryButton, background: "transparent", border: `1px solid ${V.danger}`, color: V.danger, cursor: "pointer" };
 const inputStyle: React.CSSProperties = { width: "100%", padding: 10, borderRadius: 8, border: `1px solid ${V.line}`, background: V.ground, color: V.ink };

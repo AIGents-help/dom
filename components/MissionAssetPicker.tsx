@@ -68,8 +68,8 @@ export default function MissionAssetPicker({ accessToken, assignmentId, onSaved 
   }
 
   return (
-    <div>
-      <button onClick={() => setOpen((o) => !o)} style={btnGhost}>
+    <div style={{ color: V.ink }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ ...btnGhost, background: V.surface, color: V.ink }}>
         {savedCount ? `Equipment (${savedCount}) →` : "Assign Equipment →"}
       </button>
       {open && (

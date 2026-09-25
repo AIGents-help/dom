@@ -1,29 +1,33 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
   BarChart3,
+  Building2,
   Check,
-  Cloud,
-  Cpu,
+  Crosshair,
+  Cuboid,
   FileCheck2,
   MapPinned,
   Plane,
-  Radar,
   ShieldCheck,
+  Sparkles,
   Users,
   Waypoints,
 } from "lucide-react";
+import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
+import DominicMascotImage from "@/components/dominic/DominicMascotImage";
 
 export const metadata: Metadata = {
-  title: "License DOMINIC | Intelligent Drone Operations Software",
+  title: "DOMINIC Software | Free Drone Operations Platform + Licensing",
   description:
-    "License DOMINIC for mission planning, pilot workflows, capture guidance, mapping, 3D reconstruction, documentation, compliance, and drone program operations.",
+    "Start with DOMINIC free, then scale into professional drone operations, mapping, capture planning, team workflows, compliance, and enterprise licensing.",
   alternates: { canonical: "/dominic/licensing" },
   openGraph: {
-    title: "License DOMINIC",
+    title: "DOMINIC | Intelligent Drone Operations Software",
     description:
-      "Put DOMINIC behind your drone operation. Mission planning, capture guidance, mapping, workflow, compliance, and delivery in one intelligent platform.",
+      "Create a free DOMINIC profile and start planning smarter missions. Upgrade when your operation needs mapping, advanced workflows, team collaboration, and enterprise deployment.",
     url: "https://droneopsman.com/dominic/licensing",
     siteName: "Drone Operation Management",
     type: "website",
@@ -33,142 +37,201 @@ export const metadata: Metadata = {
 const capabilities = [
   {
     icon: Waypoints,
-    title: "Capture Planner",
-    copy: "Guided capture paths for object scans, roofs, buildings, facades, interiors, stockpiles, and corridors.",
+    title: "Mission Planning",
+    copy: "Build repeatable mission plans with smarter operational structure before the aircraft ever leaves the ground.",
   },
   {
-    icon: MapPinned,
+    icon: Crosshair,
+    title: "Capture Planner",
+    copy: "Guided manual capture paths for objects, roofs, buildings, facades, interiors, stockpiles, and corridors.",
+  },
+  {
+    icon: Cuboid,
     title: "Mapping + 3D",
-    copy: "Manage imagery, orthomosaics, point clouds, 3D reconstruction, and project processing from one workspace.",
+    copy: "Turn field imagery into orthomosaics, measurements, point clouds, 3D reconstruction, and professional outputs.",
   },
   {
     icon: Plane,
-    title: "Mission Operations",
-    copy: "Plan, schedule, assign, fly, document, and complete missions with a consistent operational record.",
-  },
-  {
-    icon: FileCheck2,
     title: "Pilot Workflow",
-    copy: "Standardize before-flight, during-flight, post-flight, approvals, uploads, and deliverables without slowing pilots down.",
+    copy: "Standardize preflight, flight, post-flight, project records, approvals, and delivery without slowing the pilot down.",
   },
   {
     icon: ShieldCheck,
     title: "Compliance + Safety",
-    copy: "Keep mission documentation, pilot requirements, insurance, aircraft, safety items, and audit history together.",
+    copy: "Keep mission documentation, aircraft, pilot requirements, insurance, safety items, and audit history together.",
   },
   {
-    icon: Cpu,
-    title: "Built for What Comes Next",
-    copy: "Use the same planning engine as the foundation for autonomous flight, sensors, live operations, and advanced integrations.",
+    icon: BarChart3,
+    title: "Built to Scale",
+    copy: "Start as one pilot and grow into a multi-pilot, municipal, industrial, public-safety, or enterprise drone program.",
   },
 ];
 
 const audiences = [
-  "Independent drone pilots",
-  "Drone service companies",
-  "Inspection contractors",
-  "Construction and engineering teams",
-  "Municipalities and public safety",
-  "Industrial and enterprise drone programs",
+  ["Independent Pilots", "Start free and build a professional operating system around your own missions."],
+  ["Drone Service Companies", "Coordinate pilots, projects, repeatable workflows, and client delivery."],
+  ["Public Safety", "Build structured mission planning and operational readiness around response use cases."],
+  ["Municipalities", "Support inspections, documentation, emergency response, and recurring municipal operations."],
+  ["Industrial Teams", "Standardize complex inspection and capture workflows across sites and crews."],
+  ["Enterprise Programs", "Deploy DOMINIC as the software layer behind a larger drone operation."],
 ];
 
-const licenseCards = [
+const plans = [
   {
-    kicker: "SOLO / SMALL TEAM",
-    title: "Operator License",
-    copy: "For pilots and small drone businesses that want a professional operating system behind every mission.",
+    kicker: "FREE FOREVER",
+    title: "DOMINIC Free",
+    price: "$0",
+    suffix: "/ month",
+    copy: "Create your DOMINIC profile and start using the core planning experience with no credit card.",
     items: [
-      "Mission and project workflow",
-      "Capture planning tools",
-      "Mapping project management",
-      "Deliverables and documentation",
+      "Free DOMINIC profile",
+      "DOMINIC Home workspace",
+      "Manual Capture Planner",
+      "Basic mission planning",
+      "Preview next-generation modules",
+    ],
+    cta: "Create Free Profile",
+    href: "/dominic/signup",
+  },
+  {
+    kicker: "SOLO / PROFESSIONAL",
+    title: "Operator License",
+    price: "Upgrade",
+    suffix: "when ready",
+    copy: "For independent pilots and small operators who need persistent projects, processing, mapping, and professional deliverables.",
+    items: [
+      "Everything in Free",
+      "Persistent DOMINIC projects",
+      "Mapping + processing workflows",
+      "3D + point-cloud tools",
+      "Deliverables and project history",
     ],
     cta: "Request Operator Pricing",
+    href: "mailto:info@droneopsman.com?subject=DOMINIC%20Operator%20License",
   },
   {
     kicker: "GROWING OPERATION",
     title: "Team License",
-    copy: "For service providers and inspection teams coordinating multiple pilots, projects, aircraft, and clients.",
+    price: "Team",
+    suffix: "licensing",
+    copy: "For drone service companies and inspection teams coordinating multiple people, projects, aircraft, and customers.",
     items: [
-      "Multi-pilot operations",
-      "Roles and assignment workflows",
-      "Standardized field processes",
+      "Everything in Operator",
+      "Multi-user operations",
+      "Shared project workflows",
+      "Team roles and coordination",
       "Centralized operational visibility",
     ],
     cta: "Request Team Pricing",
+    href: "mailto:info@droneopsman.com?subject=DOMINIC%20Team%20License",
     featured: true,
   },
   {
     kicker: "PUBLIC / INDUSTRIAL / ENTERPRISE",
     title: "Organization License",
-    copy: "For larger programs that need controlled access, deployment planning, configurable workflows, and implementation support.",
+    price: "Custom",
+    suffix: "deployment",
+    copy: "For municipalities, public safety, industrial programs, and enterprise teams that need controlled deployment and tailored workflows.",
     items: [
       "Organization-wide deployment",
-      "Configurable operational workflows",
-      "Advanced operations roadmap",
-      "Onboarding and implementation scope",
+      "Configurable workflows",
+      "Advanced permissions and rollout",
+      "Integration planning",
+      "Implementation and onboarding scope",
     ],
     cta: "Discuss Your Program",
+    href: "mailto:info@droneopsman.com?subject=DOMINIC%20Organization%20License",
   },
 ];
 
 const faqs = [
   [
-    "What does a DOMINIC license include?",
-    "Licensing can be scoped for a single operator, a growing team, or a larger organization. Users, modules, onboarding, support, and deployment requirements are defined in your license proposal.",
+    "Is DOMINIC really free to start?",
+    "Yes. DOMINIC Free is intended to be a permanent entry tier. Create a profile and use the basic DOMINIC planning experience without a paid license.",
+  ],
+  [
+    "Do I need to be a DOM pilot to use DOMINIC?",
+    "No. DOMINIC is being separated from DOM pilot eligibility so software users can create a DOMINIC account without becoming a contracted DOM pilot.",
   ],
   [
     "Does DOMINIC only work with DJI?",
-    "DOMINIC is being designed around drone-agnostic operational workflows wherever possible so teams can standardize planning and documentation across different aircraft and interfaces.",
+    "No. DOMINIC is being designed around drone-agnostic operational workflows wherever possible so teams can standardize planning and documentation across different aircraft and interfaces.",
   ],
   [
-    "Is DOMINIC only for mapping?",
-    "No. DOMINIC supports broader drone operations including inspections, object capture, roofs, facades, stockpiles, corridors, industrial work, public safety, mapping, reconstruction, and repeatable operational missions.",
-  ],
-  [
-    "Can we use DOMINIC inside our own company?",
-    "Yes. DOMINIC licensing is intended for operators and organizations that want it to become the software layer behind their own drone program.",
+    "What changes when I upgrade?",
+    "Paid licensing unlocks the heavier operational layers such as persistent production projects, mapping and processing, advanced 3D workflows, deliverables, team collaboration, and organization deployment.",
   ],
 ];
 
+function DominicWord() {
+  return (
+    <span
+      aria-label="DOMINIC"
+      className="inline-flex items-baseline whitespace-nowrap font-saira font-black tracking-[.015em]"
+    >
+      <span className="text-white">DOM</span>
+      <span className="font-semibold text-[#F45A1E]">INIC</span>
+    </span>
+  );
+}
+
 export default function DominicLicensingPage() {
   return (
-    <div className="bg-[#080c10] text-white">
-      <section className="relative overflow-hidden border-b border-[#f45a1e]/35">
-        <div className="absolute inset-0 opacity-[.22] [background-image:linear-gradient(rgba(244,90,30,.13)_1px,transparent_1px),linear-gradient(90deg,rgba(244,90,30,.13)_1px,transparent_1px)] [background-size:36px_36px]" />
-        <div className="absolute right-[-120px] top-[-80px] h-[460px] w-[460px] rounded-full bg-[#f45a1e]/15 blur-[120px]" />
+    <div className="bg-[#070b0f] text-white">
+      <section className="relative min-h-[760px] overflow-hidden border-b border-[#F45A1E]/45">
+        <Image
+          src="/images/construction-aerial.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-center opacity-40"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,#070b0f_0%,rgba(7,11,15,.96)_35%,rgba(7,11,15,.62)_68%,rgba(7,11,15,.3)_100%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,11,15,.1),rgba(7,11,15,.2)_55%,#070b0f_100%)]" />
+        <div className="absolute inset-0 opacity-[.18] [background-image:linear-gradient(rgba(244,90,30,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(244,90,30,.12)_1px,transparent_1px)] [background-size:40px_40px]" />
 
-        <div className="relative mx-auto grid max-w-[1536px] gap-10 px-6 py-20 lg:grid-cols-[1.05fr_.95fr] lg:items-center lg:px-10 lg:py-28">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[.22em] text-[#F45A1E]">
-              DOMINIC Software Licensing
-            </p>
-            <h1 className="mt-4 max-w-[850px] text-5xl font-black leading-[.96] tracking-[-.055em] sm:text-6xl lg:text-7xl">
-              Put <span className="text-[#F45A1E]">DOMINIC</span> behind your entire drone operation.
+        <div className="relative mx-auto grid min-h-[760px] max-w-[1536px] items-center gap-6 px-6 py-16 lg:grid-cols-[.9fr_1.1fr] lg:px-10">
+          <div className="relative z-10 max-w-[760px]">
+            <div className="mb-7">
+              <DominicBrandLockup size="md" />
+            </div>
+
+            <div className="mb-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-[.2em] text-white/60">
+              <span className="h-[2px] w-6 bg-[#F45A1E]" />
+              Plan <span className="text-[#F45A1E]">/</span> Fly <span className="text-[#F45A1E]">/</span> Process <span className="text-[#F45A1E]">/</span> Deliver
+            </div>
+
+            <h1 className="text-5xl font-black leading-[.94] tracking-[-.055em] sm:text-6xl lg:text-[78px]">
+              License
+              <br />
+              <DominicWord />
             </h1>
-            <p className="mt-6 max-w-[780px] text-base leading-7 text-white/70 sm:text-lg">
-              One intelligent platform for mission planning, pilot workflows, capture guidance,
-              mapping, 3D reconstruction, compliance, documentation, and client delivery.
+
+            <p className="mt-5 max-w-[650px] text-lg font-semibold leading-7 text-white/82">
+              The intelligent drone operations software by Drone Operation Management.
+            </p>
+            <p className="mt-2 text-sm font-bold tracking-[.02em] text-white/48">
+              Making your flights more intelligent.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              <a
-                href="#licensing"
+              <Link
+                href="/dominic/signup"
                 className="inline-flex items-center gap-2 rounded-md bg-[#F45A1E] px-6 py-3 text-sm font-black text-black transition hover:bg-[#ff7338]"
               >
-                Request Licensing Details <ArrowRight className="h-4 w-4" />
-              </a>
-              <Link
-                href="/dominic"
-                target="_blank"
-                className="inline-flex items-center gap-2 rounded-md border border-white/20 bg-white/5 px-6 py-3 text-sm font-black text-white transition hover:border-[#F45A1E]"
-              >
-                Explore DOMINIC
+                Start Free <ArrowRight className="h-4 w-4" />
               </Link>
+              <a
+                href="#licensing"
+                className="inline-flex items-center gap-2 rounded-md border border-[#F45A1E]/70 bg-black/35 px-6 py-3 text-sm font-black text-white backdrop-blur-sm transition hover:bg-[#F45A1E]/10"
+              >
+                View Licensing
+              </a>
             </div>
 
-            <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-xs font-bold text-white/60">
-              {["Built for real drone operations", "Scales from pilot to enterprise", "Multiple mission types"].map((item) => (
+            <div className="mt-8 flex flex-wrap gap-x-6 gap-y-3 text-[10px] font-black uppercase tracking-[.08em] text-white/60">
+              {["Free to start", "Built for real operations", "Pilot to enterprise"].map((item) => (
                 <span key={item} className="inline-flex items-center gap-2">
                   <Check className="h-4 w-4 text-[#F45A1E]" /> {item}
                 </span>
@@ -176,62 +239,135 @@ export default function DominicLicensingPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/15 bg-[#0c1219]/95 p-3 shadow-2xl shadow-black/40">
-            <div className="rounded-xl border border-white/10 bg-[#111923] p-4">
-              <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <div className="text-[11px] font-black tracking-[.14em] text-[#F45A1E]">DOMINIC OPERATIONS</div>
-                <div className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-[9px] font-black tracking-[.1em] text-emerald-300">
-                  MISSION READY
-                </div>
-              </div>
+          <div className="relative z-10 hidden min-h-[670px] lg:block">
+            <div className="absolute inset-x-[2%] bottom-0 top-0">
+              <DominicMascotImage priority className="object-contain object-bottom drop-shadow-[0_32px_60px_rgba(0,0,0,.72)]" />
+            </div>
 
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                {[
-                  ["Active Missions", "12"],
-                  ["Pilots", "07"],
-                  ["Aircraft", "09"],
-                ].map(([label, value]) => (
-                  <div key={label} className="rounded-lg border border-white/10 bg-black/20 p-3">
-                    <div className="text-[9px] font-bold text-white/45">{label}</div>
-                    <div className="mt-1 text-2xl font-black">{value}</div>
+            <div className="absolute right-[4%] top-[13%] max-w-[220px] rotate-[-5deg] text-right font-saira text-2xl font-black uppercase leading-[1.05] tracking-[-.03em] text-white">
+              Same skills.
+              <br />
+              Smarter
+              <br />
+              operations.
+              <div className="ml-auto mt-3 h-[3px] w-28 bg-[#F45A1E]" />
+            </div>
+
+            <div className="absolute bottom-[9%] right-[1%] rounded-xl border border-white/10 bg-black/55 p-4 backdrop-blur-md">
+              <div className="text-[9px] font-black uppercase tracking-[.16em] text-[#F45A1E]">DOMINIC FREE</div>
+              <div className="mt-1 text-sm font-black">Create a profile. Plan your first mission.</div>
+              <div className="mt-1 text-[11px] text-white/55">No credit card required.</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-white/10 bg-[#0b1117]">
+        <div className="mx-auto grid max-w-[1536px] lg:grid-cols-[340px_1fr]">
+          <div className="border-b border-white/10 p-7 lg:border-b-0 lg:border-r">
+            <div className="mb-3 h-[3px] w-7 bg-[#F45A1E]" />
+            <h2 className="font-saira text-3xl font-black uppercase leading-[.96]">
+              A complete
+              <br />
+              drone operations
+              <br />
+              platform
+            </h2>
+            <p className="mt-5 text-sm leading-6 text-white/58">
+              From mission planning to final delivery, DOMINIC brings intelligence, structure,
+              and automation to the workflow.
+            </p>
+            <Link
+              href="/dominic"
+              target="_blank"
+              className="mt-6 inline-flex items-center gap-2 rounded-md bg-[#F45A1E] px-5 py-3 text-xs font-black text-black"
+            >
+              See DOMINIC in Action <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="relative min-h-[470px] overflow-hidden p-5 sm:p-7">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_28%,rgba(244,90,30,.13),transparent_34%)]" />
+            <div className="relative rounded-[18px] border border-white/20 bg-[#101821] p-2 shadow-2xl shadow-black/50">
+              <div className="rounded-[13px] border border-white/10 bg-[#0b1117] p-3">
+                <div className="flex items-center justify-between border-b border-white/10 px-2 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="scale-[.78] origin-left">
+                      <DominicBrandLockup size="sm" showTagline={false} compact />
+                    </div>
+                    <div className="hidden text-[9px] font-black uppercase tracking-[.12em] text-white/40 sm:block">Operations Workspace</div>
                   </div>
-                ))}
-              </div>
-
-              <div className="mt-3 flex items-center justify-between gap-4 rounded-lg border border-white/10 bg-black/20 p-4">
-                <div>
-                  <div className="text-[9px] font-black tracking-[.14em] text-[#F45A1E]">OBJECT SCAN</div>
-                  <div className="mt-1 text-sm font-black">Industrial Asset Reconstruction</div>
-                  <div className="mt-1 text-[10px] text-white/45">3-ring guided capture · overlap tracking · coverage review</div>
-                </div>
-                <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full border-4 border-[#F45A1E] text-[10px] font-black">
-                  82%
-                </div>
-              </div>
-
-              <div className="mt-3 grid grid-cols-5 gap-1">
-                {["Plan", "Preflight", "Capture", "Process", "Deliver"].map((step, index) => (
-                  <div
-                    key={step}
-                    className={`rounded-md border px-2 py-2 text-center text-[8px] font-black ${
-                      index === 2
-                        ? "border-[#F45A1E] bg-[#F45A1E]/10 text-[#F45A1E]"
-                        : "border-white/10 bg-white/[.03] text-white/55"
-                    }`}
-                  >
-                    {index < 2 ? "✓ " : ""}{step}
+                  <div className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-[8px] font-black uppercase tracking-[.1em] text-emerald-300">
+                    Connected
                   </div>
-                ))}
-              </div>
+                </div>
 
-              <div className="relative mt-3 h-[220px] overflow-hidden rounded-lg border border-white/10 bg-[#0a1016]">
-                <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(255,255,255,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.08)_1px,transparent_1px)] [background-size:28px_28px]" />
-                <div className="absolute left-[18%] top-[22%] h-[54%] w-[64%] rounded-[50%] border border-dashed border-[#F45A1E]/65" />
-                <div className="absolute left-[25%] top-[31%] h-[38%] w-[50%] rounded-[50%] border border-dashed border-[#F45A1E]/65" />
-                <div className="absolute left-[34%] top-[40%] h-[20%] w-[32%] rounded-[50%] border border-dashed border-[#F45A1E]/65" />
-                <Radar className="absolute left-1/2 top-1/2 h-8 w-8 -translate-x-1/2 -translate-y-1/2 text-white" />
-                <div className="absolute bottom-3 left-3 text-[8px] font-black tracking-[.14em] text-[#F45A1E]">
-                  CAPTURE PATH OPTIMIZED
+                <div className="mt-3 grid gap-3 xl:grid-cols-[155px_1fr_180px]">
+                  <div className="space-y-1">
+                    {["Dashboard", "Plan Mission", "Capture", "Process", "Map & 3D", "Deliver", "Compliance", "Team", "Assets", "Reports"].map((item, i) => (
+                      <div
+                        key={item}
+                        className={`rounded-md px-3 py-2 text-[9px] font-bold ${
+                          i === 0 ? "bg-[#F45A1E] text-black" : "bg-white/[.04] text-white/58"
+                        }`}
+                      >
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-5">
+                      {[
+                        ["Plan", "Mission planning"],
+                        ["Fly", "Guidance"],
+                        ["Process", "Data processing"],
+                        ["Map & 3D", "Analyze"],
+                        ["Deliver", "Share"],
+                      ].map(([a, b], i) => (
+                        <div key={a} className={`rounded-lg border p-3 ${i === 0 ? "border-[#F45A1E] bg-[#F45A1E]/12" : "border-white/10 bg-white/[.03]"}`}>
+                          <div className="text-[10px] font-black">{a}</div>
+                          <div className="mt-1 text-[8px] leading-3 text-white/42">{b}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="relative h-[260px] overflow-hidden rounded-xl border border-white/10">
+                      <Image src="/images/construction-aerial.jpg" alt="DOMINIC mapping workspace preview" fill sizes="60vw" className="object-cover opacity-72" />
+                      <div className="absolute inset-0 bg-black/25" />
+                      <div className="absolute inset-[18%_15%_22%_18%] border-2 border-[#F45A1E]">
+                        <span className="absolute -top-6 right-0 rounded bg-[#F45A1E] px-2 py-1 text-[8px] font-black text-black">
+                          Site Area 42.6 ac
+                        </span>
+                      </div>
+                      <div className="absolute bottom-3 left-3 rounded-md border border-white/10 bg-black/65 px-3 py-2 text-[9px] font-bold text-white/75 backdrop-blur">
+                        Mission Plan · 3D Capture · 12 Waypoints
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-white/10 bg-white/[.025] p-3">
+                    <div className="text-[10px] font-black">Mission Details</div>
+                    <div className="mt-3 space-y-3">
+                      {[
+                        ["Images", "342"],
+                        ["GSD", "2.1 cm/pixel"],
+                        ["Est. Time", "18 min"],
+                        ["Battery", "2 batteries"],
+                        ["Status", "Within limits"],
+                      ].map(([a, b]) => (
+                        <div key={a} className="flex justify-between gap-3 border-b border-white/8 pb-2 text-[9px]">
+                          <span className="text-white/35">{a}</span>
+                          <span className="font-bold text-white/75">{b}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 rounded-lg border border-[#F45A1E]/25 bg-[#F45A1E]/8 p-3">
+                      <Sparkles className="h-4 w-4 text-[#F45A1E]" />
+                      <div className="mt-2 text-[9px] font-black">Capture path optimized</div>
+                      <div className="mt-1 text-[8px] leading-4 text-white/45">Coverage, overlap, distance, and safety constraints considered.</div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -239,163 +375,210 @@ export default function DominicLicensingPage() {
         </div>
       </section>
 
-      <section className="bg-[#F45A1E] px-6 py-5 text-center text-sm font-black text-black sm:text-base">
-        Stop stitching together forms, spreadsheets, cloud folders, flight notes, mapping tools, and client messages just to run one drone operation.
-      </section>
-
-      <section className="mx-auto max-w-[1536px] px-6 py-20 lg:px-10 lg:py-24">
-        <div className="max-w-3xl">
-          <p className="text-[11px] font-black uppercase tracking-[.22em] text-[#F45A1E]">The Software Layer for Drone Operations</p>
-          <h2 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-5xl">From mission request to final deliverable.</h2>
-          <p className="mt-5 text-base leading-7 text-white/60">
-            DOMINIC is being built to make professional drone work more repeatable, visible,
-            and intelligent without forcing pilots into a rigid workflow.
-          </p>
-        </div>
-
-        <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {capabilities.map(({ icon: Icon, title, copy }, index) => (
-            <div key={title} className="rounded-xl border border-white/10 bg-[#0d131a] p-6">
-              <div className="flex items-center justify-between">
-                <Icon className="h-7 w-7 text-[#F45A1E]" />
-                <span className="text-[10px] font-black tracking-[.16em] text-white/25">{String(index + 1).padStart(2, "0")}</span>
-              </div>
-              <h3 className="mt-8 text-xl font-black">{title}</h3>
-              <p className="mt-3 text-sm leading-6 text-white/55">{copy}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-y border-white/10 bg-[#0b1016] px-6 py-20 lg:px-10">
-        <div className="mx-auto grid max-w-[1536px] gap-10 lg:grid-cols-[1.05fr_.95fr] lg:items-center">
-          <div className="max-w-3xl">
-            <p className="text-[11px] font-black uppercase tracking-[.22em] text-[#F45A1E]">Who DOMINIC Is For</p>
-            <h2 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-5xl">License it for one pilot. Build on it for an entire operation.</h2>
-            <p className="mt-5 text-base leading-7 text-white/60">
-              DOMINIC can become the operating system behind how your organization plans,
-              flies, documents, processes, and delivers drone work.
+      <section className="border-b border-white/10 bg-[#090e13]">
+        <div className="mx-auto grid max-w-[1536px] lg:grid-cols-[260px_1fr]">
+          <div className="border-b border-white/10 p-7 lg:border-b-0 lg:border-r">
+            <div className="mb-3 h-[3px] w-7 bg-[#F45A1E]" />
+            <h2 className="font-saira text-3xl font-black uppercase leading-[.96]">
+              Powerful features.
+              <br />
+              Real-world results.
+            </h2>
+            <p className="mt-4 text-sm leading-6 text-white/50">
+              Everything you need for smarter, safer, and more productive drone operations.
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            {audiences.map((item) => (
-              <div key={item} className="flex items-center gap-3 rounded-lg border border-white/10 bg-black/20 p-4 text-sm font-black">
-                <Check className="h-4 w-4 shrink-0 text-[#F45A1E]" /> {item}
+          <div className="grid gap-px bg-white/10 sm:grid-cols-2 xl:grid-cols-3">
+            {capabilities.map(({ icon: Icon, title, copy }) => (
+              <div key={title} className="bg-[#0d1319] p-6">
+                <Icon className="h-7 w-7 text-[#F45A1E]" />
+                <h3 className="mt-5 font-saira text-lg font-black">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-white/48">{copy}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      <section id="licensing" className="mx-auto max-w-[1536px] scroll-mt-28 px-6 py-20 lg:px-10 lg:py-24">
-        <div className="max-w-3xl">
-          <p className="text-[11px] font-black uppercase tracking-[.22em] text-[#F45A1E]">Licensing Paths</p>
-          <h2 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-5xl">Start with the operation you have now.</h2>
-          <p className="mt-5 text-base leading-7 text-white/60">
-            Pricing can be structured around users, teams, modules, operational scope, onboarding,
-            and deployment requirements.
-          </p>
-        </div>
+      <section className="border-b border-white/10 bg-[#080c10]">
+        <div className="mx-auto grid max-w-[1536px] lg:grid-cols-[260px_1fr]">
+          <div className="border-b border-white/10 p-7 lg:border-b-0 lg:border-r">
+            <div className="mb-3 h-[3px] w-7 bg-[#F45A1E]" />
+            <h2 className="font-saira text-3xl font-black uppercase leading-[.96]">
+              Built for the people
+              <br />
+              who move the world
+              <br />
+              forward
+            </h2>
+            <p className="mt-4 text-sm leading-6 text-white/50">
+              From one pilot to complex organizations.
+            </p>
+          </div>
 
-        <div className="mt-10 grid gap-4 lg:grid-cols-3">
-          {licenseCards.map((card) => (
-            <div
-              key={card.title}
-              className={`relative rounded-2xl border p-7 ${
-                card.featured
-                  ? "border-[#F45A1E] bg-[#111923] shadow-2xl shadow-[#F45A1E]/10"
-                  : "border-white/10 bg-[#0d131a]"
-              }`}
-            >
-              {card.featured && (
-                <div className="absolute right-4 top-4 rounded-full bg-[#F45A1E] px-3 py-1 text-[8px] font-black tracking-[.1em] text-black">
-                  MOST FLEXIBLE
+          <div className="grid sm:grid-cols-2 xl:grid-cols-3">
+            {audiences.map(([title, copy], index) => {
+              const icons = [Plane, Users, ShieldCheck, Building2, FileCheck2, BarChart3];
+              const Icon = icons[index];
+              return (
+                <div key={title} className="border-b border-white/10 p-6 sm:border-r">
+                  <Icon className="h-6 w-6 text-[#F45A1E]" />
+                  <h3 className="mt-4 font-saira text-lg font-black">{title}</h3>
+                  <p className="mt-2 text-sm leading-6 text-white/48">{copy}</p>
                 </div>
-              )}
-              <p className="text-[10px] font-black tracking-[.14em] text-[#F45A1E]">{card.kicker}</p>
-              <h3 className="mt-2 text-2xl font-black">{card.title}</h3>
-              <p className="mt-4 min-h-[96px] text-sm leading-6 text-white/55">{card.copy}</p>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
-              <div className="mt-5 space-y-0">
-                {card.items.map((item) => (
-                  <div key={item} className="flex items-center gap-3 border-t border-white/10 py-3 text-sm font-bold text-white/75">
-                    <Check className="h-4 w-4 text-[#F45A1E]" /> {item}
-                  </div>
-                ))}
-              </div>
+      <section id="licensing" className="scroll-mt-24 border-b border-white/10 bg-[#0b1016]">
+        <div className="mx-auto grid max-w-[1536px] lg:grid-cols-[300px_1fr]">
+          <div className="border-b border-white/10 p-7 lg:border-b-0 lg:border-r">
+            <div className="mb-3 h-[3px] w-7 bg-[#F45A1E]" />
+            <h2 className="font-saira text-3xl font-black uppercase leading-[.96]">
+              Flexible licensing
+              <br />
+              for every stage
+              <br />
+              of your operation
+            </h2>
+            <p className="mt-4 text-sm leading-6 text-white/50">
+              Start at no cost. Upgrade only when your operation needs more.
+            </p>
+          </div>
 
-              <a
-                href="mailto:info@droneopsman.com?subject=DOMINIC%20Software%20Licensing"
-                className="mt-5 inline-flex items-center gap-2 text-sm font-black text-[#F45A1E]"
+          <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-4">
+            {plans.map((plan) => (
+              <div
+                key={plan.title}
+                className={`relative flex min-h-[470px] flex-col rounded-xl border p-5 ${
+                  plan.featured
+                    ? "border-[#F45A1E] bg-[linear-gradient(180deg,rgba(244,90,30,.18),#111820_34%)] shadow-2xl shadow-[#F45A1E]/10"
+                    : "border-white/14 bg-[#0c1218]"
+                }`}
               >
-                {card.cta} <ArrowRight className="h-4 w-4" />
-              </a>
+                {plan.featured ? (
+                  <div className="absolute inset-x-0 top-0 rounded-t-xl bg-[#F45A1E] py-1 text-center text-[8px] font-black uppercase tracking-[.12em] text-black">
+                    Most Flexible
+                  </div>
+                ) : null}
+
+                <div className={plan.featured ? "pt-4" : ""}>
+                  <div className="text-[9px] font-black uppercase tracking-[.14em] text-[#F45A1E]">{plan.kicker}</div>
+                  <h3 className="mt-2 font-saira text-xl font-black">{plan.title}</h3>
+                  <div className="mt-4 flex items-end gap-2">
+                    <div className="font-saira text-3xl font-black">{plan.price}</div>
+                    <div className="pb-1 text-[10px] font-bold text-white/40">{plan.suffix}</div>
+                  </div>
+                  <p className="mt-4 min-h-[90px] text-sm leading-6 text-white/48">{plan.copy}</p>
+                </div>
+
+                <div className="mt-5 flex-1 space-y-0">
+                  {plan.items.map((item) => (
+                    <div key={item} className="flex items-start gap-2 border-t border-white/10 py-3 text-xs font-bold text-white/70">
+                      <Check className="mt-[1px] h-4 w-4 shrink-0 text-[#F45A1E]" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {plan.href.startsWith("/") ? (
+                  <Link
+                    href={plan.href}
+                    className={`mt-5 inline-flex items-center justify-center gap-2 rounded-md px-4 py-3 text-xs font-black ${
+                      plan.featured ? "bg-[#F45A1E] text-black" : "border border-[#F45A1E]/70 text-white"
+                    }`}
+                  >
+                    {plan.cta} <ArrowRight className="h-4 w-4" />
+                  </Link>
+                ) : (
+                  <a
+                    href={plan.href}
+                    className={`mt-5 inline-flex items-center justify-center gap-2 rounded-md px-4 py-3 text-xs font-black ${
+                      plan.featured ? "bg-[#F45A1E] text-black" : "border border-[#F45A1E]/70 text-white"
+                    }`}
+                  >
+                    {plan.cta} <ArrowRight className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-white/10 bg-[#080c10] px-6 py-20 lg:px-10">
+        <div className="mx-auto max-w-[1200px]">
+          <div className="mb-8 flex items-end justify-between gap-6">
+            <div>
+              <div className="mb-3 h-[3px] w-7 bg-[#F45A1E]" />
+              <h2 className="font-saira text-3xl font-black uppercase">Common questions</h2>
             </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="mx-auto mb-20 grid max-w-[1450px] gap-8 rounded-2xl bg-gradient-to-r from-[#F45A1E] to-[#d9480f] px-7 py-10 text-black lg:grid-cols-[1fr_auto] lg:items-center lg:px-10">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[.18em] text-black/60">See the Difference</p>
-          <h2 className="mt-2 text-3xl font-black tracking-[-.04em] sm:text-4xl">You do not need another drone app.</h2>
-          <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-black/70">
-            You need a system that helps your operation know what happens next, keeps the mission
-            record together, and gives every pilot a clearer path from planning to delivery.
-          </p>
-        </div>
-        <Link
-          href="/dominic"
-          target="_blank"
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-black px-6 py-3 text-sm font-black text-white"
-        >
-          See DOMINIC <ArrowRight className="h-4 w-4" />
-        </Link>
-      </section>
-
-      <section className="mx-auto max-w-[1536px] px-6 pb-20 lg:px-10 lg:pb-24">
-        <div className="max-w-3xl">
-          <p className="text-[11px] font-black uppercase tracking-[.22em] text-[#F45A1E]">Common Questions</p>
-          <h2 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-5xl">Before you license DOMINIC.</h2>
-        </div>
-
-        <div className="mt-10 grid gap-4 md:grid-cols-2">
-          {faqs.map(([question, answer]) => (
-            <div key={question} className="rounded-xl border border-white/10 bg-[#0d131a] p-6">
-              <h3 className="text-lg font-black">{question}</h3>
-              <p className="mt-3 text-sm leading-6 text-white/55">{answer}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="border-t border-white/10 bg-[radial-gradient(circle_at_50%_0%,rgba(244,90,30,.18),transparent_35%)] px-6 py-24 text-center lg:px-10">
-        <div className="mx-auto max-w-4xl">
-          <p className="text-[11px] font-black uppercase tracking-[.22em] text-[#F45A1E]">DOMINIC Software Licensing</p>
-          <h2 className="mt-3 text-4xl font-black tracking-[-.05em] sm:text-5xl lg:text-6xl">
-            Tell us what you fly. We&apos;ll show you how DOMINIC can run it.
-          </h2>
-          <p className="mx-auto mt-5 max-w-3xl text-base leading-7 text-white/60">
-            Request a licensing conversation for your pilot operation, service company, municipality,
-            public safety program, or enterprise drone team.
-          </p>
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <a
-              href="mailto:info@droneopsman.com?subject=DOMINIC%20Software%20Licensing"
-              className="inline-flex items-center gap-2 rounded-md bg-[#F45A1E] px-6 py-3 text-sm font-black text-black transition hover:bg-[#ff7338]"
-            >
-              Request Licensing Details <ArrowRight className="h-4 w-4" />
-            </a>
-            <Link
-              href="/dominic"
-              target="_blank"
-              className="inline-flex items-center gap-2 rounded-md border border-white/20 bg-white/5 px-6 py-3 text-sm font-black text-white"
-            >
-              Open DOMINIC
+            <Link href="/dominic/signup" className="hidden text-xs font-black text-[#F45A1E] sm:inline-flex sm:items-center sm:gap-2">
+              Start Free <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
-          <p className="mt-5 text-[11px] text-white/35">Licensing scope and pricing are based on your operation.</p>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {faqs.map(([question, answer]) => (
+              <div key={question} className="rounded-lg border border-white/10 bg-[#0d1319] p-5">
+                <h3 className="font-saira text-base font-black">{question}</h3>
+                <p className="mt-3 text-sm leading-6 text-white/48">{answer}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="relative overflow-hidden bg-[#080c10]">
+        <Image
+          src="/images/city-night-aerial.jpg"
+          alt=""
+          fill
+          sizes="100vw"
+          className="object-cover opacity-28"
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,#080c10_0%,rgba(8,12,16,.78)_52%,rgba(8,12,16,.45)_100%)]" />
+        <div className="relative mx-auto grid max-w-[1536px] gap-8 px-6 py-20 lg:grid-cols-[1fr_420px] lg:items-center lg:px-10">
+          <div>
+            <div className="mb-3 h-[3px] w-7 bg-[#F45A1E]" />
+            <h2 className="max-w-[760px] font-saira text-4xl font-black uppercase leading-[.96] sm:text-5xl">
+              Built for real
+              <br />
+              drone operations.
+            </h2>
+            <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs font-bold text-white/58">
+              <span>Mission Planning</span>
+              <span className="text-[#F45A1E]">•</span>
+              <span>Mapping + 3D</span>
+              <span className="text-[#F45A1E]">•</span>
+              <span>Workflow Automation</span>
+              <span className="text-[#F45A1E]">•</span>
+              <span>Compliance</span>
+              <span className="text-[#F45A1E]">•</span>
+              <span>Pilot to Enterprise Scalability</span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/12 bg-black/55 p-7 backdrop-blur-md">
+            <div className="text-[10px] font-black uppercase tracking-[.16em] text-[#F45A1E]">Ready to use DOMINIC?</div>
+            <h3 className="mt-3 font-saira text-2xl font-black">
+              Start free. Upgrade when the operation demands it.
+            </h3>
+            <p className="mt-3 text-sm leading-6 text-white/52">
+              Create your DOMINIC profile now or talk with DOM about team and organization licensing.
+            </p>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link href="/dominic/signup" className="inline-flex items-center gap-2 rounded-md bg-[#F45A1E] px-5 py-3 text-xs font-black text-black">
+                Create Free Profile <ArrowRight className="h-4 w-4" />
+              </Link>
+              <a href="mailto:info@droneopsman.com?subject=DOMINIC%20Software%20Licensing" className="inline-flex items-center gap-2 rounded-md border border-white/20 px-5 py-3 text-xs font-black text-white">
+                Request a Demo
+              </a>
+            </div>
+          </div>
         </div>
       </section>
     </div>

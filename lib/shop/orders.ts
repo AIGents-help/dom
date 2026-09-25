@@ -61,3 +61,13 @@ export async function markShopCheckoutFailed(session: Stripe.Checkout.Session): 
   const { error } = await admin.rpc("release_shop_checkout_service", { p_session_id: session.id });
   if (error) throw new Error(`Unable to release shop checkout: ${error.message}`);
 }
+
+
+export async function reconcileShopRefund(paymentIntentId: string): Promise<void> {
+  if (!paymentIntentId) return;
+  const admin = getSupabaseAdmin();
+  const { error } = await admin.rpc("reconcile_shop_refund_service", {
+    p_payment_intent_id: paymentIntentId,
+  });
+  if (error) throw new Error(`Unable to reconcile shop refund: ${error.message}`);
+}

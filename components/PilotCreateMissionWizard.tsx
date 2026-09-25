@@ -24,6 +24,9 @@ interface AirspaceData {
   airspace_class: string;
   authorization_summary: string;
   nearest_airport: { icao: string; name: string; distance_nm: number; bearing: string } | null;
+  operationally_verified: boolean;
+  data_warning?: string | null;
+  raw_source?: string;
 }
 
 interface QuoteData {
@@ -196,8 +199,10 @@ export default function PilotCreateMissionWizard({
       setDistanceVerified(false);
 
       const airRes = await fetch(`/api/airspace?lat=${lt}&lng=${ln}`);
-      const airData = await airRes.json();
-      if (airData.airspace) setAirspace(airData.airspace);
+      const airData = await airRes.json().catch(() => ({}));
+      if (!airRes.ok) throw new Error(airData.error ?? "Airspace verification failed.");
+      if (!airData.airspace) throw new Error("Airspace verification returned no result.");
+      setAirspace(airData.airspace);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -207,6 +212,11 @@ export default function PilotCreateMissionWizard({
 
   const generateQuote = useCallback(async () => {
     if (lat == null || lng == null) return;
+    if (airspace?.operationally_verified !== true) {
+      setError("Airspace must be authoritatively verified before this mission can continue.");
+      setStep("location");
+      return;
+    }
     setQuoting(true);
     setError(null);
     try {
@@ -280,6 +290,11 @@ export default function PilotCreateMissionWizard({
 
   const submit = useCallback(async () => {
     if (lat == null || lng == null) return;
+    if (airspace?.operationally_verified !== true) {
+      setError("Airspace verification is no longer valid. Re-check the mission location before creating this mission.");
+      setStep("location");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -315,7 +330,7 @@ export default function PilotCreateMissionWizard({
     } finally {
       setSubmitting(false);
     }
-  }, [accessToken, clientName, clientEmail, clientCompany, clientPhone, address, lat, lng, serviceType, distanceMiles, complexity, urgency, deliverableTier, customMissionTitle, customMissionScope, customDeliverables, billingMode, noChargeReason, personalInsuranceCurrent, uninsuredConsent, onCreated]);
+  }, [accessToken, clientName, clientEmail, clientCompany, clientPhone, address, lat, lng, airspace, serviceType, distanceMiles, complexity, urgency, deliverableTier, customMissionTitle, customMissionScope, customDeliverables, billingMode, noChargeReason, personalInsuranceCurrent, uninsuredConsent, onCreated]);
 
   if (created) {
     return (
@@ -411,13 +426,15 @@ export default function PilotCreateMissionWizard({
           </div>
 
           {airspace && (
-            <div style={{ marginTop: 14, padding: 12, borderRadius: 8, background: V.raised }}>
-              <p style={{ color: V.telemetry, fontSize: 13, fontWeight: 600 }}>Class {airspace.airspace_class}</p>
-              <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>{airspace.authorization_summary}</p>
+            <div style={{ marginTop: 14, padding: 12, borderRadius: 8, background: airspace.operationally_verified ? "rgba(22,163,74,.08)" : "rgba(220,38,38,.08)", border: `1px solid ${airspace.operationally_verified ? V.telemetry : V.danger}` }}>
+              <p style={{ color: airspace.operationally_verified ? V.telemetry : V.danger, fontSize: 13, fontWeight: 700 }}>
+                {airspace.operationally_verified ? `✓ Verified · Class ${airspace.airspace_class}` : "⛔ Airspace not verified — mission creation blocked"}
+              </p>
+              <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>{airspace.data_warning ?? airspace.authorization_summary}</p>
             </div>
           )}
 
-          {airspace && (
+          {airspace?.operationally_verified === true && (
             <div style={{ marginTop: 14, padding: 14, borderRadius: 10, border: `1px solid ${V.line}`, background: "rgba(14,165,233,.05)" }}>
               <div className="font-saira" style={{ fontSize: 14, fontWeight: 600 }}>Verify pilot travel</div>
               <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>
@@ -449,7 +466,7 @@ export default function PilotCreateMissionWizard({
 
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
             <button onClick={() => setStep("client")} style={btnGhost}>← Back</button>
-            {airspace && (
+            {airspace?.operationally_verified === true && (
               <button onClick={() => setStep("scope")} disabled={!distanceVerified} style={{ ...btnPrimary, flex: 1, opacity: distanceVerified ? 1 : .5 }}>
                 Continue to scope →
               </button>

@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
   if (!assignment) return NextResponse.json({ error: "Assignment not found." }, { status: 404 });
 
   const [{ data: assets }, { data: selected }] = await Promise.all([
-    admin.from("pilot_assets").select("id, asset_type, display_name, manufacturer, model, status, archived_at").eq("contractor_id", auth.contractor.id).order("created_at", { ascending: false }),
+    admin.from("pilot_assets").select("id, asset_type, display_name, manufacturer, model, status, archived_at, registration_number, remote_id, capabilities_verified").eq("contractor_id", auth.contractor.id).order("created_at", { ascending: false }),
     admin.from("mission_asset_assignments").select("asset_id, role").eq("mission_assignment_id", assignmentId),
   ]);
 

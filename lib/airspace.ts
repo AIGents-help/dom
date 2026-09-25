@@ -60,7 +60,7 @@ function faaPointQuery(url: string, lat: number, lng: number, outFields: string)
 
 function normalizeClass(value: unknown): AirspaceResult["airspace_class"] | null {
   const normalized = String(value ?? "").toUpperCase().replaceAll("_", " ");
-  const match = normalized.match(/(?:CLASS\\s*)?\\b([BCDEG])\\b/);
+  const match = normalized.match(/(?:CLASS\s*)?\b([BCDEG])\b/);
   return match && ["B", "C", "D", "E", "G"].includes(match[1])
     ? match[1] as AirspaceResult["airspace_class"]
     : null;
@@ -113,7 +113,7 @@ async function classifyViaFaa(lat: number, lng: number): Promise<AirspaceResult>
     const cls = normalizeClass(attrs.CLASS);
     if (!cls) return [];
     const lowerText = `${attrs.LOWER_DESC ?? ""} ${attrs.LOWER_CODE ?? ""}`.toUpperCase();
-    const surfaceBased = lowerText.includes("SFC") || lowerText.includes("SURFACE") || Number(attrs.LOWER_VAL) === 0;
+    const surfaceBased = lowerText.includes("SFC") || lowerText.includes("SURFACE") || (attrs.LOWER_VAL != null && Number(attrs.LOWER_VAL) === 0);
     return surfaceBased ? [cls] : [];
   });
 
@@ -146,10 +146,10 @@ async function classifyViaFaa(lat: number, lng: number): Promise<AirspaceResult>
   );
   return {
     airspace_class: airspaceClass,
-    max_altitude_ft: controlled ? maxAlt : 400,
+    max_altitude_ft: controlled ? (uasfmFeatures.length ? maxAlt : 0) : 400,
     nearest_airport: null,
     laanc_required: controlled,
-    laanc_status: controlled ? (laancEnabled ? "available" : "required") : "not_required",
+    laanc_status: controlled ? (uasfmFeatures.length ? (laancEnabled ? "available" : "required") : "unavailable") : "not_required",
     tfr_active: false,
     tfr_details: [],
     notams: [],
@@ -157,7 +157,9 @@ async function classifyViaFaa(lat: number, lng: number): Promise<AirspaceResult>
     authorization_summary: buildAuthSummary(airspaceClass, controlled, false),
     raw_source: "faa_official",
     operationally_verified: true,
-    data_warning: "FAA Class Airspace/UAS Facility Map verified. TFRs and NOTAMs still require a current preflight check.",
+    data_warning: uasfmFeatures.length
+      ? "FAA Class Airspace and UAS Facility Map checked. TFRs and NOTAMs still require a current preflight check."
+      : "FAA airspace class verified, but no UAS Facility Map grid was returned. Do not infer an authorization altitude; verify LAANC eligibility/ceiling separately before flight.",
     queried_at: new Date().toISOString(),
   };
 }

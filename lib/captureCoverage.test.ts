@@ -9,6 +9,7 @@ import {
   calculateObjectScanPlan,
   destinationPoint,
 } from "@/lib/capturePlanner";
+import { calculateFacadePlan, georeferencePattern } from "@/lib/capturePatterns";
 
 function makeObjectScan() {
   const plan = calculateObjectScanPlan({
@@ -156,4 +157,45 @@ describe("DOMINIC adaptive coverage engine", () => {
 
     expect(Object.values(rings).reduce((sum, ring) => sum + ring.missing, 0)).toBe(8);
   });
+  it("assesses non-object pattern checkpoints and groups repair needs by pass", () => {
+    const facade = calculateFacadePlan({
+      widthFt: 40,
+      heightFt: 20,
+      standoffFt: 15,
+      overlapPct: 75,
+      horizontalFovDeg: 84,
+      verticalFovDeg: 60,
+    });
+    const checkpoints = georeferencePattern(facade, 39.95, -75.16, 90);
+    const observations = checkpoints.slice(0, 2).map((checkpoint, index) => ({
+      id: `facade-capture-${index + 1}`,
+      checkpointId: checkpoint.id,
+      capturedAtMs: index + 1,
+      latitude: checkpoint.latitude,
+      longitude: checkpoint.longitude,
+      relativeAltitudeFt: checkpoint.relativeAltitudeFt,
+      cameraAngle: checkpoint.cameraAngle,
+      sharpnessScore: 0.95,
+      exposureScore: 0.95,
+      usable: true,
+    }));
+
+    const coverage = assessCoverage({
+      checkpoints: checkpoints.slice(0, 4),
+      observations,
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+    });
+    const repairs = buildRepairPlan({
+      checkpoints: checkpoints.slice(0, 4),
+      coverage,
+    });
+    const grouped = summarizeCoverageByRing(checkpoints.slice(0, 4), coverage);
+
+    expect(coverage.covered).toBe(2);
+    expect(coverage.missing).toBe(2);
+    expect(repairs).toHaveLength(2);
+    expect(Object.keys(grouped).some((key) => key.startsWith("facade-"))).toBe(true);
+  });
+
 });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
 import { sendClientMissionUpdate } from "@/lib/resend/clientMissionUpdates";
-import { deliverablePlanFor, missingRequiredDeliverables, missionCompletionMode, WORKFLOW_ITEMS } from "@/lib/missionWorkflow";
+import { AUTOMATIC_WORKFLOW_KEYS, deliverablePlanFor, missingRequiredDeliverables, missionCompletionMode, WORKFLOW_ITEMS } from "@/lib/missionWorkflow";
 
 interface WorkflowJob {
   mission_request_id: string;
@@ -107,15 +107,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
   const automaticStates = [
     { key: "uav_assigned", completed: !!ctx.assignment.assigned_uav, notes: ctx.assignment.assigned_uav ? `Assigned aircraft: ${ctx.assignment.assigned_uav}` : "Assign a compatible UAV" },
     { key: "insurance_verified", completed: insurance.satisfied, notes: insurance.satisfied ? `${insurance.source}${insurance.reference ? ` · ${insurance.reference}` : ""}` : "Select an insurance or responsibility path" },
+    { key: "schedule_confirmed", completed: !!ctx.assignment.job.scheduled_for, notes: ctx.assignment.job.scheduled_for ? `Scheduled: ${ctx.assignment.job.scheduled_for}` : "Set the mission performance date" },
     { key: "capture_complete", completed: !!ctx.assignment.job.completed_at, notes: ctx.assignment.job.completed_at ? "Field capture marked complete" : "Complete the approved capture plan" },
     { key: "deliverables_uploaded", completed: deliverablesComplete, notes: deliverablesComplete ? "Every required deliverable category is uploaded" : `Still required: ${missingDeliverables.map((item) => item.label).join(", ")}` },
     { key: "mission_submitted", completed: submitted, notes: submitted ? (completionMode === "owner_delivery" ? "Certified and delivered by the mission owner" : "Submitted to DOM for QC") : "Complete after all required work is finished" },
   ];
-  await Promise.all(automaticStates.map((state) => ctx.admin.from("mission_checklist_items").update({
+  const automaticSyncResults = await Promise.all(automaticStates.map((state) => ctx.admin.from("mission_checklist_items").update({
     completed: state.completed,
     completed_at: state.completed ? now : null,
     notes: state.notes,
   }).eq("assignment_id", assignmentId).eq("item_key", state.key)));
+  const automaticSyncError = automaticSyncResults.find((result) => result.error)?.error;
+  if (automaticSyncError) {
+    console.error("Automatic mission checklist reconciliation failed", { assignmentId, error: automaticSyncError.message });
+    return NextResponse.json({ error: "Premission readiness could not be reconciled with the mission record." }, { status: 500 });
+  }
 
   const [{ data: items, error: itemsError }] = await Promise.all([
     ctx.admin.from("mission_checklist_items").select("*").eq("assignment_id", assignmentId).order("sort_order"),
@@ -207,7 +213,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
     const { data: item } = await ctx.admin.from("mission_checklist_items").select("item_key")
       .eq("id", body.itemId).eq("assignment_id", assignmentId).maybeSingle();
     if (!item) return NextResponse.json({ error: "Checklist item not found." }, { status: 404 });
-    if (["insurance_verified", "deliverables_uploaded", "mission_submitted"].includes(item.item_key)) return NextResponse.json({ error: "This item updates automatically." }, { status: 409 });
+    if ((AUTOMATIC_WORKFLOW_KEYS as readonly string[]).includes(item.item_key)) return NextResponse.json({ error: "This item is derived from the mission record and updates automatically." }, { status: 409 });
     const { error } = await ctx.admin.from("mission_checklist_items").update({ completed: !!body.completed, completed_at: body.completed ? now : null })
       .eq("id", body.itemId).eq("assignment_id", assignmentId);
     if (error) return NextResponse.json({ error: "Checklist item could not be updated." }, { status: 500 });

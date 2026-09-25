@@ -13,11 +13,12 @@ describe("mission workflow policy", () => {
     expect(AUTOMATIC_WORKFLOW_KEYS).toEqual(expect.arrayContaining([
       "uav_assigned",
       "insurance_verified",
+      "schedule_confirmed",
       "capture_complete",
       "deliverables_uploaded",
       "mission_submitted",
     ]));
-    expect(PROTECTED_WORKFLOW_KEYS.has("insurance_verified")).toBe(true);
+    for (const key of AUTOMATIC_WORKFLOW_KEYS) expect(PROTECTED_WORKFLOW_KEYS.has(key)).toBe(true);
     expect(PROTECTED_WORKFLOW_KEYS.has("scope_reviewed")).toBe(false);
   });
 

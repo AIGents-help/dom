@@ -112,6 +112,17 @@ export async function POST(req: NextRequest) {
     }
 
     const airspaceResult = await classifyAirspace(latitude, longitude);
+    if (!airspaceResult.operationally_verified || airspaceResult.airspace_class === "UNKNOWN") {
+      return NextResponse.json(
+        {
+          error: airspaceResult.data_warning
+            ?? "Airspace could not be authoritatively verified. Mission creation is blocked until the location is verified.",
+          airspace: airspaceResult,
+        },
+        { status: 409 }
+      );
+    }
+
     const quoteInput: QuoteInput = {
       serviceType,
       distanceMiles: distanceMiles ?? 0,
@@ -178,6 +189,15 @@ export async function POST(req: NextRequest) {
         travelDistanceSource,
         uninsuredAcknowledged: !personalInsuranceCurrent && uninsuredAcknowledged === true,
         uninsuredTermsVersion: "pilot-uninsured-responsibility-v1",
+        airspaceVerification: {
+          class: airspaceResult.airspace_class,
+          source: airspaceResult.raw_source,
+          queriedAt: airspaceResult.queried_at,
+          uasFacilityCeilingFt: airspaceResult.max_altitude_ft,
+          laancRequired: airspaceResult.laanc_required,
+          laancStatus: airspaceResult.laanc_status,
+          warning: airspaceResult.data_warning,
+        },
       },
     });
 
@@ -209,6 +229,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       jobId,
+      airspace: airspaceResult,
       quote: {
         serviceLabel: quote.serviceLabel,
         totalCents: quote.totalCents,

@@ -38,15 +38,14 @@ export function missionCompletionMode(
 export const AUTOMATIC_WORKFLOW_KEYS = [
   "uav_assigned",
   "insurance_verified",
+  "schedule_confirmed",
   "capture_complete",
   "deliverables_uploaded",
   "mission_submitted",
 ] as const satisfies readonly WorkflowItemKey[];
 
 export const PROTECTED_WORKFLOW_KEYS = new Set<WorkflowItemKey>([
-  "uav_assigned",
-  "insurance_verified",
-  "mission_submitted",
+  ...AUTOMATIC_WORKFLOW_KEYS,
 ]);
 
 export interface DeliverableRequirement {

@@ -112,6 +112,17 @@ export async function POST(req: NextRequest) {
     }
 
     const airspaceResult = await classifyAirspace(latitude, longitude);
+    if (!airspaceResult.operationally_verified || airspaceResult.airspace_class === "UNKNOWN") {
+      return NextResponse.json(
+        {
+          error: airspaceResult.data_warning
+            ?? "Airspace could not be authoritatively verified. Mission creation is blocked until the location is verified.",
+          airspace: airspaceResult,
+        },
+        { status: 409 }
+      );
+    }
+
     const quoteInput: QuoteInput = {
       serviceType,
       distanceMiles: distanceMiles ?? 0,

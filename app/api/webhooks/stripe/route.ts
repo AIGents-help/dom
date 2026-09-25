@@ -4,7 +4,7 @@ import { getStripe } from "@/lib/stripe";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendNotification } from "@/lib/resend/client";
 import { paymentReceived } from "@/lib/resend/templates";
-import { fulfillShopCheckout, markShopCheckoutFailed } from "@/lib/shop/orders";
+import { fulfillShopCheckout, markShopCheckoutFailed, reconcileShopRefund } from "@/lib/shop/orders";
 
 export async function POST(req: NextRequest) {
   const signature = req.headers.get("stripe-signature");
@@ -62,6 +62,14 @@ export async function POST(req: NextRequest) {
       case "checkout.session.expired":
         await markShopCheckoutFailed(event.data.object as Stripe.Checkout.Session);
         break;
+      case "charge.refunded": {
+        const charge = event.data.object as Stripe.Charge;
+        const paymentIntentId = typeof charge.payment_intent === "string"
+          ? charge.payment_intent
+          : charge.payment_intent?.id ?? "";
+        await reconcileShopRefund(paymentIntentId);
+        break;
+      }
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
         const resource = subscription.metadata?.subscription_type === "resource_access";

@@ -18,9 +18,9 @@ import { deliverablePlanFor } from "@/lib/missionWorkflow";
 // pilot manages own job deliverables policies). Pilot-owned missions use
 // owner certification; DOM-assigned missions retain DOM QC.
 
-const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, padding: 18 };
+const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 14, background: V.surface, color: V.ink, padding: 18 };
 const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
-const btnGhost: React.CSSProperties = { padding: "8px 14px", borderRadius: 8, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
+const btnGhost: React.CSSProperties = { padding: "8px 14px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.surface, color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 const inputStyle: React.CSSProperties = { width: "100%", padding: "9px 11px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.ground, color: V.ink, fontSize: 13, outline: "none" };
 const SERVICE_TYPES = [
   ["roof_inspection_residential", "Roof Inspection (Residential)"],
@@ -285,7 +285,7 @@ export default function PilotMissionLog({
   const uploadDeliverable = useCallback((name: string, category: string, file: File) => uploadFile("deliverable", name, category, file), [uploadFile]);
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
+    <div style={{ display: "grid", gap: 16, color: V.ink }}>
       <nav aria-label="Breadcrumb" style={{ display: "flex", alignItems: "center", gap: 7, color: V.inkFaint, fontSize: 12 }}>
         <span>Pilot Portal</span><span aria-hidden="true">/</span>
         <button type="button" onClick={onClose} style={{ border: 0, padding: 0, background: "transparent", color: V.signal, cursor: "pointer", font: "inherit" }}>Missions</button>

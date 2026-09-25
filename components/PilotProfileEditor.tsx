@@ -89,7 +89,7 @@ export default function PilotProfileEditor({ profile, onSaved }: { profile: Prof
           <Field label="Part 107 #" value={profile.part107_number ?? "Not provided"} />
           <Field label="Service Area" value={profile.service_area ?? "Not set"} />
           <Field label="Home / Dispatch Address (Private)" value={profile.home_address ?? "Not set"} />
-          <Field label="Equipment" value={profile.equipment ?? "Not listed"} />
+          <Field label="Legacy equipment summary" value={profile.equipment ?? "Use the Equipment / Assets section for individual aircraft records"} />
           <Field label="Rating" value={profile.rating ? `${profile.rating}/5.0` : "No rating yet"} />
         </div>
         <InsurancePanel profile={profile} onSaved={onSaved} />
@@ -131,8 +131,9 @@ export default function PilotProfileEditor({ profile, onSaved }: { profile: Prof
           </p>
         </div>
         <div style={{ gridColumn: "1 / -1" }}>
-          <label style={labelStyle}>Equipment</label>
+          <label style={labelStyle}>Legacy equipment summary</label>
           <input style={inputStyle} value={form.equipment} onChange={(e) => setForm({ ...form, equipment: e.target.value })} />
+          <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 5 }}>For mission eligibility, add each aircraft individually in Equipment / Assets with its model, serial number, FAA registration, Remote ID, status, and capabilities. This field is retained only as a legacy summary.</p>
         </div>
       </div>
       <div style={{ display: "flex", gap: 10, marginTop: 16 }}>

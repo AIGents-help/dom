@@ -158,4 +158,10 @@ describe("asset capability suggestions", () => {
     expect(suggestCapabilitiesForAsset({ asset_type: "uav", model: "Unknown Drone 123" })).toEqual([]);
     expect(suggestCapabilitiesForAsset({ asset_type: "controller", manufacturer: "DJI", model: "Matrice 4E" })).toEqual([]);
   });
+
+  it("recognizes DJI Avata 2 as an RGB/video aircraft", () => {
+    const caps = suggestCapabilitiesForAsset({ asset_type: "uav", manufacturer: "DJI", model: "Avata 2" });
+    expect(caps).toContain("video");
+    expect(caps).toContain("rgb_imagery");
+  });
 });

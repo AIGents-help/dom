@@ -78,6 +78,14 @@ const UAV_CAPABILITY_PRESETS: Array<{
     capabilities: ["rtk", "obstacle_avoidance"],
   },
   {
+    match: /\b(dji\s*)?avata\s*2\b/i,
+    capabilities: ["rgb_imagery", "video"],
+  },
+  {
+    match: /\b(dji\s*)?avata\b/i,
+    capabilities: ["rgb_imagery", "video"],
+  },
+  {
     match: /\bmini\s*3\s*pro\b/i,
     capabilities: ["rgb_imagery", "video", "obstacle_avoidance"],
   },

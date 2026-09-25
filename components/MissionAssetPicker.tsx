@@ -8,7 +8,7 @@ import { V, btnGhost, btnPrimary } from "@/lib/theme";
 // (its own fetch, its own save) so it drops into the existing assignment
 // card in app/pilot/page.tsx without that file needing new global state.
 
-interface PickableAsset { id: string; display_name: string | null; manufacturer: string | null; model: string | null; asset_type: string; selected: boolean }
+interface PickableAsset { id: string; display_name: string | null; manufacturer: string | null; model: string | null; asset_type: string; selected: boolean; registration_number?: string | null; capabilities_verified?: boolean }
 
 export default function MissionAssetPicker({ accessToken, assignmentId, onSaved }: { accessToken: string; assignmentId: string; onSaved?: () => void | Promise<void> }) {
   const [open, setOpen] = useState(false);
@@ -68,12 +68,12 @@ export default function MissionAssetPicker({ accessToken, assignmentId, onSaved 
   }
 
   return (
-    <div>
-      <button onClick={() => setOpen((o) => !o)} style={btnGhost}>
+    <div style={{ color: V.ink }}>
+      <button onClick={() => setOpen((o) => !o)} style={{ ...btnGhost, background: V.surface, color: V.ink }}>
         {savedCount ? `Equipment (${savedCount}) →` : "Assign Equipment →"}
       </button>
       {open && (
-        <div style={{ marginTop: 10, padding: 12, border: `1px solid ${V.line}`, borderRadius: 10 }}>
+        <div style={{ marginTop: 10, padding: 12, border: `1px solid ${V.line}`, borderRadius: 10, background: V.surface, color: V.ink }}>
           {loading && <p style={{ color: V.inkDim, fontSize: 13 }}>Loading your assets…</p>}
           {error && <p style={{ color: V.danger, fontSize: 13 }}>{error}</p>}
           {!loading && assets.length === 0 && !error && (
@@ -85,6 +85,7 @@ export default function MissionAssetPicker({ accessToken, assignmentId, onSaved 
                 <label key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
                   <input type="checkbox" checked={selectedIds.has(a.id)} onChange={() => toggle(a.id)} />
                   {a.display_name || [a.manufacturer, a.model].filter(Boolean).join(" ") || a.asset_type}
+                  {a.asset_type === "uav" && <span style={{ color: V.inkDim, fontSize: 11 }}> · {a.registration_number ? "FAA registered" : "registration missing"} · {a.capabilities_verified ? "capabilities verified" : "capabilities pending verification"}</span>}
                 </label>
               ))}
             </div>

@@ -228,6 +228,10 @@ export default function DominicCapturePlanner() {
   const [patternStandoffFt, setPatternStandoffFt] = useState(30);
   const [patternOverlapPct, setPatternOverlapPct] = useState(75);
   const [patternHeadingDeg, setPatternHeadingDeg] = useState(0);
+  const [secondaryIndex, setSecondaryIndex] = useState(0);
+  const [secondaryObservations, setSecondaryObservations] = useState<CaptureObservation[]>([]);
+  const [secondaryImageStatus, setSecondaryImageStatus] = useState<"idle" | "analyzing" | "done" | "error">("idle");
+  const [secondaryImageMessage, setSecondaryImageMessage] = useState<string | null>(null);
   const [secondaryFlightApprovalSignature, setSecondaryFlightApprovalSignature] = useState<string | null>(null);
   const [autonomousSnapshot, setAutonomousSnapshot] = useState<MissionExecutionSnapshot | null>(null);
   const [autonomousRunning, setAutonomousRunning] = useState(false);
@@ -1187,6 +1191,115 @@ export default function DominicCapturePlanner() {
         patternHeadingDeg,
       )
     : [];
+
+  const activeSecondaryIndex = Math.min(
+    secondaryIndex,
+    Math.max(0, secondaryGeographicCheckpoints.length - 1),
+  );
+  const currentSecondaryCheckpoint =
+    secondaryGeographicCheckpoints[activeSecondaryIndex] ?? null;
+  const secondaryCoverage = useMemo(
+    () =>
+      assessCoverage({
+        checkpoints: secondaryGeographicCheckpoints,
+        observations: secondaryObservations,
+        centerLatitude,
+        centerLongitude,
+      }),
+    [
+      secondaryGeographicCheckpoints,
+      secondaryObservations,
+      centerLatitude,
+      centerLongitude,
+    ],
+  );
+  const secondaryRepairPlan = useMemo(
+    () =>
+      buildRepairPlan({
+        checkpoints: secondaryGeographicCheckpoints,
+        coverage: secondaryCoverage,
+        includeWeak: true,
+      }),
+    [secondaryGeographicCheckpoints, secondaryCoverage],
+  );
+  const secondaryCoverageByPass = useMemo(
+    () =>
+      summarizeCoverageByRing(
+        secondaryGeographicCheckpoints,
+        secondaryCoverage,
+      ),
+    [secondaryGeographicCheckpoints, secondaryCoverage],
+  );
+
+  const recordSecondaryObservation = (
+    checkpointId: string,
+    quality?: ImageQualityAssessment,
+  ) => {
+    const checkpoint = secondaryGeographicCheckpoints.find(
+      (point) => point.id === checkpointId,
+    );
+    if (!checkpoint) return;
+    const useLiveAircraft =
+      telemetryMode === "aircraft" &&
+      aircraftTelemetry &&
+      !relativeAircraftTelemetry?.stale;
+    const observation: CaptureObservation = {
+      id: `pattern-${checkpoint.id}-${Date.now()}`,
+      checkpointId: checkpoint.id,
+      capturedAtMs: Date.now(),
+      latitude: useLiveAircraft ? aircraftTelemetry.latitude : checkpoint.latitude,
+      longitude: useLiveAircraft ? aircraftTelemetry.longitude : checkpoint.longitude,
+      relativeAltitudeFt: useLiveAircraft
+        ? aircraftTelemetry.relativeAltitudeFt
+        : checkpoint.relativeAltitudeFt,
+      cameraAngle: useLiveAircraft
+        ? aircraftTelemetry.gimbalPitchDeg
+        : checkpoint.cameraAngle,
+      sharpnessScore: quality?.sharpnessScore ?? 0.95,
+      exposureScore: quality?.exposureScore ?? 0.95,
+      usable: quality?.usable ?? true,
+    };
+    setSecondaryObservations((observations) => [
+      ...observations.filter((item) => item.checkpointId !== checkpoint.id),
+      observation,
+    ]);
+  };
+
+  const markSecondaryCaptured = () => {
+    if (!currentSecondaryCheckpoint) return;
+    recordSecondaryObservation(currentSecondaryCheckpoint.id);
+    setSecondaryIndex((index) =>
+      Math.min(secondaryGeographicCheckpoints.length - 1, index + 1),
+    );
+  };
+
+  const analyzeSecondaryImage = async (file: File) => {
+    if (!currentSecondaryCheckpoint) return;
+    setSecondaryImageStatus("analyzing");
+    setSecondaryImageMessage(null);
+    try {
+      const quality = await analyzeImageFile(file);
+      recordSecondaryObservation(currentSecondaryCheckpoint.id, quality);
+      setSecondaryImageStatus("done");
+      setSecondaryImageMessage(
+        quality.warnings.length
+          ? quality.warnings.join(" ")
+          : "Image quality meets the current DOMINIC capture policy.",
+      );
+    } catch (error) {
+      setSecondaryImageStatus("error");
+      setSecondaryImageMessage(
+        error instanceof Error ? error.message : "Image analysis failed.",
+      );
+    }
+  };
+
+  const resetSecondaryCaptureQa = () => {
+    setSecondaryIndex(0);
+    setSecondaryObservations([]);
+    setSecondaryImageStatus("idle");
+    setSecondaryImageMessage(null);
+  };
 
   const secondaryFlightPlanSignature = JSON.stringify({
     missionType,

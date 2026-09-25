@@ -178,7 +178,29 @@ function DominicWord() {
 export default function DominicLicensingPage() {
   return (
     <div className="bg-[#070b0f] text-white">
-      <section className="relative min-h-[760px] overflow-hidden border-b border-[#F45A1E]/45">
+      <header className="sticky top-0 z-50 border-b border-white/10 bg-[#090d11]/95 backdrop-blur-xl">
+        <div className="mx-auto flex h-[68px] max-w-[1536px] items-center justify-between gap-6 px-6 lg:px-10">
+          <Link href="/" className="flex items-center">
+            <Image src="/brand/dom-lockup-horizontal.png" alt="DOM — Drone Operation Management" width={156} height={46} priority />
+          </Link>
+          <nav className="hidden items-center gap-7 text-[11px] font-bold text-white/70 lg:flex">
+            <a href="#platform" className="transition hover:text-white">DOMINIC</a>
+            <a href="#features" className="transition hover:text-white">Features</a>
+            <a href="#industries" className="transition hover:text-white">Industries</a>
+            <a href="#licensing" className="border-b-2 border-[#F45A1E] pb-5 pt-5 text-white">Licensing</a>
+            <a href="#faq" className="transition hover:text-white">Resources</a>
+            <Link href="/about" className="transition hover:text-white">About</Link>
+          </nav>
+          <div className="flex items-center gap-2">
+            <Link href="/dominic/signup" className="hidden rounded-md border border-white/15 px-4 py-2 text-[11px] font-black text-white sm:inline-flex">Start Free</Link>
+            <a href="mailto:info@droneopsman.com?subject=DOMINIC%20Demo" className="inline-flex items-center gap-2 rounded-md bg-[#F45A1E] px-4 py-2 text-[11px] font-black text-black">
+              Request a Demo <ArrowRight className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </div>
+      </header>
+
+      <section className="relative min-h-[720px] overflow-hidden border-b border-[#F45A1E]/45">
         <Image
           src="/images/construction-aerial.jpg"
           alt=""
@@ -191,8 +213,8 @@ export default function DominicLicensingPage() {
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(7,11,15,.1),rgba(7,11,15,.2)_55%,#070b0f_100%)]" />
         <div className="absolute inset-0 opacity-[.18] [background-image:linear-gradient(rgba(244,90,30,.12)_1px,transparent_1px),linear-gradient(90deg,rgba(244,90,30,.12)_1px,transparent_1px)] [background-size:40px_40px]" />
 
-        <div className="relative mx-auto grid min-h-[760px] max-w-[1536px] items-center gap-6 px-6 py-16 lg:grid-cols-[.9fr_1.1fr] lg:px-10">
-          <div className="relative z-10 max-w-[760px]">
+        <div className="relative mx-auto grid min-h-[720px] max-w-[1536px] items-center gap-0 px-6 py-12 lg:grid-cols-[.82fr_1.18fr] lg:px-10">
+          <div className="relative z-20 max-w-[650px]">
             <div className="mb-7">
               <DominicBrandLockup size="md" />
             </div>
@@ -202,7 +224,7 @@ export default function DominicLicensingPage() {
               Plan <span className="text-[#F45A1E]">/</span> Fly <span className="text-[#F45A1E]">/</span> Process <span className="text-[#F45A1E]">/</span> Deliver
             </div>
 
-            <h1 className="text-5xl font-black leading-[.94] tracking-[-.055em] sm:text-6xl lg:text-[78px]">
+            <h1 className="text-5xl font-black leading-[.94] tracking-[-.055em] sm:text-6xl lg:text-[86px]">
               License
               <br />
               <DominicWord />
@@ -239,12 +261,17 @@ export default function DominicLicensingPage() {
             </div>
           </div>
 
-          <div className="relative z-10 hidden min-h-[670px] lg:block">
-            <div className="absolute inset-x-[2%] bottom-0 top-0">
+          <div className="relative z-10 hidden min-h-[650px] lg:block">
+            <div className="absolute inset-x-[-2%] bottom-[-30px] top-[-5px]">
               <DominicMascotImage priority className="object-contain object-bottom drop-shadow-[0_32px_60px_rgba(0,0,0,.72)]" />
             </div>
 
-            <div className="absolute right-[4%] top-[13%] max-w-[220px] rotate-[-5deg] text-right font-saira text-2xl font-black uppercase leading-[1.05] tracking-[-.03em] text-white">
+            <div className="absolute right-[2%] top-[5%] h-[150px] w-[270px] overflow-hidden rounded-2xl border border-white/10 bg-black/35 shadow-2xl">
+              <Image src="/images/drone-operation-safety.png" alt="Professional drone operation" fill sizes="270px" className="object-cover object-center opacity-85" />
+              <div className="absolute inset-0 bg-gradient-to-l from-transparent via-transparent to-[#070b0f]/40" />
+            </div>
+
+            <div className="absolute right-[2%] top-[31%] max-w-[220px] rotate-[-5deg] text-right font-saira text-2xl font-black uppercase leading-[1.05] tracking-[-.03em] text-white">
               Same skills.
               <br />
               Smarter
@@ -262,8 +289,8 @@ export default function DominicLicensingPage() {
         </div>
       </section>
 
-      <section className="border-b border-white/10 bg-[#0b1117]">
-        <div className="mx-auto grid max-w-[1536px] lg:grid-cols-[340px_1fr]">
+      <section id="platform" className="border-b border-white/10 bg-[#0b1117]">
+        <div className="mx-auto grid max-w-[1536px] lg:grid-cols-[300px_1fr]">
           <div className="border-b border-white/10 p-7 lg:border-b-0 lg:border-r">
             <div className="mb-3 h-[3px] w-7 bg-[#F45A1E]" />
             <h2 className="font-saira text-3xl font-black uppercase leading-[.96]">
@@ -286,7 +313,7 @@ export default function DominicLicensingPage() {
             </Link>
           </div>
 
-          <div className="relative min-h-[470px] overflow-hidden p-5 sm:p-7">
+          <div className="relative min-h-[520px] overflow-hidden p-4 sm:p-6">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_28%,rgba(244,90,30,.13),transparent_34%)]" />
             <div className="relative rounded-[18px] border border-white/20 bg-[#101821] p-2 shadow-2xl shadow-black/50">
               <div className="rounded-[13px] border border-white/10 bg-[#0b1117] p-3">
@@ -302,7 +329,7 @@ export default function DominicLicensingPage() {
                   </div>
                 </div>
 
-                <div className="mt-3 grid gap-3 xl:grid-cols-[155px_1fr_180px]">
+                <div className="mt-3 grid gap-3 xl:grid-cols-[132px_1fr_176px]">
                   <div className="space-y-1">
                     {["Dashboard", "Plan Mission", "Capture", "Process", "Map & 3D", "Deliver", "Compliance", "Team", "Assets", "Reports"].map((item, i) => (
                       <div
@@ -375,7 +402,7 @@ export default function DominicLicensingPage() {
         </div>
       </section>
 
-      <section className="border-b border-white/10 bg-[#090e13]">
+      <section id="features" className="border-b border-white/10 bg-[#090e13]">
         <div className="mx-auto grid max-w-[1536px] lg:grid-cols-[260px_1fr]">
           <div className="border-b border-white/10 p-7 lg:border-b-0 lg:border-r">
             <div className="mb-3 h-[3px] w-7 bg-[#F45A1E]" />
@@ -401,7 +428,7 @@ export default function DominicLicensingPage() {
         </div>
       </section>
 
-      <section className="border-b border-white/10 bg-[#080c10]">
+      <section id="industries" className="border-b border-white/10 bg-[#080c10]">
         <div className="mx-auto grid max-w-[1536px] lg:grid-cols-[260px_1fr]">
           <div className="border-b border-white/10 p-7 lg:border-b-0 lg:border-r">
             <div className="mb-3 h-[3px] w-7 bg-[#F45A1E]" />
@@ -509,7 +536,24 @@ export default function DominicLicensingPage() {
         </div>
       </section>
 
-      <section className="border-b border-white/10 bg-[#080c10] px-6 py-20 lg:px-10">
+
+      <section className="border-b border-white/10 bg-[#f2f3f4] text-[#10151b]">
+        <div className="mx-auto grid max-w-[1536px] gap-px bg-black/10 md:grid-cols-4">
+          {[
+            ["FREE TO START", "Create a DOMINIC profile with no credit card."],
+            ["BUILT FOR FIELD WORK", "Designed around actual drone operations, not generic project management."],
+            ["MULTI-MISSION", "Object scan, roofs, facades, interiors, stockpiles, corridors and more."],
+            ["GROWS WITH YOU", "Move from one pilot to team and organization licensing when needed."],
+          ].map(([title, copy]) => (
+            <div key={title} className="bg-white px-6 py-7">
+              <div className="text-[10px] font-black tracking-[.14em] text-[#F45A1E]">{title}</div>
+              <p className="mt-2 text-sm font-semibold leading-6 text-black/65">{copy}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section id="faq" className="border-b border-white/10 bg-[#080c10] px-6 py-20 lg:px-10">
         <div className="mx-auto max-w-[1200px]">
           <div className="mb-8 flex items-end justify-between gap-6">
             <div>

@@ -189,6 +189,15 @@ export async function POST(req: NextRequest) {
         travelDistanceSource,
         uninsuredAcknowledged: !personalInsuranceCurrent && uninsuredAcknowledged === true,
         uninsuredTermsVersion: "pilot-uninsured-responsibility-v1",
+        airspaceVerification: {
+          class: airspaceResult.airspace_class,
+          source: airspaceResult.raw_source,
+          queriedAt: airspaceResult.queried_at,
+          uasFacilityCeilingFt: airspaceResult.max_altitude_ft,
+          laancRequired: airspaceResult.laanc_required,
+          laancStatus: airspaceResult.laanc_status,
+          warning: airspaceResult.data_warning,
+        },
       },
     });
 
@@ -220,6 +229,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       jobId,
+      airspace: airspaceResult,
       quote: {
         serviceLabel: quote.serviceLabel,
         totalCents: quote.totalCents,

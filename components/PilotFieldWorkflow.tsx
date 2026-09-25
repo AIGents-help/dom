@@ -22,7 +22,6 @@ interface WorkflowItem {
   completed: boolean;
 }
 
-interface WorkflowIssue { message: string; action: string; target: string; }
 interface WorkflowData {
   items: WorkflowItem[];
   job: { checked_in_at: string | null; started_at: string | null; completed_at: string | null };
@@ -31,7 +30,6 @@ interface WorkflowData {
   submission: { ready: boolean; blockers: string[]; submitted: boolean };
   ownership: { completionMode: "dom_qc" | "owner_delivery" | "owner_review"; pilotOwned: boolean; ownerIsCurrentPilot: boolean };
   deliverablePlan: Array<{ type: string; label: string; guidance: string; required: boolean; uploaded: boolean }>;
-  readiness?: { issues?: WorkflowIssue[] };
 }
 
 export default function PilotFieldWorkflow({
@@ -54,6 +52,7 @@ export default function PilotFieldWorkflow({
   const [incidentDetails, setIncidentDetails] = useState("");
   const [uninsuredConsent, setUninsuredConsent] = useState(false);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [expandedCompletedStage, setExpandedCompletedStage] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     void refreshKey;
@@ -119,15 +118,13 @@ export default function PilotFieldWorkflow({
 
   const insuranceSatisfied = data.insurance.satisfied;
   const uninsured = data.insurance.uninsuredAcknowledged;
-  const activeStage = !data.job.checked_in_at ? "before" : !data.job.completed_at ? "during" : "after";
   const ownerDelivery = data.ownership.completionMode === "owner_delivery";
-  const readinessIssues = data.readiness?.issues ?? [];
-  function goToIssue(target: string) {
-    const element = document.getElementById(target);
-    const details = element?.closest("details");
-    if (details) details.open = true;
-    window.setTimeout(() => element?.scrollIntoView({ behavior: "smooth", block: "center" }), 0);
-  }
+  const stageProgress = WORKFLOW_STAGES.map((stage) => {
+    const items = data.items.filter((item) => (stage.phases as readonly string[]).includes(item.phase));
+    const completed = items.filter((item) => item.completed).length;
+    return { id: stage.id, total: items.length, completed, complete: items.length > 0 && completed === items.length };
+  });
+  const activeStage = stageProgress.find((stage) => !stage.complete)?.id ?? null;
   const nextAction = data.submission.submitted
     ? ownerDelivery ? "Delivered to your client" : "Mission submitted"
     : data.submission.ready
@@ -135,23 +132,20 @@ export default function PilotFieldWorkflow({
       : data.submission.blockers[0] ?? "Continue the required checklist";
 
   return (
-    <details id="field-workflow" style={panelStyle}>
-      <summary style={{ cursor: "pointer", listStyle: "none" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-          <div>
-            <div className="font-mono-ibm" style={{ fontSize: 12, color: V.signal, textTransform: "uppercase", letterSpacing: ".1em" }}>Field Workflow</div>
-            <strong style={{ display: "block", marginTop: 4 }}>{percent}% ready · {progress.prerequisitesCompleted}/{progress.prerequisitesTotal} requirements</strong>
-            <small style={{ display: "block", color: V.inkFaint, marginTop: 2 }}>Submission is the final action after all requirements are complete.</small>
-            <span style={{ color: data.submission.ready || data.submission.submitted ? V.telemetry : V.inkDim, fontSize: 12 }}>{nextAction}</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div aria-hidden="true" style={{ width: 150, height: 8, borderRadius: 8, background: V.raised, overflow: "hidden" }}>
-              <div style={{ width: `${percent}%`, height: "100%", background: percent === 100 ? V.telemetry : V.signal }} />
-            </div>
-            <span style={{ color: V.inkDim, fontSize: 12 }}>Open ▾</span>
-          </div>
+    <section id="field-workflow" style={panelStyle}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+        <div>
+          <div className="font-mono-ibm" style={{ fontSize: 12, color: V.signal, textTransform: "uppercase", letterSpacing: ".1em" }}>Field Workflow</div>
+          <strong style={{ display: "block", marginTop: 4 }}>{percent}% ready · {progress.prerequisitesCompleted}/{progress.prerequisitesTotal} requirements</strong>
+          <small style={{ display: "block", color: V.inkFaint, marginTop: 2 }}>
+            {activeStage ? `Complete the current stage to unlock the next stage.` : "All workflow stages are complete."}
+          </small>
+          <span style={{ color: data.submission.ready || data.submission.submitted ? V.telemetry : V.inkDim, fontSize: 12 }}>{nextAction}</span>
         </div>
-      </summary>
+        <div aria-hidden="true" style={{ width: 150, height: 8, borderRadius: 8, background: V.raised, overflow: "hidden" }}>
+          <div style={{ width: `${percent}%`, height: "100%", background: percent === 100 ? V.telemetry : V.signal }} />
+        </div>
+      </div>
 
       <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 16, paddingTop: 16 }}>
         <div role="status" aria-live="polite" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", padding: 12, borderRadius: 9, background: "rgba(22,163,74,.08)", border: `1px solid ${V.telemetry}` }}>
@@ -186,18 +180,6 @@ export default function PilotFieldWorkflow({
           )}
         </div>
 
-        {!data.submission.submitted && data.submission.blockers.length > 0 && (
-          <div style={{ marginTop: 12, padding: 12, borderRadius: 9, background: "rgba(245,158,11,.08)", border: `1px solid ${V.warn}` }}>
-            <strong style={{ color: V.warn, fontSize: 12 }}>Still required before submission</strong>
-            <div style={{ display: "grid", gap: 7, marginTop: 8 }}>
-              {data.submission.blockers.map((blocker) => {
-                const issue = readinessIssues.find((item) => item.message === blocker || blocker.includes(item.message) || item.message.includes(blocker));
-                return <div key={blocker} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, color: V.inkDim, fontSize: 12 }}><span>• {blocker}</span>{issue && <button type="button" onClick={() => goToIssue(issue.target)} style={{ border: 0, padding: 0, background: "transparent", color: V.signal, font: "inherit", fontWeight: 700, textDecoration: "underline", cursor: "pointer", whiteSpace: "nowrap" }}>{issue.action} →</button>}</div>;
-              })}
-            </div>
-          </div>
-        )}
-
         {(actionError || actionBlockers.length > 0) && (
           <div role="alert" style={{ marginTop: 12, padding: 12, borderRadius: 9, border: `1px solid ${V.danger}`, background: "rgba(220,38,38,.08)" }}>
             {actionError && <strong style={{ color: V.danger, fontSize: 12 }}>{actionError}</strong>}
@@ -209,17 +191,54 @@ export default function PilotFieldWorkflow({
           {WORKFLOW_STAGES.map((stage, stageIndex) => {
             const stageItems = data.items.filter((item) => (stage.phases as readonly string[]).includes(item.phase));
             const stageCompleted = stageItems.filter((item) => item.completed).length;
+            const stageIsComplete = stageItems.length > 0 && stageCompleted === stageItems.length;
             const isActive = activeStage === stage.id;
+            const isLocked = !isActive && !stageIsComplete;
+            const isExpanded = isActive || expandedCompletedStage === stage.id;
+            const stageBorder = stageIsComplete ? V.telemetry : isActive ? V.signal : V.line;
+            const stageBackground = stageIsComplete ? "rgba(22,163,74,.08)" : isActive ? "rgba(244,90,30,.05)" : V.surface;
             return (
-              <section id={`workflow-${stage.id}`} key={stage.id} style={{ padding: 16, borderRadius: 12, border: `2px solid ${isActive ? V.signal : V.line}`, background: isActive ? "rgba(244,90,30,.05)" : V.surface }}>
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
-                  <div>
-                    <div className="font-mono-ibm" style={{ color: isActive ? V.signal : V.inkFaint, fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em" }}>Stage {stageIndex + 1}{isActive ? " · Current" : ""}</div>
-                    <h3 style={{ color: V.ink, fontSize: 18, margin: "3px 0 0" }}>{stage.title}</h3>
-                    <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>{stage.description}</p>
+              <details
+                id={`workflow-${stage.id}`}
+                key={stage.id}
+                open={isExpanded}
+                onToggle={(event) => {
+                  const opening = event.currentTarget.open;
+                  if (isLocked && opening) {
+                    event.currentTarget.open = false;
+                    return;
+                  }
+                  if (isActive && !opening) {
+                    event.currentTarget.open = true;
+                    return;
+                  }
+                  if (stageIsComplete) setExpandedCompletedStage(opening ? stage.id : null);
+                }}
+                style={{ borderRadius: 12, border: `2px solid ${stageBorder}`, background: stageBackground, opacity: isLocked ? 0.55 : 1, overflow: "hidden" }}
+              >
+                <summary
+                  onClick={(event) => { if (isLocked || isActive) event.preventDefault(); }}
+                  style={{ listStyle: "none", cursor: stageIsComplete ? "pointer" : isActive ? "default" : "not-allowed", padding: 16 }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+                    <div>
+                      <div className="font-mono-ibm" style={{ color: stageIsComplete ? V.telemetry : isActive ? V.signal : V.inkFaint, fontSize: 10, textTransform: "uppercase", letterSpacing: ".1em" }}>
+                        Stage {stageIndex + 1}{stageIsComplete ? " · Completed" : isActive ? " · Current" : " · Locked"}
+                      </div>
+                      <h3 style={{ color: stageIsComplete ? V.telemetry : V.ink, fontSize: 18, margin: "3px 0 0" }}>
+                        {stageIsComplete ? "✓ " : ""}{stage.title}
+                      </h3>
+                      <p style={{ color: V.inkDim, fontSize: 12, marginTop: 4 }}>
+                        {isLocked ? "Complete the previous stage to unlock this stage." : stage.description}
+                      </p>
+                    </div>
+                    <span style={{ padding: "5px 9px", borderRadius: 20, background: stageIsComplete ? "rgba(22,163,74,.14)" : V.raised, color: stageIsComplete ? V.telemetry : isActive ? V.signal : V.inkDim, fontSize: 11, fontWeight: 700 }}>
+                      {stageIsComplete ? "✓ Complete" : `${stageCompleted}/${stageItems.length} complete`}
+                    </span>
                   </div>
-                  <span style={{ padding: "5px 9px", borderRadius: 20, background: stageCompleted === stageItems.length ? "rgba(22,163,74,.14)" : V.raised, color: stageCompleted === stageItems.length ? V.telemetry : V.inkDim, fontSize: 11, fontWeight: 700 }}>{stageCompleted}/{stageItems.length} complete</span>
-                </div>
+                </summary>
+
+                <div style={{ padding: "0 16px 16px", borderTop: `1px solid ${stageIsComplete ? "rgba(22,163,74,.25)" : V.line}` }}>
 
                 {stage.id === "before" && (
                   <div style={{ marginTop: 12, padding: 12, borderRadius: 9, background: V.raised, border: `1px solid ${V.line}` }}>
@@ -237,7 +256,7 @@ export default function PilotFieldWorkflow({
                       return (
                         <div id={`workflow-item-${item.id}`} key={item.id} style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", padding: "8px 0", fontSize: 13, color: item.completed ? V.inkDim : V.ink, flexWrap: "wrap" }}>
                           <label style={{ display: "flex", gap: 9, alignItems: "flex-start", flex: "1 1 320px", cursor: AUTOMATIC_ITEMS.has(item.item_key) ? "default" : "pointer" }}>
-                            <input type="checkbox" checked={item.completed} disabled={!insuranceSatisfied || AUTOMATIC_ITEMS.has(item.item_key) || busyAction !== null} onChange={(event) => act({ action: "checklist", itemId: item.id, completed: event.target.checked }, item.id)} />
+                            <input type="checkbox" checked={item.completed} disabled={!insuranceSatisfied || isLocked || AUTOMATIC_ITEMS.has(item.item_key) || busyAction !== null} onChange={(event) => act({ action: "checklist", itemId: item.id, completed: event.target.checked }, item.id)} />
                             <span style={{ textDecoration: item.completed ? "line-through" : "none" }}>{item.label}{AUTOMATIC_ITEMS.has(item.item_key) && <small style={{ display: "block", color: V.inkFaint, textDecoration: "none" }}>Updates automatically</small>}</span>
                           </label>
                           {resources.length > 0 && <div style={{ display: "flex", gap: 9, flexWrap: "wrap", paddingLeft: 24 }}>{resources.map((resource) => <a key={`${item.item_key}-${resource.href}`} href={resource.href} target={resource.external ? "_blank" : undefined} rel={resource.external ? "noreferrer" : undefined} style={resourceLinkStyle}>{resource.label}{resource.external ? " ↗" : " →"}</a>)}</div>}
@@ -246,8 +265,6 @@ export default function PilotFieldWorkflow({
                     })}
                   </div>
                 ))}
-
-                {stage.id === "before" && stageCompleted === stageItems.length && !data.job.checked_in_at && <button type="button" style={primaryButton} onClick={() => document.getElementById("workflow-during")?.scrollIntoView({ behavior: "smooth" })}>Preflight complete — continue to flight</button>}
 
                 {stage.id === "during" && (
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
@@ -269,7 +286,8 @@ export default function PilotFieldWorkflow({
                     {data.submission.submitted && <p role="status" style={{ color: V.telemetry, fontSize: 13, marginTop: 14 }}>✓ {ownerDelivery ? "Owner-approved deliverables are available to your client." : "Mission submitted to DOM QC."}</p>}
                   </>
                 )}
-              </section>
+                </div>
+              </details>
             );
           })}
         </div>
@@ -287,7 +305,7 @@ export default function PilotFieldWorkflow({
           <button type="button" disabled={busyAction !== null} onClick={() => router.push("/pilot")} style={{ ...primaryButton, opacity: busyAction ? 0.5 : 1 }}>Save &amp; Return to Missions</button>
         </div>
       </div>
-    </details>
+    </section>
   );
 }
 

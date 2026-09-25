@@ -140,7 +140,7 @@ export default function DominicApp() {
     getSupabaseBrowser().auth.getSession().then(({ data }) => {
       if (!active) return;
       if (!data.session) {
-        router.replace("/pilot/login");
+        router.replace("/dominic/login");
         return;
       }
       setAccessToken(data.session.access_token);
@@ -239,8 +239,8 @@ export default function DominicApp() {
             {fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
           </button>
           <button
-            onClick={() => router.push("/pilot")}
-            aria-label="Exit DOMINIC and return to DOM pilot workspace"
+            onClick={() => router.push("/dominic/licensing")}
+            aria-label="Exit DOMINIC"
             style={{
               border: `1px solid ${LINE}`,
               background: PANEL,

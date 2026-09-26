@@ -13,7 +13,6 @@ export type PilotTab =
   | "queue"
   | "create"
   | "mapping"
-  | "assets"
   | "publicprofile"
   | "resources"
   | "sops"
@@ -23,6 +22,7 @@ export type PilotTab =
 const QUEUE_ENABLED = process.env.NEXT_PUBLIC_MISSION_QUEUE_ENABLED === "true";
 
 type SectionId = "missions" | "dominic" | "business" | "operations" | "help";
+type PilotIdentity = { fullName: string; email: string; photoUrl: string | null; part107Verified: boolean };
 type Item = { id: PilotTab; label: string; icon: string; href?: string; newTab?: boolean };
 type Section = { id: SectionId; label: string; icon: string; items: Item[] };
 
@@ -61,7 +61,6 @@ const SECTIONS: Section[] = [
     label: "Flight Operations",
     icon: "✈",
     items: [
-      { id: "assets", label: "Equipment", icon: "✈" },
       { id: "sops", label: "SOPs", icon: "☰" },
     ],
   },
@@ -88,10 +87,12 @@ export default function PilotSidebar({
   tab,
   setTab,
   onSignOut,
+  pilot,
 }: {
   tab: PilotTab;
   setTab: (t: PilotTab) => void;
   onSignOut: () => void;
+  pilot: PilotIdentity;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const activeSection = useMemo(() => sectionForTab(tab), [tab]);
@@ -266,7 +267,59 @@ export default function PilotSidebar({
         })}
       </nav>
 
-      <div style={{ padding: 10, borderTop: `1px solid ${V.line}` }}>
+      <div style={{ padding: 10, borderTop: `1px solid ${V.line}`, background: V.raised }}>
+        <button
+          onClick={() => setTab("profile")}
+          title={collapsed ? pilot.fullName : "Open my profile"}
+          aria-label="Open my pilot profile"
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: collapsed ? "center" : "flex-start",
+            gap: 10,
+            padding: collapsed ? "7px 0 9px" : "8px",
+            borderRadius: 9,
+            border: tab === "profile" ? "1px solid rgba(244,90,30,.38)" : "1px solid transparent",
+            background: tab === "profile" ? "rgba(244,90,30,.08)" : "transparent",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: "50%",
+              flexShrink: 0,
+              display: "grid",
+              placeItems: "center",
+              overflow: "hidden",
+              border: "1px solid rgba(244,90,30,.42)",
+              background: pilot.photoUrl
+                ? `center / cover no-repeat url("${pilot.photoUrl.replace(/"/g, "%22")}")`
+                : "linear-gradient(145deg,#3A444D,#20272D)",
+              color: V.ink,
+              fontFamily: "Saira, sans-serif",
+              fontWeight: 900,
+              fontSize: 12,
+            }}
+          >
+            {!pilot.photoUrl && pilot.fullName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toUpperCase()).join("")}
+          </span>
+          {!collapsed && (
+            <span style={{ minWidth: 0, flex: 1 }}>
+              <span className="font-saira" style={{ display: "block", color: V.ink, fontWeight: 800, fontSize: 12, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {pilot.fullName}
+              </span>
+              <span style={{ display: "block", color: pilot.part107Verified ? V.telemetry : V.warn, fontSize: 9, marginTop: 1 }}>
+                {pilot.part107Verified ? "Part 107 verified" : "Pilot profile"}
+              </span>
+            </span>
+          )}
+        </button>
+        {!collapsed && <div style={{ color: V.inkFaint, fontSize: 9, padding: "0 8px 5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pilot.email}</div>}
         <button
           onClick={onSignOut}
           title={collapsed ? "Sign out" : undefined}

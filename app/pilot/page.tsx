@@ -449,7 +449,6 @@ export default function PilotDashboard() {
             cautionsAwareness={missionLogAssignment.cautions_awareness}
             clientCommunications={missionLogAssignment.client_communications}
             assignedUav={missionLogAssignment.assigned_uav}
-            profileEquipment={profile.equipment}
             deliveryResponsibility={j.delivery_responsibility}
             onClose={() => setMissionLogAssignment(null)}
             onGoToProfile={() => { setMissionLogAssignment(null); setTab("profile"); }}

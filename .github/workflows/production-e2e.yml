@@ -17,7 +17,7 @@ concurrency:
 jobs:
   smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,8 +31,9 @@ jobs:
         run: |
           set -euo pipefail
           echo "Waiting for droneopsman.com to serve $GITHUB_SHA"
-          for attempt in $(seq 1 60); do
-            LIVE_SHA=$(curl -fsS -H 'Cache-Control: no-cache' "https://droneopsman.com/api/build?verify=$GITHUB_SHA&attempt=$attempt" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).buildId||"")}catch{}})')
+          for attempt in $(seq 1 36); do
+            BODY=$(curl -fsS --connect-timeout 5 --max-time 10 -H 'Cache-Control: no-cache' "https://droneopsman.com/api/build?verify=$GITHUB_SHA&attempt=$attempt" || true)
+            LIVE_SHA=$(printf '%s' "$BODY" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).buildId||"")}catch{}})')
             echo "attempt=$attempt live=$LIVE_SHA expected=$GITHUB_SHA"
             if [ "$LIVE_SHA" = "$GITHUB_SHA" ]; then
               echo "Production is serving the commit under test."
@@ -40,7 +41,7 @@ jobs:
             fi
             sleep 10
           done
-          echo "Production never promoted $GITHUB_SHA within 10 minutes."
+          echo "Production never promoted $GITHUB_SHA within the deployment verification window."
           exit 1
       - run: npm run test:e2e
         env:

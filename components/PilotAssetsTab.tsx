@@ -53,6 +53,8 @@ interface Asset {
   archived_at: string | null;
   capabilities: string[];
   capabilities_verified: boolean;
+  capability_source?: "catalog" | "manual";
+  capability_recognized?: boolean;
 }
 
 const EMPTY_FORM = {
@@ -250,7 +252,7 @@ export default function PilotAssetsTab({ accessToken }: { accessToken: string })
                     {a.public_visible ? "Public profile: ON" : "Public profile: OFF"}
                   </span>
                   <span style={{ fontSize: 11, color: a.capabilities_verified ? V.telemetry : V.warn }}>
-                    {a.capabilities_verified ? "Capabilities: DOM verified" : "Capabilities: awaiting DOM verification"}
+                    {a.capability_recognized ? "Capabilities: DOM catalog recognized" : a.capabilities_verified ? "Capabilities: DOM verified" : "Capabilities: awaiting DOM verification"}
                   </span>
                   <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
                     {!a.archived_at && <button onClick={() => startEdit(a)} style={{ ...btnGhost, padding: "5px 10px", fontSize: 12 }}>Edit</button>}
@@ -284,6 +286,7 @@ function AssetForm({
 }) {
   const [capabilitiesCustomized, setCapabilitiesCustomized] = useState(false);
   const suggestedCapabilities = suggestCapabilitiesForAsset(form);
+  const modelRecognized = form.asset_type === "uav" && suggestedCapabilities.length > 0;
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -335,10 +338,13 @@ function AssetForm({
         </div>
       </div>
 
-      <label style={labelStyle}>Recognized capabilities</label>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+        <label style={{ ...labelStyle, marginBottom: 0 }}>Recognized capabilities</label>
+        {modelRecognized && <span style={{ fontSize: 10, fontWeight: 800, color: V.telemetry, border: `1px solid ${V.telemetry}`, borderRadius: 20, padding: "2px 7px" }}>AUTO · DOM CATALOG</span>}
+      </div>
       {isNew && suggestedCapabilities.length > 0 && (
         <p style={{ color: V.inkDim, fontSize: 11, margin: "0 0 8px" }}>
-          DOM recognized this aircraft model and loaded its standard capabilities automatically. Review them before saving; DOM verification records that the aircraft identity and capability profile have been checked.
+          DOM recognized this aircraft model. Its capability profile is determined automatically from the DOM aircraft catalog and is used for mission matching; the pilot does not need to select capabilities manually.
         </p>
       )}
       {isNew && form.asset_type === "uav" && suggestedCapabilities.length === 0 && (
@@ -353,10 +359,11 @@ function AssetForm({
             <button
               key={c.value}
               type="button"
-              onClick={() => toggleSuggestedCapability(c.value)}
+              onClick={() => { if (!modelRecognized) toggleSuggestedCapability(c.value); }}
+              disabled={modelRecognized}
               className="font-mono-ibm"
               style={{
-                fontSize: 11, padding: "6px 10px", borderRadius: 20, cursor: "pointer",
+                fontSize: 11, padding: "6px 10px", borderRadius: 20, cursor: modelRecognized ? "default" : "pointer",
                 border: `1px solid ${active ? V.signal : V.line}`,
                 background: active ? "rgba(244,90,30,.16)" : V.ground,
                 color: active ? V.signal : V.inkDim,

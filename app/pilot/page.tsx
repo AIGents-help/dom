@@ -635,7 +635,11 @@ export default function PilotDashboard() {
       {tab === "crm" && <PilotCRM />}
       {tab === "support" && <PilotSupportCenter />}
 
-      {tab === "assets" && accessToken && <PilotAssetsTab accessToken={accessToken} />}
+      {tab === "assets" && accessToken && (
+        <section style={{ border: "1px solid #D9E0E8", borderRadius: 14, background: "#FFFFFF", color: "#172033", padding: 18 }}>
+          <PilotAssetsTab accessToken={accessToken} />
+        </section>
+      )}
 
       {tab === "sops" && (
         <div style={{ display: "grid", gap: 10 }}>
@@ -710,8 +714,28 @@ export default function PilotDashboard() {
       {tab === "resources" && <PilotResources tutorials={tutorials} />}
 
       {tab === "profile" && (
-        <div style={panelStyle}>
-          <PilotProfileEditor profile={profile} onSaved={load} />
+        <div style={{ display: "grid", gap: 14 }}>
+          <section style={{ border: "1px solid #D9E0E8", borderRadius: 14, background: "#FFFFFF", color: "#172033", padding: 18 }}>
+            <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: "#F45A1E", textTransform: "uppercase", marginBottom: 14 }}>
+              Pilot Profile
+            </div>
+            <PilotProfileEditor profile={profile} onSaved={load} />
+          </section>
+          {accessToken && (
+            <section style={{ border: "1px solid #D9E0E8", borderRadius: 14, background: "#FFFFFF", color: "#172033", padding: 18 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 14 }}>
+                <div>
+                  <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: "#F45A1E", textTransform: "uppercase" }}>
+                    Aircraft & Equipment
+                  </div>
+                  <p style={{ color: "#5F6B7A", fontSize: 12, marginTop: 5, maxWidth: 760 }}>
+                    Add every aircraft as its own record. DOM uses the model, capabilities, FAA registration, Remote ID, and operational status when determining mission readiness and equipment eligibility.
+                  </p>
+                </div>
+              </div>
+              <PilotAssetsTab accessToken={accessToken} />
+            </section>
+          )}
         </div>
       )}
 

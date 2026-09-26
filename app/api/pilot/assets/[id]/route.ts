@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveContractor } from "@/lib/pilotAuth";
-import { ASSET_STATUS_OPTIONS, CAPABILITIES } from "@/lib/pilotAssetsPipeline";
+import { ASSET_STATUS_OPTIONS, CAPABILITIES, resolveAssetCapabilities } from "@/lib/pilotAssetsPipeline";
 
 const VALID_STATUSES: Set<string> = new Set(ASSET_STATUS_OPTIONS.map((s) => s.value));
 const VALID_CAPABILITIES: Set<string> = new Set(CAPABILITIES.map((c) => c.value));
@@ -26,7 +26,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params;
   const admin = getSupabaseAdmin();
 
-  const { data: existing } = await admin.from("pilot_assets").select("id").eq("id", id).eq("contractor_id", auth.contractor.id).maybeSingle();
+  const { data: existing } = await admin
+    .from("pilot_assets")
+    .select("id, asset_type, manufacturer, model, display_name, metadata")
+    .eq("id", id)
+    .eq("contractor_id", auth.contractor.id)
+    .maybeSingle();
   if (!existing) return NextResponse.json({ error: "Asset not found." }, { status: 404 });
 
   const body = await req.json().catch(() => ({}));
@@ -49,25 +54,46 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  if (Array.isArray(body.capabilities)) {
-    const capabilities: string[] = [...new Set<string>(body.capabilities.filter((c: unknown): c is string => typeof c === "string" && VALID_CAPABILITIES.has(c)))];
-    const { data: previous } = await admin.from("pilot_asset_capabilities").select("capability").eq("asset_id", id);
-    const previousCapabilities = (previous ?? []).map((row) => row.capability).sort();
-    const capabilitiesChanged = previousCapabilities.join("\u0000") !== [...capabilities].sort().join("\u0000");
-    if (capabilitiesChanged) {
-      const { error: delError } = await admin.from("pilot_asset_capabilities").delete().eq("asset_id", id);
-      if (delError) return NextResponse.json({ error: delError.message }, { status: 500 });
-      if (capabilities.length > 0) {
-        const { error: insError } = await admin.from("pilot_asset_capabilities").insert(capabilities.map((capability) => ({ asset_id: id, capability })));
-        if (insError) {
-          const oldCapabilities = (previous ?? []).map((row) => ({ asset_id: id, capability: row.capability }));
-          if (oldCapabilities.length) await admin.from("pilot_asset_capabilities").insert(oldCapabilities);
-          return NextResponse.json({ error: insError.message }, { status: 500 });
-        }
+  const identity = {
+    asset_type: String(updates.asset_type ?? existing.asset_type ?? "uav"),
+    manufacturer: (updates.manufacturer ?? existing.manufacturer) as string | null | undefined,
+    model: (updates.model ?? existing.model) as string | null | undefined,
+    display_name: (updates.display_name ?? existing.display_name) as string | null | undefined,
+  };
+  const requestedCapabilities: string[] = Array.isArray(body.capabilities)
+    ? [...new Set<string>(body.capabilities.filter((c: unknown): c is string => typeof c === "string" && VALID_CAPABILITIES.has(c)))]
+    : [];
+  const { data: previous } = await admin.from("pilot_asset_capabilities").select("capability").eq("asset_id", id);
+  const currentCapabilities = (previous ?? []).map((row) => row.capability);
+  const capabilityResolution = resolveAssetCapabilities(
+    identity,
+    Array.isArray(body.capabilities) ? requestedCapabilities : currentCapabilities,
+  );
+  const capabilities = capabilityResolution.capabilities;
+  const capabilitiesChanged = [...currentCapabilities].sort().join("\u0000") !== [...capabilities].sort().join("\u0000");
+
+  if (capabilitiesChanged) {
+    const { error: delError } = await admin.from("pilot_asset_capabilities").delete().eq("asset_id", id);
+    if (delError) return NextResponse.json({ error: delError.message }, { status: 500 });
+    if (capabilities.length > 0) {
+      const { error: insError } = await admin.from("pilot_asset_capabilities").insert(capabilities.map((capability) => ({ asset_id: id, capability })));
+      if (insError) {
+        const oldCapabilities = currentCapabilities.map((capability) => ({ asset_id: id, capability }));
+        if (oldCapabilities.length) await admin.from("pilot_asset_capabilities").insert(oldCapabilities);
+        return NextResponse.json({ error: insError.message }, { status: 500 });
       }
-      await admin.from("pilot_assets").update({ capabilities_verified: false, capabilities_verified_at: null }).eq("id", id).eq("contractor_id", auth.contractor.id);
     }
+    await admin.from("pilot_assets").update({ capabilities_verified: false, capabilities_verified_at: null }).eq("id", id).eq("contractor_id", auth.contractor.id);
   }
+
+  const previousMetadata = existing.metadata && typeof existing.metadata === "object" ? existing.metadata as Record<string, unknown> : {};
+  await admin.from("pilot_assets").update({
+    metadata: {
+      ...previousMetadata,
+      capability_source: capabilityResolution.source,
+      capability_recognized: capabilityResolution.recognized,
+    },
+  }).eq("id", id).eq("contractor_id", auth.contractor.id);
 
   const { data: asset } = await admin.from("pilot_assets").select("*, pilot_asset_capabilities(capability)").eq("id", id).single();
   return NextResponse.json({

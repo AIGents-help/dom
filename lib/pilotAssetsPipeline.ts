@@ -125,6 +125,25 @@ export function suggestCapabilitiesForAsset(input: {
   return UAV_CAPABILITY_PRESETS.find((preset) => preset.match.test(identity))?.capabilities ?? [];
 }
 
+export function resolveAssetCapabilities(
+  input: {
+    asset_type?: string | null;
+    manufacturer?: string | null;
+    model?: string | null;
+    display_name?: string | null;
+  },
+  requestedCapabilities: string[] = [],
+): { capabilities: Capability[]; source: "catalog" | "manual"; recognized: boolean } {
+  const catalog = suggestCapabilitiesForAsset(input);
+  if (catalog.length > 0) {
+    return { capabilities: [...catalog], source: "catalog", recognized: true };
+  }
+
+  const allowed = new Set<string>(CAPABILITIES.map((capability) => capability.value));
+  const manual = [...new Set(requestedCapabilities.filter((capability): capability is Capability => allowed.has(capability)))];
+  return { capabilities: manual, source: "manual", recognized: false };
+}
+
 // Private fields: visible only to the owning pilot and admins, never on a
 // public profile regardless of public_visible (see the migration's own
 // comment on pilot_assets.public_visible).

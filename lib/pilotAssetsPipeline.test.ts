@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   computeEligibility, computeConfiguredEligibility, eligibilityReason, toPublicAsset, isAssetActive, activeCapabilitySet,
-  suggestCapabilitiesForAsset, ASSET_TYPES, CAPABILITIES, PILOT_ASSET_PRIVATE_FIELDS,
+  suggestCapabilitiesForAsset, resolveAssetCapabilities, ASSET_TYPES, CAPABILITIES, PILOT_ASSET_PRIVATE_FIELDS,
   type CapabilityRequirement, type PilotAsset,
 } from "./pilotAssetsPipeline";
 
@@ -163,5 +163,28 @@ describe("asset capability suggestions", () => {
     const caps = suggestCapabilitiesForAsset({ asset_type: "uav", manufacturer: "DJI", model: "Avata 2" });
     expect(caps).toContain("video");
     expect(caps).toContain("rgb_imagery");
+  });
+
+  it("uses the DOM catalog instead of pilot-supplied capabilities for a recognized aircraft", () => {
+    const result = resolveAssetCapabilities(
+      { asset_type: "uav", manufacturer: "DJI", model: "Avata 2" },
+      ["thermal", "lidar"],
+    );
+    expect(result.recognized).toBe(true);
+    expect(result.source).toBe("catalog");
+    expect(result.capabilities).toContain("video");
+    expect(result.capabilities).toContain("rgb_imagery");
+    expect(result.capabilities).not.toContain("thermal");
+    expect(result.capabilities).not.toContain("lidar");
+  });
+
+  it("allows validated manual capabilities only when the model is not in the catalog", () => {
+    const result = resolveAssetCapabilities(
+      { asset_type: "uav", manufacturer: "Unknown", model: "Custom X" },
+      ["video", "thermal", "not_a_capability"],
+    );
+    expect(result.recognized).toBe(false);
+    expect(result.source).toBe("manual");
+    expect(result.capabilities).toEqual(["video", "thermal"]);
   });
 });

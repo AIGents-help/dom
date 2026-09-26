@@ -164,6 +164,12 @@ describe("asset capability suggestions", () => {
     expect(caps).toContain("video");
     expect(caps).toContain("rgb_imagery");
   });
+  it("recognizes DJI Neo as an RGB/video aircraft", () => {
+    const caps = suggestCapabilitiesForAsset({ asset_type: "uav", manufacturer: "DJI", model: "Neo" });
+    expect(caps).toContain("video");
+    expect(caps).toContain("rgb_imagery");
+  });
+
 
   it("uses the DOM catalog instead of pilot-supplied capabilities for a recognized aircraft", () => {
     const result = resolveAssetCapabilities(

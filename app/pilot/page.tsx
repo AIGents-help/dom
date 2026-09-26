@@ -24,14 +24,14 @@ import PilotSupportCenter from "@/components/PilotSupportCenter";
 import { getPilotAuthorizationState } from "@/lib/pilotAuthorization";
 
 const V = {
-  ground: "#090E13",
-  surface: "#111820",
-  raised: "#0F151C",
-  line: "#2A3540",
-  lineSoft: "#1C2630",
+  ground: "#20272D",
+  surface: "#343D45",
+  raised: "#2B333A",
+  line: "#55616C",
+  lineSoft: "#434D56",
   ink: "#F5F7FA",
-  inkDim: "#AEB8C2",
-  inkFaint: "#7E8A96",
+  inkDim: "#CDD4DB",
+  inkFaint: "#9DA9B4",
   signal: "#F45A1E",
   telemetry: "#70D6A0",
   airspace: "#A78BFA",
@@ -92,7 +92,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; border: string }
 const PILOT_LEGEND = [["Offered", "#E5701F"], ["Accepted", "#0EA5E9"], ["Scheduled", "#0D9488"], ["In progress", "#2563EB"], ["Submitted", "#7C3AED"], ["Completed / paid", "#16A34A"], ["Declined", "#64748B"], ["Cancelled", "#DC2626"]] as const;
 const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface, padding: 18, boxShadow: "0 14px 36px rgba(0,0,0,.14)" };
 const btnPrimary: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: "1px solid rgba(244,90,30,.78)", background: "linear-gradient(90deg,#D9480F,#F45A1E)", color: "#160A02", fontFamily: "Saira, sans-serif", fontWeight: 900, fontSize: 13, cursor: "pointer", boxShadow: "0 8px 22px rgba(244,90,30,.13)" };
-const btnGhost: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: `1px solid ${V.line}`, background: "#111820", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const btnGhost: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: `1px solid ${V.line}`, background: V.surface, color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 700, fontSize: 13, cursor: "pointer" };
 
 export default function PilotDashboard() {
   const router = useRouter();
@@ -317,7 +317,7 @@ export default function PilotDashboard() {
 
   return (
     <div style={{ minHeight: "100vh", background: V.ground, color: V.ink, fontFamily: "Inter, system-ui, sans-serif" }}>
-      <header style={{ minHeight: 78, borderBottom: `1px solid ${V.line}`, background: "#171D24", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 24px", gap: 18, position: "sticky", top: 0, zIndex: 50 }}>
+      <header style={{ minHeight: 78, borderBottom: `1px solid ${V.line}`, background: "#293139", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 24px", gap: 18, position: "sticky", top: 0, zIndex: 50 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 280 }}>
           <div style={{ width: 42, height: 42, borderRadius: 10, border: "1px solid rgba(244,90,30,.28)", background: "rgba(244,90,30,.07)", display: "grid", placeItems: "center" }}>
             <Image src="/brand/dom-icon-mark.png" alt="" width={25} height={25} />
@@ -338,7 +338,7 @@ export default function PilotDashboard() {
 
       <div style={{ display: "flex", minHeight: "calc(100vh - 78px)" }}>
         <PilotSidebar tab={tab} setTab={setTab} onSignOut={signOut} />
-        <main style={{ flex: 1, minWidth: 0, background: "radial-gradient(circle at 86% 2%, rgba(244,90,30,.055), transparent 24%), #090E13" }}>
+        <main style={{ flex: 1, minWidth: 0, background: "radial-gradient(circle at 86% 2%, rgba(244,90,30,.055), transparent 24%), #20272D" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", padding: "30px 28px 48px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22, flexWrap: "wrap", gap: 16, padding: "16px 18px", border: `1px solid ${V.line}`, borderRadius: 12, background: "#111820" }}>
           <div>
@@ -715,20 +715,20 @@ export default function PilotDashboard() {
 
       {tab === "profile" && (
         <div style={{ display: "grid", gap: 14 }}>
-          <section style={{ border: "1px solid #D9E0E8", borderRadius: 14, background: "#FFFFFF", color: "#172033", padding: 18 }}>
-            <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: "#F45A1E", textTransform: "uppercase", marginBottom: 14 }}>
+          <section style={{ ...panelStyle, color: V.ink }}>
+            <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase", marginBottom: 14 }}>
               Pilot Profile
             </div>
             <PilotProfileEditor profile={profile} onSaved={load} />
           </section>
           {accessToken && (
-            <section style={{ border: "1px solid #D9E0E8", borderRadius: 14, background: "#FFFFFF", color: "#172033", padding: 18 }}>
+            <section style={{ ...panelStyle, color: V.ink }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 14 }}>
                 <div>
-                  <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: "#F45A1E", textTransform: "uppercase" }}>
+                  <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".12em", color: V.signal, textTransform: "uppercase" }}>
                     Aircraft & Equipment
                   </div>
-                  <p style={{ color: "#5F6B7A", fontSize: 12, marginTop: 5, maxWidth: 760 }}>
+                  <p style={{ color: V.inkDim, fontSize: 12, marginTop: 5, maxWidth: 760 }}>
                     Add every aircraft as its own record. DOM uses the model, capabilities, FAA registration, Remote ID, and operational status when determining mission readiness and equipment eligibility.
                   </p>
                 </div>

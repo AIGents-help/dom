@@ -340,7 +340,7 @@ export default function PilotDashboard() {
         <PilotSidebar tab={tab} setTab={setTab} onSignOut={signOut} />
         <main style={{ flex: 1, minWidth: 0, background: "radial-gradient(circle at 86% 2%, rgba(244,90,30,.055), transparent 24%), #20272D" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", padding: "30px 28px 48px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22, flexWrap: "wrap", gap: 16, padding: "16px 18px", border: `1px solid ${V.line}`, borderRadius: 12, background: "#111820" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22, flexWrap: "wrap", gap: 16, padding: "16px 18px", border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface }}>
           <div>
             <div style={{ color: V.signal, fontSize: 9, fontWeight: 900, letterSpacing: ".16em", textTransform: "uppercase", marginBottom: 6 }}>Pilot Command Center</div>
             <h1 className="font-saira" style={{ fontSize: 24, lineHeight: 1.1, fontWeight: 900 }}>{profile.full_name}</h1>

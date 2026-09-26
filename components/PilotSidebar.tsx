@@ -3,15 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { PILOT_V as V } from "@/lib/pilotTheme";
 
-const V = {
-  surface: "#293139",
-  line: "#4A5560",
-  ink: "#F5F7FA",
-  inkDim: "#CDD4DB",
-  inkFaint: "#9DA9B4",
-  signal: "#F5F7FA",
-};
 
 export type PilotTab =
   | "missions"

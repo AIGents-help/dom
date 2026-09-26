@@ -64,11 +64,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
   if (uniqueRequestedIds.length > 0) {
     const { data: requestedAssets } = await admin
       .from("pilot_assets")
-      .select("id, asset_type, manufacturer, model, display_name, capabilities_verified, pilot_asset_capabilities(capability)")
+      .select("id, asset_type, manufacturer, model, display_name, status, archived_at, registration_number, capabilities_verified, pilot_asset_capabilities(capability)")
       .eq("contractor_id", auth.contractor.id)
       .in("id", uniqueRequestedIds);
 
+    if ((requestedAssets ?? []).length !== uniqueRequestedIds.length) {
+      return NextResponse.json({ error: "One or more selected equipment records are invalid." }, { status: 409 });
+    }
+
     for (const asset of requestedAssets ?? []) {
+      if (!isAssetActive(asset)) {
+        return NextResponse.json({ error: "Only active equipment can be assigned to a mission." }, { status: 409 });
+      }
+      if (asset.asset_type === "uav" && !asset.registration_number?.trim()) {
+        return NextResponse.json({ error: "FAA registration is required before a UAV can be assigned to a commercial mission." }, { status: 409 });
+      }
       const stored = (asset.pilot_asset_capabilities ?? []).map((row: { capability: string }) => row.capability);
       const resolution = resolveAssetCapabilities(asset, stored);
       if (!resolution.recognized) continue;

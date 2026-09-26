@@ -2,8 +2,22 @@
 
 import { useState } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
-import { V } from "@/lib/theme";
 import { useNow } from "@/lib/useNow";
+
+const V = {
+  ground: "#2B333A",
+  surface: "#343D45",
+  raised: "#3B454E",
+  line: "#55616C",
+  lineSoft: "#434D56",
+  ink: "#F5F7FA",
+  inkDim: "#CDD4DB",
+  inkFaint: "#9DA9B4",
+  signal: "#F45A1E",
+  telemetry: "#70D6A0",
+  danger: "#FF7A7A",
+  warn: "#FFB86B",
+};
 
 // Pilot > Profile tab — editable basic info. These columns (full_name,
 // phone, service_area, equipment, part107_number, home_address) are all outside the
@@ -12,10 +26,10 @@ import { useNow } from "@/lib/useNow";
 // no new API route, same pattern app/admin/contractors/page.tsx's toggle()
 // already uses for its own writes.
 
-const inputStyle: React.CSSProperties = { width: "100%", marginTop: 6, padding: "10px 12px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.ground, color: V.ink, fontSize: 14, outline: "none" };
+const inputStyle: React.CSSProperties = { width: "100%", marginTop: 6, padding: "10px 12px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.raised, color: V.ink, fontSize: 14, outline: "none" };
 const labelStyle: React.CSSProperties = { fontSize: 11, color: V.inkFaint, letterSpacing: ".1em", textTransform: "uppercase" };
-const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: "none", background: V.signal, color: V.ground, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
-const btnGhost: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: `1px solid ${V.line}`, background: "transparent", color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
+const btnPrimary: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: "none", background: V.signal, color: "#160A02", fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
+const btnGhost: React.CSSProperties = { padding: "8px 16px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.raised, color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 600, fontSize: 13, cursor: "pointer" };
 
 interface Profile {
   id: string;
@@ -146,7 +160,7 @@ function InsurancePanel({ profile, onSaved }: { profile: Profile; onSaved: () =>
   const [coi, setCoi] = useState<File | null>(null); const [saving, setSaving] = useState(false); const [message, setMessage] = useState<string | null>(null);
   const expired = !!profile.insurance_expires_on && new Date(`${profile.insurance_expires_on}T23:59:59`).getTime() <= now;
   async function submit() { setSaving(true); setMessage(null); const sb = getSupabaseBrowser(); const { data } = await sb.auth.getSession(); const body = new FormData(); body.set("provider", provider); body.set("policyNumber", policyNumber); body.set("expiresOn", expiresOn); body.set("liabilityDollars", liability); if (coi) body.set("coi", coi); const res = await fetch("/api/pilot/insurance/profile", { method: "POST", headers: { Authorization: `Bearer ${data.session?.access_token ?? ""}` }, body }); const out = await res.json(); setMessage(res.ok ? out.message : out.error); setSaving(false); if (res.ok) onSaved(); }
-  return <section style={{ marginTop: 22, padding: 16, borderRadius: 12, border: `1px solid ${profile.insurance_verified && !expired ? V.telemetry : V.warn}`, background: profile.insurance_verified && !expired ? "rgba(22,163,74,.06)" : "rgba(245,158,11,.06)" }}>
+  return <section style={{ marginTop: 22, padding: 16, borderRadius: 12, border: `1px solid ${profile.insurance_verified && !expired ? V.telemetry : V.warn}`, background: profile.insurance_verified && !expired ? "rgba(112,214,160,.08)" : "rgba(244,90,30,.08)", color: V.ink }}>
     <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}><div><div style={labelStyle}>Insurance verification</div><strong style={{ color: profile.insurance_verified && !expired ? V.telemetry : V.warn }}>{profile.insurance_verified && !expired ? "Verified and current" : profile.insurance_requested ? "Pending DOM review" : "Not verified"}</strong></div>{profile.dom_gig_insurance_eligible && <span style={{ color: V.telemetry, fontSize: 11, fontWeight: 700 }}>DOM GIG PROGRAM ELIGIBLE</span>}</div>
     <p style={{ color: V.inkDim, fontSize: 12, marginTop: 7 }}>Upload a current certificate of insurance. DOM verifies the policy; pilots cannot self-approve coverage.</p>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 10, marginTop: 12 }}><input style={inputStyle} placeholder="Insurance provider" value={provider} onChange={e => setProvider(e.target.value)} /><input style={inputStyle} placeholder="Policy number" value={policyNumber} onChange={e => setPolicyNumber(e.target.value)} /><input style={inputStyle} type="date" value={expiresOn} onChange={e => setExpiresOn(e.target.value)} /><input style={inputStyle} type="number" min="1" placeholder="Liability limit ($)" value={liability} onChange={e => setLiability(e.target.value)} /></div>

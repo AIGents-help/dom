@@ -5,11 +5,11 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 const V = {
-  surface: "#171D24",
-  line: "#2A3540",
-  ink: "#FFFFFF",
-  inkDim: "#AEB8C2",
-  inkFaint: "#7E8A96",
+  surface: "#293139",
+  line: "#4A5560",
+  ink: "#F5F7FA",
+  inkDim: "#CDD4DB",
+  inkFaint: "#9DA9B4",
   signal: "#F5F7FA",
 };
 

@@ -22,22 +22,8 @@ import MissionMapThumbnail from "@/components/MissionMapThumbnail";
 import PilotCRM from "@/components/PilotCRM";
 import PilotSupportCenter from "@/components/PilotSupportCenter";
 import { getPilotAuthorizationState } from "@/lib/pilotAuthorization";
+import { PILOT_V as V } from "@/lib/pilotTheme";
 
-const V = {
-  ground: "#20272D",
-  surface: "#343D45",
-  raised: "#2B333A",
-  line: "#55616C",
-  lineSoft: "#434D56",
-  ink: "#F5F7FA",
-  inkDim: "#CDD4DB",
-  inkFaint: "#9DA9B4",
-  signal: "#F45A1E",
-  telemetry: "#70D6A0",
-  airspace: "#A78BFA",
-  danger: "#FF6B6B",
-  warn: "#FFB86B",
-};
 
 interface Profile {
   id: string; full_name: string; email: string; phone: string | null; status: string;

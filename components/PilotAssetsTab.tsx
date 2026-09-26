@@ -13,7 +13,7 @@ function statusPillStyle(color: string): React.CSSProperties {
   return { fontSize: 10, padding: "4px 9px", borderRadius: 20, letterSpacing: ".06em", textTransform: "uppercase", display: "inline-block", background: `${color}20`, color };
 }
 
-// Pilot > Assets — structured equipment inventory (issue #15). Private
+// Pilot > Profile > Equipment — structured equipment inventory. Private
 // fields (serial/registration/Remote ID/firmware/acquired date/notes) are
 // clearly marked and only ever leave this tab's own API route
 // (app/api/pilot/assets/**, scoped to the calling pilot via
@@ -77,7 +77,7 @@ export default function PilotAssetsTab({ accessToken }: { accessToken: string })
     const res = await fetch("/api/pilot/assets", { headers: { Authorization: `Bearer ${accessToken}` } });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setError(body.error ?? "Could not load your assets.");
+      setError(body.error ?? "Could not load your equipment.");
       setLoading(false);
       return;
     }
@@ -134,7 +134,7 @@ export default function PilotAssetsTab({ accessToken }: { accessToken: string })
     const body = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) {
-      setError(body.error ?? "Could not save this asset.");
+      setError(body.error ?? "Could not save this equipment record.");
       return;
     }
     setEditingId(null);
@@ -150,19 +150,19 @@ export default function PilotAssetsTab({ accessToken }: { accessToken: string })
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      setError(body.error ?? "Could not update this asset.");
+      setError(body.error ?? "Could not update this equipment record.");
       return;
     }
     await load();
   }
 
   async function remove(id: string) {
-    if (!window.confirm("Remove this asset permanently? This can't be undone.")) return;
+    if (!window.confirm("Remove this equipment record permanently? This can't be undone.")) return;
     setError(null);
     const res = await fetch(`/api/pilot/assets/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
-      setError(body.error ?? "Could not remove this asset.");
+      setError(body.error ?? "Could not remove this equipment record.");
       return;
     }
     await load();
@@ -179,12 +179,12 @@ export default function PilotAssetsTab({ accessToken }: { accessToken: string })
         </p>
         <div style={{ display: "flex", gap: 8 }}>
           <button onClick={() => setShowArchived((s) => !s)} style={btnGhost}>{showArchived ? "Show active" : "Show archived"}</button>
-          <button onClick={startCreate} style={btnPrimary}>+ Add Asset</button>
+          <button onClick={startCreate} style={btnPrimary}>+ Add Equipment</button>
         </div>
       </div>
 
       {error && <p style={{ color: V.danger, fontSize: 13, marginBottom: 12 }}>{error}</p>}
-      {loading && <p style={{ color: V.inkDim }}>Loading your assets…</p>}
+      {loading && <p style={{ color: V.inkDim }}>Loading your equipment…</p>}
 
       {editingId && (
         <AssetForm
@@ -201,7 +201,7 @@ export default function PilotAssetsTab({ accessToken }: { accessToken: string })
 
       {!loading && visible.length === 0 && (
         <div style={{ ...panelStyle, textAlign: "center", padding: 32 }}>
-          <p style={{ color: V.inkDim }}>{showArchived ? "No archived assets." : "No assets yet — add your first piece of equipment."}</p>
+          <p style={{ color: V.inkDim }}>{showArchived ? "No archived equipment." : "No equipment yet — add your first aircraft or support item."}</p>
         </div>
       )}
 
@@ -295,12 +295,12 @@ function AssetForm({
   return (
     <div style={{ ...panelStyle, marginBottom: 4 }}>
       <div className="font-mono-ibm" style={{ fontSize: 12, letterSpacing: ".08em", color: V.inkFaint, textTransform: "uppercase", marginBottom: 12 }}>
-        {isNew ? "Add Asset" : "Edit Asset"}
+        {isNew ? "Add Equipment" : "Edit Equipment"}
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, marginBottom: 12 }}>
         <div>
-          <label style={labelStyle}>Asset type</label>
+          <label style={labelStyle}>Equipment type</label>
           <select value={form.asset_type} onChange={(e) => setIdentityField("asset_type", e.target.value)} style={inputStyle}>
             {ASSET_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
           </select>

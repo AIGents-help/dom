@@ -9,7 +9,6 @@ import {
   Crosshair,
   Cuboid,
   FileCheck2,
-  MapPinned,
   Plane,
   ShieldCheck,
   Sparkles,

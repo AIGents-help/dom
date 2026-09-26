@@ -3,21 +3,8 @@
 import { useState } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { useNow } from "@/lib/useNow";
+import { PILOT_V as V } from "@/lib/pilotTheme";
 
-const V = {
-  ground: "#2B333A",
-  surface: "#343D45",
-  raised: "#3B454E",
-  line: "#55616C",
-  lineSoft: "#434D56",
-  ink: "#F5F7FA",
-  inkDim: "#CDD4DB",
-  inkFaint: "#9DA9B4",
-  signal: "#F45A1E",
-  telemetry: "#70D6A0",
-  danger: "#FF7A7A",
-  warn: "#FFB86B",
-};
 
 // Pilot > Profile tab — editable basic info. These columns (full_name,
 // phone, service_area, equipment, part107_number, home_address) are all outside the

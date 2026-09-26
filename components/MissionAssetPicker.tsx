@@ -1,17 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { PILOT_V as V } from "@/lib/pilotTheme";
 
-const V = {
-  surface: "#343D45",
-  raised: "#3B454E",
-  line: "#55616C",
-  ink: "#F5F7FA",
-  inkDim: "#CDD4DB",
-  inkFaint: "#9DA9B4",
-  signal: "#F45A1E",
-  danger: "#FF7A7A",
-};
 const btnGhost: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: `1px solid ${V.line}`, background: V.raised, color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 700, fontSize: 13, cursor: "pointer" };
 const btnPrimary: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: "1px solid rgba(244,90,30,.78)", background: V.signal, color: "#160A02", fontFamily: "Saira, sans-serif", fontWeight: 800, fontSize: 13, cursor: "pointer" };
 

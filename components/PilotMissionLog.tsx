@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { PILOT_V as V } from "@/lib/pilotTheme";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
-import { assessMissionEquipment, missionEquipmentGuidance, missionWeatherUrl } from "@/lib/missionEquipmentGuidance";
+import { assessStructuredMissionAssets, missionEquipmentGuidance, missionWeatherUrl, type StructuredMissionAsset } from "@/lib/missionEquipmentGuidance";
 import { useNow } from "@/lib/useNow";
 import PilotFieldWorkflow from "@/components/PilotFieldWorkflow";
 import PilotTeamPanel from "@/components/PilotTeamPanel";
@@ -55,7 +55,6 @@ export default function PilotMissionLog({
   cautionsAwareness,
   clientCommunications,
   assignedUav,
-  profileEquipment,
   deliveryResponsibility,
   onClose,
   onGoToProfile,
@@ -79,7 +78,6 @@ export default function PilotMissionLog({
   cautionsAwareness: string | null;
   clientCommunications: string | null;
   assignedUav: string | null;
-  profileEquipment: string | null;
   deliveryResponsibility: string;
   onClose: () => void;
   onGoToProfile: () => void;
@@ -105,7 +103,8 @@ export default function PilotMissionLog({
   const [accessNotes, setAccessNotes] = useState(siteAccessNotes ?? "");
   const [cautions, setCautions] = useState(cautionsAwareness ?? "");
   const [communications, setCommunications] = useState(clientCommunications ?? "");
-  const equipmentAssessments = assessMissionEquipment(missionServiceType, profileEquipment);
+  const [missionAssets, setMissionAssets] = useState<StructuredMissionAsset[]>([]);
+  const equipmentAssessments = assessStructuredMissionAssets(missionServiceType, missionAssets);
   const compatibleAircraft = equipmentAssessments.filter((item) => item.compatible);
   const [aircraft, setAircraft] = useState(assignedUav ?? "");
   const selectedAssessment = equipmentAssessments.find((item) => item.aircraft === aircraft);
@@ -123,14 +122,19 @@ export default function PilotMissionLog({
       const sb = getSupabaseBrowser();
       const { data } = await sb.auth.getSession();
       if (!data.session) throw new Error("Your session expired. Sign in again to continue.");
-      const response = await fetch(`/api/pilot/missions/${assignmentId}/files`, {
-        headers: { Authorization: `Bearer ${data.session.access_token}` },
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error ?? "Mission files could not be loaded.");
-      setDocs(body.documents ?? []);
-      setDeliverables(body.deliverables ?? []);
-      setCanUpload(!!body.canUpload);
+      const headers = { Authorization: `Bearer ${data.session.access_token}` };
+      const [filesResponse, assetsResponse] = await Promise.all([
+        fetch(`/api/pilot/missions/${assignmentId}/files`, { headers }),
+        fetch(`/api/pilot/missions/${assignmentId}/assets`, { headers }),
+      ]);
+      const filesBody = await filesResponse.json().catch(() => ({}));
+      if (!filesResponse.ok) throw new Error(filesBody.error ?? "Mission files could not be loaded.");
+      const assetsBody = await assetsResponse.json().catch(() => ({}));
+      if (!assetsResponse.ok) throw new Error(assetsBody.error ?? "Mission equipment could not be loaded.");
+      setDocs(filesBody.documents ?? []);
+      setDeliverables(filesBody.deliverables ?? []);
+      setCanUpload(!!filesBody.canUpload);
+      setMissionAssets(assetsBody.assets ?? []);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Mission files could not be loaded.");
     } finally {

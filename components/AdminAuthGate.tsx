@@ -7,15 +7,17 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 export default function AdminAuthGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [authorized, setAuthorized] = useState(pathname === "/admin/login");
+  const [verifiedPath, setVerifiedPath] = useState<string | null>(null);
 
   useEffect(() => {
     if (pathname === "/admin/login") {
-      setAuthorized(true);
+      setVerifiedPath(pathname);
       return;
     }
 
     let cancelled = false;
+    setVerifiedPath(null);
+
     (async () => {
       const supabase = getSupabaseBrowser();
       const { data: sessionData } = await supabase.auth.getSession();
@@ -37,7 +39,7 @@ export default function AdminAuthGate({ children }: { children: React.ReactNode 
         return;
       }
 
-      if (!cancelled) setAuthorized(true);
+      if (!cancelled) setVerifiedPath(pathname);
     })();
 
     return () => {
@@ -45,7 +47,7 @@ export default function AdminAuthGate({ children }: { children: React.ReactNode 
     };
   }, [pathname, router]);
 
-  if (!authorized) {
+  if (verifiedPath !== pathname) {
     return (
       <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#F5F7FA", color: "#5F6B7A" }}>
         Verifying admin access…

@@ -68,7 +68,7 @@ const SECTIONS: Section[] = [
     label: "Flight Operations",
     icon: "✈",
     items: [
-      { id: "assets", label: "Assets", icon: "✈" },
+      { id: "assets", label: "Equipment", icon: "✈" },
       { id: "sops", label: "SOPs", icon: "☰" },
     ],
   },

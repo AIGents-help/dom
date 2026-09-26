@@ -6,6 +6,85 @@ export function equipmentChoices(equipment: string | null | undefined): string[]
 
 export type EquipmentCompatibility = { aircraft: string; compatible: boolean; confidence: "verified" | "review"; reason: string };
 
+export type StructuredMissionAsset = {
+  asset_type: string;
+  display_name?: string | null;
+  manufacturer?: string | null;
+  model?: string | null;
+  registration_number?: string | null;
+  capabilities?: string[] | null;
+};
+
+export function assessStructuredMissionAssets(serviceType: string, assets: StructuredMissionAsset[]): EquipmentCompatibility[] {
+  const mission = serviceType.toLowerCase();
+  const requiresThermal = /thermal|infrared|solar|heat/.test(mission);
+  const requiresMapping = /mapping|survey|orthomosaic|construction_progress/.test(mission);
+  const requiresInspection = /inspection|roof|powerline|utility|infrastructure/.test(mission);
+
+  return assets
+    .filter((asset) => asset.asset_type === "uav")
+    .map((asset) => {
+      const aircraft =
+        asset.display_name?.trim()
+        || [asset.manufacturer, asset.model].filter(Boolean).join(" ").trim()
+        || "Unnamed UAV";
+      const capabilities = new Set(asset.capabilities ?? []);
+      const registrationCurrent = !!asset.registration_number?.trim();
+
+      if (!registrationCurrent) {
+        return {
+          aircraft,
+          compatible: false,
+          confidence: "verified" as const,
+          reason: "FAA registration is required before this aircraft can be assigned to a commercial mission.",
+        };
+      }
+      if (requiresThermal) {
+        const compatible = capabilities.has("thermal");
+        return {
+          aircraft,
+          compatible,
+          confidence: "verified" as const,
+          reason: compatible
+            ? "Thermal capability is verified in your structured equipment profile."
+            : "This mission requires a thermal-capable aircraft or payload.",
+        };
+      }
+      if (requiresMapping) {
+        const compatible = capabilities.has("mapping_photogrammetry") || capabilities.has("survey_workflow");
+        return {
+          aircraft,
+          compatible,
+          confidence: "verified" as const,
+          reason: compatible
+            ? "Mapping / survey capability is verified in your structured equipment profile."
+            : "This mission requires verified mapping / photogrammetry capability.",
+        };
+      }
+      if (requiresInspection) {
+        const compatible = capabilities.has("zoom_inspection");
+        return {
+          aircraft,
+          compatible,
+          confidence: "verified" as const,
+          reason: compatible
+            ? "Inspection capability is verified in your structured equipment profile."
+            : "This mission requires a verified inspection-capable aircraft.",
+        };
+      }
+
+      const compatible = capabilities.has("rgb_imagery") || capabilities.has("video");
+      return {
+        aircraft,
+        compatible,
+        confidence: compatible ? "verified" as const : "review" as const,
+        reason: compatible
+          ? "Camera capability is verified in your structured equipment profile."
+          : "No verified RGB imagery or video capability was found for this aircraft.",
+      };
+    });
+}
+
 export function assessMissionEquipment(serviceType: string, equipment: string | null | undefined): EquipmentCompatibility[] {
   const mission = serviceType.toLowerCase();
   const requiresThermal = /thermal|infrared|solar|heat/.test(mission);

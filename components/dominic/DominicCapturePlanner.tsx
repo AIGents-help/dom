@@ -1186,14 +1186,18 @@ export default function DominicCapturePlanner() {
     horizontalFovDeg,
   ]);
 
-  const secondaryGeographicCheckpoints = secondaryPlan
-    ? georeferencePattern(
-        secondaryPlan,
-        centerLatitude,
-        centerLongitude,
-        patternHeadingDeg,
-      )
-    : [];
+  const secondaryGeographicCheckpoints = useMemo(
+    () =>
+      secondaryPlan
+        ? georeferencePattern(
+            secondaryPlan,
+            centerLatitude,
+            centerLongitude,
+            patternHeadingDeg,
+          )
+        : [],
+    [secondaryPlan, centerLatitude, centerLongitude, patternHeadingDeg],
+  );
 
   const activeSecondaryIndex = Math.min(
     secondaryIndex,
@@ -1236,6 +1240,7 @@ export default function DominicCapturePlanner() {
 
   const recordSecondaryObservation = (
     checkpointId: string,
+    capturedAtMs: number,
     quality?: ImageQualityAssessment,
   ) => {
     const checkpoint = secondaryGeographicCheckpoints.find(
@@ -1247,9 +1252,9 @@ export default function DominicCapturePlanner() {
       aircraftTelemetry &&
       !relativeAircraftTelemetry?.stale;
     const observation: CaptureObservation = {
-      id: `pattern-${checkpoint.id}-${Date.now()}`,
+      id: `pattern-${checkpoint.id}-${capturedAtMs}`,
       checkpointId: checkpoint.id,
-      capturedAtMs: Date.now(),
+      capturedAtMs,
       latitude: useLiveAircraft ? aircraftTelemetry.latitude : checkpoint.latitude,
       longitude: useLiveAircraft ? aircraftTelemetry.longitude : checkpoint.longitude,
       relativeAltitudeFt: useLiveAircraft
@@ -1268,21 +1273,21 @@ export default function DominicCapturePlanner() {
     ]);
   };
 
-  const markSecondaryCaptured = () => {
+  const markSecondaryCaptured = (capturedAtMs: number) => {
     if (!currentSecondaryCheckpoint) return;
-    recordSecondaryObservation(currentSecondaryCheckpoint.id);
+    recordSecondaryObservation(currentSecondaryCheckpoint.id, capturedAtMs);
     setSecondaryIndex((index) =>
       Math.min(secondaryGeographicCheckpoints.length - 1, index + 1),
     );
   };
 
-  const analyzeSecondaryImage = async (file: File) => {
+  const analyzeSecondaryImage = async (file: File, capturedAtMs: number) => {
     if (!currentSecondaryCheckpoint) return;
     setSecondaryImageStatus("analyzing");
     setSecondaryImageMessage(null);
     try {
       const quality = await analyzeImageFile(file);
-      recordSecondaryObservation(currentSecondaryCheckpoint.id, quality);
+      recordSecondaryObservation(currentSecondaryCheckpoint.id, capturedAtMs, quality);
       setSecondaryImageStatus("done");
       setSecondaryImageMessage(
         quality.warnings.length
@@ -1566,7 +1571,7 @@ export default function DominicCapturePlanner() {
                         </div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5, marginTop: 7 }}>
                           <button type="button" disabled={activeSecondaryIndex === 0} onClick={() => setSecondaryIndex((index) => Math.max(0, index - 1))} style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 800 }}>Previous</button>
-                          <button type="button" onClick={markSecondaryCaptured} style={{ border: 0, background: V.orange, color: "#180A02", borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 900 }}>Mark captured</button>
+                          <button type="button" onClick={() => markSecondaryCaptured(Date.now())} style={{ border: 0, background: V.orange, color: "#180A02", borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 900 }}>Mark captured</button>
                           <button type="button" disabled={activeSecondaryIndex >= secondaryGeographicCheckpoints.length - 1} onClick={() => setSecondaryIndex((index) => Math.min(secondaryGeographicCheckpoints.length - 1, index + 1))} style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 800 }}>Next</button>
                         </div>
                         <input
@@ -1575,7 +1580,7 @@ export default function DominicCapturePlanner() {
                           disabled={secondaryImageStatus === "analyzing"}
                           onChange={(event) => {
                             const file = event.target.files?.[0];
-                            if (file) void analyzeSecondaryImage(file);
+                            if (file) void analyzeSecondaryImage(file, Date.now());
                             event.currentTarget.value = "";
                           }}
                           style={{ width: "100%", marginTop: 7, color: V.muted, fontSize: 8 }}

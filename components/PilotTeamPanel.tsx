@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
-import { V } from "@/lib/theme";
+import { PILOT_V as V } from "@/lib/pilotTheme";
 
 interface TeamData {
   viewerRole: "owner" | "field_pilot";

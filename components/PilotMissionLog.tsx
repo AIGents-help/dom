@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
-import { V } from "@/lib/theme";
+import { PILOT_V as V } from "@/lib/pilotTheme";
 import { googleMapsPlaceUrl } from "@/lib/googleMaps";
 import { assessMissionEquipment, missionEquipmentGuidance, missionWeatherUrl } from "@/lib/missionEquipmentGuidance";
 import { useNow } from "@/lib/useNow";

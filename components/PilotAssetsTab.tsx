@@ -2,21 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { ASSET_TYPES, ASSET_STATUS_OPTIONS, CAPABILITIES, CAPABILITY_LABELS, isAssetActive, suggestCapabilitiesForAsset } from "@/lib/pilotAssetsPipeline";
+import { PILOT_V as V } from "@/lib/pilotTheme";
 
-const V = {
-  ground: "#2B333A",
-  surface: "#343D45",
-  raised: "#3B454E",
-  line: "#55616C",
-  lineSoft: "#434D56",
-  ink: "#F5F7FA",
-  inkDim: "#CDD4DB",
-  inkFaint: "#9DA9B4",
-  signal: "#F45A1E",
-  telemetry: "#70D6A0",
-  danger: "#FF7A7A",
-  warn: "#FFB86B",
-};
 const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 12, background: V.raised, color: V.ink, padding: 16 };
 const btnPrimary: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: "1px solid rgba(244,90,30,.78)", background: V.signal, color: "#160A02", fontFamily: "Saira, sans-serif", fontWeight: 800, fontSize: 13, cursor: "pointer" };
 const btnGhost: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: `1px solid ${V.line}`, background: V.raised, color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 700, fontSize: 13, cursor: "pointer" };

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isAssetActive, type CapabilityRequirement } from "@/lib/pilotAssetsPipeline";
+import { isAssetActive, resolveAssetCapabilities, type CapabilityRequirement } from "@/lib/pilotAssetsPipeline";
 
 // Server-only Supabase-backed helpers shared by every route that needs a
 // pilot's active capability set or a mission's requirements — the queue
@@ -10,13 +10,16 @@ import { isAssetActive, type CapabilityRequirement } from "@/lib/pilotAssetsPipe
 export async function getContractorActiveCapabilities(admin: SupabaseClient, contractorId: string): Promise<Set<string>> {
   const { data: assets } = await admin
     .from("pilot_assets")
-    .select("status, archived_at, capabilities_verified, pilot_asset_capabilities(capability)")
+    .select("status, archived_at, asset_type, manufacturer, model, display_name, capabilities_verified, pilot_asset_capabilities(capability)")
     .eq("contractor_id", contractorId);
 
   const set = new Set<string>();
   for (const asset of assets ?? []) {
-    if (!isAssetActive(asset) || !asset.capabilities_verified) continue;
-    for (const row of (asset.pilot_asset_capabilities ?? []) as { capability: string }[]) set.add(row.capability);
+    if (!isAssetActive(asset)) continue;
+    const stored = ((asset.pilot_asset_capabilities ?? []) as { capability: string }[]).map((row) => row.capability);
+    const resolution = resolveAssetCapabilities(asset, stored);
+    if (!resolution.recognized && !asset.capabilities_verified) continue;
+    for (const capability of resolution.capabilities) set.add(capability);
   }
   return set;
 }

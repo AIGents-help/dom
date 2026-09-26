@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { V } from "@/lib/theme";
+import { PILOT_V as V } from "@/lib/pilotTheme";
 import { googleMapsDirectionsUrl, googleMapsPlaceUrl } from "@/lib/googleMaps";
 
 // Pilot > Create Mission — self-service wizard for approved pilots (only

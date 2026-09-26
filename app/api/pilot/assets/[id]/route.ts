@@ -83,7 +83,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         return NextResponse.json({ error: insError.message }, { status: 500 });
       }
     }
-    await admin.from("pilot_assets").update({ capabilities_verified: false, capabilities_verified_at: null }).eq("id", id).eq("contractor_id", auth.contractor.id);
+    await admin.from("pilot_assets").update({
+      capabilities_verified: capabilityResolution.recognized,
+      capabilities_verified_at: capabilityResolution.recognized ? new Date().toISOString() : null,
+    }).eq("id", id).eq("contractor_id", auth.contractor.id);
   }
 
   const previousMetadata = existing.metadata && typeof existing.metadata === "object" ? existing.metadata as Record<string, unknown> : {};
@@ -93,6 +96,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       capability_source: capabilityResolution.source,
       capability_recognized: capabilityResolution.recognized,
     },
+    capabilities_verified: capabilityResolution.recognized,
+    capabilities_verified_at: capabilityResolution.recognized ? new Date().toISOString() : null,
   }).eq("id", id).eq("contractor_id", auth.contractor.id);
 
   const { data: asset } = await admin.from("pilot_assets").select("*, pilot_asset_capabilities(capability)").eq("id", id).single();

@@ -323,7 +323,7 @@ export default function PilotDashboard() {
       </header>
 
       <div style={{ display: "flex", minHeight: "calc(100vh - 78px)" }}>
-        <PilotSidebar tab={tab} setTab={setTab} onSignOut={signOut} />
+        <PilotSidebar tab={tab} setTab={setTab} onSignOut={signOut} pilot={{ fullName: profile.full_name, email: profile.email, photoUrl: profile.photo_url, part107Verified: profile.part107_verified }} />
         <main style={{ flex: 1, minWidth: 0, background: "radial-gradient(circle at 86% 2%, rgba(244,90,30,.055), transparent 24%), #20272D" }}>
         <div style={{ maxWidth: 1320, margin: "0 auto", padding: "30px 28px 48px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22, flexWrap: "wrap", gap: 16, padding: "16px 18px", border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface }}>
@@ -620,12 +620,6 @@ export default function PilotDashboard() {
       {tab === "mapping" && accessToken && <MappingTab accessToken={accessToken} />}
       {tab === "crm" && <PilotCRM />}
       {tab === "support" && <PilotSupportCenter />}
-
-      {tab === "assets" && accessToken && (
-        <section style={{ ...panelStyle, color: V.ink }}>
-          <PilotAssetsTab accessToken={accessToken} />
-        </section>
-      )}
 
       {tab === "sops" && (
         <div style={{ display: "grid", gap: 10 }}>

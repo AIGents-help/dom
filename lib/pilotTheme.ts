@@ -1,20 +1,21 @@
-// Pilot workspace palette — DJI-inspired neutral gray UI.
-// Kept separate from the shared DOM light theme so Pilot screens stay
-// visually consistent without changing Admin/CRM/DOMINIC surfaces.
+// Canonical Pilot workspace palette.
+// This intentionally stays separate from the shared light Admin/CRM palette:
+// every Pilot screen uses the same DJI-inspired dark gray surfaces so mission
+// workflow, profile, equipment, CRM, queue, and settings never switch themes.
 export const PILOT_V = {
-  ground: "#66717B",
-  surface: "#5A6570",
-  raised: "#515B65",
-  line: "#7B8792",
-  lineSoft: "#707B85",
-  ink: "#F7F9FB",
-  inkDim: "#DCE2E7",
-  inkFaint: "#C2CBD3",
+  ground: "#20272D",
+  surface: "#343D45",
+  raised: "#2B333A",
+  line: "#55616C",
+  lineSoft: "#434D56",
+  ink: "#F5F7FA",
+  inkDim: "#CDD4DB",
+  inkFaint: "#9DA9B4",
   signal: "#F45A1E",
-  telemetry: "#72D39B",
-  airspace: "#B9A4FF",
-  danger: "#FF8A8A",
-  warn: "#FFC078",
-  header: "#353D45",
-  sidebar: "#454E57",
+  telemetry: "#70D6A0",
+  airspace: "#A78BFA",
+  danger: "#FF6B6B",
+  warn: "#FFB86B",
+  header: "#293139",
+  sidebar: "#293139",
 };

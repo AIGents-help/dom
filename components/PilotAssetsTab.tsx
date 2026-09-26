@@ -1,8 +1,30 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { V, panelStyle, btnPrimary, btnGhost, inputStyle, labelStyle, statusPillStyle } from "@/lib/theme";
 import { ASSET_TYPES, ASSET_STATUS_OPTIONS, CAPABILITIES, CAPABILITY_LABELS, isAssetActive, suggestCapabilitiesForAsset } from "@/lib/pilotAssetsPipeline";
+
+const V = {
+  ground: "#2B333A",
+  surface: "#343D45",
+  raised: "#3B454E",
+  line: "#55616C",
+  lineSoft: "#434D56",
+  ink: "#F5F7FA",
+  inkDim: "#CDD4DB",
+  inkFaint: "#9DA9B4",
+  signal: "#F45A1E",
+  telemetry: "#70D6A0",
+  danger: "#FF7A7A",
+  warn: "#FFB86B",
+};
+const panelStyle: React.CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 12, background: V.raised, color: V.ink, padding: 16 };
+const btnPrimary: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: "1px solid rgba(244,90,30,.78)", background: V.signal, color: "#160A02", fontFamily: "Saira, sans-serif", fontWeight: 800, fontSize: 13, cursor: "pointer" };
+const btnGhost: React.CSSProperties = { padding: "9px 16px", borderRadius: 9, border: `1px solid ${V.line}`, background: V.raised, color: V.ink, fontFamily: "Saira, sans-serif", fontWeight: 700, fontSize: 13, cursor: "pointer" };
+const inputStyle: React.CSSProperties = { width: "100%", padding: "9px 11px", borderRadius: 8, border: `1px solid ${V.line}`, background: V.ground, color: V.ink, fontSize: 13, outline: "none" };
+const labelStyle: React.CSSProperties = { fontSize: 12, color: V.inkDim, marginBottom: 5, display: "block" };
+function statusPillStyle(color: string): React.CSSProperties {
+  return { fontSize: 10, padding: "4px 9px", borderRadius: 20, letterSpacing: ".06em", textTransform: "uppercase", display: "inline-block", background: `${color}20`, color };
+}
 
 // Pilot > Assets — structured equipment inventory (issue #15). Private
 // fields (serial/registration/Remote ID/firmware/acquired date/notes) are
@@ -336,7 +358,7 @@ function AssetForm({
               style={{
                 fontSize: 11, padding: "6px 10px", borderRadius: 20, cursor: "pointer",
                 border: `1px solid ${active ? V.signal : V.line}`,
-                background: active ? "rgba(244,90,30,.12)" : "transparent",
+                background: active ? "rgba(244,90,30,.16)" : V.ground,
                 color: active ? V.signal : V.inkDim,
               }}
             >
@@ -346,7 +368,7 @@ function AssetForm({
         })}
       </div>
 
-      <div style={{ padding: 12, borderRadius: 10, background: V.ground, marginBottom: 16 }}>
+      <div style={{ padding: 12, borderRadius: 10, background: V.ground, border: `1px solid ${V.lineSoft}`, marginBottom: 16 }}>
         <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", marginBottom: form.public_visible ? 10 : 0 }}>
           <input type="checkbox" checked={form.public_visible} onChange={(e) => set("public_visible", e.target.checked)} />
           <span style={{ fontSize: 13, color: V.ink, fontWeight: 600 }}>Show on my public profile</span>

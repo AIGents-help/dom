@@ -86,6 +86,18 @@ const UAV_CAPABILITY_PRESETS: Array<{
     capabilities: ["rgb_imagery", "video"],
   },
   {
+    match: /\b(dji\s*)?neo\b/i,
+    capabilities: ["rgb_imagery", "video"],
+  },
+  {
+    match: /\bmini\s*4\s*pro\b/i,
+    capabilities: ["rgb_imagery", "video", "obstacle_avoidance"],
+  },
+  {
+    match: /\bmavic\s*3\s*pro\b/i,
+    capabilities: ["rgb_imagery", "zoom_inspection", "video", "obstacle_avoidance"],
+  },
+  {
     match: /\bmini\s*3\s*pro\b/i,
     capabilities: ["rgb_imagery", "video", "obstacle_avoidance"],
   },

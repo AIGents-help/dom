@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { V } from "@/lib/theme";
+import { PILOT_V as V } from "@/lib/pilotTheme";
 import { eligibilityReason, type EligibilityResult } from "@/lib/pilotAssetsPipeline";
 
 // Pilot > Queue — the open mission marketplace. Combines /api/pilot/queue

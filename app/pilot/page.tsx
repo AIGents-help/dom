@@ -636,7 +636,7 @@ export default function PilotDashboard() {
       {tab === "support" && <PilotSupportCenter />}
 
       {tab === "assets" && accessToken && (
-        <section style={{ border: "1px solid #D9E0E8", borderRadius: 14, background: "#FFFFFF", color: "#172033", padding: 18 }}>
+        <section style={{ ...panelStyle, color: V.ink }}>
           <PilotAssetsTab accessToken={accessToken} />
         </section>
       )}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import SopViewer from "@/components/SopViewer";
-import { V } from "@/lib/theme";
+import { PILOT_V as V } from "@/lib/pilotTheme";
 
 // Pilot > Resources — curated external links (static, free for everyone)
 // plus DB-backed training tutorials (components/PilotResources tab). Free

@@ -74,6 +74,8 @@ export async function POST(req: NextRequest) {
         capability_source: capabilityResolution.source,
         capability_recognized: capabilityResolution.recognized,
       },
+      capabilities_verified: capabilityResolution.recognized,
+      capabilities_verified_at: capabilityResolution.recognized ? new Date().toISOString() : null,
     })
     .select()
     .single();

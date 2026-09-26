@@ -19,11 +19,18 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const shaped = (assets ?? []).map((a) => ({
-    ...a,
-    capabilities: (a.pilot_asset_capabilities ?? []).map((c: { capability: string }) => c.capability),
-    pilot_asset_capabilities: undefined,
-  }));
+  const shaped = (assets ?? []).map((a) => {
+    const stored = (a.pilot_asset_capabilities ?? []).map((c: { capability: string }) => c.capability);
+    const resolution = resolveAssetCapabilities(a, stored);
+    return {
+      ...a,
+      capabilities: resolution.capabilities,
+      capabilities_verified: resolution.recognized || a.capabilities_verified,
+      capability_source: resolution.source,
+      capability_recognized: resolution.recognized,
+      pilot_asset_capabilities: undefined,
+    };
+  });
 
   return NextResponse.json({ assets: shaped });
 }

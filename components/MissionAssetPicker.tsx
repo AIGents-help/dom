@@ -80,15 +80,20 @@ export default function MissionAssetPicker({ accessToken, assignmentId, onSaved 
           {loading && <p style={{ color: V.inkDim, fontSize: 13 }}>Loading your assets…</p>}
           {error && <p style={{ color: V.danger, fontSize: 13 }}>{error}</p>}
           {!loading && assets.length === 0 && !error && (
-            <p style={{ color: V.inkFaint, fontSize: 13 }}>No active assets in your inventory yet — add equipment on the Assets tab.</p>
+            <p style={{ color: V.inkFaint, fontSize: 13 }}>No active equipment is available yet — add it under Profile & Settings → Aircraft & Equipment.</p>
           )}
           {assets.length > 0 && (
             <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
               {assets.map((a) => (
-                <label key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
-                  <input type="checkbox" checked={selectedIds.has(a.id)} onChange={() => toggle(a.id)} />
+                <label key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: a.asset_type === "uav" && !a.registration_number ? "not-allowed" : "pointer", opacity: a.asset_type === "uav" && !a.registration_number ? 0.6 : 1 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.has(a.id)}
+                    disabled={a.asset_type === "uav" && !a.registration_number}
+                    onChange={() => toggle(a.id)}
+                  />
                   {a.display_name || [a.manufacturer, a.model].filter(Boolean).join(" ") || a.asset_type}
-                  {a.asset_type === "uav" && <span style={{ color: V.inkDim, fontSize: 11 }}> · {a.registration_number ? "FAA registered" : "registration missing"} · {a.capabilities_verified ? "capabilities verified" : "capabilities pending verification"}</span>}
+                  {a.asset_type === "uav" && <span style={{ color: a.registration_number ? V.inkDim : V.danger, fontSize: 11 }}> · {a.registration_number ? "FAA registered" : "FAA registration required"} · {a.capabilities_verified ? "capabilities verified" : "capabilities pending verification"}</span>}
                 </label>
               ))}
             </div>

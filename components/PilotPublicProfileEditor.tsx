@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
-import { V } from "@/lib/theme";
+import { PILOT_V as V } from "@/lib/pilotTheme";
 import { passthroughImageLoader } from "@/lib/passthroughImageLoader";
 
 // Pilot > Public Profile tab — lets an approved pilot build a public,

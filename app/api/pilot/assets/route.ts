@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { resolveContractor } from "@/lib/pilotAuth";
-import { ASSET_TYPES, ASSET_STATUS_OPTIONS, CAPABILITIES } from "@/lib/pilotAssetsPipeline";
+import { ASSET_TYPES, ASSET_STATUS_OPTIONS, CAPABILITIES, resolveAssetCapabilities } from "@/lib/pilotAssetsPipeline";
 
 // GET /api/pilot/assets — the calling pilot's own assets + capabilities.
 // POST /api/pilot/assets — create a new asset (+ its capability tags).
@@ -19,11 +19,18 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const shaped = (assets ?? []).map((a) => ({
-    ...a,
-    capabilities: (a.pilot_asset_capabilities ?? []).map((c: { capability: string }) => c.capability),
-    pilot_asset_capabilities: undefined,
-  }));
+  const shaped = (assets ?? []).map((a) => {
+    const stored = (a.pilot_asset_capabilities ?? []).map((c: { capability: string }) => c.capability);
+    const resolution = resolveAssetCapabilities(a, stored);
+    return {
+      ...a,
+      capabilities: resolution.capabilities,
+      capabilities_verified: resolution.recognized || a.capabilities_verified,
+      capability_source: resolution.source,
+      capability_recognized: resolution.recognized,
+      pilot_asset_capabilities: undefined,
+    };
+  });
 
   return NextResponse.json({ assets: shaped });
 }
@@ -41,7 +48,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "A valid asset_type is required." }, { status: 400 });
   }
   const status = typeof body.status === "string" && VALID_STATUSES.has(body.status) ? body.status : "active";
-  const capabilities: string[] = Array.isArray(body.capabilities) ? [...new Set<string>(body.capabilities.filter((c: unknown): c is string => typeof c === "string" && VALID_CAPABILITIES.has(c)))] : [];
+  const requestedCapabilities: string[] = Array.isArray(body.capabilities)
+    ? [...new Set<string>(body.capabilities.filter((c: unknown): c is string => typeof c === "string" && VALID_CAPABILITIES.has(c)))]
+    : [];
+  const capabilityResolution = resolveAssetCapabilities({
+    asset_type: body.asset_type,
+    manufacturer: body.manufacturer,
+    model: body.model,
+    display_name: body.display_name,
+  }, requestedCapabilities);
+  const capabilities = capabilityResolution.capabilities;
 
   const admin = getSupabaseAdmin();
   const { data: asset, error } = await admin
@@ -61,6 +77,12 @@ export async function POST(req: NextRequest) {
       public_visible: !!body.public_visible,
       public_description: body.public_description ?? null,
       notes: body.notes ?? null,
+      metadata: {
+        capability_source: capabilityResolution.source,
+        capability_recognized: capabilityResolution.recognized,
+      },
+      capabilities_verified: capabilityResolution.recognized,
+      capabilities_verified_at: capabilityResolution.recognized ? new Date().toISOString() : null,
     })
     .select()
     .single();
@@ -74,5 +96,8 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ asset: { ...asset, capabilities } }, { status: 201 });
+  return NextResponse.json({
+    asset: { ...asset, capabilities },
+    capabilityResolution: { source: capabilityResolution.source, recognized: capabilityResolution.recognized },
+  }, { status: 201 });
 }

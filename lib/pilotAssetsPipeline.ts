@@ -86,6 +86,18 @@ const UAV_CAPABILITY_PRESETS: Array<{
     capabilities: ["rgb_imagery", "video"],
   },
   {
+    match: /\b(dji\s*)?neo\b/i,
+    capabilities: ["rgb_imagery", "video"],
+  },
+  {
+    match: /\bmini\s*4\s*pro\b/i,
+    capabilities: ["rgb_imagery", "video", "obstacle_avoidance"],
+  },
+  {
+    match: /\bmavic\s*3\s*pro\b/i,
+    capabilities: ["rgb_imagery", "zoom_inspection", "video", "obstacle_avoidance"],
+  },
+  {
     match: /\bmini\s*3\s*pro\b/i,
     capabilities: ["rgb_imagery", "video", "obstacle_avoidance"],
   },
@@ -123,6 +135,25 @@ export function suggestCapabilitiesForAsset(input: {
 
   if (!identity) return [];
   return UAV_CAPABILITY_PRESETS.find((preset) => preset.match.test(identity))?.capabilities ?? [];
+}
+
+export function resolveAssetCapabilities(
+  input: {
+    asset_type?: string | null;
+    manufacturer?: string | null;
+    model?: string | null;
+    display_name?: string | null;
+  },
+  requestedCapabilities: string[] = [],
+): { capabilities: Capability[]; source: "catalog" | "manual"; recognized: boolean } {
+  const catalog = suggestCapabilitiesForAsset(input);
+  if (catalog.length > 0) {
+    return { capabilities: [...catalog], source: "catalog", recognized: true };
+  }
+
+  const allowed = new Set<string>(CAPABILITIES.map((capability) => capability.value));
+  const manual = [...new Set(requestedCapabilities.filter((capability): capability is Capability => allowed.has(capability)))];
+  return { capabilities: manual, source: "manual", recognized: false };
 }
 
 // Private fields: visible only to the owning pilot and admins, never on a

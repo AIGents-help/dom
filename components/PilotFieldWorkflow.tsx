@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
-import { V } from "@/lib/theme";
+import { PILOT_V as V } from "@/lib/pilotTheme";
 import { AUTOMATIC_WORKFLOW_KEYS, workflowProgress } from "@/lib/missionWorkflow";
 import { workflowResourcesFor } from "@/lib/workflowResources";
 

@@ -4526,6 +4526,43 @@ test("DOMINIC HUB simulation schedules persist privately with audit history", { 
     assert.equal(events[0].event_type, "simulation_schedule_saved");
     assert.equal(events[0].summary, "Simulation schedule saved");
 
+    const { data: runningStatus, error: runningError } = await userA.rpc("set_dominic_hub_simulation_status_service", {
+      p_user_id: users[0].id,
+      p_mission_id: missionId,
+      p_status: "running",
+    });
+    assert.ifError(runningError);
+    assert.equal(runningStatus, "running");
+
+    const { data: pausedStatus, error: pausedError } = await userA.rpc("set_dominic_hub_simulation_status_service", {
+      p_user_id: users[0].id,
+      p_mission_id: missionId,
+      p_status: "paused",
+    });
+    assert.ifError(pausedError);
+    assert.equal(pausedStatus, "paused");
+
+    const [{ data: pausedMission, error: pausedMissionError }, { data: statusEvents, error: statusEventsError }] = await Promise.all([
+      userA.from("dominic_hub_missions").select("status").eq("id", missionId).single(),
+      userA.from("dominic_hub_events").select("event_type,summary,details").eq("mission_id", missionId).order("created_at"),
+    ]);
+    assert.ifError(pausedMissionError);
+    assert.ifError(statusEventsError);
+    assert.equal(pausedMission.status, "paused");
+    assert.equal(statusEvents.length, 3);
+    assert.deepEqual(statusEvents.map((event) => event.summary), [
+      "Simulation schedule saved",
+      "Simulation mission started",
+      "Simulation mission paused",
+    ]);
+
+    const { error: crossUserRpcError } = await userB.rpc("set_dominic_hub_simulation_status_service", {
+      p_user_id: users[0].id,
+      p_mission_id: missionId,
+      p_status: "running",
+    });
+    assert.ok(crossUserRpcError, "cross-user HUB status RPC must be rejected");
+
     const [{ data: hiddenMission, error: hiddenMissionError }, { data: hiddenEvents, error: hiddenEventsError }] = await Promise.all([
       userB.from("dominic_hub_missions").select("id").eq("id", missionId),
       userB.from("dominic_hub_events").select("id").eq("mission_id", missionId),
@@ -4549,7 +4586,7 @@ test("DOMINIC HUB simulation schedules persist privately with audit history", { 
       .eq("id", missionId)
       .single();
     assert.ifError(stillReadyError);
-    assert.equal(stillReady.status, "ready");
+    assert.equal(stillReady.status, "paused");
   } finally {
     if (missionId) {
       await admin.from("dominic_hub_events").delete().eq("mission_id", missionId);

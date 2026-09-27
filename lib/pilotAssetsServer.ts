@@ -10,12 +10,13 @@ import { isAssetActive, resolveAssetCapabilities, type CapabilityRequirement } f
 export async function getContractorActiveCapabilities(admin: SupabaseClient, contractorId: string): Promise<Set<string>> {
   const { data: assets } = await admin
     .from("pilot_assets")
-    .select("status, archived_at, asset_type, manufacturer, model, display_name, capabilities_verified, pilot_asset_capabilities(capability)")
+    .select("status, archived_at, asset_type, manufacturer, model, display_name, registration_number, capabilities_verified, pilot_asset_capabilities(capability)")
     .eq("contractor_id", contractorId);
 
   const set = new Set<string>();
   for (const asset of assets ?? []) {
     if (!isAssetActive(asset)) continue;
+    if (asset.asset_type === "uav" && !asset.registration_number?.trim()) continue;
     const stored = ((asset.pilot_asset_capabilities ?? []) as { capability: string }[]).map((row) => row.capability);
     const resolution = resolveAssetCapabilities(asset, stored);
     if (!resolution.recognized && !asset.capabilities_verified) continue;

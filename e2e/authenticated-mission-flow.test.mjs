@@ -2498,14 +2498,13 @@ test("pilot cannot respond to another pilot assignment", { skip: !isolated }, as
     }
 
     const { data: unchanged, error: unchangedError } = await admin.from("mission_assignments")
-      .select("status,accepted_at,declined_at,returned_at")
+      .select("status,accepted_at,decline_reason")
       .eq("id", assignment.id)
       .single();
     assert.ifError(unchangedError);
     assert.equal(unchanged.status, "offered");
     assert.equal(unchanged.accepted_at, null);
-    assert.equal(unchanged.declined_at, null);
-    assert.equal(unchanged.returned_at, null);
+    assert.equal(unchanged.decline_reason, null);
   } finally {
     await api.dispose();
     await admin.from("mission_assignments").delete().eq("id", assignment.id);

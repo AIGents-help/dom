@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
-import { assessMissionEquipment } from "@/lib/missionEquipmentGuidance";
+import { computeEligibility } from "@/lib/pilotAssetsPipeline";
+import { getContractorActiveCapabilities, getServiceTypeRequirements } from "@/lib/pilotAssetsServer";
 import { sendNotification } from "@/lib/resend/client";
 import { missionAvailable } from "@/lib/resend/templates";
 
@@ -40,16 +41,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ assi
   if (owner && !current) {
     const excluded = new Set((fieldAssignments ?? []).map((item) => item.contractor_id));
     excluded.add(ctx.contractor.id);
+    const requirements = await getServiceTypeRequirements(ctx.admin, ctx.job.service_type);
     const { data: contractors } = await ctx.admin.from("contractors")
-      .select("id,full_name,email,service_area,equipment,part107_verified,insurance_verified,insurance_expires_on,status")
+      .select("id,full_name,email,service_area,part107_verified,insurance_verified,insurance_expires_on,status")
       .eq("status", "active").eq("part107_verified", true).eq("insurance_verified", true);
-    eligiblePilots = (contractors ?? []).filter((pilot) => !excluded.has(pilot.id) && !!pilot.insurance_expires_on && new Date(`${pilot.insurance_expires_on}T23:59:59`).getTime() > Date.now()).map((pilot) => {
-      const equipment = assessMissionEquipment(ctx.job.service_type, pilot.equipment);
+    const candidates = (contractors ?? []).filter(
+      (pilot) => !excluded.has(pilot.id)
+        && !!pilot.insurance_expires_on
+        && new Date(`${pilot.insurance_expires_on}T23:59:59`).getTime() > Date.now(),
+    );
+    eligiblePilots = await Promise.all(candidates.map(async (pilot) => {
+      const capabilities = await getContractorActiveCapabilities(ctx.admin, pilot.id);
+      const eligibility = computeEligibility(requirements, capabilities);
       return {
-        id: pilot.id, fullName: pilot.full_name, email: pilot.email, serviceArea: pilot.service_area,
-        equipmentFit: equipment.some((item) => item.compatible),
+        id: pilot.id,
+        fullName: pilot.full_name,
+        email: pilot.email,
+        serviceArea: pilot.service_area,
+        equipmentFit: requirements.length > 0 && eligibility.eligible,
+        eligibility,
       };
-    }).sort((a, b) => Number(b.equipmentFit) - Number(a.equipmentFit));
+    }));
+    eligiblePilots.sort((a, b) => Number(b.equipmentFit) - Number(a.equipmentFit));
   }
 
   return NextResponse.json({
@@ -105,6 +118,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
     && new Date(`${targetPilot.insurance_expires_on}T23:59:59`).getTime() > Date.now();
   if (!targetPilot || targetPilot.status !== "active" || !targetPilot.part107_verified || !coverageCurrent) {
     return NextResponse.json({ error: "The field pilot must be active with current Part 107 and insurance coverage." }, { status: 409 });
+  }
+
+  const requirements = await getServiceTypeRequirements(ctx.admin, ctx.job.service_type);
+  if (requirements.length === 0) {
+    return NextResponse.json({ error: "Mission equipment requirements are not configured." }, { status: 409 });
+  }
+  const capabilities = await getContractorActiveCapabilities(ctx.admin, contractorId);
+  const eligibility = computeEligibility(requirements, capabilities);
+  if (!eligibility.eligible) {
+    return NextResponse.json({
+      error: "The field pilot does not have verified equipment for this mission.",
+      missingRequired: eligibility.missingRequired,
+    }, { status: 409 });
   }
 
   const { data: fieldAssignmentId, error } = await ctx.admin.rpc("pilot_owner_offer_team_assignment", {

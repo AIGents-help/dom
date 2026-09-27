@@ -1178,3 +1178,133 @@ test("repeated booking notification reuses one notification log row", { skip: !i
     await admin.auth.admin.deleteUser(createdUser.user.id);
   }
 });
+
+
+test("team pilot eligibility uses structured registered assets instead of legacy equipment text", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Team-Assets-${stamp}!Aa1`;
+  const ownerEmail = `team-owner-${stamp}@e2e.dom.invalid`;
+  const fieldEmail = `team-field-${stamp}@e2e.dom.invalid`;
+
+  const makeUser = async (email) => {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    return data.user;
+  };
+  const ownerUser = await makeUser(ownerEmail);
+  const fieldUser = await makeUser(fieldEmail);
+
+  const { data: contractors, error: contractorError } = await admin.from("contractors").insert([
+    {
+      user_id: ownerUser.id,
+      full_name: "E2E Team Owner",
+      email: ownerEmail,
+      status: "active",
+      part107_verified: true,
+      insurance_verified: true,
+      insurance_provider: "E2E",
+      insurance_policy_number: "OWNER-E2E",
+      insurance_expires_on: "2099-12-31",
+      can_create_missions: true,
+    },
+    {
+      user_id: fieldUser.id,
+      full_name: "E2E Structured Field Pilot",
+      email: fieldEmail,
+      status: "active",
+      part107_verified: true,
+      insurance_verified: true,
+      insurance_provider: "E2E",
+      insurance_policy_number: "FIELD-E2E",
+      insurance_expires_on: "2099-12-31",
+      equipment: "legacy text intentionally incompatible",
+    },
+  ]).select("id,user_id");
+  assert.ifError(contractorError);
+
+  const owner = contractors.find((item) => item.user_id === ownerUser.id);
+  const field = contractors.find((item) => item.user_id === fieldUser.id);
+  assert.ok(owner && field);
+
+  const { data: asset, error: assetError } = await admin.from("pilot_assets").insert({
+    contractor_id: field.id,
+    asset_type: "uav",
+    manufacturer: "DJI",
+    model: "Avata 2",
+    display_name: "Structured Avata 2",
+    registration_number: "FA3TEAMTEST",
+    status: "active",
+    capabilities_verified: true,
+    capabilities_verified_at: new Date().toISOString(),
+  }).select("id").single();
+  assert.ifError(assetError);
+
+  const { error: capError } = await admin.from("pilot_asset_capabilities").insert([
+    { asset_id: asset.id, capability: "rgb_imagery" },
+    { asset_id: asset.id, capability: "video" },
+  ]);
+  assert.ifError(capError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "Team Test Client",
+    requester_email: `team-client-${stamp}@e2e.dom.invalid`,
+    company: "Team Eligibility Test",
+    service_type: "roof_inspection_residential",
+    location: "Team Test Site",
+    status: "approved",
+    created_by_contractor_id: owner.id,
+    requires_admin_approval: false,
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    title: "Structured Team Eligibility Mission",
+    service_type: "roof_inspection_residential",
+    location: "Team Test Site",
+    status: "scheduled",
+    delivery_responsibility: "pilot",
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: ownerAssignment, error: assignmentError } = await admin.from("mission_assignments").insert({
+    job_id: job.id,
+    contractor_id: owner.id,
+    status: "accepted",
+    assignment_role: "owner",
+  }).select("id").single();
+  assert.ifError(assignmentError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email: ownerEmail, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const response = await api.get(`/api/pilot/missions/${ownerAssignment.id}/team`, {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 200, JSON.stringify(body));
+
+    const candidate = body.eligiblePilots.find((pilot) => pilot.id === field.id);
+    assert.ok(candidate, "structured field pilot should appear in team staffing");
+    assert.equal(candidate.equipmentFit, true);
+  } finally {
+    await api.dispose();
+    await admin.from("mission_assignments").delete().eq("id", ownerAssignment.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("pilot_asset_capabilities").delete().eq("asset_id", asset.id);
+    await admin.from("pilot_assets").delete().eq("id", asset.id);
+    await admin.from("contractors").delete().in("id", [owner.id, field.id]);
+    await admin.auth.admin.deleteUser(fieldUser.id);
+    await admin.auth.admin.deleteUser(ownerUser.id);
+  }
+});

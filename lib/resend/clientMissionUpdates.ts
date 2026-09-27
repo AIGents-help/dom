@@ -7,7 +7,11 @@ type ClientMissionEvent =
   | { type: "date_scheduled"; scheduledFor: string; rescheduled: boolean }
   | { type: "mission_complete" };
 
-export async function sendClientMissionUpdate(assignmentId: string, event: ClientMissionEvent) {
+export async function sendClientMissionUpdate(
+  assignmentId: string,
+  event: ClientMissionEvent,
+  options: { force?: boolean; trigger?: string; resendKey?: string } = {},
+) {
   const admin = getSupabaseAdmin();
   const { data: assignment } = await admin
     .from("mission_assignments")
@@ -44,14 +48,16 @@ export async function sendClientMissionUpdate(assignmentId: string, event: Clien
   const eventKey = event.type === "date_scheduled"
     ? `${event.type}:${assignmentId}:${event.scheduledFor}`
     : `${event.type}:${assignmentId}`;
-  const { data: existing } = await admin
-    .from("notification_log")
-    .select("id")
-    .eq("assignment_id", assignmentId)
-    .eq("metadata->>event_key", eventKey)
-    .in("status", ["queued", "sent", "delivered", "opened", "clicked"])
-    .limit(1);
-  if (existing?.length) return { skipped: true, reason: "already sent" };
+  if (!options.force) {
+    const { data: existing } = await admin
+      .from("notification_log")
+      .select("id")
+      .eq("assignment_id", assignmentId)
+      .eq("metadata->>event_key", eventKey)
+      .in("status", ["queued", "sent", "delivered", "opened", "clicked"])
+      .limit(1);
+    if (existing?.length) return { skipped: true, reason: "already sent" };
+  }
 
   const missionTitle = job.title ?? mission.company ?? "Your Mission";
   let emailType: EmailType;
@@ -83,7 +89,9 @@ export async function sendClientMissionUpdate(assignmentId: string, event: Clien
     assignmentId,
     subject: template.subject,
     html: template.html,
-    metadata: { event_key: eventKey, trigger: "automatic_mission_progress" },
-    idempotencyKey: eventKey.replace(/:/g, "/").slice(0, 256),
+    metadata: { event_key: eventKey, trigger: options.trigger ?? "automatic_mission_progress" },
+    idempotencyKey: options.force
+      ? `${eventKey.replace(/:/g, "/")}/manual/${options.resendKey ?? Date.now().toString()}`.slice(0, 256)
+      : eventKey.replace(/:/g, "/").slice(0, 256),
   });
 }

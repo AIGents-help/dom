@@ -21,6 +21,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const allowedStatuses = ["requested", "reviewing", "scoped", "quoted", "approved", "assigned", "scheduled", "in_progress", "delivered", "closed", "cancelled"];
     const { data: currentMission } = await admin.from("mission_requests").select("status,client_id,client_profile_sync_enabled").eq("id",id).maybeSingle();
     if(!currentMission)return NextResponse.json({error:"Mission not found"},{status:404});
+    const { data: currentJob } = await admin.from("jobs")
+      .select("id,status,scheduled_for,started_at,completed_at")
+      .eq("mission_request_id", id)
+      .maybeSingle();
 
     if (body.status && !allowedStatuses.includes(body.status)) {
       return NextResponse.json({ error: "Invalid mission status" }, { status: 400 });
@@ -30,6 +34,47 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         { error: "Mission status must advance through the workflow controls. Direct status jumps are not allowed." },
         { status: 409 },
       );
+    }
+
+    if (body.status === "cancelled" && currentMission.status !== "cancelled") {
+      if (["delivered", "closed"].includes(currentMission.status) || currentJob?.started_at || currentJob?.completed_at) {
+        return NextResponse.json(
+          { error: "A mission cannot be cancelled after flight operations or delivery have started. Use the retained mission record and the appropriate incident/refund workflow." },
+          { status: 409 },
+        );
+      }
+
+      if (currentJob) {
+        const { data: assignments, error: assignmentsError } = await admin
+          .from("mission_assignments")
+          .select("id,status")
+          .eq("job_id", currentJob.id);
+        if (assignmentsError) return NextResponse.json({ error: "Mission assignments could not be checked." }, { status: 500 });
+
+        if ((assignments ?? []).some((assignment) => ["submitted", "qc_passed", "paid"].includes(assignment.status))) {
+          return NextResponse.json(
+            { error: "Submitted, approved, or paid mission work must be retained and cannot be cancelled." },
+            { status: 409 },
+          );
+        }
+
+        const assignmentIds = (assignments ?? []).map((assignment) => assignment.id);
+        if (assignmentIds.length) {
+          const { data: activePayments, error: paymentsError } = await admin
+            .from("payments")
+            .select("id")
+            .in("assignment_id", assignmentIds)
+            .not("status", "in", "(failed,refunded)")
+            .limit(1);
+          if (paymentsError) return NextResponse.json({ error: "Mission payment state could not be checked." }, { status: 500 });
+          if (activePayments?.length) {
+            return NextResponse.json(
+              { error: "Refund or resolve the active payment before cancelling this mission." },
+              { status: 409 },
+            );
+          }
+        }
+      }
     }
 
     const syncEnabled=typeof body.clientProfileSyncEnabled==="boolean"?body.clientProfileSyncEnabled:currentMission.client_profile_sync_enabled;
@@ -50,7 +95,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { error: missionError } = await admin.from("mission_requests").update(missionPatch).eq("id", id);
     if (missionError) throw missionError;
 
-    const { data: job } = await admin.from("jobs").select("id,scheduled_for").eq("mission_request_id", id).maybeSingle();
+    const job = currentJob;
     if (job) {
       const nextScheduledFor = body.scheduledFor || null;
       const jobPatch: Record<string, unknown> = {

@@ -2613,3 +2613,138 @@ test("pilot cannot access reviews through another pilot assignment", { skip: !is
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("client review targets the current pilot after reassignment", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Client-Review-${stamp}!Aa1`;
+  const clientEmail = `review-client-${stamp}@e2e.dom.invalid`;
+
+  const { data: clientUserData, error: clientUserError } = await admin.auth.admin.createUser({
+    email: clientEmail,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(clientUserError);
+  const clientUser = clientUserData.user;
+  assert.ok(clientUser);
+
+  const { data: client, error: clientError } = await admin.from("clients").insert({
+    company_name: "Review Reassignment Client",
+    contact_name: "Review Client",
+    email: clientEmail,
+    user_id: clientUser.id,
+  }).select("id").single();
+  assert.ifError(clientError);
+
+  const { data: pilots, error: pilotError } = await admin.from("contractors").insert([
+    {
+      full_name: "Old Cancelled Pilot",
+      email: `old-pilot-${stamp}@e2e.dom.invalid`,
+      status: "active",
+      part107_verified: true,
+      can_create_missions: false,
+    },
+    {
+      full_name: "Current Completed Pilot",
+      email: `current-pilot-${stamp}@e2e.dom.invalid`,
+      status: "active",
+      part107_verified: true,
+      can_create_missions: false,
+    },
+  ]).select("id,full_name");
+  assert.ifError(pilotError);
+  const oldPilot = pilots.find((item) => item.full_name === "Old Cancelled Pilot");
+  const currentPilot = pilots.find((item) => item.full_name === "Current Completed Pilot");
+  assert.ok(oldPilot && currentPilot);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    client_id: client.id,
+    requester_name: "Review Client",
+    requester_email: clientEmail,
+    company: "Review Reassignment Client",
+    service_type: "aerial_images",
+    location: "Review Reassignment Site",
+    status: "delivered",
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    client_id: client.id,
+    title: "Reassigned Review Mission",
+    service_type: "aerial_images",
+    location: "Review Reassignment Site",
+    status: "delivered",
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: assignments, error: assignmentError } = await admin.from("mission_assignments").insert([
+    {
+      job_id: job.id,
+      contractor_id: oldPilot.id,
+      status: "cancelled",
+      assignment_role: "field",
+    },
+    {
+      job_id: job.id,
+      contractor_id: currentPilot.id,
+      status: "qc_passed",
+      assignment_role: "field",
+    },
+  ]).select("id,contractor_id,status");
+  assert.ifError(assignmentError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({
+    email: clientEmail,
+    password,
+  });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const response = await api.post(`/api/client/reviews/${job.id}`, {
+      headers: {
+        Authorization: `Bearer ${signedIn.session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      data: {
+        targetType: "pilot",
+        overallRating: 5,
+        communicationRating: 5,
+        preparednessRating: 5,
+        accuracyRating: 5,
+        wouldWorkAgain: true,
+        comments: "Current pilot review",
+      },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 200, JSON.stringify(body));
+
+    const { data: review, error: reviewError } = await admin.from("mission_reviews")
+      .select("target_contractor_id")
+      .eq("job_id", job.id)
+      .eq("reviewer_user_id", clientUser.id)
+      .eq("target_type", "pilot")
+      .single();
+    assert.ifError(reviewError);
+    assert.equal(review.target_contractor_id, currentPilot.id);
+    assert.notEqual(review.target_contractor_id, oldPilot.id);
+  } finally {
+    await api.dispose();
+    await admin.from("mission_reviews").delete().eq("job_id", job.id);
+    await admin.from("mission_assignments").delete().in("id", assignments.map((item) => item.id));
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().in("id", [oldPilot.id, currentPilot.id]);
+    await admin.from("clients").delete().eq("id", client.id);
+    await admin.auth.admin.deleteUser(clientUser.id);
+  }
+});

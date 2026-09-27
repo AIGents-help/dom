@@ -3198,3 +3198,128 @@ test("admin communications returns outbound email history", { skip: !isolated },
     await admin.auth.admin.deleteUser(adminUser.id);
   }
 });
+
+
+test("client only sees the current QC-approved deliverable revision", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `revision-client-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Revision-E2E-${stamp}!Aa1`;
+
+  const { data: userData, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  const user = userData.user;
+  assert.ok(user);
+
+  const { data: client, error: clientError } = await admin.from("clients").insert({
+    company_name: "Revision Client",
+    contact_name: "Revision Client",
+    email,
+    user_id: user.id,
+  }).select("id").single();
+  assert.ifError(clientError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    client_id: client.id,
+    requester_name: "Revision Client",
+    requester_email: email,
+    company: "Revision Client",
+    service_type: "aerial_images",
+    location: "Revision Site",
+    status: "delivered",
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    client_id: client.id,
+    title: "Revision Visibility Mission",
+    service_type: "aerial_images",
+    location: "Revision Site",
+    status: "delivered",
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: oldDeliverable, error: oldError } = await admin.from("deliverables").insert({
+    job_id: job.id,
+    name: "Old Roof Report",
+    type: "report",
+    storage_url: `${job.id}/old-report.pdf`,
+    qc_passed: true,
+    client_status: "revision_requested",
+    client_feedback: "Please correct the report.",
+    revision_number: 1,
+    delivered_at: new Date().toISOString(),
+  }).select("id").single();
+  assert.ifError(oldError);
+
+  const { data: corrected, error: correctedError } = await admin.from("deliverables").insert({
+    job_id: job.id,
+    name: "Corrected Roof Report",
+    type: "report",
+    storage_url: `${job.id}/corrected-report.pdf`,
+    qc_passed: false,
+    client_status: "pending",
+    supersedes_deliverable_id: oldDeliverable.id,
+    revision_number: 2,
+  }).select("id").single();
+  assert.ifError(correctedError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+  const headers = { Authorization: `Bearer ${signedIn.session.access_token}` };
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const before = await api.get("/api/client/access", { headers, failOnStatusCode: false });
+    const beforeBody = await before.json().catch(() => ({}));
+    assert.equal(before.status(), 200, JSON.stringify(beforeBody));
+    const clientJobBefore = beforeBody.jobs.find((item) => item.id === job.id);
+    assert.ok(clientJobBefore);
+    assert.equal(clientJobBefore.deliverables.some((item) => item.id === oldDeliverable.id), false);
+    assert.equal(clientJobBefore.deliverables.some((item) => item.id === corrected.id), false);
+
+    const staleDownload = await api.get(`/api/client/deliverables/${oldDeliverable.id}/download`, {
+      headers,
+      failOnStatusCode: false,
+    });
+    assert.equal(staleDownload.status(), 404);
+
+    const staleReview = await api.patch(`/api/client/deliverables/${oldDeliverable.id}`, {
+      headers: { ...headers, "Content-Type": "application/json" },
+      data: { status: "approved" },
+      failOnStatusCode: false,
+    });
+    assert.equal(staleReview.status(), 409);
+
+    const { error: qcError } = await admin.from("deliverables")
+      .update({ qc_passed: true, delivered_at: new Date().toISOString() })
+      .eq("id", corrected.id);
+    assert.ifError(qcError);
+
+    const after = await api.get("/api/client/access", { headers, failOnStatusCode: false });
+    const afterBody = await after.json().catch(() => ({}));
+    assert.equal(after.status(), 200, JSON.stringify(afterBody));
+    const clientJobAfter = afterBody.jobs.find((item) => item.id === job.id);
+    assert.ok(clientJobAfter);
+
+    const visibleIds = clientJobAfter.deliverables.map((item) => item.id);
+    assert.deepEqual(visibleIds, [corrected.id]);
+  } finally {
+    await api.dispose();
+    await admin.from("deliverables").delete().in("id", [corrected.id, oldDeliverable.id]);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("clients").delete().eq("id", client.id);
+    await admin.auth.admin.deleteUser(user.id);
+  }
+});

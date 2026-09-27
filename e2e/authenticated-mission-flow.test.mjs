@@ -1111,3 +1111,70 @@ test("admin mission status cannot skip the workflow pipeline", { skip: !isolated
     await admin.auth.admin.deleteUser(createdUser.user.id);
   }
 });
+
+
+test("repeated booking notification reuses one notification log row", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `admin-notify-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Notify-E2E-${stamp}!Aa1`;
+
+  const { data: createdUser, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  assert.ok(createdUser.user);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email,
+    full_name: "E2E Notify Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "Notify Client",
+    requester_email: `notify-client-${stamp}@e2e.dom.invalid`,
+    company: "Notify Company",
+    service_type: "aerial_images",
+    location: "Notify Site",
+    status: "approved",
+    quoted_amount_cents: 25000,
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  const idempotencyKey = `booking-confirmed/${mission.id}`;
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const response = await api.post("/api/notify/booking-confirmed", {
+        headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+        data: { missionRequestId: mission.id },
+        failOnStatusCode: false,
+      });
+      assert.equal(response.status(), 200);
+    }
+
+    const { data: logs, error: logsError } = await admin.from("notification_log")
+      .select("id,status,idempotency_key")
+      .eq("idempotency_key", idempotencyKey);
+    assert.ifError(logsError);
+    assert.equal(logs.length, 1);
+  } finally {
+    await api.dispose();
+    await admin.from("notification_log").delete().eq("idempotency_key", idempotencyKey);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("admin_users").delete().eq("email", email);
+    await admin.auth.admin.deleteUser(createdUser.user.id);
+  }
+});

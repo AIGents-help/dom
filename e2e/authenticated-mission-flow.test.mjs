@@ -589,7 +589,7 @@ test("commercial mission equipment requires FAA registration before assignment",
     requester_name: "FAA Test Client",
     requester_email: `faa-client-${stamp}@e2e.dom.invalid`,
     company: "FAA Registration E2E",
-    service_type: "aerial_images",
+    service_type: "roof_inspection_residential",
     location: "FAA Test Site",
     status: "approved",
   }).select("id").single();
@@ -598,7 +598,7 @@ test("commercial mission equipment requires FAA registration before assignment",
   const { data: job, error: jobError } = await admin.from("jobs").insert({
     mission_request_id: mission.id,
     title: "FAA Registration Mission",
-    service_type: "aerial_images",
+    service_type: "roof_inspection_residential",
     location: "FAA Test Site",
     status: "scheduled",
   }).select("id").single();

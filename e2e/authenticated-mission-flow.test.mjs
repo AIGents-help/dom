@@ -3739,3 +3739,96 @@ test("admin lead conversion is atomic and idempotent", { skip: !isolated }, asyn
     await admin.auth.admin.deleteUser(adminUser.id);
   }
 });
+
+
+test("admin lead conversion can atomically link an existing client", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const adminEmail = `link-admin-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Link-E2E-${stamp}!Aa1`;
+  const customerEmail = `existing-client-${stamp}@e2e.dom.invalid`;
+
+  const { data: adminUserData, error: adminUserError } = await admin.auth.admin.createUser({
+    email: adminEmail,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(adminUserError);
+  const adminUser = adminUserData.user;
+  assert.ok(adminUser);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email: adminEmail,
+    full_name: "E2E Link Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { data: lead, error: leadError } = await admin.from("leads").insert({
+    name: "Existing Client Lead",
+    email: customerEmail,
+    company: "Lead Company Name",
+    phone: "555-0111",
+    industry: "roofing",
+    source: "e2e",
+    status: "qualified",
+  }).select("id").single();
+  assert.ifError(leadError);
+
+  const { data: existingClient, error: clientError } = await admin.from("clients").insert({
+    company_name: "Existing Client Company",
+    contact_name: "Existing Contact",
+    email: customerEmail,
+    phone: null,
+    industry: null,
+    lead_id: null,
+  }).select("id,company_name,contact_name").single();
+  assert.ifError(clientError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({
+    email: adminEmail,
+    password,
+  });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const response = await api.post(`/api/admin/leads/${lead.id}/convert`, {
+      headers: {
+        Authorization: `Bearer ${signedIn.session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      data: { existingClientId: existingClient.id },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 200, JSON.stringify(body));
+    assert.equal(body.clientId, existingClient.id);
+
+    const [{ data: linkedClient }, { data: convertedLead }, { data: activities }] = await Promise.all([
+      admin.from("clients").select("id,lead_id,company_name,contact_name,phone,industry").eq("id", existingClient.id).single(),
+      admin.from("leads").select("status").eq("id", lead.id).single(),
+      admin.from("lead_activities").select("summary").eq("lead_id", lead.id),
+    ]);
+
+    assert.equal(linkedClient.lead_id, lead.id);
+    assert.equal(linkedClient.company_name, "Existing Client Company");
+    assert.equal(linkedClient.contact_name, "Existing Contact");
+    assert.equal(linkedClient.phone, "555-0111");
+    assert.equal(linkedClient.industry, "roofing");
+    assert.equal(convertedLead.status, "won");
+    assert.equal(activities.filter((item) => item.summary === "Linked to existing client (status: Won)").length, 1);
+  } finally {
+    await api.dispose();
+    await admin.from("clients").delete().eq("id", existingClient.id);
+    await admin.from("lead_activities").delete().eq("lead_id", lead.id);
+    await admin.from("leads").delete().eq("id", lead.id);
+    await admin.from("admin_users").delete().eq("email", adminEmail);
+    await admin.auth.admin.deleteUser(adminUser.id);
+  }
+});

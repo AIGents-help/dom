@@ -867,3 +867,61 @@ test("admin product stock updates persist to the public catalog", { skip: !isola
     await admin.from("shop_inventory").delete().eq("product_key", productKey);
   }
 });
+
+
+test("admin CRM workspace returns newly created leads", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `admin-crm-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-CRM-E2E-${stamp}!Aa1`;
+  const leadEmail = `lead-${stamp}@e2e.dom.invalid`;
+
+  const { data: createdUser, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  assert.ok(createdUser.user);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email,
+    full_name: "E2E CRM Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { data: lead, error: leadError } = await admin.from("leads").insert({
+    name: "E2E CRM Lead",
+    email: leadEmail,
+    company: "E2E CRM Company",
+    source: "e2e",
+    status: "new",
+  }).select("id").single();
+  assert.ifError(leadError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const response = await api.get("/api/admin/leads/workspace", {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 200, JSON.stringify(body));
+    assert.ok(body.leads.some((item) => item.id === lead.id && item.email === leadEmail));
+    assert.ok(body.meta.totalLeadCount >= 1);
+  } finally {
+    await api.dispose();
+    await admin.from("leads").delete().eq("id", lead.id);
+    await admin.from("admin_users").delete().eq("email", email);
+    await admin.auth.admin.deleteUser(createdUser.user.id);
+  }
+});

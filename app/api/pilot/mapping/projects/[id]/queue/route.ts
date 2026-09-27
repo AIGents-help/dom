@@ -52,6 +52,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     { name: "__dom_requested_outputs", value: requestedOutputs },
   ];
 
+  if (!revisionRequested && project.status === "failed") {
+    const { error: resetError } = await admin
+      .from("mapping_images")
+      .update({
+        lifecycle_status: "stored",
+        lifecycle_error: null,
+        lifecycle_updated_at: new Date().toISOString(),
+      })
+      .eq("mapping_project_id", project.id);
+    if (resetError) {
+      return NextResponse.json({ error: "Failed image states could not be reset for retry." }, { status: 500 });
+    }
+  }
+
   const { error: jobError } = await admin.from("mapping_processing_jobs").insert({
     mapping_project_id: project.id,
     status: "queued",

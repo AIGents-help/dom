@@ -320,46 +320,48 @@ export default function LeadsWorkspace() {
   // before the button is even pressed.
   async function convertLead(lead: Lead) {
     setBusy(lead.id);
-    const sb = getSupabaseBrowser();
+    try {
+      const sb = getSupabaseBrowser();
+      const { data: sessionData } = await sb.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Admin session expired.");
 
-    const { data: linked } = await sb.from("clients").select("id").eq("lead_id", lead.id).maybeSingle();
-    if (linked) {
-      showToast("This lead has already been converted to a client.", "error");
-      setBusy(null);
-      return;
-    }
+      let existingClientId: string | null = null;
+      if (lead.email) {
+        const { data: existingByEmail, error: lookupError } = await sb
+          .from("clients")
+          .select("id,company_name,lead_id")
+          .ilike("email", lead.email)
+          .maybeSingle();
+        if (lookupError) throw lookupError;
 
-    if (lead.email) {
-      const { data: existingByEmail } = await sb.from("clients").select("id, company_name").ilike("email", lead.email).maybeSingle();
-      if (existingByEmail) {
-        const proceed = window.confirm(
-          `A client already exists with this email (${existingByEmail.company_name ?? lead.email}). Link this lead to that client instead of creating a duplicate?`
-        );
-        if (!proceed) { setBusy(null); return; }
-        await sb.from("clients").update({ lead_id: lead.id }).eq("id", existingByEmail.id);
-        await sb.from("leads").update({ status: "won" }).eq("id", lead.id);
-        await logActivity(lead.id, "status_change", "Linked to existing client (status: Won)");
-        showToast("Linked to existing client.");
-        await load();
-        setBusy(null);
-        return;
+        if (existingByEmail && existingByEmail.lead_id !== lead.id) {
+          const proceed = window.confirm(
+            `A client already exists with this email (${existingByEmail.company_name ?? lead.email}). Link this lead to that client instead of creating a duplicate?`
+          );
+          if (!proceed) return;
+          existingClientId = existingByEmail.id;
+        }
       }
-    }
 
-    const { error } = await sb.from("clients").insert({
-      company_name: lead.company ?? lead.name ?? "Unnamed",
-      contact_name: lead.name,
-      email: lead.email,
-      phone: lead.phone,
-      industry: lead.industry,
-      lead_id: lead.id,
-    });
-    if (error) { showToast(error.message, "error"); setBusy(null); return; }
-    await sb.from("leads").update({ status: "won" }).eq("id", lead.id);
-    await logActivity(lead.id, "status_change", "Converted to client (status: Won)");
-    showToast("Converted to client.");
-    await load();
-    setBusy(null);
+      const response = await fetch(`/api/admin/leads/${lead.id}/convert`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ existingClientId }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Lead could not be converted.");
+
+      showToast(existingClientId ? "Linked to existing client." : "Converted to client.");
+      await load();
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Lead could not be converted.", "error");
+    } finally {
+      setBusy(null);
+    }
   }
 
   function handleStatusChange(lead: Lead, newStatus: StatusValue) {

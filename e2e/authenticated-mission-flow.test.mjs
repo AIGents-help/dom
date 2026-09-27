@@ -1459,6 +1459,7 @@ test("admin schedule changes create one client schedule notification event", { s
     await admin.from("mission_requests").delete().eq("id", mission.id);
     await admin.from("contractors").delete().eq("id", contractor.id);
     await admin.from("clients").delete().eq("id", client.id);
+    await admin.from("contractors").delete().eq("id", pilot.id);
     await admin.from("admin_users").delete().eq("email", adminEmail);
     await admin.auth.admin.deleteUser(pilotUser.id);
     await admin.auth.admin.deleteUser(adminUser.id);
@@ -2775,6 +2776,15 @@ test("admin cannot cancel started or paid mission records", { skip: !isolated },
   });
   assert.ifError(allowError);
 
+  const { data: pilot, error: pilotError } = await admin.from("contractors").insert({
+    full_name: "E2E Cancellation Pilot",
+    email: `cancel-pilot-${stamp}@e2e.dom.invalid`,
+    status: "active",
+    part107_verified: true,
+    can_create_missions: false,
+  }).select("id").single();
+  assert.ifError(pilotError);
+
   const makeMission = async ({ suffix, missionStatus, jobStatus, assignmentStatus, startedAt }) => {
     const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
       requester_name: `Cancel Client ${suffix}`,
@@ -2798,7 +2808,7 @@ test("admin cannot cancel started or paid mission records", { skip: !isolated },
 
     const { data: assignment, error: assignmentError } = await admin.from("mission_assignments").insert({
       job_id: job.id,
-      contractor_id: null,
+      contractor_id: pilot.id,
       status: assignmentStatus,
     }).select("id").single();
     assert.ifError(assignmentError);

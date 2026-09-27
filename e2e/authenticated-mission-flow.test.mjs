@@ -3832,3 +3832,131 @@ test("admin lead conversion can atomically link an existing client", { skip: !is
     await admin.auth.admin.deleteUser(adminUser.id);
   }
 });
+
+
+test("CRM relationship history remains visible after lead conversion", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const adminEmail = `history-admin-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-History-E2E-${stamp}!Aa1`;
+
+  const { data: adminUserData, error: adminUserError } = await admin.auth.admin.createUser({
+    email: adminEmail,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(adminUserError);
+  const adminUser = adminUserData.user;
+  assert.ok(adminUser);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email: adminEmail,
+    full_name: "E2E History Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { data: lead, error: leadError } = await admin.from("leads").insert({
+    name: "E2E History Lead",
+    email: `history-lead-${stamp}@e2e.dom.invalid`,
+    company: "E2E History Company",
+    source: "e2e",
+    status: "qualified",
+  }).select("id").single();
+  assert.ifError(leadError);
+
+  const [{ data: contact, error: contactError }, { data: location, error: locationError }, { data: activity, error: activityError }, { data: nextAction, error: nextActionError }, { data: note, error: noteError }] = await Promise.all([
+    admin.from("lead_contacts").insert({
+      lead_id: lead.id,
+      name: "History Contact",
+      email: `contact-${stamp}@e2e.dom.invalid`,
+      title: "Operations Manager",
+      is_primary: true,
+    }).select("id").single(),
+    admin.from("lead_locations").insert({
+      lead_id: lead.id,
+      label: "Main Site",
+      address: "123 Test Street",
+      notes: "Preserve this location",
+    }).select("id").single(),
+    admin.from("lead_activities").insert({
+      lead_id: lead.id,
+      activity_type: "meeting",
+      summary: "Pre-conversion relationship meeting",
+      created_by: adminEmail,
+    }).select("id").single(),
+    admin.from("lead_next_actions").insert({
+      lead_id: lead.id,
+      action_type: "follow_up",
+      status: "open",
+      assigned_to: adminEmail,
+      notes: "Follow up after conversion",
+    }).select("id").single(),
+    admin.from("notes").insert({
+      entity_type: "lead",
+      entity_id: lead.id,
+      author: adminEmail,
+      body: "Preserve this CRM note after conversion",
+    }).select("id").single(),
+  ]);
+  assert.ifError(contactError);
+  assert.ifError(locationError);
+  assert.ifError(activityError);
+  assert.ifError(nextActionError);
+  assert.ifError(noteError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({
+    email: adminEmail,
+    password,
+  });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const headers = {
+    Authorization: `Bearer ${signedIn.session.access_token}`,
+    "Content-Type": "application/json",
+  };
+  const api = await request.newContext({ baseURL });
+  let clientId = null;
+
+  try {
+    const convert = await api.post(`/api/admin/leads/${lead.id}/convert`, {
+      headers,
+      data: {},
+      failOnStatusCode: false,
+    });
+    const convertBody = await convert.json().catch(() => ({}));
+    assert.equal(convert.status(), 200, JSON.stringify(convertBody));
+    clientId = convertBody.clientId;
+    assert.ok(clientId);
+
+    const workspace = await api.get("/api/admin/leads/workspace", {
+      headers,
+      failOnStatusCode: false,
+    });
+    const body = await workspace.json().catch(() => ({}));
+    assert.equal(workspace.status(), 200, JSON.stringify(body));
+
+    assert.ok(body.leads.some((item) => item.id === lead.id && item.status === "won"));
+    assert.ok(body.contacts.some((item) => item.id === contact.id && item.lead_id === lead.id));
+    assert.ok(body.locations.some((item) => item.id === location.id && item.lead_id === lead.id));
+    assert.ok(body.activities.some((item) => item.id === activity.id && item.lead_id === lead.id));
+    assert.ok(body.nextActions.some((item) => item.id === nextAction.id && item.lead_id === lead.id));
+    assert.ok(body.notes.some((item) => item.id === note.id && item.entity_id === lead.id));
+  } finally {
+    await api.dispose();
+    if (clientId) await admin.from("clients").delete().eq("id", clientId);
+    await admin.from("notes").delete().eq("id", note.id);
+    await admin.from("lead_next_actions").delete().eq("id", nextAction.id);
+    await admin.from("lead_activities").delete().eq("lead_id", lead.id);
+    await admin.from("lead_locations").delete().eq("id", location.id);
+    await admin.from("lead_contacts").delete().eq("id", contact.id);
+    await admin.from("leads").delete().eq("id", lead.id);
+    await admin.from("admin_users").delete().eq("email", adminEmail);
+    await admin.auth.admin.deleteUser(adminUser.id);
+  }
+});

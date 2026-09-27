@@ -33,6 +33,7 @@ import DominicPreviewEnvironment from "@/components/dominic/DominicPreviewEnviro
 import DominicHub from "@/components/dominic/DominicHub";
 import DominicCapturePlanner from "@/components/dominic/DominicCapturePlanner";
 import DominicWelcome from "@/components/dominic/DominicWelcome";
+import { dominicPlanLabel, type DominicAccess } from "@/lib/dominicEntitlements";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
@@ -79,6 +80,15 @@ const nav = [
   { label: "AI Copilot", icon: Sparkles, upcoming: true, hub: false },
 ];
 
+type DominicFeatureFlags = {
+  home: boolean;
+  capturePlanner: boolean;
+  previews: boolean;
+  mapping: boolean;
+  hub: boolean;
+};
+
+
 export default function DominicApp() {
   const router = useRouter();
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -92,6 +102,9 @@ export default function DominicApp() {
   const [fullscreen, setFullscreen] = useState(false);
   const [compactViewport, setCompactViewport] = useState(false);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" ? true : navigator.onLine);
+  const [dominicAccess, setDominicAccess] = useState<DominicAccess | null>(null);
+  const [featureAccess, setFeatureAccess] = useState<DominicFeatureFlags | null>(null);
+  const [accessError, setAccessError] = useState<string | null>(null);
 
   const handleProjectChange = useCallback((projectId: string | null) => {
     setActiveProjectId(projectId);
@@ -137,15 +150,32 @@ export default function DominicApp() {
 
   useEffect(() => {
     let active = true;
-    getSupabaseBrowser().auth.getSession().then(({ data }) => {
+    (async () => {
+      const { data } = await getSupabaseBrowser().auth.getSession();
       if (!active) return;
       if (!data.session) {
         router.replace("/dominic/login");
         return;
       }
-      setAccessToken(data.session.access_token);
-      setLoading(false);
-    });
+
+      try {
+        const response = await fetch("/api/dominic/access", {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${data.session.access_token}` },
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body.error ?? "DOMINIC access could not be loaded.");
+        if (!active) return;
+        setAccessToken(data.session.access_token);
+        setDominicAccess(body.access as DominicAccess);
+        setFeatureAccess(body.features as DominicFeatureFlags);
+      } catch (error) {
+        if (active) setAccessError(error instanceof Error ? error.message : "DOMINIC access could not be loaded.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+
     return () => {
       active = false;
     };
@@ -162,7 +192,35 @@ export default function DominicApp() {
     );
   }
 
-  if (!accessToken) return null;
+  if (accessError) {
+    return (
+      <div style={{ minHeight: "100vh", background: BG, color: TEXT, display: "grid", placeItems: "center", padding: 24 }}>
+        <div style={{ maxWidth: 520, border: `1px solid ${LINE}`, borderRadius: 14, background: PANEL, padding: 24, textAlign: "center" }}>
+          <DominicBrandLockup size="sm" />
+          <h1 style={{ marginTop: 18, fontSize: 20, fontWeight: 900 }}>DOMINIC access could not be verified</h1>
+          <p style={{ marginTop: 8, color: MUTED, fontSize: 12, lineHeight: 1.55 }}>{accessError}</p>
+          <button onClick={() => router.push("/dominic/licensing")} style={{ marginTop: 16, border: 0, borderRadius: 8, background: ORANGE, color: "#160A02", padding: "10px 14px", fontWeight: 900, cursor: "pointer" }}>View Licensing</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!accessToken || !dominicAccess || !featureAccess) return null;
+
+  if (!featureAccess.home) {
+    return (
+      <div style={{ minHeight: "100vh", background: BG, color: TEXT, display: "grid", placeItems: "center", padding: 24 }}>
+        <div style={{ maxWidth: 520, border: `1px solid ${LINE}`, borderRadius: 14, background: PANEL, padding: 24, textAlign: "center" }}>
+          <DominicBrandLockup size="sm" />
+          <h1 style={{ marginTop: 18, fontSize: 20, fontWeight: 900 }}>DOMINIC account inactive</h1>
+          <p style={{ marginTop: 8, color: MUTED, fontSize: 12 }}>Contact DOM support to restore software access.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const activeMappingModule = mappingModules.has(activeModule);
+  const activeLicenseLocked = (activeMappingModule && !featureAccess.mapping) || (activeModule === "DOMINIC HUB" && !featureAccess.hub);
 
   return (
     <div style={{ minHeight: "100vh", background: BG, color: TEXT, fontFamily: "Inter, system-ui, sans-serif" }}>
@@ -197,8 +255,10 @@ export default function DominicApp() {
 
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{ textAlign: "right", lineHeight: 1.15, display: compactViewport ? "none" : "block" }}>
-            <div style={{ color: TEXT, fontSize: 12, fontWeight: 800 }}>DOM Pilot Workspace</div>
-            <div style={{ color: MUTED, fontSize: 9, letterSpacing: ".08em", marginTop: 3 }}>DRONE OPERATION MANAGEMENT</div>
+            <div style={{ color: TEXT, fontSize: 12, fontWeight: 800 }}>DOMINIC Workspace</div>
+            <div style={{ color: dominicAccess.trialActive ? ORANGE : MUTED, fontSize: 9, letterSpacing: ".08em", marginTop: 3, fontWeight: 800 }}>
+              {dominicAccess.trialActive ? "OPERATOR TRIAL" : dominicPlanLabel(dominicAccess.plan).toUpperCase()}
+            </div>
           </div>
           <div
             title={online ? "Network connection available" : "Offline — uploads and cloud processing require connectivity"}
@@ -303,10 +363,20 @@ export default function DominicApp() {
               const projectTool = mappingModules.has(label) && label !== "Projects";
               if (projectTool && (!activeProjectId || !projectToolsExpanded)) return null;
               const preview = Boolean(upcoming);
+              const licenseLocked = mappingModules.has(label) ? !featureAccess.mapping : hub ? !featureAccess.hub : false;
               const projectRequired = label !== "Home" && label !== "Projects" && label !== "Capture Planner" && !preview && !hub;
-              const disabled = projectRequired && !activeProjectId;
+              const disabled = !licenseLocked && projectRequired && !activeProjectId;
               const active = activeModule === label;
-              const title = hub ? "Open the DOMINIC HUB refinery operations simulator" : preview ? `${label} — Preview environment` : disabled ? "Open a DOMINIC project first" : label;
+              const requiredLicense = hub ? "Organization License" : mappingModules.has(label) ? "Operator License" : null;
+              const title = licenseLocked
+                ? `${requiredLicense} required — open licensing`
+                : hub
+                  ? "Open the DOMINIC HUB refinery operations simulator"
+                  : preview
+                    ? `${label} — Preview environment`
+                    : disabled
+                      ? "Open a DOMINIC project first"
+                      : label;
               return (
               <button
                 key={label}
@@ -315,6 +385,10 @@ export default function DominicApp() {
                 title={title}
                 aria-label={preview ? `${label}, preview environment` : label}
                 onClick={() => {
+                  if (licenseLocked) {
+                    router.push("/dominic/licensing");
+                    return;
+                  }
                   if (disabled) return;
                   setActiveModule(label);
                   if (label === "Projects") setShowProjectsSignal((value) => value + 1);
@@ -345,7 +419,7 @@ export default function DominicApp() {
                   justifyContent: sidebarCollapsed ? "center" : "flex-start",
                   textAlign: "left",
                   cursor: disabled ? "not-allowed" : "pointer",
-                  opacity: 1,
+                  opacity: licenseLocked ? .62 : 1,
                   fontSize: 12,
                   position: "relative",
                 }}
@@ -354,7 +428,11 @@ export default function DominicApp() {
                 {!sidebarCollapsed ? (
                   <>
                     <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "normal", lineHeight: 1.2 }}>{label}</span>
-                    {hub ? (
+                    {licenseLocked ? (
+                      <span style={{ border: "1px solid rgba(244,90,30,.38)", background: "rgba(244,90,30,.10)", color: "#FF9A70", borderRadius: 999, padding: "2px 6px", fontSize: 8, lineHeight: 1.2, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                        {hub ? "ORG" : "OPERATOR"}
+                      </span>
+                    ) : hub ? (
                       <span style={{ border: "1px solid rgba(100,214,154,.38)", background: "rgba(100,214,154,.10)", color: "#8FE2B2", borderRadius: 999, padding: "2px 6px", fontSize: 8, lineHeight: 1.2, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase", whiteSpace: "nowrap" }}>LIVE UI</span>
                     ) : preview ? (
                       <span
@@ -537,9 +615,26 @@ export default function DominicApp() {
               }}
             >
               <div style={{ padding: activeModule === "Home" ? 0 : "12px 14px", color: TEXT, background: "#0B1117", minHeight: 680 }}>
-                {activeModule === "Home" ? (
+                {activeLicenseLocked ? (
+                  <div style={{ minHeight: 560, display: "grid", placeItems: "center", padding: 28 }}>
+                    <div style={{ maxWidth: 560, textAlign: "center", border: `1px solid ${LINE}`, borderRadius: 14, padding: 26, background: "#10171E" }}>
+                      <div style={{ color: ORANGE, fontSize: 10, fontWeight: 900, letterSpacing: ".14em", textTransform: "uppercase" }}>
+                        {activeModule === "DOMINIC HUB" ? "Organization License" : "Operator License"}
+                      </div>
+                      <h2 style={{ marginTop: 8, fontSize: 24, fontWeight: 900 }}>{activeModule} is a licensed DOMINIC module</h2>
+                      <p style={{ marginTop: 8, color: MUTED, fontSize: 12, lineHeight: 1.6 }}>
+                        DOMINIC Free always includes Home, the Manual Capture Planner, and preview modules. Mapping/processing unlocks with Operator or higher; HUB unlocks with Organization.
+                      </p>
+                      <button onClick={() => router.push("/dominic/licensing")} style={{ marginTop: 16, border: 0, borderRadius: 8, background: ORANGE, color: "#160A02", padding: "10px 14px", fontWeight: 900, cursor: "pointer" }}>View Licensing</button>
+                    </div>
+                  </div>
+                ) : activeModule === "Home" ? (
                   <DominicWelcome
                     onOpen={(module) => {
+                      if ((mappingModules.has(module) && !featureAccess.mapping) || (module === "DOMINIC HUB" && !featureAccess.hub)) {
+                        router.push("/dominic/licensing");
+                        return;
+                      }
                       setActiveModule(module);
                       if (module === "Projects") setShowProjectsSignal((value) => value + 1);
                     }}
@@ -592,6 +687,7 @@ export default function DominicApp() {
             { label: "Projects", icon: FolderKanban },
             { label: "DOMINIC HUB", icon: Factory },
           ].map(({ label, icon: DockIcon }) => {
+            const licenseLocked = mappingModules.has(label) ? !featureAccess.mapping : label === "DOMINIC HUB" ? !featureAccess.hub : false;
             const requiresProject = false;
             const disabled = requiresProject && !activeProjectId;
             const active = activeModule === label;
@@ -601,6 +697,10 @@ export default function DominicApp() {
                 type="button"
                 disabled={disabled}
                 onClick={() => {
+                  if (licenseLocked) {
+                    router.push("/dominic/licensing");
+                    return;
+                  }
                   if (disabled) return;
                   setActiveModule(label);
                   if (label === "Projects") setShowProjectsSignal((value) => value + 1);
@@ -610,7 +710,7 @@ export default function DominicApp() {
                   border: active ? "1px solid rgba(244,90,30,.7)" : "1px solid transparent",
                   borderRadius: 10,
                   background: active ? "rgba(244,90,30,.16)" : "transparent",
-                  color: active ? ORANGE : disabled ? "#58626D" : TEXT,
+                  color: active ? ORANGE : disabled || licenseLocked ? "#7A8792" : TEXT,
                   display: "grid",
                   justifyItems: "center",
                   alignContent: "center",

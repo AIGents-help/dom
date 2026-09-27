@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { isAdminRequest } from "@/lib/authz";
+import { sendClientMissionUpdate } from "@/lib/resend/clientMissionUpdates";
 
 async function requireAdmin(req: NextRequest) {
   if (!(await isAdminRequest(req))) {
@@ -49,13 +50,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { error: missionError } = await admin.from("mission_requests").update(missionPatch).eq("id", id);
     if (missionError) throw missionError;
 
-    const { data: job } = await admin.from("jobs").select("id").eq("mission_request_id", id).maybeSingle();
+    const { data: job } = await admin.from("jobs").select("id,scheduled_for").eq("mission_request_id", id).maybeSingle();
     if (job) {
+      const nextScheduledFor = body.scheduledFor || null;
       const jobPatch: Record<string, unknown> = {
         title: body.title?.trim() || body.serviceType?.replace(/_/g, " ") || "Mission",
         service_type: body.serviceType?.trim() || null,
         location: body.location?.trim() || null,
-        scheduled_for: body.scheduledFor || null,
+        scheduled_for: nextScheduledFor,
       };
       if (body.status === "cancelled") jobPatch.status = "cancelled";
       const { error: jobError } = await admin.from("jobs").update(jobPatch).eq("id", job.id);
@@ -68,6 +70,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           .eq("job_id", job.id)
           .not("status", "in", "(paid,qc_passed)");
         if (assignmentError) throw assignmentError;
+      } else if (nextScheduledFor && nextScheduledFor !== job.scheduled_for) {
+        const { data: assignments } = await admin
+          .from("mission_assignments")
+          .select("id,status")
+          .eq("job_id", job.id)
+          .order("created_at", { ascending: false });
+        const assignment = (assignments ?? []).find((item) =>
+          !["declined", "cancelled"].includes(item.status),
+        );
+        if (assignment) {
+          try {
+            await sendClientMissionUpdate(
+              assignment.id,
+              {
+                type: "date_scheduled",
+                scheduledFor: nextScheduledFor,
+                rescheduled: !!job.scheduled_for,
+              },
+            );
+          } catch (notificationError) {
+            console.error("client schedule notification failed", notificationError);
+          }
+        }
       }
     }
 

@@ -122,3 +122,21 @@ test("privileged workflow APIs reject anonymous callers", async () => {
   }
   await context.close();
 });
+
+
+test("private portals redirect anonymous visitors to the correct login", async () => {
+  const checks = [
+    ["/pilot", "/pilot/login"],
+    ["/client", "/client/login"],
+    ["/admin/dashboard", "/admin/login"],
+  ];
+
+  for (const [path, expected] of checks) {
+    const page = await browser.newPage();
+    const response = await page.goto(`${baseURL}${path}`, { waitUntil: "networkidle", timeout: 45_000 });
+    assert.ok(response && response.status() < 400, `${path} returned ${response?.status()}`);
+    await page.waitForURL(`**${expected}`, { timeout: 15_000 });
+    assert.equal(new URL(page.url()).pathname, expected);
+    await page.close();
+  }
+});

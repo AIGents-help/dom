@@ -95,7 +95,7 @@ export async function GET(req: NextRequest) {
     // Never expose pre-QC corrections or superseded revision history in the
     // active client handoff. History remains available to DOM internally.
     deliverables: (job.deliverables ?? []).filter(
-      (deliverable: any) => deliverable.qc_passed === true && deliverable.client_status !== "superseded"
+      (deliverable: any) => deliverable.qc_passed === true && !["superseded", "revision_requested"].includes(deliverable.client_status ?? "")
     ),
   };
   });

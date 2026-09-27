@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/authz";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendNotification } from "@/lib/resend/client";
+import { sendClientMissionUpdate } from "@/lib/resend/clientMissionUpdates";
 import { deliverableRevisionReady } from "@/lib/resend/templates";
 
 const PIPELINE = ["requested", "reviewing", "scoped", "quoted", "approved", "assigned", "scheduled", "in_progress", "delivered", "closed"] as const;
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const action = typeof body.action === "string" ? body.action : "";
   const { data: mission } = await auth.admin.from("mission_requests").select("id,status,requester_name,requester_email,company,client_id").eq("id", id).maybeSingle();
   if (!mission) return NextResponse.json({ error: "Mission not found" }, { status: 404 });
-  const { data: job } = await auth.admin.from("jobs").select("id,status,delivery_responsibility").eq("mission_request_id", id).maybeSingle();
+  const { data: job } = await auth.admin.from("jobs").select("id,status,delivery_responsibility,scheduled_for").eq("mission_request_id", id).maybeSingle();
 
   if (action === "advance_status") {
     const index = PIPELINE.indexOf(mission.status as (typeof PIPELINE)[number]);
@@ -39,6 +40,47 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   if (!job) return NextResponse.json({ error: "Mission job not found" }, { status: 404 });
+
+  if (action === "set_schedule") {
+    const raw = body.scheduledFor;
+    const scheduledFor = raw === null || raw === "" ? null : typeof raw === "string" ? new Date(raw) : new Date(NaN);
+    if (scheduledFor instanceof Date && Number.isNaN(scheduledFor.getTime())) {
+      return NextResponse.json({ error: "Enter a valid mission date." }, { status: 400 });
+    }
+    if (["delivered", "closed", "cancelled"].includes(mission.status)) {
+      return NextResponse.json({ error: "Completed or cancelled missions cannot be rescheduled." }, { status: 409 });
+    }
+
+    const nextScheduledFor = scheduledFor instanceof Date ? scheduledFor.toISOString() : null;
+    const { data: updated, error: scheduleError } = await auth.admin.from("jobs")
+      .update({ scheduled_for: nextScheduledFor })
+      .eq("id", job.id)
+      .eq("scheduled_for", job.scheduled_for)
+      .select("id,scheduled_for")
+      .maybeSingle();
+    if (scheduleError) return NextResponse.json({ error: "Mission schedule could not be updated." }, { status: 500 });
+    if (!updated) return NextResponse.json({ error: "Mission schedule changed; reload and try again." }, { status: 409 });
+
+    if (nextScheduledFor && nextScheduledFor !== job.scheduled_for) {
+      const { data: assignments } = await auth.admin.from("mission_assignments")
+        .select("id,status")
+        .eq("job_id", job.id)
+        .order("created_at", { ascending: false });
+      const assignment = (assignments ?? []).find((item) => !["declined", "cancelled"].includes(item.status));
+      if (assignment) {
+        try {
+          await sendClientMissionUpdate(
+            assignment.id,
+            { type: "date_scheduled", scheduledFor: nextScheduledFor, rescheduled: !!job.scheduled_for },
+          );
+        } catch (notificationError) {
+          console.error("client schedule notification failed", notificationError);
+        }
+      }
+    }
+
+    return NextResponse.json({ ok: true, scheduledFor: updated.scheduled_for });
+  }
 
   if (action === "bind_gig_insurance") {
     const assignmentId = typeof body.assignmentId === "string" ? body.assignmentId : "";

@@ -2982,3 +2982,158 @@ test("client cannot access reviews for another client job", { skip: !isolated },
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("admin shop order follows guarded fulfillment transitions", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const productKey = `e2e-order-state-${stamp}`;
+  const orderId = crypto.randomUUID();
+  const sessionId = `cs_e2e_state_${stamp}`;
+  const paymentIntentId = `pi_e2e_state_${stamp}`;
+  const adminEmail = `order-admin-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Order-E2E-${stamp}!Aa1`;
+
+  const { data: adminUserData, error: adminUserError } = await admin.auth.admin.createUser({
+    email: adminEmail,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(adminUserError);
+  const adminUser = adminUserData.user;
+  assert.ok(adminUser);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email: adminEmail,
+    full_name: "E2E Order Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { error: inventoryError } = await admin.from("shop_inventory").insert({
+    product_key: productKey,
+    product_name: "E2E Order State Product",
+    description: "Order transition regression fixture",
+    unit_amount_cents: 1800,
+    variants: [],
+    category: "Equipment",
+    active: true,
+    fulfillment_mode: "stocked",
+    available_quantity: 5,
+    shipping_base_cents: 0,
+    shipping_additional_cents: 0,
+  });
+  assert.ifError(inventoryError);
+
+  const { error: checkoutError } = await admin.rpc("create_shop_checkout_service", {
+    p_order_id: orderId,
+    p_order_number: `E2E-STATE-${stamp}`,
+    p_session_id: sessionId,
+    p_product_key: productKey,
+    p_product_name: "E2E Order State Product",
+    p_variant: "",
+    p_quantity: 1,
+    p_unit_amount_cents: 1800,
+    p_shipping_cents: 0,
+  });
+  assert.ifError(checkoutError);
+
+  const { error: completeError } = await admin.rpc("complete_shop_order_service", {
+    p_session_id: sessionId,
+    p_payment_intent_id: paymentIntentId,
+    p_customer_email: `order-customer-${stamp}@e2e.dom.invalid`,
+    p_customer_name: "Order State Customer",
+    p_customer_phone: null,
+    p_currency: "usd",
+    p_subtotal_cents: 1800,
+    p_shipping_cents: 0,
+    p_tax_cents: 0,
+    p_discount_cents: 0,
+    p_total_cents: 1800,
+    p_shipping_name: "Order State Customer",
+    p_shipping_address: {},
+  });
+  assert.ifError(completeError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email: adminEmail, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  const headers = {
+    Authorization: `Bearer ${signedIn.session.access_token}`,
+    "Content-Type": "application/json",
+  };
+
+  try {
+    const processing = await api.patch("/api/admin/orders", {
+      headers,
+      data: { action: "processing", orderId },
+      failOnStatusCode: false,
+    });
+    assert.equal(processing.status(), 200, JSON.stringify(await processing.json().catch(() => ({}))));
+
+    const shipped = await api.patch("/api/admin/orders", {
+      headers,
+      data: {
+        action: "shipped",
+        orderId,
+        carrier: "UPS",
+        trackingNumber: `1ZE2E${stamp.replace(/\W/g, "").slice(-8)}`,
+        trackingUrl: "https://www.ups.com/track",
+      },
+      failOnStatusCode: false,
+    });
+    assert.equal(shipped.status(), 200, JSON.stringify(await shipped.json().catch(() => ({}))));
+
+    const duplicateShip = await api.patch("/api/admin/orders", {
+      headers,
+      data: {
+        action: "shipped",
+        orderId,
+        carrier: "UPS",
+        trackingNumber: "DUPLICATE",
+        trackingUrl: "https://www.ups.com/track",
+      },
+      failOnStatusCode: false,
+    });
+    assert.equal(duplicateShip.status(), 409);
+
+    const delivered = await api.patch("/api/admin/orders", {
+      headers,
+      data: { action: "delivered", orderId },
+      failOnStatusCode: false,
+    });
+    assert.equal(delivered.status(), 200, JSON.stringify(await delivered.json().catch(() => ({}))));
+
+    const refundAfterDelivery = await api.patch("/api/admin/orders", {
+      headers,
+      data: { action: "refund", orderId },
+      failOnStatusCode: false,
+    });
+    assert.equal(refundAfterDelivery.status(), 409);
+
+    const { data: savedOrder, error: savedOrderError } = await admin.from("shop_orders")
+      .select("status,payment_status,tracking_carrier,tracking_number,shipped_at,delivered_at")
+      .eq("id", orderId)
+      .single();
+    assert.ifError(savedOrderError);
+    assert.equal(savedOrder.status, "delivered");
+    assert.equal(savedOrder.payment_status, "paid");
+    assert.equal(savedOrder.tracking_carrier, "UPS");
+    assert.ok(savedOrder.tracking_number);
+    assert.ok(savedOrder.shipped_at);
+    assert.ok(savedOrder.delivered_at);
+  } finally {
+    await api.dispose();
+    await admin.from("shop_order_items").delete().eq("order_id", orderId);
+    await admin.from("shop_orders").delete().eq("id", orderId);
+    await admin.from("shop_inventory").delete().eq("product_key", productKey);
+    await admin.from("admin_users").delete().eq("email", adminEmail);
+    await admin.auth.admin.deleteUser(adminUser.id);
+  }
+});

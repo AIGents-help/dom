@@ -28,22 +28,71 @@ export async function recoverStaleJobs(): Promise<void> {
   }
   if (!staleJobs || staleJobs.length === 0) return;
 
+  const transientImageStates = ["downloading", "downloaded", "metadata_checked", "processor_uploading", "processing"];
+
   for (const job of staleJobs) {
-    if (job.attempts + 1 >= MAX_ATTEMPTS) {
-      await supabaseAdmin
-        .from("mapping_processing_jobs")
-        .update({ status: "failed", error_message: `Worker went silent after ${MAX_ATTEMPTS} attempts (last heartbeat before ${staleCutoff}).` })
-        .eq("id", job.id);
-      await supabaseAdmin
-        .from("mapping_projects")
-        .update({ status: "failed", error_message: "Processing failed after repeated worker timeouts. Contact DOM ops." })
-        .eq("id", job.mapping_project_id);
+    const nextAttempt = job.attempts + 1;
+    if (nextAttempt >= MAX_ATTEMPTS) {
+      const failureMessage = `Worker went silent after ${MAX_ATTEMPTS} attempts (last heartbeat before ${staleCutoff}).`;
+      await Promise.all([
+        supabaseAdmin
+          .from("mapping_processing_jobs")
+          .update({
+            status: "failed",
+            error_message: failureMessage,
+            worker_id: null,
+          })
+          .eq("id", job.id),
+        supabaseAdmin
+          .from("mapping_projects")
+          .update({
+            status: "failed",
+            error_message: "Processing failed after repeated worker timeouts. Contact DOM ops.",
+          })
+          .eq("id", job.mapping_project_id),
+        supabaseAdmin
+          .from("mapping_images")
+          .update({
+            lifecycle_status: "failed",
+            lifecycle_error: failureMessage,
+            lifecycle_updated_at: new Date().toISOString(),
+          })
+          .eq("mapping_project_id", job.mapping_project_id)
+          .in("lifecycle_status", transientImageStates),
+      ]);
     } else {
-      await supabaseAdmin
-        .from("mapping_processing_jobs")
-        .update({ status: "queued", worker_id: null, claimed_at: null, attempts: job.attempts + 1 })
-        .eq("id", job.id);
+      await Promise.all([
+        supabaseAdmin
+          .from("mapping_processing_jobs")
+          .update({
+            status: "queued",
+            worker_id: null,
+            claimed_at: null,
+            heartbeat_at: null,
+            started_at: null,
+            error_message: null,
+            attempts: nextAttempt,
+          })
+          .eq("id", job.id),
+        supabaseAdmin
+          .from("mapping_projects")
+          .update({
+            status: "queued",
+            error_message: null,
+            processing_stage: "Waiting for worker retry",
+          })
+          .eq("id", job.mapping_project_id),
+        supabaseAdmin
+          .from("mapping_images")
+          .update({
+            lifecycle_status: "stored",
+            lifecycle_error: null,
+            lifecycle_updated_at: new Date().toISOString(),
+          })
+          .eq("mapping_project_id", job.mapping_project_id)
+          .in("lifecycle_status", transientImageStates),
+      ]);
     }
-    console.log(`[recoverStaleJobs] Recovered stale job ${job.id} (attempt ${job.attempts + 1})`);
+    console.log(`[recoverStaleJobs] Recovered stale job ${job.id} (attempt ${nextAttempt})`);
   }
 }

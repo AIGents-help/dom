@@ -1022,3 +1022,92 @@ test("shop refund restores reserved stocked inventory exactly once", { skip: !is
     await admin.from("shop_inventory").delete().eq("product_key", productKey);
   }
 });
+
+
+test("admin mission status cannot skip the workflow pipeline", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `admin-status-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Status-E2E-${stamp}!Aa1`;
+
+  const { data: createdUser, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  assert.ok(createdUser.user);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email,
+    full_name: "E2E Status Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "Status Test",
+    requester_email: `status-client-${stamp}@e2e.dom.invalid`,
+    company: "Status Test Company",
+    service_type: "aerial_images",
+    location: "Status Test Site",
+    status: "requested",
+  }).select("id,status").single();
+  assert.ifError(missionError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const headers = {
+      Authorization: `Bearer ${signedIn.session.access_token}`,
+      "Content-Type": "application/json",
+    };
+
+    const directJump = await api.patch(`/api/admin/missions/${mission.id}`, {
+      headers,
+      data: {
+        title: "Status Test Mission",
+        requesterName: "Status Test",
+        requesterEmail: `status-client-${stamp}@e2e.dom.invalid`,
+        company: "Status Test Company",
+        serviceType: "aerial_images",
+        location: "Status Test Site",
+        scope: "",
+        status: "delivered",
+        quotedAmountCents: null,
+        scheduledFor: null,
+      },
+      failOnStatusCode: false,
+    });
+    const directBody = await directJump.json().catch(() => ({}));
+    assert.equal(directJump.status(), 409, JSON.stringify(directBody));
+
+    const advance = await api.post(`/api/admin/missions/${mission.id}/manage`, {
+      headers,
+      data: { action: "advance_status" },
+      failOnStatusCode: false,
+    });
+    const advanceBody = await advance.json().catch(() => ({}));
+    assert.equal(advance.status(), 200, JSON.stringify(advanceBody));
+    assert.equal(advanceBody.nextStatus, "reviewing");
+
+    const { data: updated, error: updatedError } = await admin.from("mission_requests")
+      .select("status")
+      .eq("id", mission.id)
+      .single();
+    assert.ifError(updatedError);
+    assert.equal(updated.status, "reviewing");
+  } finally {
+    await api.dispose();
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("admin_users").delete().eq("email", email);
+    await admin.auth.admin.deleteUser(createdUser.user.id);
+  }
+});

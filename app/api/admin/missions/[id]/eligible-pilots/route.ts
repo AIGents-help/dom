@@ -33,7 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: contractors } = await admin
     .from("contractors")
-    .select("id, full_name, email, service_area, status, part107_verified, insurance_verified, pilot_assets(status, archived_at, capabilities_verified, pilot_asset_capabilities(capability))")
+    .select("id, full_name, email, service_area, status, part107_verified, insurance_verified, pilot_assets(status, archived_at, asset_type, registration_number, capabilities_verified, pilot_asset_capabilities(capability))")
     .eq("status", "active")
     .eq("part107_verified", true)
     .eq("insurance_verified", true);
@@ -41,8 +41,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const pilots = requirements.length === 0 ? [] : (contractors ?? [])
     .map((c) => {
       const active = new Set<string>();
-      for (const asset of (c.pilot_assets ?? []) as { status: string; archived_at: string | null; capabilities_verified: boolean; pilot_asset_capabilities: { capability: string }[] }[]) {
+      for (const asset of (c.pilot_assets ?? []) as { status: string; archived_at: string | null; asset_type: string; registration_number: string | null; capabilities_verified: boolean; pilot_asset_capabilities: { capability: string }[] }[]) {
         if (asset.status !== "active" || asset.archived_at || !asset.capabilities_verified) continue;
+        if (asset.asset_type === "uav" && !asset.registration_number?.trim()) continue;
         for (const cap of asset.pilot_asset_capabilities ?? []) active.add(cap.capability);
       }
       const eligibility = computeEligibility(requirements, active);

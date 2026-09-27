@@ -4457,3 +4457,104 @@ test("failed mapping project requeue resets image lifecycle state", { skip: !iso
     await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("DOMINIC HUB simulation schedules persist privately with audit history", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Hub-E2E-${stamp}!Aa1`;
+  const emails = [
+    `hub-user-a-${stamp}@e2e.dom.invalid`,
+    `hub-user-b-${stamp}@e2e.dom.invalid`,
+  ];
+
+  const users = [];
+  for (const email of emails) {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    users.push(data.user);
+  }
+
+  const signIn = async (email) => {
+    const sb = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    assert.ifError(error);
+    assert.ok(data.session);
+    return sb;
+  };
+
+  const userA = await signIn(emails[0]);
+  const userB = await signIn(emails[1]);
+  let missionId = null;
+
+  try {
+    const { data: savedId, error: saveError } = await userA.rpc("save_dominic_hub_simulation_service", {
+      p_user_id: users[0].id,
+      p_name: "E2E LDAR East",
+      p_mission_type: "ldar",
+      p_aircraft_label: "DOM-401",
+      p_route_mode: "LDAR East",
+      p_recurrence_label: "MON / WED / FRI",
+      p_scheduled_local_time: "06:00",
+    });
+    assert.ifError(saveError);
+    assert.ok(savedId);
+    missionId = savedId;
+
+    const [{ data: mission, error: missionError }, { data: events, error: eventError }] = await Promise.all([
+      userA.from("dominic_hub_missions")
+        .select("id,name,mission_type,aircraft_label,route_mode,recurrence_label,scheduled_local_time,status,simulation_only")
+        .eq("id", missionId)
+        .single(),
+      userA.from("dominic_hub_events")
+        .select("mission_id,event_type,summary,details")
+        .eq("mission_id", missionId),
+    ]);
+    assert.ifError(missionError);
+    assert.ifError(eventError);
+    assert.equal(mission.name, "E2E LDAR East");
+    assert.equal(mission.mission_type, "ldar");
+    assert.equal(mission.aircraft_label, "DOM-401");
+    assert.equal(mission.route_mode, "LDAR East");
+    assert.equal(mission.recurrence_label, "MON / WED / FRI");
+    assert.equal(mission.status, "ready");
+    assert.equal(mission.simulation_only, true);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].event_type, "simulation_schedule_saved");
+    assert.equal(events[0].summary, "Simulation schedule saved");
+
+    const [{ data: hiddenMission, error: hiddenMissionError }, { data: hiddenEvents, error: hiddenEventsError }] = await Promise.all([
+      userB.from("dominic_hub_missions").select("id").eq("id", missionId),
+      userB.from("dominic_hub_events").select("id").eq("mission_id", missionId),
+    ]);
+    assert.ifError(hiddenMissionError);
+    assert.ifError(hiddenEventsError);
+    assert.deepEqual(hiddenMission, []);
+    assert.deepEqual(hiddenEvents, []);
+
+    const { data: unauthorizedUpdate, error: unauthorizedUpdateError } = await userB
+      .from("dominic_hub_missions")
+      .update({ status: "cancelled" })
+      .eq("id", missionId)
+      .select("id");
+    assert.ifError(unauthorizedUpdateError);
+    assert.deepEqual(unauthorizedUpdate, []);
+
+    const { data: stillReady, error: stillReadyError } = await userA
+      .from("dominic_hub_missions")
+      .select("status")
+      .eq("id", missionId)
+      .single();
+    assert.ifError(stillReadyError);
+    assert.equal(stillReady.status, "ready");
+  } finally {
+    if (missionId) {
+      await admin.from("dominic_hub_events").delete().eq("mission_id", missionId);
+      await admin.from("dominic_hub_missions").delete().eq("id", missionId);
+    }
+    for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});

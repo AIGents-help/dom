@@ -555,3 +555,109 @@ test("client portal isolates each client to its own missions", { skip: !isolated
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("commercial mission equipment requires FAA registration before assignment", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `faa-pilot-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-FAA-E2E-${stamp}!Aa1`;
+
+  const { data: createdUser, error: userError } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+  assert.ifError(userError);
+  const pilotUser = createdUser.user;
+  assert.ok(pilotUser);
+
+  const { data: contractor, error: contractorError } = await admin.from("contractors").insert({
+    user_id: pilotUser.id,
+    full_name: "E2E FAA Pilot",
+    email,
+    status: "active",
+    part107_verified: true,
+    insurance_verified: true,
+    insurance_provider: "E2E Coverage",
+    insurance_policy_number: `E2E-${stamp}`,
+    insurance_expires_on: "2099-12-31",
+    can_create_missions: true,
+  }).select("id").single();
+  assert.ifError(contractorError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "FAA Test Client",
+    requester_email: `faa-client-${stamp}@e2e.dom.invalid`,
+    company: "FAA Registration E2E",
+    service_type: "aerial_images",
+    location: "FAA Test Site",
+    status: "approved",
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    title: "FAA Registration Mission",
+    service_type: "aerial_images",
+    location: "FAA Test Site",
+    status: "scheduled",
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: assignment, error: assignmentError } = await admin.from("mission_assignments").insert({
+    job_id: job.id,
+    contractor_id: contractor.id,
+    status: "accepted",
+  }).select("id").single();
+  assert.ifError(assignmentError);
+
+  const { data: asset, error: assetError } = await admin.from("pilot_assets").insert({
+    contractor_id: contractor.id,
+    asset_type: "uav",
+    manufacturer: "DJI",
+    model: "Avata 2",
+    display_name: "FAA Test Avata 2",
+    status: "active",
+  }).select("id").single();
+  assert.ifError(assetError);
+
+  const anon = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await anon.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const rejected = await api.post(`/api/pilot/missions/${assignment.id}/assets`, {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+      data: { assetIds: [asset.id] },
+      failOnStatusCode: false,
+    });
+    const rejectedBody = await rejected.json().catch(() => ({}));
+    assert.equal(rejected.status(), 409, JSON.stringify(rejectedBody));
+    assert.match(rejectedBody.error ?? "", /FAA registration/i);
+
+    const { error: registrationError } = await admin.from("pilot_assets")
+      .update({ registration_number: "FA3E2ETEST" })
+      .eq("id", asset.id);
+    assert.ifError(registrationError);
+
+    const accepted = await api.post(`/api/pilot/missions/${assignment.id}/assets`, {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+      data: { assetIds: [asset.id] },
+      failOnStatusCode: false,
+    });
+    const acceptedBody = await accepted.json().catch(() => ({}));
+    assert.equal(accepted.status(), 200, JSON.stringify(acceptedBody));
+    assert.deepEqual(acceptedBody.assetIds, [asset.id]);
+  } finally {
+    await api.dispose();
+    await admin.from("mission_asset_assignments").delete().eq("mission_assignment_id", assignment.id);
+    await admin.from("pilot_assets").delete().eq("id", asset.id);
+    await admin.from("mission_assignments").delete().eq("id", assignment.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().eq("id", contractor.id);
+    await admin.auth.admin.deleteUser(pilotUser.id);
+  }
+});

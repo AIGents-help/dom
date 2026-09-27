@@ -3463,3 +3463,169 @@ test("DOM-assigned pilot submission stops at DOM QC", { skip: !isolated }, async
     await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("pilot-owned mission certifies only the corrected current revision", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `owner-revision-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Owner-Revision-${stamp}!Aa1`;
+
+  const { data: userData, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  const user = userData.user;
+  assert.ok(user);
+
+  const { data: pilot, error: pilotError } = await admin.from("contractors").insert({
+    user_id: user.id,
+    full_name: "E2E Owner Revision Pilot",
+    email,
+    status: "active",
+    part107_verified: true,
+    insurance_verified: true,
+    insurance_provider: "E2E",
+    insurance_policy_number: "OWNER-REVISION-E2E",
+    insurance_expires_on: "2099-12-31",
+    can_create_missions: true,
+    subscription_active: true,
+  }).select("id").single();
+  assert.ifError(pilotError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "Owner Revision Client",
+    requester_email: `owner-revision-client-${stamp}@e2e.dom.invalid`,
+    company: "Owner Revision Test",
+    service_type: "aerial_images",
+    location: "Owner Revision Site",
+    status: "in_progress",
+    created_by_contractor_id: pilot.id,
+    requires_admin_approval: false,
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    title: "Owner Revision Mission",
+    service_type: "aerial_images",
+    location: "Owner Revision Site",
+    status: "in_progress",
+    delivery_responsibility: "pilot",
+    scheduled_for: "2099-07-15T14:30:00.000Z",
+    completed_at: new Date().toISOString(),
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: assignment, error: assignmentError } = await admin.from("mission_assignments").insert({
+    job_id: job.id,
+    contractor_id: pilot.id,
+    status: "in_progress",
+    assignment_role: "owner",
+    assigned_uav: "DJI Matrice 4E · FAA FA3OWNERREV",
+  }).select("id").single();
+  assert.ifError(assignmentError);
+
+  const { data: prior, error: priorError } = await admin.from("deliverables").insert({
+    job_id: job.id,
+    name: "Owner Revision v1",
+    type: "raw_images",
+    storage_url: `${job.id}/owner-v1.zip`,
+    qc_passed: true,
+    client_status: "revision_requested",
+    client_feedback: "Please correct this package.",
+    revision_number: 1,
+    delivered_at: new Date(Date.now() - 60_000).toISOString(),
+  }).select("id").single();
+  assert.ifError(priorError);
+
+  const { data: corrected, error: correctedError } = await admin.from("deliverables").insert({
+    job_id: job.id,
+    name: "Owner Revision v2",
+    type: "raw_images",
+    storage_url: `${job.id}/owner-v2.zip`,
+    qc_passed: false,
+    client_status: "pending",
+    supersedes_deliverable_id: prior.id,
+    revision_number: 2,
+  }).select("id").single();
+  assert.ifError(correctedError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+  const headers = { Authorization: `Bearer ${signedIn.session.access_token}` };
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const workflowResponse = await api.get(`/api/pilot/missions/${assignment.id}/workflow`, {
+      headers,
+      failOnStatusCode: false,
+    });
+    const workflow = await workflowResponse.json().catch(() => ({}));
+    assert.equal(workflowResponse.status(), 200, JSON.stringify(workflow));
+    assert.equal(workflow.ownership.completionMode, "owner_delivery");
+
+    const automatic = new Set(["uav_assigned", "insurance_verified", "schedule_confirmed", "capture_complete", "deliverables_uploaded", "mission_submitted"]);
+    for (const item of workflow.items.filter((entry) => entry.required && !entry.completed && !automatic.has(entry.item_key))) {
+      const check = await api.post(`/api/pilot/missions/${assignment.id}/workflow`, {
+        headers,
+        data: { action: "checklist", itemId: item.id, completed: true },
+        failOnStatusCode: false,
+      });
+      assert.equal(check.status(), 200, JSON.stringify(await check.json().catch(() => ({}))));
+    }
+
+    const readyResponse = await api.get(`/api/pilot/missions/${assignment.id}/workflow`, {
+      headers,
+      failOnStatusCode: false,
+    });
+    const ready = await readyResponse.json().catch(() => ({}));
+    assert.equal(readyResponse.status(), 200, JSON.stringify(ready));
+    assert.equal(ready.submission.ready, true, JSON.stringify(ready.submission.blockers));
+
+    const complete = await api.post(`/api/pilot/missions/${assignment.id}/workflow`, {
+      headers,
+      data: { action: "complete_mission" },
+      failOnStatusCode: false,
+    });
+    assert.equal(complete.status(), 200, JSON.stringify(await complete.json().catch(() => ({}))));
+
+    const [
+      { data: assignmentAfter },
+      { data: jobAfter },
+      { data: missionAfter },
+      { data: priorAfter },
+      { data: correctedAfter },
+    ] = await Promise.all([
+      admin.from("mission_assignments").select("status").eq("id", assignment.id).single(),
+      admin.from("jobs").select("status").eq("id", job.id).single(),
+      admin.from("mission_requests").select("status").eq("id", mission.id).single(),
+      admin.from("deliverables").select("qc_passed,client_status,delivered_at").eq("id", prior.id).single(),
+      admin.from("deliverables").select("qc_passed,client_status,delivered_at").eq("id", corrected.id).single(),
+    ]);
+
+    assert.equal(assignmentAfter.status, "qc_passed");
+    assert.equal(jobAfter.status, "delivered");
+    assert.equal(missionAfter.status, "delivered");
+    assert.equal(priorAfter.client_status, "superseded");
+    assert.equal(correctedAfter.qc_passed, true);
+    assert.ok(correctedAfter.delivered_at);
+  } finally {
+    await api.dispose();
+    await admin.from("mission_checklist_items").delete().eq("assignment_id", assignment.id);
+    await admin.from("notification_log").delete().eq("assignment_id", assignment.id);
+    await admin.from("deliverables").delete().in("id", [corrected.id, prior.id]);
+    await admin.from("mission_assignments").delete().eq("id", assignment.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().eq("id", pilot.id);
+    await admin.auth.admin.deleteUser(user.id);
+  }
+});

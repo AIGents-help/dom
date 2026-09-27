@@ -437,3 +437,45 @@ test("admin-authorized uninsured pilot creates a ready self-service mission", { 
     await admin.auth.admin.deleteUser(pilotUser.id);
   }
 });
+
+
+test("non-admin authenticated user cannot render the admin console", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `non-admin-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Role-E2E-${stamp}!Aa1`;
+
+  const { data: createdUser, error: createError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(createError);
+  assert.ok(createdUser.user);
+
+  const anon = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signInData, error: signInError } = await anon.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signInData.session);
+
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext();
+    const storageKey = `sb-${new URL(supabaseURL).hostname.split(".")[0]}-auth-token`;
+    await context.addInitScript(({ key, session }) => {
+      localStorage.setItem(key, JSON.stringify(session));
+    }, { key: storageKey, session: signInData.session });
+
+    const page = await context.newPage();
+    await page.goto(`${baseURL}/admin/dashboard`, { waitUntil: "networkidle", timeout: 45_000 });
+    await page.waitForURL("**/admin/login", { timeout: 15_000 });
+    assert.equal(await page.getByText("Admin Dashboard", { exact: true }).count(), 0);
+    await context.close();
+  } finally {
+    await browser.close();
+    await admin.auth.admin.deleteUser(createdUser.user.id);
+  }
+});

@@ -661,3 +661,53 @@ test("commercial mission equipment requires FAA registration before assignment",
     await admin.auth.admin.deleteUser(pilotUser.id);
   }
 });
+
+
+test("confirmed client login safely links an unbound client profile", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `client-link-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Client-Link-${stamp}!Aa1`;
+
+  const { data: createdUser, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  assert.ok(createdUser.user);
+
+  const { data: client, error: clientError } = await admin.from("clients").insert({
+    company_name: "E2E Unlinked Client",
+    contact_name: "E2E Client",
+    email,
+    user_id: null,
+  }).select("id,user_id").single();
+  assert.ifError(clientError);
+  assert.equal(client.user_id, null);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const response = await api.post("/api/client/access", {
+      data: { email, password, action: "login" },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 200, JSON.stringify(body));
+    assert.ok(body.session?.access_token);
+
+    const { data: linked, error: linkedError } = await admin.from("clients")
+      .select("user_id")
+      .eq("id", client.id)
+      .single();
+    assert.ifError(linkedError);
+    assert.equal(linked.user_id, createdUser.user.id);
+  } finally {
+    await api.dispose();
+    await admin.from("clients").delete().eq("id", client.id);
+    await admin.auth.admin.deleteUser(createdUser.user.id);
+  }
+});

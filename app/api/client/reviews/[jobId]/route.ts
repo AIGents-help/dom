@@ -1,11 +1,14 @@
 import {NextRequest,NextResponse} from "next/server";import {getSupabaseAdmin} from "@/lib/supabaseAdmin";import {getSupabaseAnonServer} from "@/lib/supabaseAnonServer";import {badReview,reviewPayload} from "@/lib/missionReviews";
 async function context(req:NextRequest,jobId:string){const h=req.headers.get("authorization");if(!h)return null;const sb=getSupabaseAnonServer(h);const {data:{user}}=await sb.auth.getUser();if(!user)return null;const admin=getSupabaseAdmin();const {data:client}=await admin.from("clients").select("id").eq("user_id",user.id).maybeSingle();if(!client)return null;const {data:job}=await admin.from("jobs").select("id,status,client_id,assignments:mission_assignments(contractor_id,status,assignment_role,created_at)").eq("id",jobId).eq("client_id",client.id).maybeSingle();return job?{admin,user,client,job}:null}
 export async function GET(req:NextRequest,{params}:{params:Promise<{jobId:string}>}){const {jobId}=await params;const c=await context(req,jobId);if(!c)return NextResponse.json({error:"Access denied"},{status:403});const {data}=await c.admin.from("mission_reviews").select("target_type,overall_rating,communication_rating,preparedness_rating,accuracy_rating,would_work_again,comments,private_notes").eq("job_id",jobId).eq("reviewer_user_id",c.user.id).eq("reviewer_role","client");return NextResponse.json({reviews:data??[]})}
-export async function POST(req:NextRequest,{params}:{params:Promise<{jobId:string}>}){const {jobId}=await params;const c=await context(req,jobId);if(!c)return NextResponse.json({error:"Access denied"},{status:403});if(!["delivered","closed"].includes(c.job.status))return NextResponse.json({error:"Reviews unlock after delivery."},{status:409});const body=await req.json();if(!["pilot","dom"].includes(body.targetType))return NextResponse.json({error:"Invalid review target"},{status:400});const payload=reviewPayload(body);if(!payload)return badReview();const assignments = Array.isArray(c.job.assignments) ? c.job.assignments : (c.job.assignments ? [c.job.assignments] : []);
+export async function POST(req:NextRequest,{params}:{params:Promise<{jobId:string}>}){const {jobId}=await params;const c=await context(req,jobId);if(!c)return NextResponse.json({error:"Access denied"},{status:403});if(!["delivered","closed"].includes(c.job.status))return NextResponse.json({error:"Reviews unlock after delivery."},{status:409});const body=await req.json();if(!["pilot","dom"].includes(body.targetType))return NextResponse.json({error:"Invalid review target"},{status:400});const payload=reviewPayload(body);if(!payload)return badReview();type ReviewAssignment = { contractor_id: string | null; status: string | null; assignment_role: string | null; created_at: string | null };
+const assignments: ReviewAssignment[] = Array.isArray(c.job.assignments)
+  ? c.job.assignments as ReviewAssignment[]
+  : (c.job.assignments ? [c.job.assignments as ReviewAssignment] : []);
 const assignment = assignments
-  .filter((item) => !["declined","cancelled","returned"].includes(item.status ?? ""))
-  .sort((a,b) => {
-    const roleScore = (item) => item.assignment_role === "field" ? 2 : item.assignment_role === "owner" ? 1 : 0;
+  .filter((item: ReviewAssignment) => !["declined","cancelled","returned"].includes(item.status ?? ""))
+  .sort((a: ReviewAssignment, b: ReviewAssignment) => {
+    const roleScore = (item: ReviewAssignment) => item.assignment_role === "field" ? 2 : item.assignment_role === "owner" ? 1 : 0;
     const scoreDiff = roleScore(b) - roleScore(a);
     if (scoreDiff) return scoreDiff;
     return new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime();

@@ -14,8 +14,17 @@ async function authenticate(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const context = await authenticate(req);
   if (!context) return NextResponse.json({ error: "Admin access required" }, { status: 403 });
-  const { data, error } = await context.admin.from("admin_messages").select("*").order("created_at", { ascending: false }).limit(500);
-  return error ? NextResponse.json({ error: error.message }, { status: 500 }) : NextResponse.json({ messages: data ?? [] });
+  const [{ data: messages, error: messagesError }, { data: notifications, error: notificationsError }] = await Promise.all([
+    context.admin.from("admin_messages").select("*").order("created_at", { ascending: false }).limit(500),
+    context.admin.from("notification_log")
+      .select("id,recipient_type,recipient_email,email_type,status,subject,error_message,sent_at,delivered_at,opened_at,clicked_at,created_at,mission_request_id,job_id,assignment_id,metadata,idempotency_key")
+      .order("created_at", { ascending: false })
+      .limit(500),
+  ]);
+  if (messagesError || notificationsError) {
+    return NextResponse.json({ error: messagesError?.message ?? notificationsError?.message }, { status: 500 });
+  }
+  return NextResponse.json({ messages: messages ?? [], notifications: notifications ?? [] });
 }
 
 export async function PATCH(req: NextRequest) {

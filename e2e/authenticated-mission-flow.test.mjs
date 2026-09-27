@@ -1308,3 +1308,130 @@ test("team pilot eligibility uses structured registered assets instead of legacy
     await admin.auth.admin.deleteUser(ownerUser.id);
   }
 });
+
+
+test("admin schedule changes create one client schedule notification event", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const adminEmail = `schedule-admin-${stamp}@e2e.dom.invalid`;
+  const pilotEmail = `schedule-pilot-${stamp}@e2e.dom.invalid`;
+  const clientEmail = `schedule-client-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Schedule-E2E-${stamp}!Aa1`;
+
+  const createUser = async (email) => {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    return data.user;
+  };
+  const adminUser = await createUser(adminEmail);
+  const pilotUser = await createUser(pilotEmail);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email: adminEmail,
+    full_name: "E2E Schedule Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { data: client, error: clientError } = await admin.from("clients").insert({
+    company_name: "Schedule Client",
+    contact_name: "Schedule Client",
+    email: clientEmail,
+  }).select("id").single();
+  assert.ifError(clientError);
+
+  const { data: contractor, error: contractorError } = await admin.from("contractors").insert({
+    user_id: pilotUser.id,
+    full_name: "Schedule Pilot",
+    email: pilotEmail,
+    status: "active",
+    part107_verified: true,
+    insurance_verified: true,
+    insurance_provider: "E2E",
+    insurance_policy_number: "SCHEDULE-E2E",
+    insurance_expires_on: "2099-12-31",
+  }).select("id").single();
+  assert.ifError(contractorError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    client_id: client.id,
+    requester_name: "Schedule Client",
+    requester_email: clientEmail,
+    company: "Schedule Client",
+    service_type: "aerial_images",
+    location: "Schedule Site",
+    status: "assigned",
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    client_id: client.id,
+    title: "Schedule Notification Mission",
+    service_type: "aerial_images",
+    location: "Schedule Site",
+    status: "scheduled",
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: assignment, error: assignmentError } = await admin.from("mission_assignments").insert({
+    job_id: job.id,
+    contractor_id: contractor.id,
+    status: "accepted",
+  }).select("id").single();
+  assert.ifError(assignmentError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email: adminEmail, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const scheduledFor = "2099-06-15T14:30:00.000Z";
+  const api = await request.newContext({ baseURL });
+  try {
+    const response = await api.patch(`/api/admin/missions/${mission.id}`, {
+      headers: {
+        Authorization: `Bearer ${signedIn.session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      data: {
+        title: "Schedule Notification Mission",
+        requesterName: "Schedule Client",
+        requesterEmail: clientEmail,
+        company: "Schedule Client",
+        serviceType: "aerial_images",
+        location: "Schedule Site",
+        scope: "",
+        status: "assigned",
+        quotedAmountCents: null,
+        scheduledFor,
+      },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 200, JSON.stringify(body));
+
+    const eventKey = `date_scheduled:${assignment.id}:${scheduledFor}`;
+    const { data: logs, error: logsError } = await admin.from("notification_log")
+      .select("id,email_type,metadata")
+      .eq("assignment_id", assignment.id)
+      .eq("metadata->>event_key", eventKey);
+    assert.ifError(logsError);
+    assert.equal(logs.length, 1);
+    assert.equal(logs[0].email_type, "mission_rescheduled");
+  } finally {
+    await api.dispose();
+    await admin.from("notification_log").delete().eq("assignment_id", assignment.id);
+    await admin.from("mission_assignments").delete().eq("id", assignment.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().eq("id", contractor.id);
+    await admin.from("clients").delete().eq("id", client.id);
+    await admin.from("admin_users").delete().eq("email", adminEmail);
+    await admin.auth.admin.deleteUser(pilotUser.id);
+    await admin.auth.admin.deleteUser(adminUser.id);
+  }
+});

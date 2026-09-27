@@ -2320,3 +2320,108 @@ test("pilot cannot run workflow actions on another pilot assignment", { skip: !i
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("field pilot cannot manage owner team staffing", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Team-Auth-${stamp}!Aa1`;
+  const ownerEmail = `team-auth-owner-${stamp}@e2e.dom.invalid`;
+  const fieldEmail = `team-auth-field-${stamp}@e2e.dom.invalid`;
+  const extraEmail = `team-auth-extra-${stamp}@e2e.dom.invalid`;
+
+  const users = [];
+  for (const email of [ownerEmail, fieldEmail, extraEmail]) {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    users.push(data.user);
+  }
+
+  const contractorRows = [
+    {
+      user_id: users[0].id, full_name: "Team Owner", email: ownerEmail, status: "active",
+      part107_verified: true, insurance_verified: true, insurance_provider: "E2E",
+      insurance_policy_number: "OWNER-AUTH", insurance_expires_on: "2099-12-31", can_create_missions: true,
+    },
+    {
+      user_id: users[1].id, full_name: "Team Field", email: fieldEmail, status: "active",
+      part107_verified: true, insurance_verified: true, insurance_provider: "E2E",
+      insurance_policy_number: "FIELD-AUTH", insurance_expires_on: "2099-12-31", can_create_missions: false,
+    },
+    {
+      user_id: users[2].id, full_name: "Team Extra", email: extraEmail, status: "active",
+      part107_verified: true, insurance_verified: true, insurance_provider: "E2E",
+      insurance_policy_number: "EXTRA-AUTH", insurance_expires_on: "2099-12-31", can_create_missions: false,
+    },
+  ];
+  const { data: contractors, error: contractorError } = await admin.from("contractors").insert(contractorRows).select("id,user_id");
+  assert.ifError(contractorError);
+  const owner = contractors.find((item) => item.user_id === users[0].id);
+  const field = contractors.find((item) => item.user_id === users[1].id);
+  const extra = contractors.find((item) => item.user_id === users[2].id);
+  assert.ok(owner && field && extra);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "Team Auth Client",
+    requester_email: `team-auth-client-${stamp}@e2e.dom.invalid`,
+    company: "Team Auth Test",
+    service_type: "roof_inspection_residential",
+    location: "Team Auth Site",
+    status: "assigned",
+    created_by_contractor_id: owner.id,
+    requires_admin_approval: false,
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    title: "Team Authorization Mission",
+    service_type: "roof_inspection_residential",
+    location: "Team Auth Site",
+    status: "scheduled",
+    delivery_responsibility: "pilot",
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: assignments, error: assignmentError } = await admin.from("mission_assignments").insert([
+    { job_id: job.id, contractor_id: owner.id, status: "accepted", assignment_role: "owner" },
+    { job_id: job.id, contractor_id: field.id, status: "accepted", assignment_role: "field", contractor_payout_cents: 10000 },
+  ]).select("id,contractor_id,assignment_role");
+  assert.ifError(assignmentError);
+  const fieldAssignment = assignments.find((item) => item.contractor_id === field.id);
+  assert.ok(fieldAssignment);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email: fieldEmail, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const before = assignments.length;
+    const response = await api.post(`/api/pilot/missions/${fieldAssignment.id}/team`, {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+      data: { action: "offer", contractorId: extra.id, payoutCents: 5000 },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 403, JSON.stringify(body));
+    assert.match(body.error ?? "", /only the pilot mission owner/i);
+
+    const { count, error: countError } = await admin.from("mission_assignments")
+      .select("id", { count: "exact", head: true })
+      .eq("job_id", job.id);
+    assert.ifError(countError);
+    assert.equal(count, before);
+  } finally {
+    await api.dispose();
+    await admin.from("mission_assignments").delete().eq("job_id", job.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().in("id", [owner.id, field.id, extra.id]);
+    for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});

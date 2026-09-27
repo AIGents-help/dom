@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -10,6 +10,7 @@ import {
   CircleDot,
   Crosshair,
   Download,
+  FolderOpen,
   Gauge,
   Home,
   LocateFixed,
@@ -20,6 +21,7 @@ import {
   Trash2,
   Radio,
   RotateCcw,
+  Save,
   Square,
   ShieldCheck,
   Target,
@@ -39,6 +41,7 @@ import {
   type NoFlySector,
 } from "@/lib/capturePlanner";
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
+import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import {
   SafetyScenarioAircraftAdapter,
   safetyScenarioLabels,
@@ -83,6 +86,40 @@ import {
   DominicMissionEngine,
   type MissionExecutionSnapshot,
 } from "@/lib/aircraft/missionEngine";
+
+type PersistedCapturePlanState = {
+  objectDiameterFt: number;
+  objectHeightFt: number;
+  standoffFt: number;
+  overlapPct: number;
+  horizontalFovDeg: number;
+  centerLatitude: number;
+  centerLongitude: number;
+  baseRelativeAltitudeFt: number;
+  homeLatitude: number;
+  homeLongitude: number;
+  minRelativeAltitudeFt: number;
+  maxRelativeAltitudeFt: number;
+  minStandoffFt: number;
+  maxStandoffFt: number;
+  noFlySectors: NoFlySector[];
+  patternLengthFt: number;
+  patternWidthFt: number;
+  patternHeightFt: number;
+  patternAltitudeFt: number;
+  patternStandoffFt: number;
+  patternOverlapPct: number;
+  patternHeadingDeg: number;
+};
+
+type SavedCapturePlan = {
+  id: string;
+  name: string;
+  mission_type: CaptureMissionType;
+  schema_version: number;
+  plan_state: PersistedCapturePlanState;
+  updated_at: string;
+};
 
 const V = {
   bg: "#0B1117",
@@ -265,6 +302,168 @@ export default function DominicCapturePlanner() {
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [safetyScenario, setSafetyScenario] = useState<SafetyScenario>("battery_rth_on_first_transit");
   const [safetyScenarioResult, setSafetyScenarioResult] = useState<string | null>(null);
+  const [savedPlans, setSavedPlans] = useState<SavedCapturePlan[]>([]);
+  const [activeSavedPlanId, setActiveSavedPlanId] = useState<string | null>(null);
+  const [planName, setPlanName] = useState("Untitled Capture Plan");
+  const [planPersistenceStatus, setPlanPersistenceStatus] = useState<string | null>(null);
+  const [planPersistenceBusy, setPlanPersistenceBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const sb = getSupabaseBrowser();
+      const { data, error } = await sb
+        .from("dominic_capture_plans")
+        .select("id,name,mission_type,schema_version,plan_state,updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(50);
+      if (!active) return;
+      if (error) {
+        setPlanPersistenceStatus("Saved plans could not be loaded.");
+        return;
+      }
+      setSavedPlans((data ?? []) as SavedCapturePlan[]);
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const persistedPlanState = (): PersistedCapturePlanState => ({
+    objectDiameterFt,
+    objectHeightFt,
+    standoffFt,
+    overlapPct,
+    horizontalFovDeg,
+    centerLatitude,
+    centerLongitude,
+    baseRelativeAltitudeFt,
+    homeLatitude,
+    homeLongitude,
+    minRelativeAltitudeFt,
+    maxRelativeAltitudeFt,
+    minStandoffFt,
+    maxStandoffFt,
+    noFlySectors,
+    patternLengthFt,
+    patternWidthFt,
+    patternHeightFt,
+    patternAltitudeFt,
+    patternStandoffFt,
+    patternOverlapPct,
+    patternHeadingDeg,
+  });
+
+  const refreshSavedPlans = async () => {
+    const sb = getSupabaseBrowser();
+    const { data, error } = await sb
+      .from("dominic_capture_plans")
+      .select("id,name,mission_type,schema_version,plan_state,updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    setSavedPlans((data ?? []) as SavedCapturePlan[]);
+  };
+
+  const saveCapturePlan = async () => {
+    const cleanName = planName.trim();
+    if (!cleanName) {
+      setPlanPersistenceStatus("Give this capture plan a name before saving.");
+      return;
+    }
+    setPlanPersistenceBusy(true);
+    setPlanPersistenceStatus(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data: sessionData } = await sb.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) throw new Error("Your DOMINIC session expired.");
+
+      const payload = {
+        name: cleanName.slice(0, 120),
+        mission_type: missionType,
+        schema_version: 1,
+        plan_state: persistedPlanState(),
+      };
+
+      if (activeSavedPlanId) {
+        const { data, error } = await sb
+          .from("dominic_capture_plans")
+          .update(payload)
+          .eq("id", activeSavedPlanId)
+          .eq("user_id", userId)
+          .select("id,name")
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) throw new Error("Saved plan not found.");
+        setPlanName(data.name);
+      } else {
+        const { data, error } = await sb
+          .from("dominic_capture_plans")
+          .insert({ ...payload, user_id: userId })
+          .select("id,name")
+          .single();
+        if (error) throw error;
+        setActiveSavedPlanId(data.id);
+        setPlanName(data.name);
+      }
+
+      await refreshSavedPlans();
+      setPlanPersistenceStatus("Capture plan saved.");
+    } catch (error) {
+      setPlanPersistenceStatus(error instanceof Error ? error.message : "Capture plan could not be saved.");
+    } finally {
+      setPlanPersistenceBusy(false);
+    }
+  };
+
+  const openCapturePlan = (saved: SavedCapturePlan) => {
+    if (saved.schema_version !== 1) {
+      setPlanPersistenceStatus("This saved plan uses an unsupported planner version.");
+      return;
+    }
+    const state = saved.plan_state;
+    setMissionType(saved.mission_type);
+    setObjectDiameterFt(state.objectDiameterFt);
+    setObjectHeightFt(state.objectHeightFt);
+    setStandoffFt(state.standoffFt);
+    setOverlapPct(state.overlapPct);
+    setHorizontalFovDeg(state.horizontalFovDeg);
+    setCenterLatitude(state.centerLatitude);
+    setCenterLongitude(state.centerLongitude);
+    setBaseRelativeAltitudeFt(state.baseRelativeAltitudeFt);
+    setHomeLatitude(state.homeLatitude);
+    setHomeLongitude(state.homeLongitude);
+    setMinRelativeAltitudeFt(state.minRelativeAltitudeFt);
+    setMaxRelativeAltitudeFt(state.maxRelativeAltitudeFt);
+    setMinStandoffFt(state.minStandoffFt);
+    setMaxStandoffFt(state.maxStandoffFt);
+    setNoFlySectors(Array.isArray(state.noFlySectors) ? state.noFlySectors : []);
+    setPatternLengthFt(state.patternLengthFt);
+    setPatternWidthFt(state.patternWidthFt);
+    setPatternHeightFt(state.patternHeightFt);
+    setPatternAltitudeFt(state.patternAltitudeFt);
+    setPatternStandoffFt(state.patternStandoffFt);
+    setPatternOverlapPct(state.patternOverlapPct);
+    setPatternHeadingDeg(state.patternHeadingDeg);
+
+    // A reopened plan restores planning geometry only. Runtime capture/flight state
+    // must be deliberately re-established for safety.
+    setCurrentIndex(0);
+    setSecondaryIndex(0);
+    setCaptured({});
+    setCaptureObservations([]);
+    setSecondaryObservations([]);
+    setSafety({});
+    setMissionArmed(false);
+    setGuidanceLock(false);
+    setRealFlightApprovalSignature(null);
+    setSecondaryFlightApprovalSignature(null);
+    setAutonomousSnapshot(null);
+    setAutonomousRunning(false);
+    setActiveSavedPlanId(saved.id);
+    setPlanName(saved.name);
+    setPlanPersistenceStatus("Saved geometry loaded. Re-run safety checks before flight.");
+  };
+
 
   const plan = useMemo(
     () => calculateObjectScanPlan({ objectDiameterFt, objectHeightFt, standoffFt, overlapPct, horizontalFovDeg }),
@@ -1346,6 +1545,62 @@ export default function DominicCapturePlanner() {
             <CheckCircle2 size={15} color={V.green} /> Manual capture guidance active
           </div>
           <div style={{ color: V.muted, fontSize: 10, marginTop: 4 }}>Checkpoint model designed for future DJI mission export.</div>
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto", gap: 6, marginTop: 10 }}>
+            <input
+              aria-label="Capture plan name"
+              value={planName}
+              onChange={(event) => setPlanName(event.target.value)}
+              style={{ minWidth: 0, border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9 }}
+            />
+            <button
+              type="button"
+              onClick={() => void saveCapturePlan()}
+              disabled={planPersistenceBusy}
+              style={{ border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.10)", color: "#FFD3C0", borderRadius: 7, padding: "7px 8px", fontSize: 9, fontWeight: 900, cursor: planPersistenceBusy ? "wait" : "pointer", display: "inline-flex", gap: 5, alignItems: "center" }}
+            >
+              <Save size={11} /> {activeSavedPlanId ? "Update" : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveSavedPlanId(null);
+                setPlanName("Untitled Capture Plan");
+                setPlanPersistenceStatus("New unsaved plan.");
+              }}
+              style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}
+            >
+              New
+            </button>
+          </div>
+          {savedPlans.length ? (
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 6, marginTop: 6 }}>
+              <select
+                aria-label="Saved capture plans"
+                value={activeSavedPlanId ?? ""}
+                onChange={(event) => setActiveSavedPlanId(event.target.value || null)}
+                style={{ minWidth: 0, border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9 }}
+              >
+                <option value="">Saved plans…</option>
+                {savedPlans.map((saved) => (
+                  <option key={saved.id} value={saved.id}>
+                    {saved.name} · {missionProfiles[saved.mission_type]?.label ?? saved.mission_type}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                disabled={!activeSavedPlanId}
+                onClick={() => {
+                  const saved = savedPlans.find((item) => item.id === activeSavedPlanId);
+                  if (saved) openCapturePlan(saved);
+                }}
+                style={{ border: `1px solid ${V.line}`, background: V.panel2, color: activeSavedPlanId ? V.green : V.muted, borderRadius: 7, padding: "7px 8px", fontSize: 9, fontWeight: 900, cursor: activeSavedPlanId ? "pointer" : "not-allowed", display: "inline-flex", gap: 5, alignItems: "center" }}
+              >
+                <FolderOpen size={11} /> Open
+              </button>
+            </div>
+          ) : null}
+          {planPersistenceStatus ? <div style={{ color: V.muted, fontSize: 8, marginTop: 6, lineHeight: 1.35 }}>{planPersistenceStatus}</div> : null}
         </div>
       </div>
 

@@ -1882,3 +1882,133 @@ test("pilot cannot modify or delete another pilot aircraft", { skip: !isolated }
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("mission aircraft assignment requires FAA registration and feeds workflow readiness", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `mission-asset-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Mission-Asset-${stamp}!Aa1`;
+
+  const { data: createdUser, error: userError } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+  assert.ifError(userError);
+  const { data: contractor, error: contractorError } = await admin.from("contractors").insert({
+    user_id: createdUser.user.id,
+    full_name: "E2E Mission Asset Pilot",
+    email,
+    status: "active",
+    part107_verified: true,
+    insurance_verified: true,
+    insurance_provider: "E2E",
+    insurance_policy_number: "ASSET-E2E",
+    insurance_expires_on: "2099-12-31",
+  }).select("id").single();
+  assert.ifError(contractorError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "Mission Asset Client",
+    requester_email: `asset-client-${stamp}@e2e.dom.invalid`,
+    company: "Mission Asset Test",
+    service_type: "roof_inspection_residential",
+    location: "Mission Asset Site",
+    status: "assigned",
+  }).select("id").single();
+  assert.ifError(missionError);
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    title: "Mission Asset Gate",
+    service_type: "roof_inspection_residential",
+    location: "Mission Asset Site",
+    status: "scheduled",
+    scheduled_for: "2099-06-15T14:30:00.000Z",
+  }).select("id").single();
+  assert.ifError(jobError);
+  const { data: assignment, error: assignmentError } = await admin.from("mission_assignments").insert({
+    job_id: job.id,
+    contractor_id: contractor.id,
+    status: "accepted",
+  }).select("id").single();
+  assert.ifError(assignmentError);
+
+  const { data: asset, error: assetError } = await admin.from("pilot_assets").insert({
+    contractor_id: contractor.id,
+    asset_type: "uav",
+    manufacturer: "DJI",
+    model: "Mavic 3 Enterprise",
+    display_name: "E2E M3E",
+    status: "active",
+    capabilities_verified: true,
+  }).select("id").single();
+  assert.ifError(assetError);
+  const { error: capError } = await admin.from("pilot_asset_capabilities").insert([
+    { asset_id: asset.id, capability: "rgb_imagery" },
+    { asset_id: asset.id, capability: "mapping_photogrammetry" },
+    { asset_id: asset.id, capability: "rtk" },
+    { asset_id: asset.id, capability: "zoom_inspection" },
+    { asset_id: asset.id, capability: "video" },
+    { asset_id: asset.id, capability: "obstacle_avoidance" },
+    { asset_id: asset.id, capability: "survey_workflow" },
+  ]);
+  assert.ifError(capError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+  const headers = { Authorization: `Bearer ${signedIn.session.access_token}` };
+  const api = await request.newContext({ baseURL });
+
+  try {
+    const rejected = await api.post(`/api/pilot/missions/${assignment.id}/assets`, {
+      headers,
+      data: { assetIds: [asset.id] },
+      failOnStatusCode: false,
+    });
+    const rejectedBody = await rejected.json().catch(() => ({}));
+    assert.equal(rejected.status(), 409, JSON.stringify(rejectedBody));
+    assert.match(rejectedBody.error ?? "", /FAA registration/i);
+
+    const { error: registrationError } = await admin.from("pilot_assets")
+      .update({ registration_number: "FA3MISSIONE2E" })
+      .eq("id", asset.id);
+    assert.ifError(registrationError);
+
+    const accepted = await api.post(`/api/pilot/missions/${assignment.id}/assets`, {
+      headers,
+      data: { assetIds: [asset.id] },
+      failOnStatusCode: false,
+    });
+    const acceptedBody = await accepted.json().catch(() => ({}));
+    assert.equal(accepted.status(), 200, JSON.stringify(acceptedBody));
+    assert.ok(acceptedBody.assetIds.includes(asset.id));
+
+    const { data: syncedAssignment, error: syncedError } = await admin.from("mission_assignments")
+      .select("assigned_uav")
+      .eq("id", assignment.id)
+      .single();
+    assert.ifError(syncedError);
+    assert.match(syncedAssignment.assigned_uav ?? "", /E2E M3E/);
+
+    const workflow = await api.get(`/api/pilot/missions/${assignment.id}/workflow`, {
+      headers,
+      failOnStatusCode: false,
+    });
+    const workflowBody = await workflow.json().catch(() => ({}));
+    assert.equal(workflow.status(), 200, JSON.stringify(workflowBody));
+    assert.ok(!workflowBody.readiness.blockers.includes("A compatible UAV has not been assigned"));
+  } finally {
+    await api.dispose();
+    await admin.from("mission_asset_assignments").delete().eq("mission_assignment_id", assignment.id);
+    await admin.from("pilot_asset_capabilities").delete().eq("asset_id", asset.id);
+    await admin.from("pilot_assets").delete().eq("id", asset.id);
+    await admin.from("mission_assignments").delete().eq("id", assignment.id);
+    await admin.from("mission_checklist_items").delete().eq("assignment_id", assignment.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().eq("id", contractor.id);
+    await admin.auth.admin.deleteUser(createdUser.user.id);
+  }
+});

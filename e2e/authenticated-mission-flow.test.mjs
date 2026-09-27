@@ -1517,3 +1517,76 @@ test("pilot structured aircraft persists registration and recognized capabilitie
     await admin.auth.admin.deleteUser(createdUser.user.id);
   }
 });
+
+
+test("public pilot profile never exposes private aircraft identifiers", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const slug = `privacy-pilot-${stamp.replace(/[^a-z0-9-]/gi, "").toLowerCase()}`;
+  const serial = `SECRET-SERIAL-${stamp}`;
+  const registration = `FA3PRIVATE${stamp.slice(-4).toUpperCase()}`;
+  const remoteId = `SECRET-RID-${stamp}`;
+
+  const { data: contractor, error: contractorError } = await admin.from("contractors").insert({
+    full_name: "E2E Privacy Pilot",
+    email: `privacy-${stamp}@e2e.dom.invalid`,
+    status: "active",
+    slug,
+    profile_published: true,
+    subscription_active: true,
+    part107_verified: true,
+    insurance_verified: true,
+    equipment: null,
+  }).select("id").single();
+  assert.ifError(contractorError);
+
+  const { data: asset, error: assetError } = await admin.from("pilot_assets").insert({
+    contractor_id: contractor.id,
+    asset_type: "uav",
+    manufacturer: "DJI",
+    model: "Avata 2",
+    display_name: "Public Avata 2",
+    serial_number: serial,
+    registration_number: registration,
+    remote_id: remoteId,
+    firmware_version: "SECRET-FIRMWARE-9.9.9",
+    notes: "SECRET-NOTES-DO-NOT-EXPOSE",
+    status: "active",
+    public_visible: true,
+    public_description: "Publicly visible aircraft description",
+    capabilities_verified: true,
+  }).select("id").single();
+  assert.ifError(assetError);
+
+  const { error: capError } = await admin.from("pilot_asset_capabilities").insert([
+    { asset_id: asset.id, capability: "rgb_imagery" },
+    { asset_id: asset.id, capability: "video" },
+  ]);
+  assert.ifError(capError);
+
+  const page = await browser.newPage();
+  try {
+    const response = await page.goto(`${baseURL}/pilots/${slug}`, {
+      waitUntil: "networkidle",
+      timeout: 45_000,
+    });
+    assert.ok(response && response.status() < 400);
+    const html = await page.content();
+
+    assert.match(html, /Public Avata 2/);
+    assert.match(html, /Publicly visible aircraft description/);
+    assert.doesNotMatch(html, new RegExp(serial));
+    assert.doesNotMatch(html, new RegExp(registration));
+    assert.doesNotMatch(html, new RegExp(remoteId));
+    assert.doesNotMatch(html, /SECRET-FIRMWARE-9\.9\.9/);
+    assert.doesNotMatch(html, /SECRET-NOTES-DO-NOT-EXPOSE/);
+  } finally {
+    await page.close();
+    await admin.from("pilot_asset_capabilities").delete().eq("asset_id", asset.id);
+    await admin.from("pilot_assets").delete().eq("id", asset.id);
+    await admin.from("contractors").delete().eq("id", contractor.id);
+  }
+});

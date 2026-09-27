@@ -34,7 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: project } = await admin
     .from("mapping_projects")
-    .select("id, image_count, total_upload_bytes")
+    .select("id")
     .eq("id", id)
     .eq("contractor_id", auth.contractor.id)
     .maybeSingle();
@@ -78,14 +78,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  await admin
+  // image_count and total_upload_bytes are maintained atomically by
+  // trg_mapping_images_project_summary. Do not increment them here as well.
+  const { error: projectStatusError } = await admin
     .from("mapping_projects")
-    .update({
-      image_count: project.image_count + 1,
-      total_upload_bytes: project.total_upload_bytes + (fileSize ?? 0),
-      status: "uploaded",
-    })
+    .update({ status: "uploaded" })
     .eq("id", project.id);
+  if (projectStatusError) {
+    return NextResponse.json({ error: "Image was recorded, but the project status could not be updated." }, { status: 500 });
+  }
 
   return NextResponse.json({ ok: true, imageId: image.id });
 }

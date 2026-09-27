@@ -27,6 +27,9 @@ export const domKnowledge = {
   ],
   serviceAreas: [
     { slug: "delaware-county-pa", name: "Delaware County, Pennsylvania", region: "Southeastern Pennsylvania", description: "DOM's home-region commercial drone service area for mapping, inspection, documentation, and aerial data missions." },
+    { slug: "chester-county-pa", name: "Chester County, Pennsylvania", region: "Southeastern Pennsylvania", description: "Commercial drone mapping, inspections, construction documentation, aerial photography, and data missions across Chester County are evaluated by site and airspace requirements." },
+    { slug: "philadelphia-pa", name: "Philadelphia, Pennsylvania", region: "Southeastern Pennsylvania", description: "Commercial drone services for Philadelphia properties and projects are scoped around controlled airspace, site conditions, safety, and required deliverables." },
+    { slug: "new-castle-county-de", name: "New Castle County, Delaware", region: "Northern Delaware", description: "DOM supports commercial aerial mapping, inspection, photography, and documentation missions in northern Delaware according to mission requirements." },
     { slug: "greater-philadelphia", name: "Greater Philadelphia", region: "Pennsylvania", description: "Commercial drone missions in the Greater Philadelphia region are scoped according to site, airspace, safety, and project requirements." },
     { slug: "southeastern-pennsylvania", name: "Southeastern Pennsylvania", region: "Pennsylvania", description: "Regional aerial operations for commercial properties, construction, infrastructure, facilities, and land projects." },
   ],

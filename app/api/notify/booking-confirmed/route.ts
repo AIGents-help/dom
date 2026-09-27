@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
       missionRequestId: mr.id,
       subject,
       html,
+      idempotencyKey: `booking-confirmed/${mr.id}`,
     });
 
     return NextResponse.json(result);

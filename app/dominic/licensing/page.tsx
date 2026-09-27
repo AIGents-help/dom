@@ -81,13 +81,14 @@ const plans = [
     title: "DOMINIC Free",
     price: "$0",
     suffix: "/ month",
-    copy: "Create your DOMINIC profile and start using the core planning experience with no credit card.",
+    copy: "Keep the core planning experience free forever. New accounts also receive a 30-day Operator trial for mapping and processing — no credit card required.",
     items: [
       "Free DOMINIC profile",
       "DOMINIC Home workspace",
       "Manual Capture Planner",
       "Basic mission planning",
       "Preview next-generation modules",
+      "30-day Operator mapping + processing trial",
     ],
     cta: "Create Free Profile",
     href: "/dominic/signup",
@@ -101,7 +102,7 @@ const plans = [
     items: [
       "Everything in Free",
       "Persistent DOMINIC projects",
-      "Mapping + processing workflows",
+      "Mapping + processing workflows after the trial",
       "3D + point-cloud tools",
       "Deliverables and project history",
     ],
@@ -132,6 +133,8 @@ const plans = [
     suffix: "deployment",
     copy: "For municipalities, public safety, industrial programs, and enterprise teams that need controlled deployment and tailored workflows.",
     items: [
+      "Everything in Team",
+      "DOMINIC HUB industrial operations environment",
       "Organization-wide deployment",
       "Configurable workflows",
       "Advanced permissions and rollout",
@@ -146,7 +149,7 @@ const plans = [
 const faqs = [
   [
     "Is DOMINIC really free to start?",
-    "Yes. DOMINIC Free is intended to be a permanent entry tier. Create a profile and use the basic DOMINIC planning experience without a paid license.",
+    "Yes. DOMINIC Free is permanent. Home, the Manual Capture Planner, basic planning, and preview modules stay available without a paid license. New accounts also receive a 30-day Operator trial for mapping and processing.",
   ],
   [
     "Do I need to be a DOM pilot to use DOMINIC?",
@@ -158,7 +161,7 @@ const faqs = [
   ],
   [
     "What changes when I upgrade?",
-    "Paid licensing unlocks the heavier operational layers such as persistent production projects, mapping and processing, advanced 3D workflows, deliverables, team collaboration, and organization deployment.",
+    "After the 30-day Operator trial, Free remains available while persistent projects, mapping, processing, advanced 3D workflows, and deliverables require Operator or higher. DOMINIC HUB industrial operations requires an Organization license.",
   ],
 ];
 

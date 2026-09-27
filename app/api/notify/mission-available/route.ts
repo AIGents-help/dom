@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
       missionRequestId: mr.id,
       subject,
       html,
+      idempotencyKey: `mission-available/${mr.id}/${contractorId}`,
     });
 
     return NextResponse.json(result);

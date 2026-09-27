@@ -4730,3 +4730,78 @@ test("DOMINIC entitlement endpoint and Mapping API enforce trial and paid tiers"
     await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("storefront renders product images and fulfillment state", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const madeKey = `e2e-made-${stamp}`;
+  const stockKey = `e2e-stock-${stamp}`;
+  const madeName = `E2E Made Product ${stamp}`;
+  const stockName = `E2E Stock Product ${stamp}`;
+
+  const { error: insertError } = await admin.from("shop_inventory").insert([
+    {
+      product_key: madeKey,
+      product_name: madeName,
+      description: "Made-to-order storefront rendering fixture",
+      unit_amount_cents: 1500,
+      variants: [],
+      category: "Equipment",
+      image_url: "/shop/safety/portable-landing-pad.jpeg",
+      active: true,
+      fulfillment_mode: "made_to_order",
+      available_quantity: null,
+      shipping_base_cents: 0,
+      shipping_additional_cents: 0,
+    },
+    {
+      product_key: stockKey,
+      product_name: stockName,
+      description: "Stocked storefront rendering fixture",
+      unit_amount_cents: 2500,
+      variants: [],
+      category: "Safety",
+      image_url: "/shop/safety/drone-operation-vest-front.jpeg",
+      active: true,
+      fulfillment_mode: "stocked",
+      available_quantity: 3,
+      shipping_base_cents: 0,
+      shipping_additional_cents: 0,
+    },
+  ]);
+  assert.ifError(insertError);
+
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+
+  try {
+    const response = await page.goto(`${baseURL}/shop/products`, {
+      waitUntil: "networkidle",
+      timeout: 45_000,
+    });
+    assert.ok(response && response.status() < 400, `storefront returned ${response?.status()}`);
+
+    const madeCard = page.locator("article").filter({ hasText: madeName });
+    await madeCard.getByText(madeName, { exact: true }).waitFor({ timeout: 15_000 });
+    await madeCard.getByText("Made to order", { exact: true }).waitFor();
+    await madeCard.getByText(/Built when ordered/i).waitFor();
+    const madeImage = madeCard.getByRole("img", { name: madeName });
+    await madeImage.waitFor();
+    assert.match(await madeImage.getAttribute("src") ?? "", /portable-landing-pad/);
+
+    const stockCard = page.locator("article").filter({ hasText: stockName });
+    await stockCard.getByText(stockName, { exact: true }).waitFor();
+    await stockCard.getByText("3 in stock", { exact: true }).waitFor();
+    const stockImage = stockCard.getByRole("img", { name: stockName });
+    await stockImage.waitFor();
+    assert.match(await stockImage.getAttribute("src") ?? "", /drone-operation-vest-front/);
+  } finally {
+    await page.close();
+    await browser.close();
+    await admin.from("shop_inventory").delete().in("product_key", [madeKey, stockKey]);
+  }
+});

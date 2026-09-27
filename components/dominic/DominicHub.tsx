@@ -51,7 +51,7 @@ type HubMissionRow = {
   route_mode: string;
   recurrence_label: string;
   scheduled_local_time: string;
-  status: "ready" | "paused" | "completed" | "cancelled";
+  status: "ready" | "running" | "paused" | "completed" | "cancelled";
   simulation_only: boolean;
   created_at: string;
   updated_at: string;
@@ -212,7 +212,7 @@ export default function DominicHub() {
   const [selectedAircraft, setSelectedAircraft] = useState("DOM-401");
   const [routeMode, setRouteMode] = useState<"Patrol" | "Thermal Sweep" | "LDAR East">("LDAR East");
   const [alerts, setAlerts] = useState(() => initialAlerts.map((a) => ({ ...a, ack: false })));
-  const [simulationRunning, setSimulationRunning] = useState(true);
+  const [simulationRunning, setSimulationRunning] = useState(false);
   const [scheduleEnabled, setScheduleEnabled] = useState(true);
   const [scheduleTime, setScheduleTime] = useState("06:00");
   const [recurrenceLabel, setRecurrenceLabel] = useState("MON / WED / FRI");
@@ -221,6 +221,9 @@ export default function DominicHub() {
   const [hubDataLoading, setHubDataLoading] = useState(true);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
+  const [activeHubMissionId, setActiveHubMissionId] = useState<string | null>(null);
+  const [hubCommandMessage, setHubCommandMessage] = useState<string | null>(null);
+  const [hubCommandBusy, setHubCommandBusy] = useState(false);
 
   const refreshHubData = async () => {
     const sb = getSupabaseBrowser();
@@ -278,6 +281,8 @@ export default function DominicHub() {
       if (!savedId) throw new Error("HUB schedule was not saved.");
 
       await refreshHubData();
+      setActiveHubMissionId(savedId);
+      setSimulationRunning(false);
       setScheduleMessage("Simulation schedule saved to DOMINIC HUB.");
     } catch (error) {
       setScheduleMessage(error instanceof Error ? error.message : "Simulation schedule could not be saved.");
@@ -292,8 +297,42 @@ export default function DominicHub() {
     if ((["Patrol", "Thermal Sweep", "LDAR East"] as string[]).includes(mission.route_mode)) {
       setRouteMode(mission.route_mode as "Patrol" | "Thermal Sweep" | "LDAR East");
     }
-    setSimulationRunning(false);
+    setActiveHubMissionId(mission.id);
+    setSimulationRunning(mission.status === "running");
+    setHubCommandMessage(
+      mission.status === "completed" || mission.status === "cancelled"
+        ? `This simulation mission is ${mission.status} and cannot be restarted.`
+        : null,
+    );
     setView("Command");
+  };
+
+  const setSimulationStatus = async (status: "running" | "paused") => {
+    if (!activeHubMissionId) {
+      setHubCommandMessage("Open a saved HUB mission from Scheduler before starting simulation.");
+      return;
+    }
+    setHubCommandBusy(true);
+    setHubCommandMessage(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data: sessionData } = await sb.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) throw new Error("Your DOMINIC session expired.");
+      const { data: nextStatus, error } = await sb.rpc("set_dominic_hub_simulation_status_service", {
+        p_user_id: userId,
+        p_mission_id: activeHubMissionId,
+        p_status: status,
+      });
+      if (error) throw error;
+      setSimulationRunning(nextStatus === "running");
+      await refreshHubData();
+      setHubCommandMessage(nextStatus === "running" ? "Simulation mission running." : "Simulation mission paused.");
+    } catch (error) {
+      setHubCommandMessage(error instanceof Error ? error.message : "Simulation state could not be updated.");
+    } finally {
+      setHubCommandBusy(false);
+    }
   };
 
   const selected = useMemo(() => aircraft.find((a) => a.id === selectedAircraft) ?? aircraft[0], [selectedAircraft]);
@@ -302,7 +341,7 @@ export default function DominicHub() {
     <div style={{ display: "grid", gap: 12 }}>
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(300px,.8fr)", gap: 12 }}>
         <Panel>
-          <Header eyebrow="Live Operation" title="Refinery Command Map" right={<StatusPill tone={simulationRunning ? "green" : "amber"}>{simulationRunning ? "SIM ACTIVE" : "PAUSED"}</StatusPill>} />
+          <Header eyebrow="Live Operation" title="Refinery Command Map" right={<StatusPill tone={simulationRunning ? "green" : activeHubMissionId ? "amber" : "blue"}>{simulationRunning ? "SIM ACTIVE" : activeHubMissionId ? "SIM PAUSED" : "NO SAVED MISSION"}</StatusPill>} />
           <RefineryMap activeRoute={simulationRunning} />
         </Panel>
         <div style={{ display: "grid", gap: 12 }}>
@@ -319,9 +358,14 @@ export default function DominicHub() {
                   </div>
                 ))}
               </div>
-              <button onClick={() => setSimulationRunning((v) => !v)} style={{ width: "100%", marginTop: 12, border: 0, borderRadius: 9, padding: "10px 12px", background: simulationRunning ? "#28313A" : `linear-gradient(90deg,${ORANGE_DARK},${ORANGE})`, color: TEXT, fontWeight: 900, cursor: "pointer" }}>
-                {simulationRunning ? "Pause Simulation" : "Start Simulated Mission"}
+              <button
+                onClick={() => void setSimulationStatus(simulationRunning ? "paused" : "running")}
+                disabled={hubCommandBusy || !activeHubMissionId || hubMissions.find((item) => item.id === activeHubMissionId)?.status === "completed" || hubMissions.find((item) => item.id === activeHubMissionId)?.status === "cancelled"}
+                style={{ width: "100%", marginTop: 12, border: 0, borderRadius: 9, padding: "10px 12px", background: simulationRunning ? "#28313A" : `linear-gradient(90deg,${ORANGE_DARK},${ORANGE})`, color: TEXT, fontWeight: 900, cursor: hubCommandBusy ? "wait" : activeHubMissionId ? "pointer" : "not-allowed", opacity: activeHubMissionId ? 1 : .55 }}
+              >
+                {hubCommandBusy ? "Updating…" : simulationRunning ? "Pause Simulation" : activeHubMissionId ? "Start Simulated Mission" : "Open Saved Mission in Scheduler"}
               </button>
+              {hubCommandMessage ? <div style={{ color: hubCommandMessage.includes("running") ? GREEN : MUTED, fontSize: 9, marginTop: 7 }}>{hubCommandMessage}</div> : null}
             </div>
           </Panel>
           <Panel>
@@ -431,7 +475,7 @@ export default function DominicHub() {
                 <div style={{ fontSize: 11, fontWeight: 900 }}>{mission.name}</div>
                 <div style={{ color: MUTED, fontSize: 8, marginTop: 3 }}>{mission.aircraft_label} · {mission.recurrence_label} · {mission.route_mode}</div>
               </div>
-              <StatusPill tone={mission.status === "ready" ? "green" : mission.status === "paused" ? "amber" : "blue"}>{mission.status.toUpperCase()}</StatusPill>
+              <StatusPill tone={mission.status === "ready" || mission.status === "running" ? "green" : mission.status === "paused" ? "amber" : "blue"}>{mission.status.toUpperCase()}</StatusPill>
               <button onClick={() => openSavedMission(mission)} style={{ border: `1px solid ${LINE}`, background: "#0B1117", color: TEXT, borderRadius: 8, padding: "8px 9px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}>Open Mission</button>
             </div>
           ))}

@@ -46,6 +46,31 @@ test("pilot-owned team mission completes without DOM approval", { skip: !isolate
   const ownerContractor = contractors.find((item) => item.user_id === ownerUser.id);
   const fieldContractor = contractors.find((item) => item.user_id === fieldUser.id);
 
+  const { error: requirementError } = await admin.from("mission_capability_requirements").upsert({
+    service_type: "aerial_images",
+    capability: "rgb_imagery",
+    required: true,
+  }, { onConflict: "service_type,capability" });
+  assert.ifError(requirementError);
+
+  const { data: fieldAsset, error: fieldAssetError } = await admin.from("pilot_assets").insert({
+    contractor_id: fieldContractor.id,
+    asset_type: "uav",
+    manufacturer: "DJI",
+    model: "Matrice 4E",
+    display_name: "E2E Matrice 4E",
+    registration_number: "FA3TEAMFLOW",
+    status: "active",
+    capabilities_verified: true,
+    capabilities_verified_at: new Date().toISOString(),
+  }).select("id").single();
+  assert.ifError(fieldAssetError);
+  const { error: fieldCapError } = await admin.from("pilot_asset_capabilities").insert({
+    asset_id: fieldAsset.id,
+    capability: "rgb_imagery",
+  });
+  assert.ifError(fieldCapError);
+
   const signIn = async (email) => {
     const client = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
     const { data, error } = await client.auth.signInWithPassword({ email, password });
@@ -164,6 +189,9 @@ test("pilot-owned team mission completes without DOM approval", { skip: !isolate
   } finally {
     await api.dispose();
     await browser.close();
+    await admin.from("pilot_asset_capabilities").delete().eq("asset_id", fieldAsset.id);
+    await admin.from("pilot_assets").delete().eq("id", fieldAsset.id);
+    await admin.from("mission_capability_requirements").delete().eq("service_type", "aerial_images").eq("capability", "rgb_imagery");
     await admin.auth.admin.deleteUser(fieldUser.id);
     await admin.auth.admin.deleteUser(ownerUser.id);
   }
@@ -1221,6 +1249,7 @@ test("team pilot eligibility uses structured registered assets instead of legacy
       insurance_provider: "E2E",
       insurance_policy_number: "FIELD-E2E",
       insurance_expires_on: "2099-12-31",
+      can_create_missions: false,
       equipment: "legacy text intentionally incompatible",
     },
   ]).select("id,user_id");
@@ -1567,7 +1596,8 @@ test("public pilot profile never exposes private aircraft identifiers", { skip: 
   ]);
   assert.ifError(capError);
 
-  const page = await browser.newPage();
+  const privacyBrowser = await chromium.launch({ headless: true });
+  const page = await privacyBrowser.newPage();
   try {
     const response = await page.goto(`${baseURL}/pilots/${slug}`, {
       waitUntil: "networkidle",
@@ -1585,6 +1615,7 @@ test("public pilot profile never exposes private aircraft identifiers", { skip: 
     assert.doesNotMatch(html, /SECRET-NOTES-DO-NOT-EXPOSE/);
   } finally {
     await page.close();
+    await privacyBrowser.close();
     await admin.from("pilot_asset_capabilities").delete().eq("asset_id", asset.id);
     await admin.from("pilot_assets").delete().eq("id", asset.id);
     await admin.from("contractors").delete().eq("id", contractor.id);

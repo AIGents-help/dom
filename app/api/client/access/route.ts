@@ -11,15 +11,39 @@ export async function POST(req: NextRequest) {
     if (!client) return NextResponse.json({ error: "No DOM client account exists for this email." }, { status: 403 });
 
     const supabase = getSupabaseAnonServer();
+    const normalizedEmail = email.trim();
     const result = action === "activate"
-      ? await supabase.auth.signUp({ email: email.trim(), password })
-      : await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      ? await supabase.auth.signUp({ email: normalizedEmail, password })
+      : await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
     if (result.error || !result.data.user) return NextResponse.json({ error: result.error?.message ?? "Access failed" }, { status: 401 });
 
-    if (!client.user_id) await admin.from("clients").update({ user_id: result.data.user.id }).eq("id", client.id).is("user_id", null);
-    else if (client.user_id !== result.data.user.id) return NextResponse.json({ error: "This client account is linked to another login." }, { status: 403 });
+    // Never bind a client record to a newly-created auth identity until that
+    // identity has a real session. With email confirmation enabled, signUp
+    // returns a user before ownership of the email address has been proven.
+    if (action === "activate" && !result.data.session) {
+      return NextResponse.json({ session: null, confirmationRequired: true });
+    }
 
-    return NextResponse.json({ session: result.data.session, confirmationRequired: !result.data.session });
+    if (!client.user_id) {
+      const { data: linkedClient, error: linkError } = await admin
+        .from("clients")
+        .update({ user_id: result.data.user.id })
+        .eq("id", client.id)
+        .is("user_id", null)
+        .select("user_id")
+        .maybeSingle();
+      if (linkError) return NextResponse.json({ error: "Client account could not be linked." }, { status: 500 });
+      if (!linkedClient) {
+        const { data: currentClient } = await admin.from("clients").select("user_id").eq("id", client.id).maybeSingle();
+        if (currentClient?.user_id !== result.data.user.id) {
+          return NextResponse.json({ error: "This client account is linked to another login." }, { status: 403 });
+        }
+      }
+    } else if (client.user_id !== result.data.user.id) {
+      return NextResponse.json({ error: "This client account is linked to another login." }, { status: 403 });
+    }
+
+    return NextResponse.json({ session: result.data.session, confirmationRequired: false });
   } catch (error: any) {
     return NextResponse.json({ error: error.message ?? "Client access failed" }, { status: 500 });
   }

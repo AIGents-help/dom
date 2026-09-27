@@ -42,6 +42,7 @@ import {
 } from "@/lib/capturePlanner";
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { resolveCaptureCameraProfile } from "@/lib/captureCameraProfiles";
 import {
   SafetyScenarioAircraftAdapter,
   safetyScenarioLabels,
@@ -93,6 +94,7 @@ type PersistedCapturePlanState = {
   standoffFt: number;
   overlapPct: number;
   horizontalFovDeg: number;
+  verticalFovDeg?: number;
   centerLatitude: number;
   centerLongitude: number;
   baseRelativeAltitudeFt: number;
@@ -110,6 +112,13 @@ type PersistedCapturePlanState = {
   patternStandoffFt: number;
   patternOverlapPct: number;
   patternHeadingDeg: number;
+};
+
+type PlannerAircraft = {
+  id: string;
+  manufacturer: string | null;
+  model: string | null;
+  display_name: string | null;
 };
 
 type SavedCapturePlan = {
@@ -237,6 +246,7 @@ export default function DominicCapturePlanner() {
   const [standoffFt, setStandoffFt] = useState(18);
   const [overlapPct, setOverlapPct] = useState(75);
   const [horizontalFovDeg, setHorizontalFovDeg] = useState(84);
+  const [verticalFovDeg, setVerticalFovDeg] = useState(68.1);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [captured, setCaptured] = useState<Record<string, boolean>>({});
   const [captureObservations, setCaptureObservations] = useState<CaptureObservation[]>([]);
@@ -307,6 +317,25 @@ export default function DominicCapturePlanner() {
   const [planName, setPlanName] = useState("Untitled Capture Plan");
   const [planPersistenceStatus, setPlanPersistenceStatus] = useState<string | null>(null);
   const [planPersistenceBusy, setPlanPersistenceBusy] = useState(false);
+  const [pilotAircraft, setPilotAircraft] = useState<PlannerAircraft[]>([]);
+  const [selectedAircraftId, setSelectedAircraftId] = useState("");
+  const [cameraProfileMessage, setCameraProfileMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const sb = getSupabaseBrowser();
+      const { data } = await sb
+        .from("pilot_assets")
+        .select("id,manufacturer,model,display_name")
+        .eq("asset_type", "uav")
+        .eq("status", "active")
+        .is("archived_at", null)
+        .order("created_at", { ascending: false });
+      if (active) setPilotAircraft((data ?? []) as PlannerAircraft[]);
+    })();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -333,6 +362,7 @@ export default function DominicCapturePlanner() {
     standoffFt,
     overlapPct,
     horizontalFovDeg,
+    verticalFovDeg,
     centerLatitude,
     centerLongitude,
     baseRelativeAltitudeFt,
@@ -427,6 +457,9 @@ export default function DominicCapturePlanner() {
     setStandoffFt(state.standoffFt);
     setOverlapPct(state.overlapPct);
     setHorizontalFovDeg(state.horizontalFovDeg);
+    setVerticalFovDeg(typeof state.verticalFovDeg === "number" ? state.verticalFovDeg : 60);
+    setSelectedAircraftId("");
+    setCameraProfileMessage("Saved camera geometry restored. Select an aircraft to refresh it from the DOM catalog.");
     setCenterLatitude(state.centerLatitude);
     setCenterLongitude(state.centerLongitude);
     setBaseRelativeAltitudeFt(state.baseRelativeAltitudeFt);
@@ -464,6 +497,23 @@ export default function DominicCapturePlanner() {
     setPlanPersistenceStatus("Saved geometry loaded. Re-run safety checks before flight.");
   };
 
+
+  const applyAircraftCamera = (assetId: string) => {
+    setSelectedAircraftId(assetId);
+    const aircraft = pilotAircraft.find((item) => item.id === assetId);
+    if (!aircraft) {
+      setCameraProfileMessage("Manual camera geometry active.");
+      return;
+    }
+    const profile = resolveCaptureCameraProfile(aircraft);
+    if (!profile) {
+      setCameraProfileMessage("DOM recognizes this aircraft inventory record, but its camera geometry is payload-dependent or not yet cataloged. Enter FOV manually.");
+      return;
+    }
+    setHorizontalFovDeg(profile.horizontalFovDeg);
+    setVerticalFovDeg(profile.verticalFovDeg);
+    setCameraProfileMessage(`${profile.label}: ${profile.horizontalFovDeg}° horizontal · ${profile.verticalFovDeg.toFixed(1)}° vertical FOV applied.`);
+  };
 
   const plan = useMemo(
     () => calculateObjectScanPlan({ objectDiameterFt, objectHeightFt, standoffFt, overlapPct, horizontalFovDeg }),
@@ -1324,7 +1374,7 @@ export default function DominicCapturePlanner() {
           frontOverlapPct: patternOverlapPct,
           sideOverlapPct: Math.max(40, patternOverlapPct - 5),
           horizontalFovDeg,
-          verticalFovDeg: 60,
+          verticalFovDeg,
           includeObliques: true,
         });
       case "building":
@@ -1335,7 +1385,7 @@ export default function DominicCapturePlanner() {
           standoffFt: patternStandoffFt,
           overlapPct: patternOverlapPct,
           horizontalFovDeg,
-          verticalFovDeg: 60,
+          verticalFovDeg,
         });
       case "facade":
         return calculateFacadePlan({
@@ -1344,7 +1394,7 @@ export default function DominicCapturePlanner() {
           standoffFt: patternStandoffFt,
           overlapPct: patternOverlapPct,
           horizontalFovDeg,
-          verticalFovDeg: 60,
+          verticalFovDeg,
         });
       case "interior":
         return calculateInteriorPlan({
@@ -1361,7 +1411,7 @@ export default function DominicCapturePlanner() {
           altitudeAboveTopFt: patternAltitudeFt,
           overlapPct: patternOverlapPct,
           horizontalFovDeg,
-          verticalFovDeg: 60,
+          verticalFovDeg,
         });
       case "corridor":
         return calculateCorridorPlan({
@@ -1371,7 +1421,7 @@ export default function DominicCapturePlanner() {
           frontOverlapPct: patternOverlapPct,
           sideOverlapPct: Math.max(40, patternOverlapPct - 10),
           horizontalFovDeg,
-          verticalFovDeg: 60,
+          verticalFovDeg,
         });
     }
   }, [
@@ -1383,6 +1433,7 @@ export default function DominicCapturePlanner() {
     patternStandoffFt,
     patternOverlapPct,
     horizontalFovDeg,
+    verticalFovDeg,
   ]);
 
   const secondaryGeographicCheckpoints = secondaryPlan
@@ -1631,6 +1682,34 @@ export default function DominicCapturePlanner() {
           );
         })}
       </div>
+
+      <section style={{ margin: "12px 14px 0", border: `1px solid ${V.line}`, borderRadius: 10, background: V.panel, padding: 11 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ minWidth: 220, flex: "1 1 260px" }}>
+            <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, letterSpacing: ".09em", textTransform: "uppercase" }}>Aircraft / camera geometry</div>
+            <select
+              aria-label="Capture aircraft camera"
+              value={selectedAircraftId}
+              onChange={(event) => applyAircraftCamera(event.target.value)}
+              style={{ width: "100%", marginTop: 6, border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9 }}
+            >
+              <option value="">Manual / custom camera</option>
+              {pilotAircraft.map((aircraft) => (
+                <option key={aircraft.id} value={aircraft.id}>
+                  {[aircraft.manufacturer, aircraft.model, aircraft.display_name].filter(Boolean).join(" · ")}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, flex: "0 1 310px" }}>
+            <Field label="Horizontal FOV" value={horizontalFovDeg} min={25} max={140} step={0.1} suffix="deg" onChange={(value) => { setSelectedAircraftId(""); setHorizontalFovDeg(value); setCameraProfileMessage("Manual camera geometry active."); }} />
+            <Field label="Vertical FOV" value={verticalFovDeg} min={20} max={120} step={0.1} suffix="deg" onChange={(value) => { setSelectedAircraftId(""); setVerticalFovDeg(value); setCameraProfileMessage("Manual camera geometry active."); }} />
+          </div>
+        </div>
+        <p style={{ margin: "7px 0 0", color: V.muted, fontSize: 8, lineHeight: 1.4 }}>
+          {cameraProfileMessage ?? (pilotAircraft.length ? "Select an aircraft from your Pilot Profile to apply its cataloged camera geometry, or leave Manual selected." : "No active Pilot Profile aircraft found. Enter camera field of view manually.")}
+        </p>
+      </section>
 
       {missionType !== "object" ? (
         <div style={{ padding: 18, display: "grid", gridTemplateColumns: "minmax(280px,.75fr) minmax(0,1.25fr)", gap: 14, alignItems: "start" }}>
@@ -1963,9 +2042,6 @@ export default function DominicCapturePlanner() {
                 <Field label="Height" value={objectHeightFt} min={1} max={500} suffix="ft" onChange={setObjectHeightFt} />
                 <Field label="Stand-off" value={standoffFt} min={3} max={500} suffix="ft" onChange={setStandoffFt} />
                 <Field label="Overlap" value={overlapPct} min={40} max={95} suffix="%" onChange={setOverlapPct} />
-              </div>
-              <div style={{ marginTop: 9 }}>
-                <Field label="Horizontal camera FOV" value={horizontalFovDeg} min={25} max={120} suffix="deg" onChange={setHorizontalFovDeg} />
               </div>
             </section>
 

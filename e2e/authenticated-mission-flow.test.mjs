@@ -3629,3 +3629,113 @@ test("pilot-owned mission certifies only the corrected current revision", { skip
     await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("admin lead conversion is atomic and idempotent", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const adminEmail = `convert-admin-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Convert-E2E-${stamp}!Aa1`;
+  const leadEmail = `convert-lead-${stamp}@e2e.dom.invalid`;
+
+  const { data: adminUserData, error: adminUserError } = await admin.auth.admin.createUser({
+    email: adminEmail,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(adminUserError);
+  const adminUser = adminUserData.user;
+  assert.ok(adminUser);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email: adminEmail,
+    full_name: "E2E Conversion Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { data: lead, error: leadError } = await admin.from("leads").insert({
+    name: "E2E Conversion Lead",
+    email: leadEmail,
+    company: "E2E Conversion Company",
+    phone: "555-0199",
+    industry: "roofing",
+    source: "e2e",
+    status: "qualified",
+  }).select("id").single();
+  assert.ifError(leadError);
+
+  const { data: originalActivity, error: activityError } = await admin.from("lead_activities").insert({
+    lead_id: lead.id,
+    activity_type: "call",
+    summary: "Existing CRM history before conversion",
+    created_by: adminEmail,
+  }).select("id").single();
+  assert.ifError(activityError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({
+    email: adminEmail,
+    password,
+  });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const headers = {
+    Authorization: `Bearer ${signedIn.session.access_token}`,
+    "Content-Type": "application/json",
+  };
+  const api = await request.newContext({ baseURL });
+
+  let clientId = null;
+  try {
+    const first = await api.post(`/api/admin/leads/${lead.id}/convert`, {
+      headers,
+      data: {},
+      failOnStatusCode: false,
+    });
+    const firstBody = await first.json().catch(() => ({}));
+    assert.equal(first.status(), 200, JSON.stringify(firstBody));
+    clientId = firstBody.clientId;
+    assert.ok(clientId);
+
+    const [{ data: convertedLead }, { data: client }, { data: activities }] = await Promise.all([
+      admin.from("leads").select("id,status").eq("id", lead.id).single(),
+      admin.from("clients").select("id,lead_id,email,company_name").eq("id", clientId).single(),
+      admin.from("lead_activities").select("id,activity_type,summary,created_by").eq("lead_id", lead.id).order("created_at"),
+    ]);
+
+    assert.equal(convertedLead.status, "won");
+    assert.equal(client.lead_id, lead.id);
+    assert.equal(client.email, leadEmail);
+    assert.equal(client.company_name, "E2E Conversion Company");
+    assert.ok(activities.some((item) => item.id === originalActivity.id && item.summary === "Existing CRM history before conversion"));
+    assert.equal(activities.filter((item) => item.summary === "Converted to client (status: Won)").length, 1);
+
+    const second = await api.post(`/api/admin/leads/${lead.id}/convert`, {
+      headers,
+      data: {},
+      failOnStatusCode: false,
+    });
+    const secondBody = await second.json().catch(() => ({}));
+    assert.equal(second.status(), 200, JSON.stringify(secondBody));
+    assert.equal(secondBody.clientId, clientId);
+
+    const [{ count: clientCount }, { data: activitiesAfter }] = await Promise.all([
+      admin.from("clients").select("id", { count: "exact", head: true }).eq("lead_id", lead.id),
+      admin.from("lead_activities").select("summary").eq("lead_id", lead.id),
+    ]);
+    assert.equal(clientCount, 1);
+    assert.equal(activitiesAfter.filter((item) => item.summary === "Converted to client (status: Won)").length, 1);
+  } finally {
+    await api.dispose();
+    if (clientId) await admin.from("clients").delete().eq("id", clientId);
+    await admin.from("lead_activities").delete().eq("lead_id", lead.id);
+    await admin.from("leads").delete().eq("id", lead.id);
+    await admin.from("admin_users").delete().eq("email", adminEmail);
+    await admin.auth.admin.deleteUser(adminUser.id);
+  }
+});

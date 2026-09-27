@@ -1806,3 +1806,79 @@ test("client cannot review another client deliverable by id", { skip: !isolated 
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("pilot cannot modify or delete another pilot aircraft", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Asset-Isolation-${stamp}!Aa1`;
+  const attackerEmail = `asset-attacker-${stamp}@e2e.dom.invalid`;
+  const ownerEmail = `asset-owner-${stamp}@e2e.dom.invalid`;
+
+  const users = [];
+  for (const email of [attackerEmail, ownerEmail]) {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    users.push(data.user);
+  }
+
+  const { data: contractors, error: contractorError } = await admin.from("contractors").insert([
+    { user_id: users[0].id, full_name: "Asset Attacker", email: attackerEmail, status: "active", part107_verified: true },
+    { user_id: users[1].id, full_name: "Asset Owner", email: ownerEmail, status: "active", part107_verified: true },
+  ]).select("id,user_id");
+  assert.ifError(contractorError);
+  const attacker = contractors.find((item) => item.user_id === users[0].id);
+  const owner = contractors.find((item) => item.user_id === users[1].id);
+  assert.ok(attacker && owner);
+
+  const { data: victimAsset, error: assetError } = await admin.from("pilot_assets").insert({
+    contractor_id: owner.id,
+    asset_type: "uav",
+    manufacturer: "DJI",
+    model: "Avata 2",
+    display_name: "Owner Private Avata",
+    registration_number: "FA3OWNERONLY",
+    status: "active",
+    public_visible: false,
+  }).select("id,display_name,registration_number,status,archived_at").single();
+  assert.ifError(assetError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email: attackerEmail, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const patchResponse = await api.patch(`/api/pilot/assets/${victimAsset.id}`, {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}`, "Content-Type": "application/json" },
+      data: { display_name: "STOLEN ASSET", registration_number: "FA3ATTACKER", archived: true },
+      failOnStatusCode: false,
+    });
+    assert.equal(patchResponse.status(), 404);
+
+    const deleteResponse = await api.delete(`/api/pilot/assets/${victimAsset.id}`, {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+      failOnStatusCode: false,
+    });
+    assert.equal(deleteResponse.status(), 404);
+
+    const { data: unchanged, error: unchangedError } = await admin.from("pilot_assets")
+      .select("display_name,registration_number,status,archived_at")
+      .eq("id", victimAsset.id)
+      .single();
+    assert.ifError(unchangedError);
+    assert.equal(unchanged.display_name, "Owner Private Avata");
+    assert.equal(unchanged.registration_number, "FA3OWNERONLY");
+    assert.equal(unchanged.status, "active");
+    assert.equal(unchanged.archived_at, null);
+  } finally {
+    await api.dispose();
+    await admin.from("pilot_assets").delete().eq("id", victimAsset.id);
+    await admin.from("contractors").delete().in("id", [attacker.id, owner.id]);
+    for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});

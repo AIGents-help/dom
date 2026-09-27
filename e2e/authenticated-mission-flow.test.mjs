@@ -4322,3 +4322,138 @@ test("mapping image confirmation updates project summary exactly once", { skip: 
     await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("failed mapping project requeue resets image lifecycle state", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `mapping-retry-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Mapping-Retry-${stamp}!Aa1`;
+
+  const { data: userData, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  const user = userData.user;
+  assert.ok(user);
+
+  const { data: pilot, error: pilotError } = await admin.from("contractors").insert({
+    user_id: user.id,
+    full_name: "E2E Mapping Retry Pilot",
+    email,
+    status: "active",
+    part107_verified: true,
+    can_create_missions: false,
+  }).select("id").single();
+  assert.ifError(pilotError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "Mapping Retry Client",
+    requester_email: `mapping-retry-client-${stamp}@e2e.dom.invalid`,
+    company: "Mapping Retry Test",
+    service_type: "ortho_survey",
+    location: "Mapping Retry Site",
+    status: "assigned",
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    title: "Mapping Retry Mission",
+    service_type: "ortho_survey",
+    location: "Mapping Retry Site",
+    status: "scheduled",
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: project, error: projectError } = await admin.from("mapping_projects").insert({
+    job_id: job.id,
+    contractor_id: pilot.id,
+    name: "E2E Failed Mapping Project",
+    status: "failed",
+    error_message: "Prior worker failure",
+  }).select("id").single();
+  assert.ifError(projectError);
+
+  const { data: images, error: imagesError } = await admin.from("mapping_images").insert([
+    {
+      mapping_project_id: project.id,
+      storage_path: `${project.id}/retry-1.jpg`,
+      original_filename: "retry-1.jpg",
+      file_size: 1000,
+      checksum: `retry-a-${stamp}`,
+      lifecycle_status: "failed",
+      lifecycle_error: "Prior download failure",
+    },
+    {
+      mapping_project_id: project.id,
+      storage_path: `${project.id}/retry-2.jpg`,
+      original_filename: "retry-2.jpg",
+      file_size: 2000,
+      checksum: `retry-b-${stamp}`,
+      lifecycle_status: "failed",
+      lifecycle_error: "Prior download failure",
+    },
+  ]).select("id");
+  assert.ifError(imagesError);
+  assert.equal(images.length, 2);
+
+  const { data: summarized, error: summaryError } = await admin.from("mapping_projects")
+    .select("image_count,total_upload_bytes")
+    .eq("id", project.id)
+    .single();
+  assert.ifError(summaryError);
+  assert.equal(summarized.image_count, 2);
+  assert.equal(Number(summarized.total_upload_bytes), 3000);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const response = await api.post(`/api/pilot/mapping/projects/${project.id}/queue`, {
+      headers: {
+        Authorization: `Bearer ${signedIn.session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      data: {
+        profile: "standard",
+        requested_outputs: ["orthomosaic"],
+      },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 200, JSON.stringify(body));
+
+    const [{ data: projectAfter }, { data: imageRows }, { data: processingJobs }] = await Promise.all([
+      admin.from("mapping_projects").select("status,image_count,total_upload_bytes,error_message").eq("id", project.id).single(),
+      admin.from("mapping_images").select("id,lifecycle_status,lifecycle_error").eq("mapping_project_id", project.id).order("created_at"),
+      admin.from("mapping_processing_jobs").select("id,status,attempts").eq("mapping_project_id", project.id).order("created_at"),
+    ]);
+
+    assert.equal(projectAfter.status, "queued");
+    assert.equal(projectAfter.image_count, 2);
+    assert.equal(Number(projectAfter.total_upload_bytes), 3000);
+    assert.equal(projectAfter.error_message, null);
+    assert.deepEqual(new Set(imageRows.map((item) => item.lifecycle_status)), new Set(["stored"]));
+    assert.ok(imageRows.every((item) => item.lifecycle_error === null));
+    assert.equal(processingJobs.length, 1);
+    assert.equal(processingJobs[0].status, "queued");
+  } finally {
+    await api.dispose();
+    await admin.from("mapping_processing_jobs").delete().eq("mapping_project_id", project.id);
+    await admin.from("mapping_images").delete().eq("mapping_project_id", project.id);
+    await admin.from("mapping_projects").delete().eq("id", project.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().eq("id", pilot.id);
+    await admin.auth.admin.deleteUser(user.id);
+  }
+});

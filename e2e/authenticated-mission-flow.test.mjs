@@ -2207,3 +2207,116 @@ test("pilot cannot list or prepare files for another pilot assignment", { skip: 
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("pilot cannot run workflow actions on another pilot assignment", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Workflow-Isolation-${stamp}!Aa1`;
+  const attackerEmail = `workflow-attacker-${stamp}@e2e.dom.invalid`;
+  const ownerEmail = `workflow-owner-${stamp}@e2e.dom.invalid`;
+
+  const users = [];
+  for (const email of [attackerEmail, ownerEmail]) {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    users.push(data.user);
+  }
+
+  const { data: contractors, error: contractorError } = await admin.from("contractors").insert([
+    {
+      user_id: users[0].id,
+      full_name: "Workflow Attacker",
+      email: attackerEmail,
+      status: "active",
+      part107_verified: true,
+      can_create_missions: false,
+    },
+    {
+      user_id: users[1].id,
+      full_name: "Workflow Owner",
+      email: ownerEmail,
+      status: "active",
+      part107_verified: true,
+      can_create_missions: false,
+    },
+  ]).select("id,user_id");
+  assert.ifError(contractorError);
+
+  const attacker = contractors.find((item) => item.user_id === users[0].id);
+  const owner = contractors.find((item) => item.user_id === users[1].id);
+  assert.ok(attacker && owner);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "Workflow Client",
+    requester_email: `workflow-client-${stamp}@e2e.dom.invalid`,
+    company: "Workflow Isolation Test",
+    service_type: "roof_inspection_residential",
+    location: "Workflow Site",
+    status: "assigned",
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    title: "Workflow Isolation Mission",
+    service_type: "roof_inspection_residential",
+    location: "Workflow Site",
+    status: "scheduled",
+    scheduled_for: "2099-06-15T14:30:00.000Z",
+  }).select("id,checked_in_at,started_at,completed_at").single();
+  assert.ifError(jobError);
+
+  const { data: assignment, error: assignmentError } = await admin.from("mission_assignments").insert({
+    job_id: job.id,
+    contractor_id: owner.id,
+    status: "accepted",
+    assigned_uav: "Owner UAV",
+  }).select("id").single();
+  assert.ifError(assignmentError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({
+    email: attackerEmail,
+    password,
+  });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const headers = { Authorization: `Bearer ${signedIn.session.access_token}` };
+  const api = await request.newContext({ baseURL });
+  try {
+    const readResponse = await api.get(`/api/pilot/missions/${assignment.id}/workflow`, {
+      headers,
+      failOnStatusCode: false,
+    });
+    assert.equal(readResponse.status(), 401);
+
+    const actionResponse = await api.post(`/api/pilot/missions/${assignment.id}/workflow`, {
+      headers,
+      data: { action: "check_in" },
+      failOnStatusCode: false,
+    });
+    assert.equal(actionResponse.status(), 401);
+
+    const { data: unchanged, error: unchangedError } = await admin.from("jobs")
+      .select("status,checked_in_at,started_at,completed_at")
+      .eq("id", job.id)
+      .single();
+    assert.ifError(unchangedError);
+    assert.equal(unchanged.status, "scheduled");
+    assert.equal(unchanged.checked_in_at, null);
+    assert.equal(unchanged.started_at, null);
+    assert.equal(unchanged.completed_at, null);
+  } finally {
+    await api.dispose();
+    await admin.from("mission_assignments").delete().eq("id", assignment.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().in("id", [attacker.id, owner.id]);
+    for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});

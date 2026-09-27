@@ -4623,3 +4623,110 @@ test("DOMINIC HUB simulation schedules persist privately with audit history", { 
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("DOMINIC entitlement endpoint and Mapping API enforce trial and paid tiers", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `dominic-entitlement-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Entitlement-${stamp}!Aa1`;
+
+  const { data: userData, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  const user = userData.user;
+  assert.ok(user);
+
+  const { data: contractor, error: contractorError } = await admin.from("contractors").insert({
+    user_id: user.id,
+    full_name: "E2E DOMINIC Entitlement Pilot",
+    email,
+    status: "active",
+    part107_verified: true,
+    can_create_missions: false,
+  }).select("id").single();
+  assert.ifError(contractorError);
+
+  const { error: profileError } = await admin.from("dominic_profiles").insert({
+    user_id: user.id,
+    full_name: "E2E DOMINIC Entitlement Pilot",
+    plan: "free",
+    status: "active",
+    trial_started_at: new Date().toISOString(),
+    trial_ends_at: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+  });
+  assert.ifError(profileError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const headers = { Authorization: `Bearer ${signedIn.session.access_token}` };
+  const api = await request.newContext({ baseURL });
+
+  try {
+    const trialAccess = await api.get("/api/dominic/access", { headers, failOnStatusCode: false });
+    const trialBody = await trialAccess.json().catch(() => ({}));
+    assert.equal(trialAccess.status(), 200, JSON.stringify(trialBody));
+    assert.equal(trialBody.access.plan, "free");
+    assert.equal(trialBody.access.effectivePlan, "operator");
+    assert.equal(trialBody.access.trialActive, true);
+    assert.equal(trialBody.features.home, true);
+    assert.equal(trialBody.features.capturePlanner, true);
+    assert.equal(trialBody.features.mapping, true);
+    assert.equal(trialBody.features.hub, false);
+
+    const mappingDuringTrial = await api.get("/api/pilot/mapping/jobs-eligible", {
+      headers,
+      failOnStatusCode: false,
+    });
+    assert.equal(mappingDuringTrial.status(), 200, JSON.stringify(await mappingDuringTrial.json().catch(() => ({}))));
+
+    const { error: expireError } = await admin.from("dominic_profiles")
+      .update({ trial_ends_at: new Date(Date.now() - 86_400_000).toISOString() })
+      .eq("user_id", user.id);
+    assert.ifError(expireError);
+
+    const freeAccess = await api.get("/api/dominic/access", { headers, failOnStatusCode: false });
+    const freeBody = await freeAccess.json().catch(() => ({}));
+    assert.equal(freeAccess.status(), 200, JSON.stringify(freeBody));
+    assert.equal(freeBody.access.effectivePlan, "free");
+    assert.equal(freeBody.access.trialActive, false);
+    assert.equal(freeBody.features.home, true);
+    assert.equal(freeBody.features.capturePlanner, true);
+    assert.equal(freeBody.features.mapping, false);
+    assert.equal(freeBody.features.hub, false);
+
+    const mappingAfterTrial = await api.get("/api/pilot/mapping/jobs-eligible", {
+      headers,
+      failOnStatusCode: false,
+    });
+    const mappingAfterBody = await mappingAfterTrial.json().catch(() => ({}));
+    assert.equal(mappingAfterTrial.status(), 403, JSON.stringify(mappingAfterBody));
+    assert.match(mappingAfterBody.error ?? "", /Operator, Team, or Organization license/i);
+
+    const { error: upgradeError } = await admin.from("dominic_profiles")
+      .update({ plan: "organization" })
+      .eq("user_id", user.id);
+    assert.ifError(upgradeError);
+
+    const orgAccess = await api.get("/api/dominic/access", { headers, failOnStatusCode: false });
+    const orgBody = await orgAccess.json().catch(() => ({}));
+    assert.equal(orgAccess.status(), 200, JSON.stringify(orgBody));
+    assert.equal(orgBody.access.effectivePlan, "organization");
+    assert.equal(orgBody.features.mapping, true);
+    assert.equal(orgBody.features.hub, true);
+  } finally {
+    await api.dispose();
+    await admin.from("dominic_profiles").delete().eq("user_id", user.id);
+    await admin.from("contractors").delete().eq("id", contractor.id);
+    await admin.auth.admin.deleteUser(user.id);
+  }
+});

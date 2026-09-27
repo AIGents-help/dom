@@ -2425,3 +2425,93 @@ test("field pilot cannot manage owner team staffing", { skip: !isolated }, async
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("pilot cannot respond to another pilot assignment", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Respond-Isolation-${stamp}!Aa1`;
+  const attackerEmail = `respond-attacker-${stamp}@e2e.dom.invalid`;
+  const targetEmail = `respond-target-${stamp}@e2e.dom.invalid`;
+
+  const users = [];
+  for (const email of [attackerEmail, targetEmail]) {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    users.push(data.user);
+  }
+
+  const { data: contractors, error: contractorError } = await admin.from("contractors").insert([
+    { user_id: users[0].id, full_name: "Respond Attacker", email: attackerEmail, status: "active", part107_verified: true, can_create_missions: false },
+    { user_id: users[1].id, full_name: "Respond Target", email: targetEmail, status: "active", part107_verified: true, can_create_missions: false },
+  ]).select("id,user_id");
+  assert.ifError(contractorError);
+  const attacker = contractors.find((item) => item.user_id === users[0].id);
+  const target = contractors.find((item) => item.user_id === users[1].id);
+  assert.ok(attacker && target);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "Response Client",
+    requester_email: `response-client-${stamp}@e2e.dom.invalid`,
+    company: "Response Isolation Test",
+    service_type: "aerial_images",
+    location: "Response Site",
+    status: "assigned",
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    title: "Response Isolation Mission",
+    service_type: "aerial_images",
+    location: "Response Site",
+    status: "scheduled",
+    delivery_responsibility: "dom",
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: assignment, error: assignmentError } = await admin.from("mission_assignments").insert({
+    job_id: job.id,
+    contractor_id: target.id,
+    status: "offered",
+    assignment_role: "field",
+  }).select("id,status").single();
+  assert.ifError(assignmentError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email: attackerEmail, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    for (const action of ["accept", "decline", "return"]) {
+      const response = await api.post(`/api/pilot/missions/${assignment.id}/respond`, {
+        headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+        data: { action, reason: "Unauthorized attempt" },
+        failOnStatusCode: false,
+      });
+      assert.equal(response.status(), 404, `unauthorized ${action} should be hidden as not found`);
+    }
+
+    const { data: unchanged, error: unchangedError } = await admin.from("mission_assignments")
+      .select("status,accepted_at,declined_at,returned_at")
+      .eq("id", assignment.id)
+      .single();
+    assert.ifError(unchangedError);
+    assert.equal(unchanged.status, "offered");
+    assert.equal(unchanged.accepted_at, null);
+    assert.equal(unchanged.declined_at, null);
+    assert.equal(unchanged.returned_at, null);
+  } finally {
+    await api.dispose();
+    await admin.from("mission_assignments").delete().eq("id", assignment.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().in("id", [attacker.id, target.id]);
+    for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});

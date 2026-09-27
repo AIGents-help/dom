@@ -741,9 +741,12 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                 <EditField label="Scheduled date/time" type="datetime-local" value={missionDraft.scheduledFor} onChange={(v) => setMissionDraft((d) => ({ ...d, scheduledFor: v }))} />
                 <div>
                   <label style={{ fontSize: 12, color: V.inkDim }}>Status</label>
-                  <select value={missionDraft.status} onChange={(e) => setMissionDraft((d) => ({ ...d, status: e.target.value }))} style={inputStyle}>
-                    {[...PIPELINE, "cancelled"].map((status) => <option key={status} value={status}>{status.replace(/_/g, " ")}</option>)}
-                  </select>
+                  <div style={{ ...inputStyle, display: "flex", alignItems: "center", minHeight: 42, textTransform: "capitalize" }}>
+                    {missionDraft.status.replace(/_/g, " ")}
+                  </div>
+                  <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 6 }}>
+                    Use Advance Status for workflow changes. Cancellation remains a separate guarded action.
+                  </p>
                 </div>
                 <div style={{ gridColumn: "1 / -1" }}>
                   <label style={{ fontSize: 12, color: V.inkDim }}>Scope and mission instructions</label>

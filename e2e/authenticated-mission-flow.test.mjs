@@ -3323,3 +3323,143 @@ test("client only sees the current QC-approved deliverable revision", { skip: !i
     await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("DOM-assigned pilot submission stops at DOM QC", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `dom-qc-pilot-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-QC-E2E-${stamp}!Aa1`;
+
+  const { data: userData, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  const user = userData.user;
+  assert.ok(user);
+
+  const { data: pilot, error: pilotError } = await admin.from("contractors").insert({
+    user_id: user.id,
+    full_name: "E2E DOM QC Pilot",
+    email,
+    status: "active",
+    part107_verified: true,
+    insurance_verified: true,
+    insurance_provider: "E2E",
+    insurance_policy_number: "DOM-QC-E2E",
+    insurance_expires_on: "2099-12-31",
+    can_create_missions: false,
+  }).select("id").single();
+  assert.ifError(pilotError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "DOM QC Client",
+    requester_email: `dom-qc-client-${stamp}@e2e.dom.invalid`,
+    company: "DOM QC Test",
+    service_type: "aerial_images",
+    location: "DOM QC Site",
+    status: "in_progress",
+    created_by_contractor_id: null,
+    requires_admin_approval: true,
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    title: "DOM QC Mission",
+    service_type: "aerial_images",
+    location: "DOM QC Site",
+    status: "in_progress",
+    delivery_responsibility: "admin",
+    scheduled_for: "2099-06-15T14:30:00.000Z",
+    completed_at: new Date().toISOString(),
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: assignment, error: assignmentError } = await admin.from("mission_assignments").insert({
+    job_id: job.id,
+    contractor_id: pilot.id,
+    status: "in_progress",
+    assignment_role: "field",
+    assigned_uav: "DJI Matrice 4E · FAA FA3DOMQC",
+  }).select("id").single();
+  assert.ifError(assignmentError);
+
+  const { data: deliverable, error: deliverableError } = await admin.from("deliverables").insert({
+    job_id: job.id,
+    name: "DOM QC Aerial Images",
+    type: "raw_images",
+    storage_url: `${job.id}/dom-qc-images.zip`,
+    qc_passed: false,
+  }).select("id").single();
+  assert.ifError(deliverableError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+  const headers = { Authorization: `Bearer ${signedIn.session.access_token}` };
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const workflowResponse = await api.get(`/api/pilot/missions/${assignment.id}/workflow`, {
+      headers,
+      failOnStatusCode: false,
+    });
+    const workflow = await workflowResponse.json().catch(() => ({}));
+    assert.equal(workflowResponse.status(), 200, JSON.stringify(workflow));
+    assert.equal(workflow.ownership.completionMode, "dom_qc");
+
+    const automatic = new Set(["uav_assigned", "insurance_verified", "schedule_confirmed", "capture_complete", "deliverables_uploaded", "mission_submitted"]);
+    for (const item of workflow.items.filter((entry) => entry.required && !entry.completed && !automatic.has(entry.item_key))) {
+      const check = await api.post(`/api/pilot/missions/${assignment.id}/workflow`, {
+        headers,
+        data: { action: "checklist", itemId: item.id, completed: true },
+        failOnStatusCode: false,
+      });
+      assert.equal(check.status(), 200, JSON.stringify(await check.json().catch(() => ({}))));
+    }
+
+    const readyResponse = await api.get(`/api/pilot/missions/${assignment.id}/workflow`, {
+      headers,
+      failOnStatusCode: false,
+    });
+    const ready = await readyResponse.json().catch(() => ({}));
+    assert.equal(readyResponse.status(), 200, JSON.stringify(ready));
+    assert.equal(ready.submission.ready, true, JSON.stringify(ready.submission.blockers));
+
+    const submit = await api.post(`/api/pilot/missions/${assignment.id}/workflow`, {
+      headers,
+      data: { action: "submit_for_qc" },
+      failOnStatusCode: false,
+    });
+    assert.equal(submit.status(), 200, JSON.stringify(await submit.json().catch(() => ({}))));
+
+    const [{ data: assignmentAfter }, { data: jobAfter }, { data: missionAfter }, { data: deliverableAfter }] = await Promise.all([
+      admin.from("mission_assignments").select("status").eq("id", assignment.id).single(),
+      admin.from("jobs").select("status").eq("id", job.id).single(),
+      admin.from("mission_requests").select("status").eq("id", mission.id).single(),
+      admin.from("deliverables").select("qc_passed,delivered_at").eq("id", deliverable.id).single(),
+    ]);
+
+    assert.equal(assignmentAfter.status, "submitted");
+    assert.notEqual(jobAfter.status, "delivered");
+    assert.notEqual(missionAfter.status, "delivered");
+    assert.equal(deliverableAfter.qc_passed, false);
+    assert.equal(deliverableAfter.delivered_at, null);
+  } finally {
+    await api.dispose();
+    await admin.from("mission_checklist_items").delete().eq("assignment_id", assignment.id);
+    await admin.from("deliverables").delete().eq("id", deliverable.id);
+    await admin.from("mission_assignments").delete().eq("id", assignment.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().eq("id", pilot.id);
+    await admin.auth.admin.deleteUser(user.id);
+  }
+});

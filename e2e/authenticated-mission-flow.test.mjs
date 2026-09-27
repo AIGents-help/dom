@@ -2012,3 +2012,70 @@ test("mission aircraft assignment requires FAA registration and feeds workflow r
     await admin.auth.admin.deleteUser(createdUser.user.id);
   }
 });
+
+
+test("admin session endpoint rejects pilots and accepts allowlisted admins", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Admin-Gate-${stamp}!Aa1`;
+  const pilotEmail = `gate-pilot-${stamp}@e2e.dom.invalid`;
+  const adminEmail = `gate-admin-${stamp}@e2e.dom.invalid`;
+
+  const created = [];
+  for (const email of [pilotEmail, adminEmail]) {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    created.push(data.user);
+  }
+
+  const { data: contractor, error: contractorError } = await admin.from("contractors").insert({
+    user_id: created[0].id,
+    full_name: "E2E Non Admin Pilot",
+    email: pilotEmail,
+    status: "active",
+    part107_verified: true,
+  }).select("id").single();
+  assert.ifError(contractorError);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email: adminEmail,
+    full_name: "E2E Allowlisted Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const signIn = async (email) => {
+    const sb = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    assert.ifError(error);
+    assert.ok(data.session);
+    return data.session.access_token;
+  };
+  const pilotToken = await signIn(pilotEmail);
+  const adminToken = await signIn(adminEmail);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const pilotResponse = await api.get("/api/admin/session", {
+      headers: { Authorization: `Bearer ${pilotToken}` },
+      failOnStatusCode: false,
+    });
+    assert.equal(pilotResponse.status(), 403);
+    assert.deepEqual(await pilotResponse.json(), { admin: false });
+
+    const adminResponse = await api.get("/api/admin/session", {
+      headers: { Authorization: `Bearer ${adminToken}` },
+      failOnStatusCode: false,
+    });
+    assert.equal(adminResponse.status(), 200);
+    assert.deepEqual(await adminResponse.json(), { admin: true });
+  } finally {
+    await api.dispose();
+    await admin.from("contractors").delete().eq("id", contractor.id);
+    await admin.from("admin_users").delete().eq("email", adminEmail);
+    for (const user of created) await admin.auth.admin.deleteUser(user.id);
+  }
+});

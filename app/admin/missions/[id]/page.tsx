@@ -166,6 +166,8 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
   const [offerNotice, setOfferNotice] = useState<string | null>(null);
   const [releasingClaim, setReleasingClaim] = useState(false);
   const [advancing, setAdvancing] = useState(false);
+  const [resendingNotification, setResendingNotification] = useState<string | null>(null);
+  const [notificationNotice, setNotificationNotice] = useState<string | null>(null);
   const [completing, setCompleting] = useState<string | null>(null);
   const [requestingPayment, setRequestingPayment] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -433,6 +435,30 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
       setReleasingClaim(false);
     }
   }, [id, load]);
+
+  const resendClientNotification = useCallback(async (event: "pilot_assigned" | "date_scheduled" | "mission_complete") => {
+    setResendingNotification(event);
+    setNotificationNotice(null);
+    setError(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      if (!data.session) throw new Error("Admin session expired.");
+      const response = await fetch(`/api/admin/missions/${id}/notifications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` },
+        body: JSON.stringify({ event, resendKey: crypto.randomUUID() }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error ?? "Notification could not be resent.");
+      const label = event === "pilot_assigned" ? "Pilot Assigned" : event === "date_scheduled" ? "Date Scheduled" : "Mission Complete";
+      setNotificationNotice(`${label} email resent to the current client contact.`);
+    } catch (e: any) {
+      setError(e.message ?? "Notification could not be resent.");
+    } finally {
+      setResendingNotification(null);
+    }
+  }, [id]);
 
   const advanceStatus = useCallback(async () => {
     if (!mission) return;
@@ -802,6 +828,31 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
                 {advancing ? "Updating…" : `Advance to ${nextPipelineStatus(mission.status)!.replace("_", " ")} →`}
               </button>
             )}
+
+            <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${V.line}` }}>
+              <p style={{ color: V.inkDim, fontSize: 12, margin: 0 }}>
+                <strong style={{ color: V.ink }}>Client Notifications</strong> · resend the current mission update using the latest client, pilot, schedule, and mission data.
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                {[
+                  ["pilot_assigned", "Resend Pilot Assigned"],
+                  ["date_scheduled", "Resend Date Scheduled"],
+                  ["mission_complete", "Resend Mission Complete"],
+                ].map(([event, label]) => (
+                  <button
+                    key={event}
+                    onClick={() => resendClientNotification(event as "pilot_assigned" | "date_scheduled" | "mission_complete")}
+                    disabled={!!resendingNotification}
+                    style={btnGhost}
+                  >
+                    {resendingNotification === event ? "Sending…" : label}
+                  </button>
+                ))}
+              </div>
+              {notificationNotice && (
+                <p style={{ color: V.telemetry, fontSize: 12, marginTop: 9 }}>{notificationNotice}</p>
+              )}
+            </div>
           </div>
 
           {quote && (

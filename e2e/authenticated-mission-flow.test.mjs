@@ -801,3 +801,69 @@ test("client cannot approve another client's quote", { skip: !isolated }, async 
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("admin product stock updates persist to the public catalog", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const productKey = `e2e-stock-${stamp}`;
+
+  const { error: insertError } = await admin.from("shop_inventory").insert({
+    product_key: productKey,
+    product_name: "E2E Stock Product",
+    description: "Inventory persistence regression fixture",
+    unit_amount_cents: 2500,
+    variants: [],
+    category: "Equipment",
+    active: true,
+    fulfillment_mode: "stocked",
+    available_quantity: 3,
+    shipping_base_cents: 0,
+    shipping_additional_cents: 0,
+  });
+  assert.ifError(insertError);
+
+  try {
+    const { data: saved, error: updateError } = await admin.rpc("admin_update_shop_product_service", {
+      p_product_key: productKey,
+      p_product_name: "E2E Stock Product",
+      p_description: "Inventory persistence regression fixture",
+      p_unit_amount_cents: 2500,
+      p_variants: [],
+      p_category: "Equipment",
+      p_image_url: "",
+      p_fulfillment_mode: "stocked",
+      p_available_quantity: 17,
+      p_shipping_base_cents: 0,
+      p_shipping_additional_cents: 0,
+      p_active: true,
+    });
+    assert.ifError(updateError);
+    assert.equal(saved.available_quantity, 17);
+
+    const api = await request.newContext({ baseURL });
+    try {
+      const response = await api.get("/api/admin/store/products", { failOnStatusCode: false });
+      assert.equal(response.status(), 200);
+      const body = await response.json();
+      assert.equal(body.access, "catalog");
+      const publicProduct = body.products.find((item) => item.product_key === productKey);
+      assert.ok(publicProduct, "active product should be visible in the public catalog");
+      assert.equal(publicProduct.available_quantity, 17);
+    } finally {
+      await api.dispose();
+    }
+
+    const { data: persisted, error: persistedError } = await admin.from("shop_inventory")
+      .select("available_quantity")
+      .eq("product_key", productKey)
+      .single();
+    assert.ifError(persistedError);
+    assert.equal(persisted.available_quantity, 17);
+  } finally {
+    await admin.from("shop_inventory").delete().eq("product_key", productKey);
+  }
+});

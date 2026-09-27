@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -13,6 +14,13 @@ import {
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 import DominicHomePresentingMascot from "@/components/dominic/DominicHomePresentingMascot";
 import HomeSafetyHero from "@/components/HomeSafetyHero";
+
+export const metadata: Metadata = {
+  title: "Drone Services Delaware County PA | Mapping, Inspections & Aerial Data | DOM",
+  description: "Commercial drone services in Delaware County, PA and the Greater Philadelphia region. DOM provides drone mapping, roof and infrastructure inspections, construction progress, aerial photography, 3D models, and professional mission documentation.",
+  keywords: ["drone services Delaware County PA", "drone company Delco PA", "drone photography Delaware County", "drone inspections Delaware County PA", "drone mapping Philadelphia", "commercial drone services near Philadelphia", "roof drone inspection Delco", "construction drone services Pennsylvania"],
+  alternates: { canonical: "/" },
+};
 
 const industries = [
   ["Commercial", "/images/city-night-aerial.jpg"],
@@ -156,6 +164,28 @@ export default function HomePage() {
                   </div>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-white/10 bg-[#0d141b] py-14">
+        <div className="mx-auto max-w-[1536px] px-6 lg:px-10">
+          <div className="grid gap-8 rounded-2xl border border-white/10 bg-[#111923] p-7 lg:grid-cols-[1.35fr_.65fr] lg:items-center lg:p-10">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[.18em] text-[#F45A1E]">Local Commercial Drone Provider</p>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-white lg:text-4xl">Drone Services in Delaware County, PA & the Greater Philadelphia Area</h2>
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">
+                DOM provides commercial drone mapping, aerial photography, roof and infrastructure inspections, construction progress documentation, photogrammetry, 3D models, and aerial data deliverables throughout Delaware County and surrounding southeastern Pennsylvania.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3">
+              <Link href="/knowledge/service-areas#delaware-county-pa" className="inline-flex items-center justify-center gap-2 rounded-md bg-[#F45A1E] px-5 py-3 text-sm font-black text-black transition hover:bg-[#ff7338]">
+                Delaware County Drone Services <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link href="/get-a-quote" className="inline-flex items-center justify-center gap-2 rounded-md border border-white/20 px-5 py-3 text-sm font-black text-white hover:border-[#F45A1E]">
+                Request a Local Drone Quote
+              </Link>
             </div>
           </div>
         </div>

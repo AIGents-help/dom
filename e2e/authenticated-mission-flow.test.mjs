@@ -3960,3 +3960,94 @@ test("CRM relationship history remains visible after lead conversion", { skip: !
     await admin.auth.admin.deleteUser(adminUser.id);
   }
 });
+
+
+test("pilot profile uses structured equipment as the only visible inventory", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `profile-assets-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Profile-Assets-${stamp}!Aa1`;
+  const legacyMarker = `LEGACY-EQUIPMENT-${stamp}`;
+
+  const { data: userData, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  const user = userData.user;
+  assert.ok(user);
+
+  const { data: pilot, error: pilotError } = await admin.from("contractors").insert({
+    user_id: user.id,
+    full_name: "E2E Structured Profile Pilot",
+    email,
+    status: "active",
+    part107_verified: true,
+    insurance_verified: true,
+    insurance_provider: "E2E",
+    insurance_policy_number: "PROFILE-ASSET-E2E",
+    insurance_expires_on: "2099-12-31",
+    can_create_missions: false,
+    subscription_active: true,
+    equipment: legacyMarker,
+  }).select("id").single();
+  assert.ifError(pilotError);
+
+  const { data: asset, error: assetError } = await admin.from("pilot_assets").insert({
+    contractor_id: pilot.id,
+    asset_type: "uav",
+    manufacturer: "DJI",
+    model: "Avata 2",
+    display_name: "Structured Profile Avata 2",
+    registration_number: "FA3PROFILEE2E",
+    remote_id: `RID-${stamp}`,
+    status: "active",
+    capabilities_verified: true,
+  }).select("id").single();
+  assert.ifError(assetError);
+
+  const { error: capError } = await admin.from("pilot_asset_capabilities").insert([
+    { asset_id: asset.id, capability: "rgb_imagery" },
+    { asset_id: asset.id, capability: "video" },
+  ]);
+  assert.ifError(capError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const browser = await chromium.launch({ headless: true });
+  const browserContext = await browser.newContext();
+  const storageKey = `sb-${new URL(supabaseURL).hostname.split(".")[0]}-auth-token`;
+  await browserContext.addInitScript(({ key, session }) => {
+    localStorage.setItem(key, JSON.stringify(session));
+  }, { key: storageKey, session: signedIn.session });
+
+  const page = await browserContext.newPage();
+  try {
+    const response = await page.goto(`${baseURL}/pilot`, { waitUntil: "networkidle", timeout: 45_000 });
+    assert.ok(response && response.status() < 400, `pilot dashboard returned ${response?.status()}`);
+
+    await page.getByRole("button", { name: "Profile & Settings" }).click();
+    await page.getByText("Aircraft & Equipment", { exact: true }).waitFor({ timeout: 15_000 });
+    await page.getByText("Structured Profile Avata 2", { exact: false }).waitFor({ timeout: 15_000 });
+
+    const html = await page.content();
+    assert.match(html, /This is your only equipment inventory/);
+    assert.match(html, /FAA registration/i);
+    assert.doesNotMatch(html, new RegExp(legacyMarker));
+    assert.equal(await page.getByText("Equipment", { exact: true }).count(), 0);
+  } finally {
+    await browserContext.close();
+    await browser.close();
+    await admin.from("pilot_asset_capabilities").delete().eq("asset_id", asset.id);
+    await admin.from("pilot_assets").delete().eq("id", asset.id);
+    await admin.from("contractors").delete().eq("id", pilot.id);
+    await admin.auth.admin.deleteUser(user.id);
+  }
+});

@@ -479,3 +479,79 @@ test("non-admin authenticated user cannot render the admin console", { skip: !is
     await admin.auth.admin.deleteUser(createdUser.user.id);
   }
 });
+
+
+test("client portal isolates each client to its own missions", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Client-E2E-${stamp}!Aa1`;
+  const emails = [
+    `client-a-${stamp}@e2e.dom.invalid`,
+    `client-b-${stamp}@e2e.dom.invalid`,
+  ];
+
+  const users = [];
+  for (const email of emails) {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    users.push(data.user);
+  }
+
+  const { data: clients, error: clientsError } = await admin.from("clients").insert([
+    { company_name: "E2E Client A", contact_name: "Client A", email: emails[0], user_id: users[0].id },
+    { company_name: "E2E Client B", contact_name: "Client B", email: emails[1], user_id: users[1].id },
+  ]).select("id,user_id");
+  assert.ifError(clientsError);
+
+  const clientA = clients.find((item) => item.user_id === users[0].id);
+  const clientB = clients.find((item) => item.user_id === users[1].id);
+  assert.ok(clientA && clientB);
+
+  const { data: missions, error: missionError } = await admin.from("mission_requests").insert([
+    { client_id: clientA.id, requester_name: "Client A", requester_email: emails[0], company: "E2E Client A", service_type: "aerial_images", location: "Client A Site", status: "approved" },
+    { client_id: clientB.id, requester_name: "Client B", requester_email: emails[1], company: "E2E Client B", service_type: "aerial_images", location: "Client B Site", status: "approved" },
+  ]).select("id,client_id");
+  assert.ifError(missionError);
+
+  const missionA = missions.find((item) => item.client_id === clientA.id);
+  const missionB = missions.find((item) => item.client_id === clientB.id);
+  assert.ok(missionA && missionB);
+
+  const { error: jobError } = await admin.from("jobs").insert([
+    { mission_request_id: missionA.id, client_id: clientA.id, title: "E2E Private Mission A", service_type: "aerial_images", location: "Client A Site", status: "scheduled" },
+    { mission_request_id: missionB.id, client_id: clientB.id, title: "E2E Private Mission B", service_type: "aerial_images", location: "Client B Site", status: "scheduled" },
+  ]);
+  assert.ifError(jobError);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    for (let index = 0; index < 2; index += 1) {
+      const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+      const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email: emails[index], password });
+      assert.ifError(signInError);
+      assert.ok(signedIn.session);
+
+      const response = await api.get("/api/client/access", {
+        headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+        failOnStatusCode: false,
+      });
+      const body = await response.json().catch(() => ({}));
+      assert.equal(response.status(), 200, JSON.stringify(body));
+
+      const ownTitle = index === 0 ? "E2E Private Mission A" : "E2E Private Mission B";
+      const otherTitle = index === 0 ? "E2E Private Mission B" : "E2E Private Mission A";
+      assert.equal(body.jobs.length, 1);
+      assert.equal(body.jobs[0].title, ownTitle);
+      assert.equal(body.jobs.some((job) => job.title === otherTitle), false);
+    }
+  } finally {
+    await api.dispose();
+    await admin.from("jobs").delete().in("mission_request_id", [missionA.id, missionB.id]);
+    await admin.from("mission_requests").delete().in("id", [missionA.id, missionB.id]);
+    await admin.from("clients").delete().in("id", [clientA.id, clientB.id]);
+    for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});

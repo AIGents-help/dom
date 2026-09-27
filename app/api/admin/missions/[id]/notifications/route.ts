@@ -74,7 +74,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         )
       : await sendClientMissionUpdate(assignment.id, { type: "mission_complete" }, { force: true, trigger: "admin_manual_resend", resendKey });
 
-  if (!result.success && !("skipped" in result)) {
+  if ("success" in result && !result.success) {
     return NextResponse.json({ error: result.error ?? "Notification could not be sent" }, { status: 502 });
   }
   return NextResponse.json({ ok: true, result });

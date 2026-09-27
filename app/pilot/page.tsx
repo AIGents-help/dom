@@ -33,7 +33,7 @@ interface Profile {
   insurance_liability_cents: number | null; insurance_coi_path: string | null; dom_gig_insurance_eligible: boolean;
   uninsured_self_service_eligible: boolean;
   stripe_connect_account_id: string | null;
-  service_area: string | null; home_address: string | null; equipment: string | null;
+  service_area: string | null; home_address: string | null;
   missions_completed: number; rating: number | null;
   can_create_missions: boolean; subscription_active: boolean;
   slug: string | null; bio: string | null; tagline: string | null;
@@ -708,7 +708,7 @@ export default function PilotDashboard() {
                     Aircraft & Equipment
                   </div>
                   <p style={{ color: V.inkDim, fontSize: 12, marginTop: 5, maxWidth: 760 }}>
-                    Add every aircraft as its own record. DOM uses the model, capabilities, FAA registration, Remote ID, and operational status when determining mission readiness and equipment eligibility.
+                    This is your only equipment inventory. Add every aircraft as its own record here; there is no separate Flight Operations equipment list. DOM uses the model, capabilities, FAA registration, Remote ID, and operational status when determining mission readiness and eligibility.
                   </p>
                 </div>
               </div>

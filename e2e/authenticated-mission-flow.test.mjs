@@ -2748,3 +2748,129 @@ test("client review targets the current pilot after reassignment", { skip: !isol
     await admin.auth.admin.deleteUser(clientUser.id);
   }
 });
+
+
+test("admin cannot cancel started or paid mission records", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const adminEmail = `cancel-admin-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Cancel-E2E-${stamp}!Aa1`;
+
+  const { data: adminUserData, error: adminUserError } = await admin.auth.admin.createUser({
+    email: adminEmail,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(adminUserError);
+  const adminUser = adminUserData.user;
+  assert.ok(adminUser);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email: adminEmail,
+    full_name: "E2E Cancellation Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const makeMission = async ({ suffix, missionStatus, jobStatus, assignmentStatus, startedAt }) => {
+    const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+      requester_name: `Cancel Client ${suffix}`,
+      requester_email: `cancel-${suffix}-${stamp}@e2e.dom.invalid`,
+      company: `Cancel Test ${suffix}`,
+      service_type: "aerial_images",
+      location: `Cancel Site ${suffix}`,
+      status: missionStatus,
+    }).select("id").single();
+    assert.ifError(missionError);
+
+    const { data: job, error: jobError } = await admin.from("jobs").insert({
+      mission_request_id: mission.id,
+      title: `Cancellation Mission ${suffix}`,
+      service_type: "aerial_images",
+      location: `Cancel Site ${suffix}`,
+      status: jobStatus,
+      started_at: startedAt,
+    }).select("id").single();
+    assert.ifError(jobError);
+
+    const { data: assignment, error: assignmentError } = await admin.from("mission_assignments").insert({
+      job_id: job.id,
+      contractor_id: null,
+      status: assignmentStatus,
+    }).select("id").single();
+    assert.ifError(assignmentError);
+
+    return { mission, job, assignment };
+  };
+
+  const started = await makeMission({
+    suffix: "Started",
+    missionStatus: "in_progress",
+    jobStatus: "in_progress",
+    assignmentStatus: "in_progress",
+    startedAt: new Date().toISOString(),
+  });
+  const paid = await makeMission({
+    suffix: "Paid",
+    missionStatus: "delivered",
+    jobStatus: "delivered",
+    assignmentStatus: "paid",
+    startedAt: null,
+  });
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email: adminEmail, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    for (const record of [
+      { ...started, expectedMission: "in_progress", expectedJob: "in_progress", expectedAssignment: "in_progress" },
+      { ...paid, expectedMission: "delivered", expectedJob: "delivered", expectedAssignment: "paid" },
+    ]) {
+      const response = await api.patch(`/api/admin/missions/${record.mission.id}`, {
+        headers: {
+          Authorization: `Bearer ${signedIn.session.access_token}`,
+          "Content-Type": "application/json",
+        },
+        data: {
+          title: "Cancellation Protection Test",
+          requesterName: "Cancellation Client",
+          requesterEmail: `cancel-client-${stamp}@e2e.dom.invalid`,
+          company: "Cancellation Protection",
+          serviceType: "aerial_images",
+          location: "Cancellation Site",
+          scope: "",
+          status: "cancelled",
+          quotedAmountCents: null,
+          scheduledFor: null,
+        },
+        failOnStatusCode: false,
+      });
+      const body = await response.json().catch(() => ({}));
+      assert.equal(response.status(), 409, JSON.stringify(body));
+
+      const [{ data: missionAfter }, { data: jobAfter }, { data: assignmentAfter }] = await Promise.all([
+        admin.from("mission_requests").select("status").eq("id", record.mission.id).single(),
+        admin.from("jobs").select("status").eq("id", record.job.id).single(),
+        admin.from("mission_assignments").select("status").eq("id", record.assignment.id).single(),
+      ]);
+      assert.equal(missionAfter.status, record.expectedMission);
+      assert.equal(jobAfter.status, record.expectedJob);
+      assert.equal(assignmentAfter.status, record.expectedAssignment);
+    }
+  } finally {
+    await api.dispose();
+    for (const record of [started, paid]) {
+      await admin.from("mission_assignments").delete().eq("id", record.assignment.id);
+      await admin.from("jobs").delete().eq("id", record.job.id);
+      await admin.from("mission_requests").delete().eq("id", record.mission.id);
+    }
+    await admin.from("admin_users").delete().eq("email", adminEmail);
+    await admin.auth.admin.deleteUser(adminUser.id);
+  }
+});

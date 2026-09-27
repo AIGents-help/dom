@@ -1590,3 +1590,119 @@ test("public pilot profile never exposes private aircraft identifiers", { skip: 
     await admin.from("contractors").delete().eq("id", contractor.id);
   }
 });
+
+
+test("client cannot download another client deliverable by id", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Deliverable-E2E-${stamp}!Aa1`;
+  const emails = [
+    `deliverable-a-${stamp}@e2e.dom.invalid`,
+    `deliverable-b-${stamp}@e2e.dom.invalid`,
+  ];
+
+  const users = [];
+  for (const email of emails) {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    users.push(data.user);
+  }
+
+  const { data: clients, error: clientsError } = await admin.from("clients").insert([
+    { company_name: "Deliverable Client A", contact_name: "A", email: emails[0], user_id: users[0].id },
+    { company_name: "Deliverable Client B", contact_name: "B", email: emails[1], user_id: users[1].id },
+  ]).select("id,user_id");
+  assert.ifError(clientsError);
+
+  const clientA = clients.find((item) => item.user_id === users[0].id);
+  const clientB = clients.find((item) => item.user_id === users[1].id);
+  assert.ok(clientA && clientB);
+
+  const { data: missions, error: missionsError } = await admin.from("mission_requests").insert([
+    {
+      client_id: clientA.id,
+      requester_name: "A",
+      requester_email: emails[0],
+      company: "Deliverable Client A",
+      service_type: "aerial_images",
+      location: "A Site",
+      status: "delivered",
+    },
+    {
+      client_id: clientB.id,
+      requester_name: "B",
+      requester_email: emails[1],
+      company: "Deliverable Client B",
+      service_type: "aerial_images",
+      location: "B Site",
+      status: "delivered",
+    },
+  ]).select("id,client_id");
+  assert.ifError(missionsError);
+
+  const missionA = missions.find((item) => item.client_id === clientA.id);
+  const missionB = missions.find((item) => item.client_id === clientB.id);
+  assert.ok(missionA && missionB);
+
+  const { data: jobs, error: jobsError } = await admin.from("jobs").insert([
+    {
+      mission_request_id: missionA.id,
+      client_id: clientA.id,
+      title: "Deliverable Mission A",
+      service_type: "aerial_images",
+      location: "A Site",
+      status: "delivered",
+    },
+    {
+      mission_request_id: missionB.id,
+      client_id: clientB.id,
+      title: "Deliverable Mission B",
+      service_type: "aerial_images",
+      location: "B Site",
+      status: "delivered",
+    },
+  ]).select("id,client_id");
+  assert.ifError(jobsError);
+
+  const jobB = jobs.find((item) => item.client_id === clientB.id);
+  assert.ok(jobB);
+
+  const { data: deliverable, error: deliverableError } = await admin.from("deliverables").insert({
+    job_id: jobB.id,
+    name: "Client B Private Deliverable",
+    type: "report",
+    storage_url: `${jobB.id}/private-b.pdf`,
+    qc_passed: true,
+    delivered_at: new Date().toISOString(),
+  }).select("id").single();
+  assert.ifError(deliverableError);
+
+  const authA = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedInA, error: signInError } = await authA.auth.signInWithPassword({
+    email: emails[0],
+    password,
+  });
+  assert.ifError(signInError);
+  assert.ok(signedInA.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const response = await api.get(`/api/client/deliverables/${deliverable.id}/download`, {
+      headers: { Authorization: `Bearer ${signedInA.session.access_token}` },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 404, JSON.stringify(body));
+    assert.equal(body.error, "File not available");
+  } finally {
+    await api.dispose();
+    await admin.from("deliverables").delete().eq("id", deliverable.id);
+    await admin.from("jobs").delete().in("id", jobs.map((job) => job.id));
+    await admin.from("mission_requests").delete().in("id", [missionA.id, missionB.id]);
+    await admin.from("clients").delete().in("id", [clientA.id, clientB.id]);
+    for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});

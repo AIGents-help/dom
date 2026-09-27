@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getSupabaseAnonServer } from "@/lib/supabaseAnonServer";
+import { canUseDominicFeature, dominicPlanLabel } from "@/lib/dominicEntitlements";
+import { getOrCreateDominicAccess } from "@/lib/dominicEntitlementsServer";
 
 // Shared pilot-facing API auth resolver: Bearer token -> authenticated
 // Supabase user -> contractors row -> status check. Factored out of
@@ -40,6 +42,29 @@ export async function resolveContractor(req: NextRequest): Promise<ContractorAut
   if (!contractor) return { error: "No pilot profile found", status: 404 };
   if (contractor.status === "suspended" || contractor.status === "inactive") {
     return { error: "Your pilot account is not active.", status: 403 };
+  }
+
+  // DOMINIC Mapping is a licensed software layer. All mapper routes already
+  // resolve through this shared auth helper, so the entitlement check lives
+  // here rather than being duplicated across every /api/pilot/mapping route.
+  if (req.nextUrl.pathname.startsWith("/api/pilot/mapping")) {
+    try {
+      const access = await getOrCreateDominicAccess({
+        userId: user.id,
+        fullName: contractor.full_name,
+      });
+      if (!canUseDominicFeature(access, "mapping")) {
+        return {
+          error: `DOMINIC Mapping requires an Operator, Team, or Organization license. Current access: ${dominicPlanLabel(access.plan)}.`,
+          status: 403,
+        };
+      }
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : "DOMINIC license could not be verified.",
+        status: 500,
+      };
+    }
   }
 
   return { contractor };

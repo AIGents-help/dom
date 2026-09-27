@@ -76,28 +76,67 @@ interface SendNotificationResult {
 
 export async function sendNotification(params: SendNotificationParams): Promise<SendNotificationResult> {
   const admin = getSupabaseAdmin();
+  let logRow: { id: string; status?: string | null; resend_message_id?: string | null } | null = null;
 
-  const { data: logRow, error: logInsertError } = await admin
-    .from("notification_log")
-    .insert({
-      mission_request_id: params.missionRequestId ?? null,
-      job_id: params.jobId ?? null,
-      assignment_id: params.assignmentId ?? null,
-      recipient_type: params.recipientType,
-      recipient_email: params.to,
-      recipient_entity_id: params.recipientEntityId ?? null,
-      email_type: params.emailType,
-      status: "queued",
-      subject: params.subject,
-      metadata: params.metadata ?? {},
-    })
-    .select("id")
-    .single();
+  if (params.idempotencyKey) {
+    const { data: existing, error: existingError } = await admin
+      .from("notification_log")
+      .select("id,status,resend_message_id")
+      .eq("idempotency_key", params.idempotencyKey)
+      .maybeSingle();
 
-  if (logInsertError) {
-    // Non-fatal — still attempt the send even if logging failed, but make
-    // sure this doesn't disappear silently.
-    console.error("notification_log insert failed:", logInsertError.message);
+    if (existingError) {
+      console.error("notification_log lookup failed:", existingError.message);
+    } else if (existing && ["sent", "delivered", "opened", "clicked"].includes(existing.status ?? "")) {
+      return { success: true, messageId: existing.resend_message_id ?? undefined };
+    } else if (existing) {
+      const { data: refreshed, error: refreshError } = await admin
+        .from("notification_log")
+        .update({
+          mission_request_id: params.missionRequestId ?? null,
+          job_id: params.jobId ?? null,
+          assignment_id: params.assignmentId ?? null,
+          recipient_type: params.recipientType,
+          recipient_email: params.to,
+          recipient_entity_id: params.recipientEntityId ?? null,
+          email_type: params.emailType,
+          status: "queued",
+          subject: params.subject,
+          metadata: params.metadata ?? {},
+          error_message: null,
+        })
+        .eq("id", existing.id)
+        .select("id,status,resend_message_id")
+        .single();
+      if (refreshError) console.error("notification_log refresh failed:", refreshError.message);
+      else logRow = refreshed;
+    }
+  }
+
+  if (!logRow) {
+    const { data: inserted, error: logInsertError } = await admin
+      .from("notification_log")
+      .insert({
+        mission_request_id: params.missionRequestId ?? null,
+        job_id: params.jobId ?? null,
+        assignment_id: params.assignmentId ?? null,
+        recipient_type: params.recipientType,
+        recipient_email: params.to,
+        recipient_entity_id: params.recipientEntityId ?? null,
+        email_type: params.emailType,
+        status: "queued",
+        subject: params.subject,
+        metadata: params.metadata ?? {},
+        idempotency_key: params.idempotencyKey ?? null,
+      })
+      .select("id,status,resend_message_id")
+      .single();
+
+    if (logInsertError) {
+      console.error("notification_log insert failed:", logInsertError.message);
+    } else {
+      logRow = inserted;
+    }
   }
 
   const result = await resend.emails.send(

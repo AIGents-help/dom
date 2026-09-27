@@ -59,27 +59,46 @@ export async function GET(req: NextRequest) {
   const { data: client } = await admin.from("clients").select("id, company_name, contact_name, email").eq("user_id", user.id).maybeSingle();
   if (!client) return NextResponse.json({ error: "Client profile not found" }, { status: 404 });
 
-  const { data: jobs } = await admin.from("jobs").select(`
+  const { data: jobs, error: jobsError } = await admin.from("jobs").select(`
     id, title, service_type, location, scheduled_for, status, created_at,
     mission_request:mission_requests(id, status, scope, quoted_amount_cents, created_by_contractor_id),
     assignments:mission_assignments(id, status, assigned_uav, contractor:contractors(full_name, slug)),
-    deliverables(id, name, type, qc_passed, client_status, client_feedback, client_reviewed_at, supersedes_deliverable_id, revision_number, delivered_at),
-    payments(id, amount_total_cents, status, created_at)
+    deliverables(id, name, type, qc_passed, client_status, client_feedback, client_reviewed_at, supersedes_deliverable_id, revision_number, delivered_at)
   `).eq("client_id", client.id).order("created_at", { ascending: false });
+  if (jobsError) return NextResponse.json({ error: "Client missions could not be loaded." }, { status: 500 });
+
+  const { data: payments, error: paymentsError } = await admin
+    .from("payments")
+    .select("id, mission_request_id, amount_total_cents, status, created_at")
+    .eq("client_id", client.id)
+    .order("created_at", { ascending: false });
+  if (paymentsError) return NextResponse.json({ error: "Client payments could not be loaded." }, { status: 500 });
   const missionIds = (jobs ?? []).map((job: any) => (Array.isArray(job.mission_request) ? job.mission_request[0] : job.mission_request)?.id).filter(Boolean);
   const { data: activity } = missionIds.length ? await admin.from("mission_activity_events").select("id, mission_request_id, event_type, summary, created_at").in("mission_request_id", missionIds).in("visibility", ["client", "shared"]).order("created_at", { ascending: false }) : { data: [] };
   const [{ data: changes }, { data: quotes }] = missionIds.length ? await Promise.all([
     admin.from("mission_change_orders").select("id, mission_request_id, title, reason, scope_delta, amount_delta_cents, status, sent_at, responded_at, client_response_notes, created_at").in("mission_request_id", missionIds).order("created_at", { ascending: false }),
     admin.from("quotes").select("id, mission_request_id, service_type, total_cents, status, version_number, sent_at, accepted_at, rejected_at, expires_at, client_response_notes, created_at").in("mission_request_id", missionIds).neq("status", "draft").order("version_number", { ascending: false }),
   ]) : [{ data: [] }, { data: [] }];
-  const clientJobs = (jobs ?? []).map((job: any) => ({
+  const paymentsByMission = new Map<string, any[]>();
+  for (const payment of payments ?? []) {
+    if (!payment.mission_request_id) continue;
+    const group = paymentsByMission.get(payment.mission_request_id) ?? [];
+    group.push(payment);
+    paymentsByMission.set(payment.mission_request_id, group);
+  }
+
+  const clientJobs = (jobs ?? []).map((job: any) => {
+    const missionRequest = Array.isArray(job.mission_request) ? job.mission_request[0] : job.mission_request;
+    return {
     ...job,
+    payments: missionRequest?.id ? paymentsByMission.get(missionRequest.id) ?? [] : [],
     // Never expose pre-QC corrections or superseded revision history in the
     // active client handoff. History remains available to DOM internally.
     deliverables: (job.deliverables ?? []).filter(
       (deliverable: any) => deliverable.qc_passed === true && deliverable.client_status !== "superseded"
     ),
-  }));
+  };
+  });
 
   return NextResponse.json({ client, jobs: clientJobs, activity: activity ?? [], changeOrders: changes ?? [], quotes: quotes ?? [] });
 }

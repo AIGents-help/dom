@@ -18,11 +18,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const body = await req.json();
     const admin = getSupabaseAdmin();
     const allowedStatuses = ["requested", "reviewing", "scoped", "quoted", "approved", "assigned", "scheduled", "in_progress", "delivered", "closed", "cancelled"];
-    const { data: currentMission } = await admin.from("mission_requests").select("client_id,client_profile_sync_enabled").eq("id",id).maybeSingle();
+    const { data: currentMission } = await admin.from("mission_requests").select("status,client_id,client_profile_sync_enabled").eq("id",id).maybeSingle();
     if(!currentMission)return NextResponse.json({error:"Mission not found"},{status:404});
 
     if (body.status && !allowedStatuses.includes(body.status)) {
       return NextResponse.json({ error: "Invalid mission status" }, { status: 400 });
+    }
+    if (body.status && body.status !== currentMission.status && body.status !== "cancelled") {
+      return NextResponse.json(
+        { error: "Mission status must advance through the workflow controls. Direct status jumps are not allowed." },
+        { status: 409 },
+      );
     }
 
     const syncEnabled=typeof body.clientProfileSyncEnabled==="boolean"?body.clientProfileSyncEnabled:currentMission.client_profile_sync_enabled;

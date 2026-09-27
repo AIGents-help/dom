@@ -27,13 +27,12 @@ export default function AdminAuthGate({ children }: { children: React.ReactNode 
         return;
       }
 
-      const { data: allow, error } = await supabase
-        .from("admin_users")
-        .select("email")
-        .eq("email", session.user.email)
-        .maybeSingle();
+      const response = await fetch("/api/admin/session", {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: "no-store",
+      });
 
-      if (error || !allow) {
+      if (!response.ok) {
         await supabase.auth.signOut();
         if (!cancelled) router.replace("/admin/login");
         return;

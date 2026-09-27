@@ -4051,3 +4051,121 @@ test("pilot profile uses structured equipment as the only visible inventory", { 
     await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("DOMINIC saved capture plans are private and durable per user", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Capture-Plan-${stamp}!Aa1`;
+  const emails = [
+    `capture-plan-a-${stamp}@e2e.dom.invalid`,
+    `capture-plan-b-${stamp}@e2e.dom.invalid`,
+  ];
+
+  const users = [];
+  for (const email of emails) {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    users.push(data.user);
+  }
+
+  const signIn = async (email) => {
+    const sb = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+    assert.ifError(error);
+    assert.ok(data.session);
+    return sb;
+  };
+
+  const userA = await signIn(emails[0]);
+  const userB = await signIn(emails[1]);
+  let planId = null;
+
+  try {
+    const state = {
+      objectDiameterFt: 18,
+      objectHeightFt: 14,
+      standoffFt: 24,
+      overlapPct: 78,
+      horizontalFovDeg: 84,
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      baseRelativeAltitudeFt: 5,
+      homeLatitude: 39.9501,
+      homeLongitude: -75.1601,
+      minRelativeAltitudeFt: 0,
+      maxRelativeAltitudeFt: 120,
+      minStandoffFt: 10,
+      maxStandoffFt: 80,
+      noFlySectors: [],
+      patternLengthFt: 100,
+      patternWidthFt: 60,
+      patternHeightFt: 40,
+      patternAltitudeFt: 75,
+      patternStandoffFt: 30,
+      patternOverlapPct: 75,
+      patternHeadingDeg: 0,
+    };
+
+    const { data: inserted, error: insertError } = await userA
+      .from("dominic_capture_plans")
+      .insert({
+        user_id: users[0].id,
+        name: "E2E Object Scan",
+        mission_type: "object",
+        schema_version: 1,
+        plan_state: state,
+      })
+      .select("id,name,plan_state")
+      .single();
+    assert.ifError(insertError);
+    assert.ok(inserted?.id);
+    planId = inserted.id;
+    assert.equal(inserted.plan_state.standoffFt, 24);
+
+    const { data: hiddenFromB, error: hiddenError } = await userB
+      .from("dominic_capture_plans")
+      .select("id,name")
+      .eq("id", planId);
+    assert.ifError(hiddenError);
+    assert.deepEqual(hiddenFromB, []);
+
+    const { data: attemptedUpdate, error: updateByBError } = await userB
+      .from("dominic_capture_plans")
+      .update({ name: "Unauthorized overwrite" })
+      .eq("id", planId)
+      .select("id");
+    assert.ifError(updateByBError);
+    assert.deepEqual(attemptedUpdate, []);
+
+    const { data: updatedByA, error: updateByAError } = await userA
+      .from("dominic_capture_plans")
+      .update({
+        name: "E2E Object Scan Updated",
+        plan_state: { ...state, standoffFt: 32, overlapPct: 82 },
+      })
+      .eq("id", planId)
+      .select("id,name,plan_state")
+      .single();
+    assert.ifError(updateByAError);
+    assert.equal(updatedByA.name, "E2E Object Scan Updated");
+    assert.equal(updatedByA.plan_state.standoffFt, 32);
+    assert.equal(updatedByA.plan_state.overlapPct, 82);
+
+    const { data: reopened, error: reopenError } = await userA
+      .from("dominic_capture_plans")
+      .select("id,name,mission_type,schema_version,plan_state")
+      .eq("id", planId)
+      .single();
+    assert.ifError(reopenError);
+    assert.equal(reopened.mission_type, "object");
+    assert.equal(reopened.schema_version, 1);
+    assert.equal(reopened.plan_state.standoffFt, 32);
+  } finally {
+    if (planId) await admin.from("dominic_capture_plans").delete().eq("id", planId);
+    for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});

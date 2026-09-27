@@ -711,3 +711,93 @@ test("confirmed client login safely links an unbound client profile", { skip: !i
     await admin.auth.admin.deleteUser(createdUser.user.id);
   }
 });
+
+
+test("client cannot approve another client's quote", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Quote-E2E-${stamp}!Aa1`;
+  const emails = [
+    `quote-a-${stamp}@e2e.dom.invalid`,
+    `quote-b-${stamp}@e2e.dom.invalid`,
+  ];
+
+  const users = [];
+  for (const email of emails) {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    users.push(data.user);
+  }
+
+  const { data: clients, error: clientsError } = await admin.from("clients").insert([
+    { company_name: "Quote Client A", contact_name: "A", email: emails[0], user_id: users[0].id },
+    { company_name: "Quote Client B", contact_name: "B", email: emails[1], user_id: users[1].id },
+  ]).select("id,user_id");
+  assert.ifError(clientsError);
+  const clientA = clients.find((item) => item.user_id === users[0].id);
+  const clientB = clients.find((item) => item.user_id === users[1].id);
+  assert.ok(clientA && clientB);
+
+  const { data: missionB, error: missionError } = await admin.from("mission_requests").insert({
+    client_id: clientB.id,
+    requester_name: "B",
+    requester_email: emails[1],
+    company: "Quote Client B",
+    service_type: "aerial_images",
+    location: "Quote B Site",
+    status: "quoted",
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: quote, error: quoteError } = await admin.from("quotes").insert({
+    mission_request_id: missionB.id,
+    service_type: "aerial_images",
+    base_price_cents: 10000,
+    location_mod: 1,
+    airspace_mod: 1,
+    complexity_mod: 1,
+    urgency_mod: 1,
+    deliverable_mod: 1,
+    combined_multiplier: 1,
+    total_cents: 10000,
+    commission_cents: 2000,
+    contractor_cents: 8000,
+    version_number: 1,
+    status: "sent",
+    sent_at: new Date().toISOString(),
+  }).select("id,status").single();
+  assert.ifError(quoteError);
+
+  const authA = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedInA, error: signInError } = await authA.auth.signInWithPassword({ email: emails[0], password });
+  assert.ifError(signInError);
+  assert.ok(signedInA.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const response = await api.post(`/api/client/commercial/quote/${quote.id}`, {
+      headers: { Authorization: `Bearer ${signedInA.session.access_token}` },
+      data: { decision: "accepted" },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 404, JSON.stringify(body));
+
+    const { data: unchanged, error: unchangedError } = await admin.from("quotes")
+      .select("status,responded_by")
+      .eq("id", quote.id)
+      .single();
+    assert.ifError(unchangedError);
+    assert.equal(unchanged.status, "sent");
+    assert.equal(unchanged.responded_by, null);
+  } finally {
+    await api.dispose();
+    await admin.from("quotes").delete().eq("id", quote.id);
+    await admin.from("mission_requests").delete().eq("id", missionB.id);
+    await admin.from("clients").delete().in("id", [clientA.id, clientB.id]);
+    for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});

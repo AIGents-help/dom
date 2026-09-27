@@ -1435,3 +1435,85 @@ test("admin schedule changes create one client schedule notification event", { s
     await admin.auth.admin.deleteUser(adminUser.id);
   }
 });
+
+
+test("pilot structured aircraft persists registration and recognized capabilities", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `asset-pilot-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Asset-E2E-${stamp}!Aa1`;
+
+  const { data: createdUser, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  assert.ok(createdUser.user);
+
+  const { data: contractor, error: contractorError } = await admin.from("contractors").insert({
+    user_id: createdUser.user.id,
+    full_name: "E2E Asset Pilot",
+    email,
+    status: "active",
+    part107_verified: true,
+  }).select("id").single();
+  assert.ifError(contractorError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  let assetId = null;
+  try {
+    const createResponse = await api.post("/api/pilot/assets", {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+      data: {
+        asset_type: "uav",
+        manufacturer: "DJI",
+        model: "Avata 2",
+        display_name: "E2E Avata 2",
+        serial_number: `SN-${stamp}`,
+        registration_number: "FA3E2EPERSIST",
+        remote_id: `RID-${stamp}`,
+        status: "active",
+      },
+      failOnStatusCode: false,
+    });
+    const createBody = await createResponse.json().catch(() => ({}));
+    assert.equal(createResponse.status(), 201, JSON.stringify(createBody));
+    assetId = createBody.asset?.id;
+    assert.ok(assetId);
+    assert.equal(createBody.capabilityResolution?.recognized, true);
+    assert.deepEqual(new Set(createBody.asset.capabilities), new Set(["rgb_imagery", "video"]));
+
+    const listResponse = await api.get("/api/pilot/assets", {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+      failOnStatusCode: false,
+    });
+    const listBody = await listResponse.json().catch(() => ({}));
+    assert.equal(listResponse.status(), 200, JSON.stringify(listBody));
+
+    const saved = listBody.assets.find((asset) => asset.id === assetId);
+    assert.ok(saved, "created aircraft should still exist after reload");
+    assert.equal(saved.registration_number, "FA3E2EPERSIST");
+    assert.equal(saved.remote_id, `RID-${stamp}`);
+    assert.equal(saved.capability_source, "catalog");
+    assert.equal(saved.capability_recognized, true);
+    assert.equal(saved.capabilities_verified, true);
+    assert.deepEqual(new Set(saved.capabilities), new Set(["rgb_imagery", "video"]));
+  } finally {
+    await api.dispose();
+    if (assetId) {
+      await admin.from("pilot_asset_capabilities").delete().eq("asset_id", assetId);
+      await admin.from("pilot_assets").delete().eq("id", assetId);
+    }
+    await admin.from("contractors").delete().eq("id", contractor.id);
+    await admin.auth.admin.deleteUser(createdUser.user.id);
+  }
+});

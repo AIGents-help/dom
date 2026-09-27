@@ -3137,3 +3137,72 @@ test("admin shop order follows guarded fulfillment transitions", { skip: !isolat
     await admin.auth.admin.deleteUser(adminUser.id);
   }
 });
+
+
+test("admin communications returns outbound email history", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const adminEmail = `message-admin-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Message-E2E-${stamp}!Aa1`;
+  const recipient = `email-log-${stamp}@e2e.dom.invalid`;
+  const idempotencyKey = `e2e-email-log-${stamp}`;
+
+  const { data: adminUserData, error: adminUserError } = await admin.auth.admin.createUser({
+    email: adminEmail,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(adminUserError);
+  const adminUser = adminUserData.user;
+  assert.ok(adminUser);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email: adminEmail,
+    full_name: "E2E Message Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { data: notification, error: notificationError } = await admin.from("notification_log").insert({
+    recipient_type: "customer",
+    recipient_email: recipient,
+    email_type: "booking_confirmation",
+    status: "sent",
+    subject: "E2E outbound email log",
+    metadata: { source: "e2e" },
+    idempotency_key: idempotencyKey,
+    sent_at: new Date().toISOString(),
+  }).select("id").single();
+  assert.ifError(notificationError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email: adminEmail, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const response = await api.get("/api/admin/messages", {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 200, JSON.stringify(body));
+    assert.ok(Array.isArray(body.notifications));
+
+    const logged = body.notifications.find((item) => item.id === notification.id);
+    assert.ok(logged, "outbound notification should appear in Admin Email Log");
+    assert.equal(logged.recipient_email, recipient);
+    assert.equal(logged.subject, "E2E outbound email log");
+    assert.equal(logged.status, "sent");
+    assert.equal(logged.idempotency_key, idempotencyKey);
+  } finally {
+    await api.dispose();
+    await admin.from("notification_log").delete().eq("id", notification.id);
+    await admin.from("admin_users").delete().eq("email", adminEmail);
+    await admin.auth.admin.deleteUser(adminUser.id);
+  }
+});

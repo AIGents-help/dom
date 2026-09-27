@@ -57,9 +57,18 @@ export async function PATCH(req: NextRequest) {
   if (action === "processing" || action === "delivered") {
     const allowed = action === "processing" ? ["new", "inventory_hold"] : ["shipped"];
     if (!allowed.includes(order.status)) return NextResponse.json({ error: `Order cannot be marked ${action} from ${order.status}` }, { status: 409 });
-    const changes = action === "delivered" ? { status: "delivered", delivered_at: new Date().toISOString(), updated_at: new Date().toISOString() } : { status: "processing", updated_at: new Date().toISOString() };
-    const { error } = await admin.from("shop_orders").update(changes).eq("id", orderId).eq("status", order.status);
-    return error ? NextResponse.json({ error: error.message }, { status: 500 }) : NextResponse.json({ success: true });
+    const changes = action === "delivered"
+      ? { status: "delivered", delivered_at: new Date().toISOString(), updated_at: new Date().toISOString() }
+      : { status: "processing", updated_at: new Date().toISOString() };
+    const { data: updated, error } = await admin.from("shop_orders")
+      .update(changes)
+      .eq("id", orderId)
+      .eq("status", order.status)
+      .select("id,status")
+      .maybeSingle();
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!updated) return NextResponse.json({ error: "Order status changed; reload and try again" }, { status: 409 });
+    return NextResponse.json({ success: true, status: updated.status });
   }
 
   if (action === "shipped") {
@@ -68,8 +77,21 @@ export async function PATCH(req: NextRequest) {
     const trackingUrl = String(body.trackingUrl ?? "").trim();
     if (!carrier || !trackingNumber || (trackingUrl && !/^https?:\/\//i.test(trackingUrl))) return NextResponse.json({ error: "Carrier, tracking number, and a valid optional tracking URL are required" }, { status: 400 });
     if (!["new", "processing", "inventory_hold"].includes(order.status)) return NextResponse.json({ error: "This order cannot be shipped from its current status" }, { status: 409 });
-    const { error } = await admin.from("shop_orders").update({ status: "shipped", tracking_carrier: carrier, tracking_number: trackingNumber, tracking_url: trackingUrl || null, shipped_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", orderId).eq("status", order.status);
+    const { data: shippedOrder, error } = await admin.from("shop_orders")
+      .update({
+        status: "shipped",
+        tracking_carrier: carrier,
+        tracking_number: trackingNumber,
+        tracking_url: trackingUrl || null,
+        shipped_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orderId)
+      .eq("status", order.status)
+      .select("id,status")
+      .maybeSingle();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (!shippedOrder) return NextResponse.json({ error: "Order status changed; reload and try again" }, { status: 409 });
     if (order.customer_email) {
       const message = shopOrderShipped({ customerName: order.customer_name || "there", orderNumber: order.order_number, carrier, trackingNumber, trackingUrl: trackingUrl || undefined });
       await sendNotification({ to: order.customer_email, emailType: "shop_order_shipped", recipientType: "customer", subject: message.subject, html: message.html, metadata: { order_id: orderId }, idempotencyKey: `shop-shipped-${orderId}` });

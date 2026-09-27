@@ -4488,6 +4488,23 @@ test("DOMINIC HUB simulation schedules persist privately with audit history", { 
 
   const userA = await signIn(emails[0]);
   const userB = await signIn(emails[1]);
+
+  const { error: profileError } = await admin.from("dominic_profiles").insert([
+    {
+      user_id: users[0].id,
+      full_name: "E2E HUB Organization User",
+      plan: "organization",
+      status: "active",
+    },
+    {
+      user_id: users[1].id,
+      full_name: "E2E HUB Free User",
+      plan: "free",
+      status: "active",
+    },
+  ]);
+  assert.ifError(profileError);
+
   let missionId = null;
 
   try {
@@ -4525,6 +4542,17 @@ test("DOMINIC HUB simulation schedules persist privately with audit history", { 
     assert.equal(events.length, 1);
     assert.equal(events[0].event_type, "simulation_schedule_saved");
     assert.equal(events[0].summary, "Simulation schedule saved");
+
+    const { error: freeSaveError } = await userB.rpc("save_dominic_hub_simulation_service", {
+      p_user_id: users[1].id,
+      p_name: "Unauthorized Free HUB Mission",
+      p_mission_type: "ldar",
+      p_aircraft_label: "DOM-401",
+      p_route_mode: "LDAR East",
+      p_recurrence_label: "DAILY",
+      p_scheduled_local_time: "07:00",
+    });
+    assert.ok(freeSaveError, "Free/Operator-trial users must not persist Organization HUB missions");
 
     const { data: runningStatus, error: runningError } = await userA.rpc("set_dominic_hub_simulation_status_service", {
       p_user_id: users[0].id,

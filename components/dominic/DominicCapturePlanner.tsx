@@ -1186,18 +1186,14 @@ export default function DominicCapturePlanner() {
     horizontalFovDeg,
   ]);
 
-  const secondaryGeographicCheckpoints = useMemo(
-    () =>
-      secondaryPlan
-        ? georeferencePattern(
-            secondaryPlan,
-            centerLatitude,
-            centerLongitude,
-            patternHeadingDeg,
-          )
-        : [],
-    [secondaryPlan, centerLatitude, centerLongitude, patternHeadingDeg],
-  );
+  const secondaryGeographicCheckpoints = secondaryPlan
+    ? georeferencePattern(
+        secondaryPlan,
+        centerLatitude,
+        centerLongitude,
+        patternHeadingDeg,
+      )
+    : [];
 
   const activeSecondaryIndex = Math.min(
     secondaryIndex,
@@ -1205,37 +1201,20 @@ export default function DominicCapturePlanner() {
   );
   const currentSecondaryCheckpoint =
     secondaryGeographicCheckpoints[activeSecondaryIndex] ?? null;
-  const secondaryCoverage = useMemo(
-    () =>
-      assessCoverage({
-        checkpoints: secondaryGeographicCheckpoints,
-        observations: secondaryObservations,
-        centerLatitude,
-        centerLongitude,
-      }),
-    [
-      secondaryGeographicCheckpoints,
-      secondaryObservations,
-      centerLatitude,
-      centerLongitude,
-    ],
-  );
-  const secondaryRepairPlan = useMemo(
-    () =>
-      buildRepairPlan({
-        checkpoints: secondaryGeographicCheckpoints,
-        coverage: secondaryCoverage,
-        includeWeak: true,
-      }),
-    [secondaryGeographicCheckpoints, secondaryCoverage],
-  );
-  const secondaryCoverageByPass = useMemo(
-    () =>
-      summarizeCoverageByRing(
-        secondaryGeographicCheckpoints,
-        secondaryCoverage,
-      ),
-    [secondaryGeographicCheckpoints, secondaryCoverage],
+  const secondaryCoverage = assessCoverage({
+    checkpoints: secondaryGeographicCheckpoints,
+    observations: secondaryObservations,
+    centerLatitude,
+    centerLongitude,
+  });
+  const secondaryRepairPlan = buildRepairPlan({
+    checkpoints: secondaryGeographicCheckpoints,
+    coverage: secondaryCoverage,
+    includeWeak: true,
+  });
+  const secondaryCoverageByPass = summarizeCoverageByRing(
+    secondaryGeographicCheckpoints,
+    secondaryCoverage,
   );
 
   const recordSecondaryObservation = (
@@ -1571,7 +1550,7 @@ export default function DominicCapturePlanner() {
                         </div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5, marginTop: 7 }}>
                           <button type="button" disabled={activeSecondaryIndex === 0} onClick={() => setSecondaryIndex((index) => Math.max(0, index - 1))} style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 800 }}>Previous</button>
-                          <button type="button" onClick={() => markSecondaryCaptured(Date.now())} style={{ border: 0, background: V.orange, color: "#180A02", borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 900 }}>Mark captured</button>
+                          <button type="button" onClick={(event) => markSecondaryCaptured(Math.round(event.timeStamp))} style={{ border: 0, background: V.orange, color: "#180A02", borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 900 }}>Mark captured</button>
                           <button type="button" disabled={activeSecondaryIndex >= secondaryGeographicCheckpoints.length - 1} onClick={() => setSecondaryIndex((index) => Math.min(secondaryGeographicCheckpoints.length - 1, index + 1))} style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 800 }}>Next</button>
                         </div>
                         <input
@@ -1580,7 +1559,7 @@ export default function DominicCapturePlanner() {
                           disabled={secondaryImageStatus === "analyzing"}
                           onChange={(event) => {
                             const file = event.target.files?.[0];
-                            if (file) void analyzeSecondaryImage(file, Date.now());
+                            if (file) void analyzeSecondaryImage(file, Math.round(event.timeStamp));
                             event.currentTarget.value = "";
                           }}
                           style={{ width: "100%", marginTop: 7, color: V.muted, fontSize: 8 }}

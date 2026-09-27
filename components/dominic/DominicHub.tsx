@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -24,6 +24,7 @@ import {
   Wind,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
@@ -40,6 +41,44 @@ const CYAN = "#63CBE8";
 
 type HubView = "Command" | "Scheduler" | "Route Planner" | "Fleet" | "Sensors" | "Compliance";
 type MissionType = "Surveillance" | "Thermal Inspection" | "LDAR" | "Emergency Recon";
+type HubMissionTypeKey = "surveillance" | "thermal_inspection" | "ldar" | "emergency_recon";
+
+type HubMissionRow = {
+  id: string;
+  name: string;
+  mission_type: HubMissionTypeKey;
+  aircraft_label: string;
+  route_mode: string;
+  recurrence_label: string;
+  scheduled_local_time: string;
+  status: "ready" | "paused" | "completed" | "cancelled";
+  simulation_only: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+type HubEventRow = {
+  id: string;
+  mission_id: string | null;
+  event_type: string;
+  summary: string;
+  details: Record<string, unknown> | null;
+  created_at: string;
+};
+
+const missionTypeKey: Record<MissionType, HubMissionTypeKey> = {
+  Surveillance: "surveillance",
+  "Thermal Inspection": "thermal_inspection",
+  LDAR: "ldar",
+  "Emergency Recon": "emergency_recon",
+};
+
+const missionTypeLabel: Record<HubMissionTypeKey, MissionType> = {
+  surveillance: "Surveillance",
+  thermal_inspection: "Thermal Inspection",
+  ldar: "LDAR",
+  emergency_recon: "Emergency Recon",
+};
 
 const views: { label: HubView; icon: typeof Activity }[] = [
   { label: "Command", icon: Activity },
@@ -175,6 +214,87 @@ export default function DominicHub() {
   const [alerts, setAlerts] = useState(() => initialAlerts.map((a) => ({ ...a, ack: false })));
   const [simulationRunning, setSimulationRunning] = useState(true);
   const [scheduleEnabled, setScheduleEnabled] = useState(true);
+  const [scheduleTime, setScheduleTime] = useState("06:00");
+  const [recurrenceLabel, setRecurrenceLabel] = useState("MON / WED / FRI");
+  const [hubMissions, setHubMissions] = useState<HubMissionRow[]>([]);
+  const [hubEvents, setHubEvents] = useState<HubEventRow[]>([]);
+  const [hubDataLoading, setHubDataLoading] = useState(true);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduleMessage, setScheduleMessage] = useState<string | null>(null);
+
+  const refreshHubData = async () => {
+    const sb = getSupabaseBrowser();
+    const [{ data: missions, error: missionError }, { data: events, error: eventError }] = await Promise.all([
+      sb.from("dominic_hub_missions")
+        .select("id,name,mission_type,aircraft_label,route_mode,recurrence_label,scheduled_local_time,status,simulation_only,created_at,updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(50),
+      sb.from("dominic_hub_events")
+        .select("id,mission_id,event_type,summary,details,created_at")
+        .order("created_at", { ascending: false })
+        .limit(100),
+    ]);
+    if (missionError) throw missionError;
+    if (eventError) throw eventError;
+    setHubMissions((missions ?? []) as HubMissionRow[]);
+    setHubEvents((events ?? []) as HubEventRow[]);
+  };
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        await refreshHubData();
+      } catch (error) {
+        if (active) setScheduleMessage(error instanceof Error ? error.message : "HUB schedules could not be loaded.");
+      } finally {
+        if (active) setHubDataLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const saveSimulationSchedule = async () => {
+    setScheduleSaving(true);
+    setScheduleMessage(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data: sessionData } = await sb.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) throw new Error("Your DOMINIC session expired.");
+
+      const effectiveRecurrence = scheduleEnabled ? recurrenceLabel : "ONE-TIME SIMULATION";
+      const missionName = `${missionType} · ${routeMode}`;
+      const { data: savedId, error } = await sb.rpc("save_dominic_hub_simulation_service", {
+        p_user_id: userId,
+        p_name: missionName,
+        p_mission_type: missionTypeKey[missionType],
+        p_aircraft_label: selectedAircraft,
+        p_route_mode: routeMode,
+        p_recurrence_label: effectiveRecurrence,
+        p_scheduled_local_time: scheduleTime,
+      });
+      if (error) throw error;
+      if (!savedId) throw new Error("HUB schedule was not saved.");
+
+      await refreshHubData();
+      setScheduleMessage("Simulation schedule saved to DOMINIC HUB.");
+    } catch (error) {
+      setScheduleMessage(error instanceof Error ? error.message : "Simulation schedule could not be saved.");
+    } finally {
+      setScheduleSaving(false);
+    }
+  };
+
+  const openSavedMission = (mission: HubMissionRow) => {
+    setMissionType(missionTypeLabel[mission.mission_type]);
+    if (aircraft.some((item) => item.id === mission.aircraft_label)) setSelectedAircraft(mission.aircraft_label);
+    if ((["Patrol", "Thermal Sweep", "LDAR East"] as string[]).includes(mission.route_mode)) {
+      setRouteMode(mission.route_mode as "Patrol" | "Thermal Sweep" | "LDAR East");
+    }
+    setSimulationRunning(false);
+    setView("Command");
+  };
 
   const selected = useMemo(() => aircraft.find((a) => a.id === selectedAircraft) ?? aircraft[0], [selectedAircraft]);
 
@@ -253,27 +373,66 @@ export default function DominicHub() {
           <select value={selectedAircraft} onChange={(e) => setSelectedAircraft(e.target.value)} style={{ background: PANEL_2, border: `1px solid ${LINE}`, color: TEXT, borderRadius: 8, padding: 10 }}>
             {aircraft.map((a) => <option key={a.id}>{a.id}</option>)}
           </select>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+            <label style={{ display: "grid", gap: 5, fontSize: 10, color: MUTED }}>
+              Local time
+              <input
+                type="time"
+                value={scheduleTime}
+                onChange={(e) => setScheduleTime(e.target.value)}
+                style={{ background: PANEL_2, border: `1px solid ${LINE}`, color: TEXT, borderRadius: 8, padding: 10 }}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 5, fontSize: 10, color: MUTED }}>
+              Recurrence
+              <select
+                value={recurrenceLabel}
+                onChange={(e) => setRecurrenceLabel(e.target.value)}
+                disabled={!scheduleEnabled}
+                style={{ background: PANEL_2, border: `1px solid ${LINE}`, color: TEXT, borderRadius: 8, padding: 10, opacity: scheduleEnabled ? 1 : .55 }}
+              >
+                <option>DAILY</option>
+                <option>MON / WED / FRI</option>
+                <option>TUE / THU</option>
+                <option>WEEKLY</option>
+              </select>
+            </label>
+          </div>
           <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, border: `1px solid ${LINE}`, borderRadius: 9, padding: 10 }}>
-            <span><span style={{ display: "block", fontSize: 11, fontWeight: 900 }}>Recurring schedule</span><span style={{ color: MUTED, fontSize: 8 }}>Mon / Wed / Fri · 06:00</span></span>
+            <span>
+              <span style={{ display: "block", fontSize: 11, fontWeight: 900 }}>Recurring simulation</span>
+              <span style={{ color: MUTED, fontSize: 8 }}>{scheduleEnabled ? `${recurrenceLabel} · ${scheduleTime}` : `One-time simulation · ${scheduleTime}`}</span>
+            </span>
             <input type="checkbox" checked={scheduleEnabled} onChange={(e) => setScheduleEnabled(e.target.checked)} />
           </label>
-          <button style={{ border: 0, borderRadius: 9, padding: "11px 12px", background: `linear-gradient(90deg,${ORANGE_DARK},${ORANGE})`, color: "#1B0902", fontWeight: 900, cursor: "pointer" }}>Save Simulation Schedule</button>
+          <button
+            onClick={() => void saveSimulationSchedule()}
+            disabled={scheduleSaving}
+            style={{ border: 0, borderRadius: 9, padding: "11px 12px", background: `linear-gradient(90deg,${ORANGE_DARK},${ORANGE})`, color: "#1B0902", fontWeight: 900, cursor: scheduleSaving ? "wait" : "pointer", opacity: scheduleSaving ? .65 : 1 }}
+          >
+            {scheduleSaving ? "Saving…" : "Save Simulation Schedule"}
+          </button>
+          {scheduleMessage ? <div style={{ color: scheduleMessage.includes("saved") ? GREEN : AMBER, fontSize: 9, lineHeight: 1.4 }}>{scheduleMessage}</div> : null}
         </div>
       </Panel>
       <Panel>
         <Header eyebrow="Calendar" title="Upcoming Missions" />
         <div style={{ padding: 12, display: "grid", gap: 8 }}>
-          {[
-            ["06:00", "LDAR East Pipe Rack", "DOM-401", "MON / WED / FRI", "Ready"],
-            ["09:30", "Tank Farm Thermal Sweep", "DOM-401", "TUE / THU", "Ready"],
-            ["13:00", "Perimeter Surveillance", "DOM-402", "DAILY", "Weather review"],
-            ["16:00", "Tank 12 Thermal Inspection", "DOM-401", "TODAY", "Due"],
-          ].map(([time, title, craft, repeat, status]) => (
-            <div key={title} style={{ display: "grid", gridTemplateColumns: "70px minmax(0,1fr) 100px 105px", gap: 10, alignItems: "center", border: `1px solid ${LINE}`, borderRadius: 10, padding: 11, background: PANEL_2 }}>
-              <div style={{ fontWeight: 900, fontSize: 16 }}>{time}</div>
-              <div><div style={{ fontSize: 11, fontWeight: 900 }}>{title}</div><div style={{ color: MUTED, fontSize: 8, marginTop: 3 }}>{craft} · {repeat}</div></div>
-              <StatusPill tone={status === "Due" ? "amber" : status.includes("Weather") ? "blue" : "green"}>{status.toUpperCase()}</StatusPill>
-              <button style={{ border: `1px solid ${LINE}`, background: "#0B1117", color: TEXT, borderRadius: 8, padding: "8px 9px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}>Open Mission</button>
+          {hubDataLoading ? <div style={{ color: MUTED, fontSize: 10, padding: 8 }}>Loading saved HUB missions…</div> : null}
+          {!hubDataLoading && hubMissions.length === 0 ? (
+            <div style={{ border: `1px dashed ${LINE}`, borderRadius: 10, padding: 18, color: MUTED, fontSize: 10 }}>
+              No saved simulation missions yet. Build one on the left and save it.
+            </div>
+          ) : null}
+          {hubMissions.map((mission) => (
+            <div key={mission.id} style={{ display: "grid", gridTemplateColumns: "70px minmax(0,1fr) 100px 105px", gap: 10, alignItems: "center", border: `1px solid ${LINE}`, borderRadius: 10, padding: 11, background: PANEL_2 }}>
+              <div style={{ fontWeight: 900, fontSize: 16 }}>{mission.scheduled_local_time.slice(0,5)}</div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 900 }}>{mission.name}</div>
+                <div style={{ color: MUTED, fontSize: 8, marginTop: 3 }}>{mission.aircraft_label} · {mission.recurrence_label} · {mission.route_mode}</div>
+              </div>
+              <StatusPill tone={mission.status === "ready" ? "green" : mission.status === "paused" ? "amber" : "blue"}>{mission.status.toUpperCase()}</StatusPill>
+              <button onClick={() => openSavedMission(mission)} style={{ border: `1px solid ${LINE}`, background: "#0B1117", color: TEXT, borderRadius: 8, padding: "8px 9px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}>Open Mission</button>
             </div>
           ))}
         </div>
@@ -338,13 +497,22 @@ export default function DominicHub() {
       <Panel>
         <Header eyebrow="Audit Trail" title="Mission & System Records" right={<StatusPill>LOGGING ON</StatusPill>} />
         <div style={{ padding: 12, display: "grid", gap: 7 }}>
-          {[
-            ["14:31:18","Mission simulation started","DOM-401 · LDAR East Pipe Rack","SYSTEM"],
-            ["14:30:44","Preflight checks passed","Geofence · battery · link · weather","CHECK"],
-            ["14:30:10","Route revision saved","Waypoint PIPE-E altitude changed 110 → 120 ft","USER"],
-            ["14:29:22","Sensor threshold profile loaded","Methane alarm 400 ppm","SYSTEM"],
-            ["14:28:59","Aircraft assigned","DOM-401 · Matrice 4T","USER"],
-          ].map(([time,event,detail,type]) => <div key={time} style={{ display: "grid", gridTemplateColumns: "72px 1fr 64px", gap: 10, border: `1px solid ${LINE}`, borderRadius: 9, background: PANEL_2, padding: 10, alignItems: "center" }}><div style={{ fontFamily: "monospace", color: MUTED, fontSize: 9 }}>{time}</div><div><div style={{ fontSize: 10, fontWeight: 900 }}>{event}</div><div style={{ color: MUTED, fontSize: 8, marginTop: 2 }}>{detail}</div></div><span style={{ color: ORANGE, fontSize: 8, fontWeight: 900 }}>{type}</span></div>)}
+          {hubEvents.length === 0 ? (
+            <div style={{ border: `1px dashed ${LINE}`, borderRadius: 9, padding: 16, color: MUTED, fontSize: 9 }}>
+              No persisted HUB audit events yet. Saving a simulation schedule will create the first record.
+            </div>
+          ) : hubEvents.slice(0, 20).map((event) => (
+            <div key={event.id} style={{ display: "grid", gridTemplateColumns: "82px 1fr 96px", gap: 10, border: `1px solid ${LINE}`, borderRadius: 9, background: PANEL_2, padding: 10, alignItems: "center" }}>
+              <div style={{ fontFamily: "monospace", color: MUTED, fontSize: 9 }}>{new Date(event.created_at).toLocaleTimeString()}</div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 900 }}>{event.summary}</div>
+                <div style={{ color: MUTED, fontSize: 8, marginTop: 2 }}>
+                  {typeof event.details?.mission_type === "string" ? String(event.details.mission_type).replaceAll("_", " ") : "DOMINIC HUB"}{event.mission_id ? ` · ${event.mission_id.slice(0,8)}` : ""}
+                </div>
+              </div>
+              <span style={{ color: ORANGE, fontSize: 8, fontWeight: 900 }}>{event.event_type.replaceAll("_", " ").toUpperCase()}</span>
+            </div>
+          ))}
         </div>
       </Panel>
       <div style={{ display: "grid", gap: 12 }}>

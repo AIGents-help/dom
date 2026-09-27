@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
       missionRequestId: mr.id,
       subject,
       html,
+      idempotencyKey: `deliverable-ready/${mr.id}`,
     });
 
     return NextResponse.json(result);

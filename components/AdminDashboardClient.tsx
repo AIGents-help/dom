@@ -59,8 +59,6 @@ interface DeliverableRow {
 interface NoteRow {
   id: string; entity_type: string; entity_id: string; author: string | null; body: string; created_at: string;
 }
-const JOB_STATUSES = ["scheduled", "in_progress", "flown", "processing", "qc", "delivered", "cancelled"];
-
 const emptyClientForm = { company_name: "", contact_name: "", email: "", phone: "", industry: "", notes: "" };
 const emptyNoteForm = { entity_type: "mission_request", entity_id: "", author: "", body: "" };
 
@@ -83,7 +81,7 @@ export default function AdminDashboardClient() {
   const [noteForm, setNoteForm] = useState(emptyNoteForm);
 
   const [editingJob, setEditingJob] = useState<string | null>(null);
-  const [jobDraft, setJobDraft] = useState({ status: "", scheduled_for: "" });
+  const [jobDraft, setJobDraft] = useState({ scheduled_for: "" });
   const [savingJob, setSavingJob] = useState(false);
 
   useEffect(() => {
@@ -176,22 +174,40 @@ export default function AdminDashboardClient() {
   function startEditJob(j: JobRow) {
     setEditingJob(j.id);
     setJobDraft({
-      status: j.status,
       scheduled_for: j.scheduled_for ? new Date(j.scheduled_for).toISOString().slice(0, 16) : "",
     });
   }
 
-  async function saveJobEdit(jobId: string) {
+  async function saveJobEdit(job: JobRow) {
+    if (!job.mission_request_id) {
+      alert("This job is not linked to a mission request.");
+      return;
+    }
     setSavingJob(true);
-    const sb = getSupabaseBrowser();
-    const { error } = await sb.from("jobs").update({
-      status: jobDraft.status,
-      scheduled_for: jobDraft.scheduled_for ? new Date(jobDraft.scheduled_for).toISOString() : null,
-    }).eq("id", jobId);
-    setSavingJob(false);
-    if (error) { alert(error.message); return; }
-    setEditingJob(null);
-    await load();
+    try {
+      const sb = getSupabaseBrowser();
+      const { data } = await sb.auth.getSession();
+      if (!data.session) throw new Error("Admin session expired.");
+      const response = await fetch(`/api/admin/missions/${job.mission_request_id}/manage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${data.session.access_token}`,
+        },
+        body: JSON.stringify({
+          action: "set_schedule",
+          scheduledFor: jobDraft.scheduled_for ? new Date(jobDraft.scheduled_for).toISOString() : null,
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error ?? "Mission schedule could not be updated.");
+      setEditingJob(null);
+      await load();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Mission schedule could not be updated.");
+    } finally {
+      setSavingJob(false);
+    }
   }
 
   function openNote(note: NoteRow) {
@@ -208,7 +224,7 @@ export default function AdminDashboardClient() {
   if (loading) return <p className="text-muted">Loading dashboard…</p>;
 
   const scheduled = jobs
-    .filter((j) => j.scheduled_for)
+    .filter((j) => j.scheduled_for && !["delivered", "closed", "cancelled"].includes(j.status))
     .sort((a, b) => new Date(a.scheduled_for!).getTime() - new Date(b.scheduled_for!).getTime());
 
   const today = new Date().toISOString().slice(0, 10);
@@ -220,7 +236,7 @@ export default function AdminDashboardClient() {
       tone: "bg-rose-500/10 text-rose-400",
       onClick: () => router.push("/admin/leads"),
     },
-    { label: "Pending Mission Requests", count: missions.filter((m) => ["requested", "reviewing"].includes(m.status)).length, tone: "bg-amber-500/10 text-amber-400", onClick: () => setActive("missions") },
+    { label: "Pending Mission Requests", count: missions.filter((m) => ["requested", "reviewing", "scoped", "quoted", "approved"].includes(m.status)).length, tone: "bg-amber-500/10 text-amber-400", onClick: () => setActive("missions") },
     { label: "Active Jobs", count: jobs.filter((j) => !["delivered", "cancelled"].includes(j.status)).length, tone: "bg-accent/10 text-accent", onClick: () => setActive("jobs") },
     { label: "Deliverables in Review", count: deliverables.filter((d) => !d.qc_passed).length, tone: "bg-purple-500/10 text-purple-400", onClick: () => setActive("deliverables") },
   ];
@@ -254,18 +270,6 @@ export default function AdminDashboardClient() {
         {editing && (
           <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-border pt-4">
             <div>
-              <label className={labelCls}>Status</label>
-              <select
-                value={jobDraft.status}
-                onChange={(e) => setJobDraft((d) => ({ ...d, status: e.target.value }))}
-                className={inputCls}
-              >
-                {JOB_STATUSES.map((s) => (
-                  <option key={s} value={s}>{s.replace("_", " ")}</option>
-                ))}
-              </select>
-            </div>
-            <div>
               <label className={labelCls}>Scheduled for</label>
               <input
                 type="datetime-local"
@@ -274,7 +278,7 @@ export default function AdminDashboardClient() {
                 className={inputCls}
               />
             </div>
-            <ActionBtn disabled={savingJob} onClick={() => saveJobEdit(j.id)}>{savingJob ? "Saving…" : "Save"}</ActionBtn>
+            <ActionBtn disabled={savingJob} onClick={() => saveJobEdit(j)}>{savingJob ? "Saving…" : "Save schedule"}</ActionBtn>
           </div>
         )}
       </div>

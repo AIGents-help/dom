@@ -284,10 +284,38 @@ export default function MappingProjectWorkspace({
             </p>
           )}
           {images.length > 0 && (
-            <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
-              <ImageIcon size={13} />
-              {images.length} image{images.length === 1 ? "" : "s"} · {images.filter((i) => i.camera_make || i.captured_at).length} with verified metadata
-            </p>
+            <>
+              <p style={{ color: V.inkFaint, fontSize: 11, marginTop: 10, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <ImageIcon size={13} />
+                {images.length} image{images.length === 1 ? "" : "s"} · {images.filter((i) => i.camera_make || i.captured_at).length} with verified metadata
+                · {images.filter((i) => i.lifecycle_status === "failed").length} failed
+              </p>
+              <details style={{ marginTop: 9, border: `1px solid ${V.line}`, borderRadius: 8, background: V.raised }}>
+                <summary style={{ cursor: "pointer", padding: "9px 10px", color: V.inkDim, fontSize: 10, fontWeight: 700 }}>
+                  Image processing status
+                </summary>
+                <div style={{ maxHeight: 260, overflowY: "auto", borderTop: `1px solid ${V.line}` }}>
+                  {images.map((image) => {
+                    const failed = image.lifecycle_status === "failed";
+                    const active = ["downloading", "processor_uploading", "processing"].includes(image.lifecycle_status);
+                    const color = failed ? V.danger : active ? V.signal : ["downloaded", "metadata_checked", "processed"].includes(image.lifecycle_status) ? V.telemetry : V.inkFaint;
+                    return (
+                      <div key={image.id} style={{ padding: "8px 10px", borderBottom: `1px solid ${V.lineSoft}`, display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 8, alignItems: "center" }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ color: V.ink, fontSize: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {image.original_filename ?? image.storage_path}
+                          </div>
+                          {image.lifecycle_error ? <div style={{ color: V.danger, fontSize: 9, marginTop: 2 }}>{image.lifecycle_error}</div> : null}
+                        </div>
+                        <span style={{ color, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".05em" }}>
+                          {image.lifecycle_status.replaceAll("_", " ")}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            </>
           )}
         </section>
 

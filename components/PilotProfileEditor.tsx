@@ -6,8 +6,10 @@ import { useNow } from "@/lib/useNow";
 import { PILOT_V as V } from "@/lib/pilotTheme";
 
 
-// Pilot > Profile tab — editable basic info. These columns (full_name,
-// phone, service_area, equipment, part107_number, home_address) are all outside the
+// Pilot > Profile tab — editable basic info. Aircraft/equipment is managed
+// exclusively through the structured PilotAssetsTab rendered directly below
+// this card; the legacy contractors.equipment text field is intentionally not
+// part of this editor. These basic profile columns are outside the
 // enforce_contractor_protected_fields trigger's guarded list, so a direct
 // RLS-permitted update via contractor_update_own is all that's needed —
 // no new API route, same pattern app/admin/contractors/page.tsx's toggle()
@@ -26,7 +28,6 @@ interface Profile {
   part107_number: string | null;
   service_area: string | null;
   home_address: string | null;
-  equipment: string | null;
   rating: number | null;
   insurance_verified: boolean;
   insurance_requested: boolean;

@@ -925,3 +925,100 @@ test("admin CRM workspace returns newly created leads", { skip: !isolated }, asy
     await admin.auth.admin.deleteUser(createdUser.user.id);
   }
 });
+
+
+test("shop refund restores reserved stocked inventory exactly once", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const productKey = `e2e-refund-${stamp}`;
+  const orderId = crypto.randomUUID();
+  const sessionId = `cs_e2e_${stamp}`;
+  const paymentIntentId = `pi_e2e_${stamp}`;
+
+  const { error: inventoryError } = await admin.from("shop_inventory").insert({
+    product_key: productKey,
+    product_name: "E2E Refund Product",
+    description: "Refund inventory regression fixture",
+    unit_amount_cents: 1200,
+    variants: [],
+    category: "Equipment",
+    active: true,
+    fulfillment_mode: "stocked",
+    available_quantity: 10,
+    shipping_base_cents: 0,
+    shipping_additional_cents: 0,
+  });
+  assert.ifError(inventoryError);
+
+  try {
+    const { error: checkoutError } = await admin.rpc("create_shop_checkout_service", {
+      p_order_id: orderId,
+      p_order_number: `E2E-${stamp}`,
+      p_session_id: sessionId,
+      p_product_key: productKey,
+      p_product_name: "E2E Refund Product",
+      p_variant: "",
+      p_quantity: 3,
+      p_unit_amount_cents: 1200,
+      p_shipping_cents: 0,
+    });
+    assert.ifError(checkoutError);
+
+    const { data: reserved, error: reservedError } = await admin.from("shop_inventory")
+      .select("available_quantity")
+      .eq("product_key", productKey)
+      .single();
+    assert.ifError(reservedError);
+    assert.equal(reserved.available_quantity, 7);
+
+    const { error: completeError } = await admin.rpc("complete_shop_order_service", {
+      p_session_id: sessionId,
+      p_payment_intent_id: paymentIntentId,
+      p_customer_email: `refund-${stamp}@e2e.dom.invalid`,
+      p_customer_name: "Refund Test",
+      p_customer_phone: null,
+      p_currency: "usd",
+      p_subtotal_cents: 3600,
+      p_shipping_cents: 0,
+      p_tax_cents: 0,
+      p_discount_cents: 0,
+      p_total_cents: 3600,
+      p_shipping_name: "Refund Test",
+      p_shipping_address: {},
+    });
+    assert.ifError(completeError);
+
+    const { data: refunded, error: refundError } = await admin.rpc("refund_shop_order_service", {
+      p_order_id: orderId,
+    });
+    assert.ifError(refundError);
+    assert.equal(refunded, true);
+
+    const { data: restored, error: restoredError } = await admin.from("shop_inventory")
+      .select("available_quantity")
+      .eq("product_key", productKey)
+      .single();
+    assert.ifError(restoredError);
+    assert.equal(restored.available_quantity, 10);
+
+    const { data: secondRefund, error: secondRefundError } = await admin.rpc("refund_shop_order_service", {
+      p_order_id: orderId,
+    });
+    assert.ifError(secondRefundError);
+    assert.equal(secondRefund, false);
+
+    const { data: unchanged, error: unchangedError } = await admin.from("shop_inventory")
+      .select("available_quantity")
+      .eq("product_key", productKey)
+      .single();
+    assert.ifError(unchangedError);
+    assert.equal(unchanged.available_quantity, 10);
+  } finally {
+    await admin.from("shop_order_items").delete().eq("order_id", orderId);
+    await admin.from("shop_orders").delete().eq("id", orderId);
+    await admin.from("shop_inventory").delete().eq("product_key", productKey);
+  }
+});

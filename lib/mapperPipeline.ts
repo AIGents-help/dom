@@ -43,6 +43,9 @@ export interface MappingImage {
   image_width: number | null;
   image_height: number | null;
   metadata: Record<string, unknown> | null;
+  lifecycle_status: "stored" | "downloading" | "downloaded" | "metadata_checked" | "processor_uploading" | "processing" | "processed" | "failed";
+  lifecycle_error: string | null;
+  lifecycle_updated_at: string;
   created_at: string;
 }
 

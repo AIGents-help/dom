@@ -43,6 +43,29 @@ interface MappingProjectRow {
   name: string;
 }
 
+async function setProjectImageLifecycle(
+  mappingProjectId: string,
+  lifecycleStatus: "stored" | "downloading" | "downloaded" | "metadata_checked" | "processor_uploading" | "processing" | "processed" | "failed",
+  lifecycleError: string | null = null,
+  onlyStatuses?: string[],
+) {
+  let query = supabaseAdmin
+    .from("mapping_images")
+    .update({
+      lifecycle_status: lifecycleStatus,
+      lifecycle_error: lifecycleError,
+      lifecycle_updated_at: new Date().toISOString(),
+    })
+    .eq("mapping_project_id", mappingProjectId);
+  if (onlyStatuses?.length) query = query.in("lifecycle_status", onlyStatuses);
+  const { error } = await query;
+  if (error) {
+    console.error(
+      `[processJob] Could not update image lifecycle to ${lifecycleStatus} for project ${mappingProjectId}: ${error.message}`,
+    );
+  }
+}
+
 export async function processJob(job: ProcessingJob): Promise<void> {
   const { data: project, error: projectError } = await supabaseAdmin
     .from("mapping_projects")
@@ -120,6 +143,14 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     await updateProgress(job.id, project.id, 15, "Reading Metadata");
     for (let i = 0; i < images.length; i++) {
       await extractAndStoreMetadata(images[i], localImagePaths[i]);
+      await supabaseAdmin
+        .from("mapping_images")
+        .update({
+          lifecycle_status: "metadata_checked",
+          lifecycle_error: null,
+          lifecycle_updated_at: new Date().toISOString(),
+        })
+        .eq("id", images[i].id);
     }
 
     // Close-range object reconstruction must not inherit fake/degenerate
@@ -155,8 +186,10 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     };
     const odmOptions = allOptions.filter((option) => !option.name.startsWith("__dom_"));
     const taskUuid = await initTask(project.name, odmOptions);
+    await setProjectImageLifecycle(project.id, "processor_uploading", null, ["metadata_checked", "downloaded"]);
     await uploadImagesToTask(taskUuid, localImagePaths);
     await commitTask(taskUuid);
+    await setProjectImageLifecycle(project.id, "processing", null, ["processor_uploading"]);
     await logEvent(project.id, "nodeodm_task_submitted", `NodeODM task ${taskUuid} submitted (${images.length} images).`, { taskUuid });
 
     // 4. Poll NodeODM until done. ODM's own 0-100 progress is mapped into
@@ -190,6 +223,8 @@ export async function processJob(job: ProcessingJob): Promise<void> {
         throw new Error(info.status.errorMessage || `NodeODM task ended with status ${odmStatus}.`);
       }
     }
+
+    await setProjectImageLifecycle(project.id, "processed", null, ["processing", "processor_uploading"]);
 
     // 5. Preparing Deliverables — retrieve, unpack, convert, and register outputs.
     await updateProgress(job.id, project.id, 92, "Preparing Deliverables");
@@ -332,6 +367,12 @@ export async function processJob(job: ProcessingJob): Promise<void> {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[processJob] Job ${job.id} failed:`, message);
+    await setProjectImageLifecycle(
+      project.id,
+      "failed",
+      message,
+      ["downloading", "downloaded", "metadata_checked", "processor_uploading", "processing"],
+    );
     await Promise.all([
       supabaseAdmin.from("mapping_processing_jobs").update({ status: "failed", error_message: message }).eq("id", job.id),
       supabaseAdmin.from("mapping_projects").update({ status: "failed", error_message: message }).eq("id", project.id),

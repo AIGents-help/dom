@@ -1421,21 +1421,13 @@ test("admin schedule changes create one client schedule notification event", { s
   const scheduledFor = "2099-06-15T14:30:00.000Z";
   const api = await request.newContext({ baseURL });
   try {
-    const response = await api.patch(`/api/admin/missions/${mission.id}`, {
+    const response = await api.post(`/api/admin/missions/${mission.id}/manage`, {
       headers: {
         Authorization: `Bearer ${signedIn.session.access_token}`,
         "Content-Type": "application/json",
       },
       data: {
-        title: "Schedule Notification Mission",
-        requesterName: "Schedule Client",
-        requesterEmail: clientEmail,
-        company: "Schedule Client",
-        serviceType: "aerial_images",
-        location: "Schedule Site",
-        scope: "",
-        status: "assigned",
-        quotedAmountCents: null,
+        action: "set_schedule",
         scheduledFor,
       },
       failOnStatusCode: false,

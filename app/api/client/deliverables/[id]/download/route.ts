@@ -16,9 +16,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { data: client } = await admin.from("clients").select("id").eq("user_id", user.id).maybeSingle();
   if (!client) return NextResponse.json({ error: "Client profile not found" }, { status: 404 });
   const { id } = await params;
-  const { data: deliverable } = await admin.from("deliverables").select("storage_url, qc_passed, job:jobs!inner(client_id)").eq("id", id).maybeSingle();
+  const { data: deliverable } = await admin.from("deliverables").select("storage_url, qc_passed, client_status, job:jobs!inner(client_id)").eq("id", id).maybeSingle();
   const job = Array.isArray(deliverable?.job) ? deliverable.job[0] : deliverable?.job;
-  if (!deliverable || !job || job.client_id !== client.id || !deliverable.qc_passed || !deliverable.storage_url) return NextResponse.json({ error: "File not available" }, { status: 404 });
+  if (!deliverable || !job || job.client_id !== client.id || !deliverable.qc_passed || !deliverable.storage_url || ["superseded", "revision_requested"].includes(deliverable.client_status ?? "")) return NextResponse.json({ error: "File not available" }, { status: 404 });
   const { data, error } = await admin.storage.from("mission-deliverables").createSignedUrl(deliverable.storage_url, 300);
   if (error || !data?.signedUrl) return NextResponse.json({ error: "File could not be opened" }, { status: 500 });
   return NextResponse.json({ url: data.signedUrl });

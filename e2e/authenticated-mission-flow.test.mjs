@@ -4169,3 +4169,156 @@ test("DOMINIC saved capture plans are private and durable per user", { skip: !is
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("mapping image confirmation updates project summary exactly once", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `mapping-summary-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Mapping-Summary-${stamp}!Aa1`;
+
+  const { data: userData, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  const user = userData.user;
+  assert.ok(user);
+
+  const { data: pilot, error: pilotError } = await admin.from("contractors").insert({
+    user_id: user.id,
+    full_name: "E2E Mapping Summary Pilot",
+    email,
+    status: "active",
+    part107_verified: true,
+    can_create_missions: false,
+  }).select("id").single();
+  assert.ifError(pilotError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "Mapping Summary Client",
+    requester_email: `mapping-client-${stamp}@e2e.dom.invalid`,
+    company: "Mapping Summary Test",
+    service_type: "ortho_survey",
+    location: "Mapping Summary Site",
+    status: "assigned",
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    title: "Mapping Summary Mission",
+    service_type: "ortho_survey",
+    location: "Mapping Summary Site",
+    status: "scheduled",
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: project, error: projectError } = await admin.from("mapping_projects").insert({
+    job_id: job.id,
+    contractor_id: pilot.id,
+    name: "E2E Mapping Summary Project",
+    status: "draft",
+  }).select("id,image_count,total_upload_bytes").single();
+  assert.ifError(projectError);
+  assert.equal(project.image_count, 0);
+  assert.equal(Number(project.total_upload_bytes), 0);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  const headers = {
+    Authorization: `Bearer ${signedIn.session.access_token}`,
+    "Content-Type": "application/json",
+  };
+  const imageIds = [];
+
+  try {
+    const first = await api.post(`/api/pilot/mapping/projects/${project.id}/images`, {
+      headers,
+      data: {
+        storage_path: `${project.id}/image-1.jpg`,
+        original_filename: "image-1.jpg",
+        file_size: 1_234_567,
+        mime_type: "image/jpeg",
+        checksum: `sha256-first-${stamp}`,
+        image_width: 4000,
+        image_height: 3000,
+      },
+      failOnStatusCode: false,
+    });
+    const firstBody = await first.json().catch(() => ({}));
+    assert.equal(first.status(), 200, JSON.stringify(firstBody));
+    imageIds.push(firstBody.imageId);
+
+    const { data: afterFirst, error: firstSummaryError } = await admin.from("mapping_projects")
+      .select("image_count,total_upload_bytes,status")
+      .eq("id", project.id)
+      .single();
+    assert.ifError(firstSummaryError);
+    assert.equal(afterFirst.image_count, 1);
+    assert.equal(Number(afterFirst.total_upload_bytes), 1_234_567);
+    assert.equal(afterFirst.status, "uploaded");
+
+    const second = await api.post(`/api/pilot/mapping/projects/${project.id}/images`, {
+      headers,
+      data: {
+        storage_path: `${project.id}/image-2.jpg`,
+        original_filename: "image-2.jpg",
+        file_size: 2_000_001,
+        mime_type: "image/jpeg",
+        checksum: `sha256-second-${stamp}`,
+        image_width: 4000,
+        image_height: 3000,
+      },
+      failOnStatusCode: false,
+    });
+    const secondBody = await second.json().catch(() => ({}));
+    assert.equal(second.status(), 200, JSON.stringify(secondBody));
+    imageIds.push(secondBody.imageId);
+
+    const { data: afterSecond, error: secondSummaryError } = await admin.from("mapping_projects")
+      .select("image_count,total_upload_bytes")
+      .eq("id", project.id)
+      .single();
+    assert.ifError(secondSummaryError);
+    assert.equal(afterSecond.image_count, 2);
+    assert.equal(Number(afterSecond.total_upload_bytes), 3_234_568);
+
+    const foreignPath = await api.post(`/api/pilot/mapping/projects/${project.id}/images`, {
+      headers,
+      data: {
+        storage_path: `${crypto.randomUUID()}/foreign.jpg`,
+        original_filename: "foreign.jpg",
+        file_size: 999,
+        mime_type: "image/jpeg",
+        checksum: `sha256-foreign-${stamp}`,
+      },
+      failOnStatusCode: false,
+    });
+    assert.equal(foreignPath.status(), 403);
+
+    const { data: afterRejected, error: rejectedSummaryError } = await admin.from("mapping_projects")
+      .select("image_count,total_upload_bytes")
+      .eq("id", project.id)
+      .single();
+    assert.ifError(rejectedSummaryError);
+    assert.equal(afterRejected.image_count, 2);
+    assert.equal(Number(afterRejected.total_upload_bytes), 3_234_568);
+  } finally {
+    await api.dispose();
+    if (imageIds.length) await admin.from("mapping_images").delete().in("id", imageIds);
+    await admin.from("mapping_projects").delete().eq("id", project.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().eq("id", pilot.id);
+    await admin.auth.admin.deleteUser(user.id);
+  }
+});

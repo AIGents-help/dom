@@ -30,6 +30,10 @@ create index if not exists dominic_flight_runs_mission_request_idx
   on public.dominic_flight_runs(mission_request_id)
   where mission_request_id is not null;
 
+create index if not exists dominic_flight_runs_mapping_project_idx
+  on public.dominic_flight_runs(mapping_project_id)
+  where mapping_project_id is not null;
+
 create table if not exists public.dominic_flight_events (
   id uuid primary key default gen_random_uuid(),
   flight_run_id uuid not null references public.dominic_flight_runs(id) on delete cascade,
@@ -45,6 +49,9 @@ create table if not exists public.dominic_flight_events (
 
 create index if not exists dominic_flight_events_run_time_idx
   on public.dominic_flight_events(flight_run_id, event_at);
+
+create index if not exists dominic_flight_events_contractor_idx
+  on public.dominic_flight_events(contractor_id);
 
 create table if not exists public.dominic_capture_observations (
   id uuid primary key default gen_random_uuid(),
@@ -66,6 +73,9 @@ create table if not exists public.dominic_capture_observations (
 
 create index if not exists dominic_capture_observations_run_checkpoint_idx
   on public.dominic_capture_observations(flight_run_id, checkpoint_id);
+
+create index if not exists dominic_capture_observations_contractor_idx
+  on public.dominic_capture_observations(contractor_id);
 
 alter table public.dominic_flight_runs enable row level security;
 alter table public.dominic_flight_events enable row level security;

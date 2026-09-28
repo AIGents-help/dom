@@ -35,6 +35,28 @@ export async function classifyAirspace(
   lat: number,
   lng: number
 ): Promise<AirspaceResult> {
+  // The isolated lifecycle suite must not depend on the availability of an
+  // external FAA ArcGIS endpoint. Production never sets this flag and still
+  // fails closed if authoritative FAA data cannot be verified.
+  if (process.env.E2E_ISOLATED_SUPABASE === "true") {
+    return {
+      airspace_class: "G",
+      max_altitude_ft: 400,
+      nearest_airport: null,
+      laanc_required: false,
+      laanc_status: "not_required",
+      tfr_active: false,
+      tfr_details: [],
+      notams: [],
+      risk_level: "low",
+      authorization_summary: "Isolated E2E fixture — Class G uncontrolled airspace.",
+      raw_source: "manual",
+      operationally_verified: true,
+      data_warning: "Deterministic isolated-test airspace fixture; production still uses FAA-published datasets.",
+      queried_at: new Date().toISOString(),
+    };
+  }
+
   // FAA-published datasets are the authority for DOM's displayed class and
   // UAS Facility Map ceiling. Third-party services must never override them.
   return classifyViaFaa(lat, lng);

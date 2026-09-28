@@ -1374,6 +1374,30 @@ export default function DominicCapturePlanner() {
     setAutonomousTarget("connected");
     setAutonomousRunning(true);
     setAutonomousSnapshot(null);
+    setFlightAuditStatus("saving");
+
+    let auditRunId: string | null = null;
+    try {
+      auditRunId = await startFlightAudit({
+        missionType: "object",
+        mode,
+        checkpoints,
+        aircraft: {
+          vendor: bridgeInfo?.vendor ?? adapter.vendor,
+          model: bridgeInfo?.model ?? adapter.getState().model,
+          aircraftId: bridgeInfo?.aircraftId ?? adapter.getState().aircraftId,
+          bridgeId: bridgeInfo?.bridgeId,
+        },
+        capabilities: adapter.capabilities,
+        payload: activeConnectedPayload,
+        coverageSummary: adaptiveCoverage as unknown as Record<string, unknown>,
+        planSignature: realFlightPlanSignature,
+        calibrationSnapshot: calibration,
+      });
+      if (auditRunId) setLastFlightRunId(auditRunId);
+    } catch {
+      auditRunId = null;
+    }
 
     const engine = new DominicMissionEngine(adapter, {
       centerLatitude,
@@ -1390,9 +1414,27 @@ export default function DominicCapturePlanner() {
     const unsubscribe = engine.subscribe((snapshot) =>
       setAutonomousSnapshot(snapshot),
     );
-    await engine.execute();
+    const result = await engine.execute();
     unsubscribe();
-    setAutonomousSnapshot(engine.getSnapshot());
+    setAutonomousSnapshot(result);
+
+    if (auditRunId) {
+      try {
+        const saved = await finishFlightAudit({
+          runId: auditRunId,
+          snapshot: result,
+          observations: captureObservations,
+          coverageSummary: adaptiveCoverage as unknown as Record<string, unknown>,
+        });
+        setFlightAuditStatus(saved ? "saved" : "error");
+        if (saved) void loadRecentFlightRuns();
+      } catch {
+        setFlightAuditStatus("error");
+      }
+    } else {
+      setFlightAuditStatus("error");
+    }
+
     autonomousEngineRef.current = null;
     setAutonomousRunning(false);
     setRealFlightApprovalSignature(null);
@@ -1411,6 +1453,7 @@ export default function DominicCapturePlanner() {
     setAutonomousRunning(true);
     setAutonomousSnapshot(null);
     setMissionControlMessage(null);
+    setFlightAuditStatus("saving");
 
     const aircraft = new SimulatorAircraftAdapter({
       latitude: homeLatitude,
@@ -1422,6 +1465,33 @@ export default function DominicCapturePlanner() {
       gnssQuality: "good",
       rtkState: "fixed",
     });
+
+    let auditRunId: string | null = null;
+    try {
+      const payload =
+        aircraft.payloads?.find((item) => item.id === aircraft.activePayloadId) ??
+        aircraft.payloads?.[0] ??
+        null;
+      auditRunId = await startFlightAudit({
+        missionType,
+        mode,
+        checkpoints,
+        aircraft: {
+          vendor: aircraft.vendor,
+          model: aircraft.getState().model,
+          aircraftId: aircraft.getState().aircraftId,
+        },
+        capabilities: aircraft.capabilities,
+        payload,
+        coverageSummary: secondaryCoverage as unknown as Record<string, unknown>,
+        planSignature: secondaryFlightPlanSignature,
+        calibrationSnapshot: secondaryCalibrationValidation,
+      });
+      if (auditRunId) setLastFlightRunId(auditRunId);
+    } catch {
+      auditRunId = null;
+    }
+
     const engine = new DominicMissionEngine(aircraft, {
       centerLatitude,
       centerLongitude,
@@ -1464,6 +1534,24 @@ export default function DominicCapturePlanner() {
         ),
       );
     }
+
+    if (auditRunId) {
+      try {
+        const saved = await finishFlightAudit({
+          runId: auditRunId,
+          snapshot: result,
+          observations: secondaryObservations,
+          coverageSummary: secondaryCoverage as unknown as Record<string, unknown>,
+        });
+        setFlightAuditStatus(saved ? "saved" : "error");
+        if (saved) void loadRecentFlightRuns();
+      } catch {
+        setFlightAuditStatus("error");
+      }
+    } else {
+      setFlightAuditStatus("error");
+    }
+
     autonomousEngineRef.current = null;
     setAutonomousRunning(false);
   };
@@ -1490,6 +1578,30 @@ export default function DominicCapturePlanner() {
     setAutonomousRunning(true);
     setAutonomousSnapshot(null);
     setMissionControlMessage(null);
+    setFlightAuditStatus("saving");
+
+    let auditRunId: string | null = null;
+    try {
+      auditRunId = await startFlightAudit({
+        missionType,
+        mode,
+        checkpoints,
+        aircraft: {
+          vendor: bridgeInfo?.vendor ?? adapter.vendor,
+          model: bridgeInfo?.model ?? adapter.getState().model,
+          aircraftId: bridgeInfo?.aircraftId ?? adapter.getState().aircraftId,
+          bridgeId: bridgeInfo?.bridgeId,
+        },
+        capabilities: adapter.capabilities,
+        payload: activeConnectedPayload,
+        coverageSummary: secondaryCoverage as unknown as Record<string, unknown>,
+        planSignature: secondaryFlightPlanSignature,
+        calibrationSnapshot: secondaryCalibrationValidation,
+      });
+      if (auditRunId) setLastFlightRunId(auditRunId);
+    } catch {
+      auditRunId = null;
+    }
 
     const engine = new DominicMissionEngine(adapter, {
       centerLatitude,
@@ -1511,6 +1623,24 @@ export default function DominicCapturePlanner() {
     const result = await engine.execute();
     unsubscribe();
     setAutonomousSnapshot(result);
+
+    if (auditRunId) {
+      try {
+        const saved = await finishFlightAudit({
+          runId: auditRunId,
+          snapshot: result,
+          observations: secondaryObservations,
+          coverageSummary: secondaryCoverage as unknown as Record<string, unknown>,
+        });
+        setFlightAuditStatus(saved ? "saved" : "error");
+        if (saved) void loadRecentFlightRuns();
+      } catch {
+        setFlightAuditStatus("error");
+      }
+    } else {
+      setFlightAuditStatus("error");
+    }
+
     autonomousEngineRef.current = null;
     setAutonomousRunning(false);
     setSecondaryFlightApprovalSignature(null);

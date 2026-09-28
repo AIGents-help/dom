@@ -6,6 +6,7 @@ import type {
   UniversalAircraftState,
   UniversalMediaCapture,
 } from "@/lib/aircraft/contract";
+import type { CameraPayloadProfile } from "@/lib/aircraft/payload";
 
 export type DjiSdkSnapshot = {
   aircraftId: string;
@@ -51,6 +52,8 @@ export type DjiSdkCapabilities = {
 
 export interface DjiSdkDriver {
   readonly capabilities: DjiSdkCapabilities;
+  readonly payloads?: CameraPayloadProfile[];
+  readonly activePayloadId?: string;
 
   connect(): Promise<void>;
   disconnect(): Promise<void>;
@@ -120,6 +123,8 @@ export function mapDjiSnapshot(snapshot: DjiSdkSnapshot): UniversalAircraftState
 export class DjiAircraftAdapter implements DominicAircraftAdapter {
   readonly vendor = "dji" as const;
   readonly capabilities: AircraftCapabilities;
+  readonly payloads?: CameraPayloadProfile[];
+  readonly activePayloadId?: string;
   private state: UniversalAircraftState;
   private listeners = new Set<(state: UniversalAircraftState) => void>();
   private mediaListeners = new Set<(capture: UniversalMediaCapture) => void>();
@@ -128,6 +133,8 @@ export class DjiAircraftAdapter implements DominicAircraftAdapter {
 
   constructor(private readonly driver: DjiSdkDriver) {
     this.capabilities = mapDjiCapabilities(driver.capabilities);
+    this.payloads = driver.payloads?.map((payload) => ({ ...payload }));
+    this.activePayloadId = driver.activePayloadId;
     this.state = mapDjiSnapshot(driver.getSnapshot());
   }
 

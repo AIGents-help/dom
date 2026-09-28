@@ -6,6 +6,24 @@ other aircraft family.
 
 DOMINIC itself does not import DJI SDK types. The Android bridge must translate:
 
+## Current implementation
+
+The repository now contains a transport-agnostic DJI bridge session core in
+`services/flight-bridge-dji/session.ts`. A native DJI Mobile SDK V5 driver implements
+`DjiSdkDriver`; the session then reuses DOMINIC's universal bridge server to:
+
+- publish `hello` with DJI capabilities and active camera payload metadata,
+- stream normalized aircraft telemetry,
+- route DOMINIC commands into the DJI driver,
+- capability-gate unsupported commands,
+- return `command_result` / protocol errors,
+- forward camera media with the originating capture checkpoint ID, and
+- emit heartbeats using the same bridge protocol as MAVLink and future vendors.
+
+The session contract is covered by `services/flight-bridge-dji/session.test.ts`.
+The remaining native-specific work is the Android WebSocket host plus the concrete
+Mobile SDK V5 implementation of `DjiSdkDriver`.
+
 ## DJI -> DOMINIC telemetry
 
 - aircraft connection/model/serial identifier

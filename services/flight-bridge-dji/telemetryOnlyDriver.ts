@@ -3,7 +3,6 @@ import type {
   DjiSdkDriver,
   DjiSdkSnapshot,
 } from "../../lib/aircraft/djiAdapter";
-import type { UniversalMediaCapture } from "../../lib/aircraft/contract";
 
 export interface DjiReadOnlyTelemetrySource {
   readonly payloads?: CameraPayloadProfile[];
@@ -62,22 +61,16 @@ export class DjiTelemetryOnlyDriver implements DjiSdkDriver {
     return this.source.subscribe((snapshot) => listener({ ...snapshot }));
   }
 
-  subscribeMedia(_listener: (capture: UniversalMediaCapture) => void) {
+  subscribeMedia() {
     return () => undefined;
   }
 
   async arm(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
-  async takeoff(_altitudeFt: number): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
-  async goTo(_input: { latitude: number; longitude: number; relativeAltitudeFt: number; speedFps?: number }): Promise<void> {
-    throw new Error(READ_ONLY_MESSAGE);
-  }
-  async setVelocity(_input: { northFps: number; eastFps: number; downFps: number }): Promise<void> {
-    throw new Error(READ_ONLY_MESSAGE);
-  }
-  async setYaw(_headingDeg: number): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
-  async setGimbal(_input: { pitchDeg: number; yawDeg?: number }): Promise<void> {
-    throw new Error(READ_ONLY_MESSAGE);
-  }
+  async takeoff(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
+  async goTo(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
+  async setVelocity(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
+  async setYaw(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
+  async setGimbal(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
   async capturePhoto(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
   async startVideo(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
   async stopVideo(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
@@ -85,5 +78,5 @@ export class DjiTelemetryOnlyDriver implements DjiSdkDriver {
   async resume(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
   async returnHome(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
   async land(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
-  async abort(_reason: string): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
+  async abort(): Promise<void> { throw new Error(READ_ONLY_MESSAGE); }
 }

@@ -1872,6 +1872,29 @@ export default function DominicCapturePlanner() {
                 ))}
               </div>
 
+              {secondaryCalibrationValidation.issues.length ? (
+                <div style={{ padding: "0 14px 14px", display: "grid", gap: 6 }}>
+                  {secondaryCalibrationValidation.issues.map((issue) => (
+                    <div
+                      key={issue.code}
+                      style={{
+                        border: `1px solid ${issue.severity === "blocker" ? "rgba(255,139,122,.35)" : "rgba(255,184,107,.3)"}`,
+                        background: issue.severity === "blocker" ? "rgba(255,139,122,.06)" : "rgba(255,184,107,.05)",
+                        color: issue.severity === "blocker" ? "#FFB6AA" : "#FFD0A0",
+                        borderRadius: 8,
+                        padding: "8px 10px",
+                        fontSize: 9,
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      <AlertTriangle size={12} style={{ marginRight: 5, verticalAlign: "text-bottom" }} />
+                      <strong>{issue.severity === "blocker" ? "Flight blocker" : "Warning"}:</strong> {issue.message}
+                      {issue.checkpointIds.length ? ` · ${issue.checkpointIds.length} affected checkpoint${issue.checkpointIds.length === 1 ? "" : "s"}` : ""}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
               <div style={{ padding: "0 14px 14px", display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(220px,.6fr)", gap: 12 }}>
                 <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", minHeight: 310, position: "relative", overflow: "hidden" }}>
                   <svg viewBox="0 0 100 70" style={{ width: "100%", height: "100%" }} role="img" aria-label={`${activeProfile.label} calculated capture pattern`}>

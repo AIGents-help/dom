@@ -5591,3 +5591,151 @@ test("lead conversion preserves CRM history and links the client", { skip: !isol
     await admin.auth.admin.deleteUser(adminUser.id);
   }
 });
+
+
+test("CRM ownership review blocks and then releases pilot outreach", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-CRM-Review-${stamp}!Aa1`;
+  const pilotEmail = `crm-review-pilot-${stamp}@e2e.dom.invalid`;
+  const adminEmail = `crm-review-admin-${stamp}@e2e.dom.invalid`;
+  const sharedDomain = `shared-${stamp}.example.com`;
+
+  const makeUser = async (email) => {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    return data.user;
+  };
+  const pilotUser = await makeUser(pilotEmail);
+  const adminUser = await makeUser(adminEmail);
+
+  const { data: pilot, error: pilotError } = await admin.from("contractors").insert({
+    user_id: pilotUser.id,
+    full_name: "CRM Review Pilot",
+    email: pilotEmail,
+    status: "active",
+    part107_verified: true,
+    can_create_missions: false,
+  }).select("id").single();
+  assert.ifError(pilotError);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email: adminEmail,
+    full_name: "CRM Review Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { data: protectedClient, error: protectedClientError } = await admin.from("clients").insert({
+    company_name: "Protected Network Company",
+    contact_name: "DOM Contact",
+    email: `dom-contact@${sharedDomain}`,
+  }).select("id").single();
+  assert.ifError(protectedClientError);
+
+  const pilotAuth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: pilotSession, error: pilotSignInError } = await pilotAuth.auth.signInWithPassword({
+    email: pilotEmail,
+    password,
+  });
+  assert.ifError(pilotSignInError);
+  assert.ok(pilotSession.session);
+
+  const adminAuth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: adminSession, error: adminSignInError } = await adminAuth.auth.signInWithPassword({
+    email: adminEmail,
+    password,
+  });
+  assert.ifError(adminSignInError);
+  assert.ok(adminSession.session);
+
+  const api = await request.newContext({ baseURL });
+  let accountId = null;
+  let reviewId = null;
+  try {
+    const createResponse = await api.post("/api/pilot/crm", {
+      headers: {
+        Authorization: `Bearer ${pilotSession.session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      data: {
+        companyName: "Possible Overlap Company",
+        contactName: "Pilot Prospect",
+        email: `pilot-prospect@${sharedDomain}`,
+        website: `https://${sharedDomain}`,
+        notes: "Pilot-owned prospect under review",
+      },
+      failOnStatusCode: false,
+    });
+    const createBody = await createResponse.json().catch(() => ({}));
+    assert.equal(createResponse.status(), 200, JSON.stringify(createBody));
+    accountId = createBody.account?.id;
+    assert.ok(accountId);
+    assert.equal(createBody.account.match_status, "coordination_required");
+    assert.equal(createBody.account.outreach_allowed, false);
+
+    const { data: review, error: reviewError } = await admin.from("crm_ownership_reviews")
+      .select("id,status")
+      .eq("pilot_crm_account_id", accountId)
+      .single();
+    assert.ifError(reviewError);
+    reviewId = review.id;
+
+    const blockedResponse = await api.patch("/api/pilot/crm", {
+      headers: {
+        Authorization: `Bearer ${pilotSession.session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      data: { id: accountId, logContact: true, status: "contacted" },
+      failOnStatusCode: false,
+    });
+    const blockedBody = await blockedResponse.json().catch(() => ({}));
+    assert.equal(blockedResponse.status(), 403, JSON.stringify(blockedBody));
+    assert.match(blockedBody.error ?? "", /ownership review/i);
+
+    const approveResponse = await api.patch("/api/admin/crm/ownership", {
+      headers: {
+        Authorization: `Bearer ${adminSession.session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      data: { id: reviewId, decision: "pilot_owned_approved" },
+      failOnStatusCode: false,
+    });
+    const approveBody = await approveResponse.json().catch(() => ({}));
+    assert.equal(approveResponse.status(), 200, JSON.stringify(approveBody));
+
+    const allowedResponse = await api.patch("/api/pilot/crm", {
+      headers: {
+        Authorization: `Bearer ${pilotSession.session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      data: { id: accountId, logContact: true, status: "contacted", nextAction: "Follow up next week" },
+      failOnStatusCode: false,
+    });
+    const allowedBody = await allowedResponse.json().catch(() => ({}));
+    assert.equal(allowedResponse.status(), 200, JSON.stringify(allowedBody));
+
+    const { data: accountAfter, error: accountAfterError } = await admin.from("pilot_crm_accounts")
+      .select("status,match_status,outreach_allowed,last_contacted_at,next_action")
+      .eq("id", accountId)
+      .single();
+    assert.ifError(accountAfterError);
+    assert.equal(accountAfter.status, "contacted");
+    assert.equal(accountAfter.match_status, "approved");
+    assert.equal(accountAfter.outreach_allowed, true);
+    assert.ok(accountAfter.last_contacted_at);
+    assert.equal(accountAfter.next_action, "Follow up next week");
+  } finally {
+    await api.dispose();
+    if (reviewId) await admin.from("crm_ownership_reviews").delete().eq("id", reviewId);
+    if (accountId) await admin.from("pilot_crm_accounts").delete().eq("id", accountId);
+    await admin.from("clients").delete().eq("id", protectedClient.id);
+    await admin.from("contractors").delete().eq("id", pilot.id);
+    await admin.from("admin_users").delete().eq("email", adminEmail);
+    await admin.auth.admin.deleteUser(adminUser.id);
+    await admin.auth.admin.deleteUser(pilotUser.id);
+  }
+});

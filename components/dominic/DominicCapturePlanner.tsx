@@ -1126,7 +1126,14 @@ export default function DominicCapturePlanner() {
               ? "paused"
               : "started";
 
-    const events = input.snapshot.events.map((event) => ({
+    const events: Array<{
+      atMs: number;
+      phase: string;
+      message: string;
+      checkpointId?: string;
+      aircraftState?: MissionExecutionSnapshot["lastAircraftState"] | null;
+      details?: Record<string, unknown>;
+    }> = input.snapshot.events.map((event) => ({
       atMs: event.atMs,
       phase: event.phase,
       message: event.message,
@@ -1142,9 +1149,6 @@ export default function DominicCapturePlanner() {
         completedCheckpointIds: input.snapshot.completedCheckpointIds,
         safetyIssues: input.snapshot.safetyIssues,
       },
-    } as (typeof events)[number] & {
-      aircraftState: MissionExecutionSnapshot["lastAircraftState"] | null;
-      details: Record<string, unknown>;
     });
 
     const response = await fetch("/api/pilot/dominic/flights", {

@@ -124,7 +124,7 @@ export async function POST(req: NextRequest) {
       capability_snapshot: body.capabilities ?? {},
       payload_snapshot: body.payload ?? {},
       coverage_summary: body.coverageSummary ?? {},
-      started_at: body.startedAtMs ? new Date(body.startedAtMs).toISOString() : new Date().toISOString(),
+      started_at: new Date().toISOString(),
     })
     .select("id,status,created_at")
     .single();
@@ -185,7 +185,8 @@ export async function PATCH(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  const nowIso = new Date().toISOString();
+  const update: Record<string, unknown> = { updated_at: nowIso };
   if (typeof body.status === "string") {
     if (!RUN_STATUSES.has(body.status)) {
       return NextResponse.json({ error: "Unsupported flight status." }, { status: 400 });
@@ -194,8 +195,8 @@ export async function PATCH(req: NextRequest) {
   }
   if (body.coverageSummary) update.coverage_summary = body.coverageSummary;
   if (body.failureMessage !== undefined) update.failure_message = body.failureMessage || null;
-  if (body.completedAtMs) update.completed_at = new Date(body.completedAtMs).toISOString();
-  if (body.abortedAtMs) update.aborted_at = new Date(body.abortedAtMs).toISOString();
+  if (body.status === "complete") update.completed_at = nowIso;
+  if (body.status === "aborted") update.aborted_at = nowIso;
 
   const { data, error } = await admin
     .from("dominic_flight_runs")

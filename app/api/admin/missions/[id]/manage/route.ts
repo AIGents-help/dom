@@ -103,6 +103,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   if (action === "set_deliverable_qc") {
+    if (job.delivery_responsibility === "pilot") {
+      return NextResponse.json(
+        { error: "Pilot-owned missions are approved by the mission owner and do not use DOM QC." },
+        { status: 409 },
+      );
+    }
     const deliverableId = typeof body.deliverableId === "string" ? body.deliverableId : "";
     const passed = body.passed === true;
     const { data: deliverable } = await auth.admin.from("deliverables")

@@ -47,6 +47,8 @@ export class FlightBridgeServerSession {
       aircraftId: state.aircraftId,
       model: state.model,
       capabilities: { ...this.adapter.capabilities },
+      payloads: this.adapter.payloads ? this.adapter.payloads.map((payload) => ({ ...payload })) : undefined,
+      activePayloadId: this.adapter.activePayloadId,
     };
     this.emit(hello);
 

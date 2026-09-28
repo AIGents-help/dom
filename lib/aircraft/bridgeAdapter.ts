@@ -1,3 +1,4 @@
+import type { CameraPayloadProfile } from "@/lib/aircraft/payload";
 import type {
   AircraftCapabilities,
   AircraftVendor,
@@ -22,6 +23,8 @@ type PendingCommand = {
 export class FlightBridgeAircraftAdapter implements DominicAircraftAdapter {
   readonly vendor: AircraftVendor;
   readonly capabilities: AircraftCapabilities;
+  readonly payloads?: CameraPayloadProfile[];
+  readonly activePayloadId?: string;
   private state: UniversalAircraftState;
   private listeners = new Set<(state: UniversalAircraftState) => void>();
   private mediaListeners = new Set<(capture: UniversalMediaCapture) => void>();
@@ -36,6 +39,8 @@ export class FlightBridgeAircraftAdapter implements DominicAircraftAdapter {
   ) {
     this.vendor = hello.vendor;
     this.capabilities = { ...hello.capabilities };
+    this.payloads = hello.payloads?.map((payload) => ({ ...payload }));
+    this.activePayloadId = hello.activePayloadId;
     this.state = {
       aircraftId: hello.aircraftId,
       vendor: hello.vendor,

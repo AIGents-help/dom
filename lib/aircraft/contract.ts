@@ -1,3 +1,5 @@
+import type { CameraPayloadProfile } from "@/lib/aircraft/payload";
+
 export type AircraftVendor = "simulator" | "dji" | "autel" | "mavlink" | "other";
 
 export type AircraftCapabilities = {
@@ -48,6 +50,8 @@ export type CommandResult={accepted:boolean;command:UniversalAircraftCommand["ty
 
 export interface DominicAircraftAdapter {
   readonly vendor: AircraftVendor; readonly capabilities: AircraftCapabilities;
+  readonly payloads?: CameraPayloadProfile[];
+  readonly activePayloadId?: string;
   connect():Promise<void>; disconnect():Promise<void>; getState():UniversalAircraftState;
   send(command:UniversalAircraftCommand):Promise<CommandResult>;
   subscribe(listener:(state:UniversalAircraftState)=>void):()=>void;

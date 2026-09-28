@@ -44,6 +44,10 @@ import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { resolveCaptureCameraProfile } from "@/lib/captureCameraProfiles";
 import {
+  deriveFieldOfView,
+  type CameraPayloadProfile,
+} from "@/lib/aircraft/payload";
+import {
   SafetyScenarioAircraftAdapter,
   safetyScenarioLabels,
   type SafetyScenario,
@@ -297,6 +301,8 @@ export default function DominicCapturePlanner() {
     model?: string;
     aircraftId: string;
     capabilities: AircraftCapabilities;
+    payloads: CameraPayloadProfile[];
+    activePayloadId?: string;
   } | null>(null);
   const bridgeAdapterRef = useRef<DominicAircraftAdapter | null>(null);
   const autonomousEngineRef = useRef<DominicMissionEngine | null>(null);
@@ -321,6 +327,31 @@ export default function DominicCapturePlanner() {
   const [pilotAircraft, setPilotAircraft] = useState<PlannerAircraft[]>([]);
   const [selectedAircraftId, setSelectedAircraftId] = useState("");
   const [cameraProfileMessage, setCameraProfileMessage] = useState<string | null>(null);
+
+  const activeConnectedPayload = useMemo(() => {
+    if (!bridgeInfo?.payloads.length) return null;
+    return (
+      bridgeInfo.payloads.find((payload) => payload.id === bridgeInfo.activePayloadId) ??
+      bridgeInfo.payloads[0]
+    );
+  }, [bridgeInfo]);
+
+  useEffect(() => {
+    if (bridgeStatus !== "connected" || !activeConnectedPayload) return;
+    const fov = deriveFieldOfView(activeConnectedPayload);
+    if (fov.horizontalFovDeg === null || fov.verticalFovDeg === null) {
+      setCameraProfileMessage(
+        `Connected payload ${activeConnectedPayload.name} does not expose complete camera geometry. Enter FOV manually.`,
+      );
+      return;
+    }
+    setSelectedAircraftId("");
+    setHorizontalFovDeg(Number(fov.horizontalFovDeg.toFixed(2)));
+    setVerticalFovDeg(Number(fov.verticalFovDeg.toFixed(2)));
+    setCameraProfileMessage(
+      `Connected payload ${activeConnectedPayload.name}: ${fov.horizontalFovDeg.toFixed(1)}° horizontal · ${fov.verticalFovDeg.toFixed(1)}° vertical FOV applied automatically.`,
+    );
+  }, [bridgeStatus, activeConnectedPayload]);
 
   useEffect(() => {
     let active = true;
@@ -905,6 +936,8 @@ export default function DominicCapturePlanner() {
         model: hello.model,
         aircraftId: hello.aircraftId,
         capabilities: hello.capabilities,
+        payloads: hello.payloads ?? [],
+        activePayloadId: hello.activePayloadId,
       });
       setTelemetryMode("aircraft");
       setBridgeStatus("connected");

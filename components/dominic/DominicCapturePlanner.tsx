@@ -3061,9 +3061,14 @@ export default function DominicCapturePlanner() {
                         : "Virtual aircraft end-to-end test"}
                   </div>
                 </div>
-                <span style={{ color: autonomousSnapshot?.phase === "COMPLETE" ? V.green : autonomousSnapshot?.phase === "FAILED" ? "#FF8B7A" : V.muted, fontSize: 9, fontWeight: 900 }}>
-                  {autonomousSnapshot?.phase ?? "IDLE"}
-                </span>
+                <div style={{ display: "grid", justifyItems: "end", gap: 3 }}>
+                  <span style={{ color: autonomousSnapshot?.phase === "COMPLETE" ? V.green : autonomousSnapshot?.phase === "FAILED" ? "#FF8B7A" : V.muted, fontSize: 9, fontWeight: 900 }}>
+                    {autonomousSnapshot?.phase ?? "IDLE"}
+                  </span>
+                  <span style={{ color: flightAuditStatus === "saved" ? V.green : flightAuditStatus === "error" ? V.amber : V.muted, fontSize: 7, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em" }}>
+                    Audit {flightAuditStatus}{lastFlightRunId ? ` · ${lastFlightRunId.slice(0, 8)}` : ""}
+                  </span>
+                </div>
               </div>
               <p style={{ color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
                 Runs this exact Object Scan through DOMINIC's universal aircraft interface: connect, preflight, arm, takeoff, fly every checkpoint, aim, capture, return home and land.
@@ -3271,6 +3276,47 @@ export default function DominicCapturePlanner() {
                   </div>
                 </>
               ) : null}
+            </section>
+
+            <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div>
+                  <div style={{ color: V.text, fontSize: 12, fontWeight: 900 }}>Flight audit history</div>
+                  <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>Persistent pilot-owned DOMINIC execution records</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void loadRecentFlightRuns()}
+                  disabled={flightHistoryLoading}
+                  style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: flightHistoryLoading ? "not-allowed" : "pointer" }}
+                >
+                  {flightHistoryLoading ? "Loading..." : "Refresh"}
+                </button>
+              </div>
+              <div style={{ display: "grid", gap: 6, marginTop: 9 }}>
+                {recentFlightRuns.length ? recentFlightRuns.map((run) => (
+                  <div key={run.id} style={{ border: `1px solid ${V.line}`, background: "#0D1319", borderRadius: 8, padding: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                      <strong style={{ color: V.text, fontSize: 9 }}>
+                        {run.mission_type.toUpperCase()} · {run.aircraft_model ?? run.aircraft_vendor ?? "Aircraft"}
+                      </strong>
+                      <span style={{ color: run.status === "complete" ? V.green : run.status === "failed" ? "#FF8B7A" : run.status === "aborted" ? V.amber : V.muted, fontSize: 7, fontWeight: 900, textTransform: "uppercase" }}>
+                        {run.status}
+                      </span>
+                    </div>
+                    <div style={{ color: V.muted, fontSize: 8, marginTop: 4 }}>
+                      {new Date(run.started_at ?? run.created_at).toLocaleString()}
+                      {typeof run.coverage_summary?.coveragePct === "number" ? ` · coverage ${run.coverage_summary.coveragePct}%` : ""}
+                      {run.payload_snapshot?.name ? ` · ${run.payload_snapshot.name}` : ""}
+                    </div>
+                    <div style={{ color: "#66727D", fontSize: 7, marginTop: 3, fontFamily: "monospace" }}>{run.id}</div>
+                  </div>
+                )) : (
+                  <div style={{ color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
+                    Refresh to load your recent DOMINIC flight records. New autonomous runs are saved here automatically.
+                  </div>
+                )}
+              </div>
             </section>
 
             <section style={{ border: `1px solid ${adaptiveCoverage.missing ? "rgba(255,184,107,.28)" : "rgba(112,214,160,.22)"}`, borderRadius: 12, background: V.panel, padding: 13 }}>

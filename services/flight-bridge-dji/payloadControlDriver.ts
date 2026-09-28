@@ -113,5 +113,8 @@ export class DjiPayloadControlDriver implements DjiSdkDriver {
   async resume(): Promise<void> { throw new Error(MOVEMENT_DISABLED_MESSAGE); }
   async returnHome(): Promise<void> { throw new Error(MOVEMENT_DISABLED_MESSAGE); }
   async land(): Promise<void> { throw new Error(MOVEMENT_DISABLED_MESSAGE); }
-  async abort(_reason: string): Promise<void> { throw new Error(MOVEMENT_DISABLED_MESSAGE); }
+  async abort(reason: string): Promise<void> {
+    void reason;
+    throw new Error(MOVEMENT_DISABLED_MESSAGE);
+  }
 }

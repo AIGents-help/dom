@@ -5793,7 +5793,7 @@ test("pilot equipment inventory exists only in Profile and Settings", { skip: !i
     await page.getByRole("button", { name: /Profile & Settings/i }).click();
     await page.getByText("Aircraft & Equipment", { exact: true }).waitFor({ timeout: 10_000 });
 
-    const profileText = await page.locator("main").innerText();
+    const profileText = await page.locator("#main-content").innerText();
     assert.match(profileText, /Aircraft & Equipment/);
     assert.match(profileText, /only equipment inventory/i);
     assert.match(profileText, /FAA registration/i);

@@ -37,6 +37,8 @@ jobs:
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
           echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY" >> "$GITHUB_ENV"
       - name: Build and start DOM
+        env:
+          E2E_ISOLATED_SUPABASE: "true"
         run: |
           npm run build
           npm start > /tmp/dom-e2e.log 2>&1 &

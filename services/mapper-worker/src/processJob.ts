@@ -92,6 +92,8 @@ export async function processJob(job: ProcessingJob): Promise<void> {
   let driveEnabled = isDriveConfigured();
   let driveFolders: DriveFolderTree | null = null;
 
+  let processorCompleted = false;
+
   try {
     // 1. Preparing Images — download raw imagery locally (Office-PC is
     // temporary processing scratch space only; nothing here is a permanent
@@ -225,6 +227,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     }
 
     await setProjectImageLifecycle(project.id, "processed", null, ["processing", "processor_uploading"]);
+    processorCompleted = true;
 
     // 5. Preparing Deliverables — retrieve, unpack, convert, and register outputs.
     await updateProgress(job.id, project.id, 92, "Preparing Deliverables");
@@ -367,12 +370,20 @@ export async function processJob(job: ProcessingJob): Promise<void> {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`[processJob] Job ${job.id} failed:`, message);
-    await setProjectImageLifecycle(
-      project.id,
-      "failed",
-      message,
-      ["downloading", "downloaded", "metadata_checked", "processor_uploading", "processing"],
-    );
+    if (!processorCompleted) {
+      await setProjectImageLifecycle(
+        project.id,
+        "failed",
+        message,
+        ["downloading", "downloaded", "metadata_checked", "processor_uploading", "processing"],
+      );
+    } else {
+      await logEvent(
+        project.id,
+        "deliverable_preparation_failed",
+        `NodeODM completed successfully, but DOMINIC could not finish deliverable preparation. Source imagery remains marked processed. ${message}`,
+      );
+    }
     await Promise.all([
       supabaseAdmin.from("mapping_processing_jobs").update({ status: "failed", error_message: message }).eq("id", job.id),
       supabaseAdmin.from("mapping_projects").update({ status: "failed", error_message: message }).eq("id", project.id),

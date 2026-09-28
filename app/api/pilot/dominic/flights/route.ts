@@ -86,11 +86,20 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.missionRequestId) {
+    const { data: jobs, error: jobsError } = await admin
+      .from("jobs")
+      .select("id")
+      .eq("mission_request_id", body.missionRequestId);
+    if (jobsError) return NextResponse.json({ error: jobsError.message }, { status: 500 });
+    const jobIds = (jobs ?? []).map((job) => job.id);
+    if (!jobIds.length) {
+      return NextResponse.json({ error: "Mission is not assigned to this pilot." }, { status: 403 });
+    }
     const { data: assignment } = await admin
       .from("mission_assignments")
-      .select("id,job:jobs!inner(mission_request_id)")
+      .select("id")
       .eq("contractor_id", auth.contractor.id)
-      .eq("jobs.mission_request_id", body.missionRequestId)
+      .in("job_id", jobIds)
       .limit(1)
       .maybeSingle();
     if (!assignment) {

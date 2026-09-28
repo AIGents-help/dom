@@ -4,7 +4,8 @@ create table if not exists public.dominic_flight_runs (
   mission_request_id uuid null references public.mission_requests(id) on delete set null,
   mapping_project_id uuid null references public.mapping_projects(id) on delete set null,
   mission_type text not null,
-  status text not null default 'planned',
+  status text not null default 'planned'
+    check (status in ('planned','started','paused','complete','aborted','failed')),
   aircraft_vendor text null,
   aircraft_model text null,
   aircraft_id text null,
@@ -12,6 +13,7 @@ create table if not exists public.dominic_flight_runs (
   plan jsonb not null default '{}'::jsonb,
   calibration jsonb not null default '{}'::jsonb,
   capability_snapshot jsonb not null default '{}'::jsonb,
+  payload_snapshot jsonb not null default '{}'::jsonb,
   coverage_summary jsonb not null default '{}'::jsonb,
   started_at timestamptz null,
   completed_at timestamptz null,

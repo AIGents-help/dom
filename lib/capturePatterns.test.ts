@@ -7,6 +7,7 @@ import {
   calculateRoofPlan,
   calculateStockpilePlan,
   georeferencePattern,
+  validatePatternCalibration,
 } from "@/lib/capturePatterns";
 
 describe("DOMINIC multi-mission capture geometry", () => {
@@ -110,4 +111,67 @@ describe("DOMINIC multi-mission capture geometry", () => {
     expect(geo).toHaveLength(plan.checkpoints.length);
     expect(geo.some((p) => p.latitude !== 39.95 || p.longitude !== -75.16)).toBe(true);
   });
+
+  it("blocks multi-mission patterns that violate no-fly or altitude constraints", () => {
+    const plan = calculateRoofPlan({
+      lengthFt: 80,
+      widthFt: 50,
+      altitudeFt: 60,
+      frontOverlapPct: 75,
+      sideOverlapPct: 70,
+      horizontalFovDeg: 84,
+      verticalFovDeg: 60,
+      includeObliques: true,
+    });
+    const geo = georeferencePattern(plan, 39.95, -75.16, 0);
+    const validation = validatePatternCalibration({
+      checkpoints: geo,
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      calibration: {
+        homeLatitude: 39.9501,
+        homeLongitude: -75.1601,
+        minRelativeAltitudeFt: 0,
+        maxRelativeAltitudeFt: 50,
+        minStandoffFt: 0,
+        maxStandoffFt: 1000,
+        noFlySectors: [{ id: "north", label: "North hazard", startBearingDeg: 330, endBearingDeg: 30 }],
+      },
+    });
+
+    expect(validation.ready).toBe(false);
+    expect(validation.issues.some((issue) => issue.code === "altitude_above_max")).toBe(true);
+    expect(validation.issues.some((issue) => issue.code === "no_fly_sector:north")).toBe(true);
+  });
+
+  it("passes multi-mission pattern calibration inside the safe envelope", () => {
+    const plan = calculateCorridorPlan({
+      lengthFt: 400,
+      widthFt: 50,
+      altitudeFt: 80,
+      frontOverlapPct: 75,
+      sideOverlapPct: 65,
+      horizontalFovDeg: 84,
+      verticalFovDeg: 60,
+    });
+    const geo = georeferencePattern(plan, 39.95, -75.16, 90);
+    const validation = validatePatternCalibration({
+      checkpoints: geo,
+      centerLatitude: 39.95,
+      centerLongitude: -75.16,
+      calibration: {
+        homeLatitude: 39.9501,
+        homeLongitude: -75.1601,
+        minRelativeAltitudeFt: 0,
+        maxRelativeAltitudeFt: 120,
+        minStandoffFt: 0,
+        maxStandoffFt: 1000,
+        noFlySectors: [],
+      },
+    });
+
+    expect(validation.ready).toBe(true);
+    expect(validation.issues).toHaveLength(0);
+  });
+
 });

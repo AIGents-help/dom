@@ -4915,3 +4915,129 @@ test("admin cannot QC pilot-owned mission deliverables", { skip: !isolated }, as
     await admin.auth.admin.deleteUser(adminUser.id);
   }
 });
+
+
+test("pilot corrected deliverable links to requested revision", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `revision-pilot-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Revision-E2E-${stamp}!Aa1`;
+
+  const { data: userData, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  const user = userData.user;
+  assert.ok(user);
+
+  const { data: contractor, error: contractorError } = await admin.from("contractors").insert({
+    user_id: user.id,
+    full_name: "Revision Pilot",
+    email,
+    status: "active",
+    part107_verified: true,
+    can_create_missions: true,
+  }).select("id").single();
+  assert.ifError(contractorError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "Revision Client",
+    requester_email: `revision-client-${stamp}@e2e.dom.invalid`,
+    company: "Revision Test",
+    service_type: "aerial_images",
+    location: "Revision Site",
+    status: "in_progress",
+    created_by_contractor_id: contractor.id,
+    requires_admin_approval: false,
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    title: "Revision Test Mission",
+    service_type: "aerial_images",
+    location: "Revision Site",
+    status: "in_progress",
+    delivery_responsibility: "pilot",
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: assignment, error: assignmentError } = await admin.from("mission_assignments").insert({
+    job_id: job.id,
+    contractor_id: contractor.id,
+    status: "in_progress",
+    assignment_role: "owner",
+  }).select("id").single();
+  assert.ifError(assignmentError);
+
+  const { data: prior, error: priorError } = await admin.from("deliverables").insert({
+    job_id: job.id,
+    name: "Original Pilot Deliverable",
+    type: "raw_images",
+    storage_url: `${job.id}/original.zip`,
+    storage_provider: "supabase",
+    qc_passed: true,
+    client_status: "revision_requested",
+    client_feedback: "Please correct this set.",
+    revision_number: 1,
+    delivered_at: new Date().toISOString(),
+  }).select("id").single();
+  assert.ifError(priorError);
+
+  const correctedPath = `${job.id}/e2e-corrected-${stamp}.zip`;
+  const bytes = new TextEncoder().encode("corrected deliverable");
+  const { error: uploadError } = await admin.storage
+    .from("mission-deliverables")
+    .upload(correctedPath, bytes, { contentType: "application/zip", upsert: true });
+  assert.ifError(uploadError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const response = await api.post(`/api/pilot/missions/${assignment.id}/files`, {
+      headers: { Authorization: `Bearer ${signedIn.session.access_token}` },
+      data: {
+        action: "complete_upload",
+        kind: "deliverable",
+        name: "Corrected Pilot Deliverable",
+        category: "raw_images",
+        fileName: "corrected.zip",
+        fileSize: bytes.byteLength,
+        path: correctedPath,
+      },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 200, JSON.stringify(body));
+
+    const { data: corrected, error: correctedError } = await admin.from("deliverables")
+      .select("id,supersedes_deliverable_id,revision_number,qc_passed,client_status")
+      .eq("job_id", job.id)
+      .eq("name", "Corrected Pilot Deliverable")
+      .single();
+    assert.ifError(correctedError);
+    assert.equal(corrected.supersedes_deliverable_id, prior.id);
+    assert.equal(corrected.revision_number, 2);
+    assert.equal(corrected.qc_passed, false);
+    assert.notEqual(corrected.client_status, "superseded");
+  } finally {
+    await api.dispose();
+    await admin.storage.from("mission-deliverables").remove([correctedPath]);
+    await admin.from("deliverables").delete().eq("job_id", job.id);
+    await admin.from("mission_checklist_items").delete().eq("assignment_id", assignment.id);
+    await admin.from("mission_assignments").delete().eq("id", assignment.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().eq("id", contractor.id);
+    await admin.auth.admin.deleteUser(user.id);
+  }
+});

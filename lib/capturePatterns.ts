@@ -1,4 +1,4 @@
-import { destinationPoint, type CaptureMissionType } from "@/lib/capturePlanner";
+import { bearingAndDistanceBetween, bearingInSector, destinationPoint, type CaptureMissionType, type MissionCalibration } from "@/lib/capturePlanner";
 
 export type PatternCheckpoint = {
   id: string;
@@ -320,6 +320,90 @@ export function calculateInteriorPlan(input: {
     }));
   });
   return finalize("interior", raw, levels.length, ["Interior autonomy requires local positioning/SLAM or another non-GNSS navigation source; GPS waypoints alone are not sufficient."], { wallStandoffFt: inset, pathStepFt: step });
+}
+
+
+export type PatternCalibrationIssue = {
+  severity: "blocker" | "warning";
+  code: string;
+  message: string;
+  checkpointIds: string[];
+};
+
+export type PatternCalibrationValidation = {
+  ready: boolean;
+  issues: PatternCalibrationIssue[];
+};
+
+export function validatePatternCalibration(input: {
+  checkpoints: GeographicPatternCheckpoint[];
+  centerLatitude: number;
+  centerLongitude: number;
+  calibration: MissionCalibration;
+}): PatternCalibrationValidation {
+  const issues: PatternCalibrationIssue[] = [];
+  const { checkpoints, calibration } = input;
+
+  const invalidHome =
+    !Number.isFinite(calibration.homeLatitude) ||
+    !Number.isFinite(calibration.homeLongitude) ||
+    calibration.homeLatitude < -90 ||
+    calibration.homeLatitude > 90 ||
+    calibration.homeLongitude < -180 ||
+    calibration.homeLongitude > 180;
+  if (invalidHome) {
+    issues.push({
+      severity: "blocker",
+      code: "invalid_home",
+      message: "Launch/home coordinates are invalid.",
+      checkpointIds: [],
+    });
+  }
+
+  const altitudeLow = checkpoints.filter((point) => point.relativeAltitudeFt < calibration.minRelativeAltitudeFt);
+  if (altitudeLow.length) {
+    issues.push({
+      severity: "blocker",
+      code: "altitude_below_min",
+      message: `${altitudeLow.length} checkpoint(s) fall below the configured minimum relative altitude.`,
+      checkpointIds: altitudeLow.map((point) => point.id),
+    });
+  }
+
+  const altitudeHigh = checkpoints.filter((point) => point.relativeAltitudeFt > calibration.maxRelativeAltitudeFt);
+  if (altitudeHigh.length) {
+    issues.push({
+      severity: "blocker",
+      code: "altitude_above_max",
+      message: `${altitudeHigh.length} checkpoint(s) exceed the configured maximum relative altitude.`,
+      checkpointIds: altitudeHigh.map((point) => point.id),
+    });
+  }
+
+  for (const sector of calibration.noFlySectors) {
+    const blocked = checkpoints.filter((point) => {
+      const relative = bearingAndDistanceBetween({
+        fromLatitude: input.centerLatitude,
+        fromLongitude: input.centerLongitude,
+        toLatitude: point.latitude,
+        toLongitude: point.longitude,
+      });
+      return bearingInSector(relative.bearingDeg, sector.startBearingDeg, sector.endBearingDeg);
+    });
+    if (blocked.length) {
+      issues.push({
+        severity: "blocker",
+        code: `no_fly_sector:${sector.id}`,
+        message: `${blocked.length} checkpoint(s) intersect no-fly sector "${sector.label}".`,
+        checkpointIds: blocked.map((point) => point.id),
+      });
+    }
+  }
+
+  return {
+    ready: !issues.some((issue) => issue.severity === "blocker"),
+    issues,
+  };
 }
 
 export function georeferencePattern(

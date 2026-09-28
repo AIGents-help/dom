@@ -1,3 +1,4 @@
+import { mkdirSync, rmSync } from "node:fs";
 import { basename, join } from "node:path";
 import { supabaseAdmin } from "./supabaseClient";
 import type { ProcessingJob } from "./claimJob";
@@ -233,22 +234,32 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     await updateProgress(job.id, project.id, 92, "Preparing Deliverables");
     const zipPath = join(workspace.outputDir, "all.zip");
     const MAX_OUTPUT_DOWNLOAD_ATTEMPTS = 3;
-    let outputDownloadError: unknown = null;
+    let outputPreparationError: unknown = null;
     for (let attempt = 1; attempt <= MAX_OUTPUT_DOWNLOAD_ATTEMPTS; attempt++) {
       try {
+        // A NodeODM download can finish at the HTTP layer but still leave a
+        // truncated/corrupt archive. Treat download + extraction as one
+        // retryable operation so a successful reconstruction is not lost to
+        // a single bad transfer.
+        if (attempt > 1) {
+          rmSync(workspace.outputDir, { recursive: true, force: true });
+          mkdirSync(workspace.outputDir, { recursive: true });
+        }
+
         await downloadAllOutputs(taskUuid, zipPath);
-        outputDownloadError = null;
+        extractAllZip(zipPath, workspace.outputDir);
+        outputPreparationError = null;
         break;
       } catch (error) {
-        outputDownloadError = error;
+        outputPreparationError = error;
         const detail = error instanceof Error ? error.message : String(error);
         console.warn(
-          `[processJob] Job ${job.id}: NodeODM output download attempt ${attempt}/${MAX_OUTPUT_DOWNLOAD_ATTEMPTS} failed: ${detail}`
+          `[processJob] Job ${job.id}: NodeODM output download/extract attempt ${attempt}/${MAX_OUTPUT_DOWNLOAD_ATTEMPTS} failed: ${detail}`
         );
         await logEvent(
           project.id,
           "deliverable_download_retry",
-          `Completed NodeODM task output download attempt ${attempt}/${MAX_OUTPUT_DOWNLOAD_ATTEMPTS} failed. ${detail}`,
+          `Completed NodeODM task output download/extract attempt ${attempt}/${MAX_OUTPUT_DOWNLOAD_ATTEMPTS} failed. ${detail}`,
           { taskUuid, attempt, maxAttempts: MAX_OUTPUT_DOWNLOAD_ATTEMPTS },
         );
         if (attempt < MAX_OUTPUT_DOWNLOAD_ATTEMPTS) {
@@ -256,8 +267,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
         }
       }
     }
-    if (outputDownloadError) throw outputDownloadError;
-    extractAllZip(zipPath, workspace.outputDir);
+    if (outputPreparationError) throw outputPreparationError;
     const outputs = locateOutputs(workspace.outputDir);
 
     // DOMINIC elevation derivative: when a Survey run produced DTM or DSM,

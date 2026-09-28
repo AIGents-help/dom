@@ -147,6 +147,28 @@ DOMINIC rejects that command before it reaches hardware.
 This stage is intended for controlled-field validation of recovery behavior before
 autonomous movement is enabled.
 
+## Autonomous-movement unlock stage
+
+Autonomous movement is not enabled merely because DJI MSDK reports that the aircraft can
+arm, take off or navigate. The final bridge stage uses
+`DjiAutonomousControlDriver` with a short-lived `DjiAutonomyAuthorization`.
+
+An unlock is valid only when all of the following are true:
+
+- the authorization names the exact connected aircraft ID,
+- controlled-field validation has been confirmed,
+- the operator has explicitly confirmed the unlock,
+- the authorization start time has been reached, and
+- the authorization has not expired.
+
+Only then can the bridge advertise native movement capabilities such as arm, takeoff,
+go-to, velocity control and aircraft yaw. Each movement command re-checks the
+authorization at execution time, so an expired authorization cannot continue commanding
+the aircraft after the bridge has already connected.
+
+Native source capability flags are still required as a second gate; authorization never
+creates a capability that the connected DJI product/SDK does not actually expose.
+
 ## Hardware rollout
 
 1. Build and validate against DJI Mobile SDK V5 sample/simulator.

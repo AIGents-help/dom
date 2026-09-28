@@ -369,7 +369,10 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     await logEvent(project.id, "processing_completed", summary);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[processJob] Job ${job.id} failed:`, message);
+    const failureMessage = processorCompleted
+      ? `NodeODM reconstruction completed, but deliverable preparation failed: ${message}`
+      : message;
+    console.error(`[processJob] Job ${job.id} failed:`, failureMessage);
     if (!processorCompleted) {
       await setProjectImageLifecycle(
         project.id,
@@ -385,10 +388,10 @@ export async function processJob(job: ProcessingJob): Promise<void> {
       );
     }
     await Promise.all([
-      supabaseAdmin.from("mapping_processing_jobs").update({ status: "failed", error_message: message }).eq("id", job.id),
-      supabaseAdmin.from("mapping_projects").update({ status: "failed", error_message: message }).eq("id", project.id),
+      supabaseAdmin.from("mapping_processing_jobs").update({ status: "failed", error_message: failureMessage }).eq("id", job.id),
+      supabaseAdmin.from("mapping_projects").update({ status: "failed", error_message: failureMessage }).eq("id", project.id),
     ]);
-    await logEvent(project.id, "processing_failed", message);
+    await logEvent(project.id, "processing_failed", failureMessage);
   } finally {
     stopHeartbeat();
     workspace.cleanup();

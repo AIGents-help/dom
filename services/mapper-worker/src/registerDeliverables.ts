@@ -1,6 +1,8 @@
 import { supabaseAdmin } from "./supabaseClient";
 import type { ExtractedOutput } from "./extractOutputs";
 
+const REGISTER_RETRY_DELAYS_MS = [0, 1000, 3000];
+
 const TYPE_LABEL: Record<ExtractedOutput["type"], string> = {
   orthomosaic: "Orthomosaic",
   "3d_model": "3D Model",
@@ -72,13 +74,23 @@ export async function registerDeliverable(
     ...(potree ? { potree } : {}),
   };
 
-  const { data: registered, error } = await supabaseAdmin
-    .from("deliverables")
-    .insert(payload)
-    .select("id, supersedes_deliverable_id")
-    .maybeSingle();
+  let lastError: { code?: string; message: string } | null = null;
+  for (let attempt = 0; attempt < REGISTER_RETRY_DELAYS_MS.length; attempt++) {
+    const delay = REGISTER_RETRY_DELAYS_MS[attempt];
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
 
-  if (error) {
+    const { error } = await supabaseAdmin
+      .from("deliverables")
+      .insert(payload)
+      .select("id")
+      .maybeSingle();
+
+    if (!error) {
+      // Keep the client-requested revision active until its corrected replacement
+      // passes QC. Registration only establishes lineage; QC owns the handoff.
+      return;
+    }
+
     // Idempotency is enforced by the partial unique index
     // deliverables_processing_job_type_uidx. PostgREST cannot target a
     // partial unique index via ON CONFLICT by column list, so an upsert with
@@ -93,12 +105,18 @@ export async function registerDeliverable(
         .maybeSingle();
       if (existing && !existingError) return;
     }
-    throw new Error(`Failed to register deliverable (${output.type}): ${error.message}`);
+
+    lastError = { code: error.code, message: error.message };
+    if (attempt < REGISTER_RETRY_DELAYS_MS.length - 1) {
+      console.warn(
+        `[registerDeliverables] Registration attempt ${attempt + 1}/${REGISTER_RETRY_DELAYS_MS.length} failed for ${output.type}: ${error.message}`
+      );
+    }
   }
 
-  // Keep the client-requested revision active until its corrected replacement
-  // passes QC. Registration only establishes lineage; QC owns the handoff.
-  void registered;
+  throw new Error(
+    `Failed to register deliverable (${output.type}) after ${REGISTER_RETRY_DELAYS_MS.length} attempts: ${lastError?.message ?? "unknown database error"}`
+  );
 }
 
 // Lets processJob skip uploading an output it has already registered for
@@ -113,8 +131,13 @@ export async function isOutputAlreadyRegistered(processingJobId: string, type: E
     .eq("type", type)
     .maybeSingle();
   if (error) {
-    console.error(`[registerDeliverables] Could not check existing registration for ${type}:`, error.message);
-    return false;
+    // Failing open here can create an orphaned duplicate storage object:
+    // the worker would assume the row is absent, re-upload the large file,
+    // and only then discover that registration was unavailable. Stop before
+    // upload instead and let the job's normal retry/recovery path try again.
+    throw new Error(
+      `Could not verify existing deliverable registration for ${type}: ${error.message}`
+    );
   }
   return !!data;
 }

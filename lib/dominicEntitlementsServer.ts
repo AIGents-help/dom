@@ -15,13 +15,15 @@ export async function getOrCreateDominicAccess({
 }): Promise<DominicAccess> {
   const admin = getSupabaseAdmin();
 
-  let { data: profile, error } = await admin
+  const { data: existingProfile, error } = await admin
     .from("dominic_profiles")
     .select("plan,status,trial_ends_at")
     .eq("user_id", userId)
     .maybeSingle();
 
   if (error) throw new Error(`DOMINIC profile could not be loaded: ${error.message}`);
+
+  let profile = existingProfile;
 
   if (!profile) {
     const { data: created, error: createError } = await admin

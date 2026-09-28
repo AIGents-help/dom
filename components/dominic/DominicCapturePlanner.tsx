@@ -82,6 +82,7 @@ import {
   calculateRoofPlan,
   calculateStockpilePlan,
   georeferencePattern,
+  validatePatternCalibration,
 } from "@/lib/capturePatterns";
 import {
   DominicMissionEngine,
@@ -1159,7 +1160,12 @@ export default function DominicCapturePlanner() {
 
   const runSecondarySimulation = async (mode: "full" | "repair" = "full") => {
     const checkpoints = mode === "repair" ? secondaryRepairPlan : secondaryGeographicCheckpoints;
-    if (autonomousRunning || !checkpoints.length) return;
+    if (autonomousRunning || !checkpoints.length || !secondaryCalibrationValidation.ready) {
+      if (!secondaryCalibrationValidation.ready) {
+        setMissionControlMessage("Pattern mission is blocked by calibration or no-fly constraints.");
+      }
+      return;
+    }
     setAutonomousMode(mode);
     setAutonomousTarget("simulator");
     setAutonomousRunning(true);
@@ -1228,6 +1234,7 @@ export default function DominicCapturePlanner() {
       autonomousRunning ||
       !checkpoints.length ||
       !secondaryFlightApproved ||
+      !secondaryCalibrationValidation.ready ||
       bridgeStatus !== "connected" ||
       !productionFlightUnlocked ||
       !benchReport?.readyForPropOnFieldTest ||
@@ -1444,6 +1451,12 @@ export default function DominicCapturePlanner() {
         patternHeadingDeg,
       )
     : [];
+  const secondaryCalibrationValidation = validatePatternCalibration({
+    checkpoints: secondaryGeographicCheckpoints,
+    centerLatitude,
+    centerLongitude,
+    calibration,
+  });
 
   const activeSecondaryIndex = Math.min(
     secondaryIndex,

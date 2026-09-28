@@ -5739,3 +5739,68 @@ test("CRM ownership review blocks and then releases pilot outreach", { skip: !is
     await admin.auth.admin.deleteUser(pilotUser.id);
   }
 });
+
+
+test("pilot equipment inventory exists only in Profile and Settings", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `equipment-ui-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Equipment-UI-${stamp}!Aa1`;
+
+  const { data: userData, error: userError } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(userError);
+  const user = userData.user;
+  assert.ok(user);
+
+  const { data: contractor, error: contractorError } = await admin.from("contractors").insert({
+    user_id: user.id,
+    full_name: "Equipment UI Pilot",
+    email,
+    status: "active",
+    part107_verified: true,
+    can_create_missions: false,
+  }).select("id").single();
+  assert.ifError(contractorError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email, password });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext();
+  const storageKey = `sb-${new URL(supabaseURL).hostname.split(".")[0]}-auth-token`;
+  await context.addInitScript(({ key, session }) => {
+    localStorage.setItem(key, JSON.stringify(session));
+  }, { key: storageKey, session: signedIn.session });
+
+  const page = await context.newPage();
+  try {
+    const response = await page.goto(`${baseURL}/pilot`, { waitUntil: "networkidle", timeout: 45_000 });
+    assert.ok(response && response.status() < 400);
+
+    const sidebarText = await page.locator("aside").innerText();
+    assert.doesNotMatch(sidebarText, /Equipment/i, "equipment should not exist as a second Flight Operations menu item");
+
+    await page.getByRole("button", { name: /Profile & Settings/i }).click();
+    await page.getByText("Aircraft & Equipment", { exact: true }).waitFor({ timeout: 10_000 });
+
+    const profileText = await page.locator("main").innerText();
+    assert.match(profileText, /Aircraft & Equipment/);
+    assert.match(profileText, /only equipment inventory/i);
+    assert.match(profileText, /FAA registration/i);
+  } finally {
+    await page.close();
+    await context.close();
+    await browser.close();
+    await admin.from("contractors").delete().eq("id", contractor.id);
+    await admin.auth.admin.deleteUser(user.id);
+  }
+});

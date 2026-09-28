@@ -21,8 +21,17 @@ The repository now contains a transport-agnostic DJI bridge session core in
 - emit heartbeats using the same bridge protocol as MAVLink and future vendors.
 
 The session contract is covered by `services/flight-bridge-dji/session.test.ts`.
-The remaining native-specific work is the Android WebSocket host plus the concrete
-Mobile SDK V5 implementation of `DjiSdkDriver`.
+The repository also includes a tested text/WebSocket host boundary:
+
+- `lib/aircraft/bridgeWireHost.ts` serializes the universal bridge session onto a native text socket,
+- malformed traffic returns protocol errors instead of crashing the bridge,
+- native socket closure stops the aircraft session cleanly, and
+- `services/flight-bridge-dji/host.ts` composes that wire host with the DJI session.
+
+The Android controller app therefore only needs to provide a local WebSocket/text-socket
+adapter and the concrete Mobile SDK V5 implementation of `DjiSdkDriver`; DOMINIC hello,
+telemetry, command results, media correlation, heartbeat, and protocol parsing are already
+handled by the shared tested bridge core.
 
 ## DJI -> DOMINIC telemetry
 

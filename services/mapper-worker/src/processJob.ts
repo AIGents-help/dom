@@ -232,7 +232,31 @@ export async function processJob(job: ProcessingJob): Promise<void> {
     // 5. Preparing Deliverables — retrieve, unpack, convert, and register outputs.
     await updateProgress(job.id, project.id, 92, "Preparing Deliverables");
     const zipPath = join(workspace.outputDir, "all.zip");
-    await downloadAllOutputs(taskUuid, zipPath);
+    const MAX_OUTPUT_DOWNLOAD_ATTEMPTS = 3;
+    let outputDownloadError: unknown = null;
+    for (let attempt = 1; attempt <= MAX_OUTPUT_DOWNLOAD_ATTEMPTS; attempt++) {
+      try {
+        await downloadAllOutputs(taskUuid, zipPath);
+        outputDownloadError = null;
+        break;
+      } catch (error) {
+        outputDownloadError = error;
+        const detail = error instanceof Error ? error.message : String(error);
+        console.warn(
+          `[processJob] Job ${job.id}: NodeODM output download attempt ${attempt}/${MAX_OUTPUT_DOWNLOAD_ATTEMPTS} failed: ${detail}`
+        );
+        await logEvent(
+          project.id,
+          "deliverable_download_retry",
+          `Completed NodeODM task output download attempt ${attempt}/${MAX_OUTPUT_DOWNLOAD_ATTEMPTS} failed. ${detail}`,
+          { taskUuid, attempt, maxAttempts: MAX_OUTPUT_DOWNLOAD_ATTEMPTS },
+        );
+        if (attempt < MAX_OUTPUT_DOWNLOAD_ATTEMPTS) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 2000));
+        }
+      }
+    }
+    if (outputDownloadError) throw outputDownloadError;
     extractAllZip(zipPath, workspace.outputDir);
     const outputs = locateOutputs(workspace.outputDir);
 

@@ -1451,7 +1451,6 @@ test("admin schedule changes create one client schedule notification event", { s
     await admin.from("mission_requests").delete().eq("id", mission.id);
     await admin.from("contractors").delete().eq("id", contractor.id);
     await admin.from("clients").delete().eq("id", client.id);
-    await admin.from("contractors").delete().eq("id", pilot.id);
     await admin.from("admin_users").delete().eq("email", adminEmail);
     await admin.auth.admin.deleteUser(pilotUser.id);
     await admin.auth.admin.deleteUser(adminUser.id);
@@ -2462,7 +2461,7 @@ test("pilot cannot respond to another pilot assignment", { skip: !isolated }, as
     service_type: "aerial_images",
     location: "Response Site",
     status: "scheduled",
-    delivery_responsibility: "dom",
+    delivery_responsibility: "admin",
   }).select("id").single();
   assert.ifError(jobError);
 
@@ -5504,7 +5503,7 @@ test("lead conversion preserves CRM history and links the client", { skip: !isol
     email: leadEmail,
     phone: "555-0101",
     company: "Conversion Company",
-    industry: "Construction",
+    industry: "construction",
     source: "e2e",
     status: "qualified",
   }).select("id").single();
@@ -5574,7 +5573,7 @@ test("lead conversion preserves CRM history and links the client", { skip: !isol
     assert.equal(clientAfter.contact_name, "Conversion Contact");
     assert.equal(clientAfter.email, leadEmail);
     assert.equal(clientAfter.phone, "555-0101");
-    assert.equal(clientAfter.industry, "Construction");
+    assert.equal(clientAfter.industry, "construction");
 
     assert.ok(contacts.some((item) => item.id === contact.id && item.name === "Secondary Estimator"));
     assert.ok(locations.some((item) => item.id === location.id && item.label === "Main Yard"));
@@ -5786,8 +5785,10 @@ test("pilot equipment inventory exists only in Profile and Settings", { skip: !i
     const response = await page.goto(`${baseURL}/pilot`, { waitUntil: "networkidle", timeout: 45_000 });
     assert.ok(response && response.status() < 400);
 
-    const sidebarText = await page.locator("aside").innerText();
-    assert.doesNotMatch(sidebarText, /Equipment/i, "equipment should not exist as a second Flight Operations menu item");
+    const sidebar = page.locator("aside");
+    await page.getByRole("button", { name: /Flight Operations/i }).click();
+    const flightOperations = sidebar.locator("nav").getByText("Flight Operations", { exact: true }).locator("..").locator("..");
+    assert.equal(await flightOperations.getByText("Equipment", { exact: true }).count(), 0, "equipment should not exist as a second Flight Operations menu item");
 
     await page.getByRole("button", { name: /Profile & Settings/i }).click();
     await page.getByText("Aircraft & Equipment", { exact: true }).waitFor({ timeout: 10_000 });

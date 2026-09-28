@@ -105,10 +105,31 @@ export class DjiPayloadControlDriver implements DjiSdkDriver {
   }
 
   async arm(): Promise<void> { throw new Error(MOVEMENT_DISABLED_MESSAGE); }
-  async takeoff(): Promise<void> { throw new Error(MOVEMENT_DISABLED_MESSAGE); }
-  async goTo(): Promise<void> { throw new Error(MOVEMENT_DISABLED_MESSAGE); }
-  async setVelocity(): Promise<void> { throw new Error(MOVEMENT_DISABLED_MESSAGE); }
-  async setYaw(): Promise<void> { throw new Error(MOVEMENT_DISABLED_MESSAGE); }
+  async takeoff(altitudeFt: number): Promise<void> {
+    void altitudeFt;
+    throw new Error(MOVEMENT_DISABLED_MESSAGE);
+  }
+  async goTo(input: {
+    latitude: number;
+    longitude: number;
+    relativeAltitudeFt: number;
+    speedFps?: number;
+  }): Promise<void> {
+    void input;
+    throw new Error(MOVEMENT_DISABLED_MESSAGE);
+  }
+  async setVelocity(input: {
+    northFps: number;
+    eastFps: number;
+    downFps: number;
+  }): Promise<void> {
+    void input;
+    throw new Error(MOVEMENT_DISABLED_MESSAGE);
+  }
+  async setYaw(headingDeg: number): Promise<void> {
+    void headingDeg;
+    throw new Error(MOVEMENT_DISABLED_MESSAGE);
+  }
   async pause(): Promise<void> { throw new Error(MOVEMENT_DISABLED_MESSAGE); }
   async resume(): Promise<void> { throw new Error(MOVEMENT_DISABLED_MESSAGE); }
   async returnHome(): Promise<void> { throw new Error(MOVEMENT_DISABLED_MESSAGE); }

@@ -11,6 +11,9 @@ type FlightEventInput = {
   details?: Record<string, unknown>;
 };
 
+const MISSION_TYPES = new Set(["object","roof","building","facade","interior","stockpile","corridor"]);
+const RUN_STATUSES = new Set(["planned","started","paused","complete","aborted","failed"]);
+
 type ObservationInput = {
   id?: string;
   checkpointId?: string;
@@ -50,7 +53,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await admin
     .from("dominic_flight_runs")
-    .select("id,mission_type,status,aircraft_vendor,aircraft_model,aircraft_id,coverage_summary,started_at,completed_at,aborted_at,failure_message,created_at")
+    .select("id,mission_type,status,aircraft_vendor,aircraft_model,aircraft_id,payload_snapshot,coverage_summary,started_at,completed_at,aborted_at,failure_message,created_at")
     .eq("contractor_id", auth.contractor.id)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -64,11 +67,37 @@ export async function POST(req: NextRequest) {
   if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const body = await req.json().catch(() => null);
-  if (!body?.missionType || typeof body.missionType !== "string") {
-    return NextResponse.json({ error: "missionType is required." }, { status: 400 });
+  if (!body?.missionType || typeof body.missionType !== "string" || !MISSION_TYPES.has(body.missionType)) {
+    return NextResponse.json({ error: "A supported missionType is required." }, { status: 400 });
   }
 
   const admin = getSupabaseAdmin();
+
+  if (body.mappingProjectId) {
+    const { data: project } = await admin
+      .from("mapping_projects")
+      .select("id")
+      .eq("id", body.mappingProjectId)
+      .eq("contractor_id", auth.contractor.id)
+      .maybeSingle();
+    if (!project) {
+      return NextResponse.json({ error: "Mapping project is not owned by this pilot." }, { status: 403 });
+    }
+  }
+
+  if (body.missionRequestId) {
+    const { data: assignment } = await admin
+      .from("mission_assignments")
+      .select("id,job:jobs!inner(mission_request_id)")
+      .eq("contractor_id", auth.contractor.id)
+      .eq("jobs.mission_request_id", body.missionRequestId)
+      .limit(1)
+      .maybeSingle();
+    if (!assignment) {
+      return NextResponse.json({ error: "Mission is not assigned to this pilot." }, { status: 403 });
+    }
+  }
+
   const { data, error } = await admin
     .from("dominic_flight_runs")
     .insert({
@@ -76,7 +105,7 @@ export async function POST(req: NextRequest) {
       mission_request_id: body.missionRequestId ?? null,
       mapping_project_id: body.mappingProjectId ?? null,
       mission_type: body.missionType,
-      status: body.status ?? "started",
+      status: "started",
       aircraft_vendor: body.aircraft?.vendor ?? null,
       aircraft_model: body.aircraft?.model ?? null,
       aircraft_id: body.aircraft?.aircraftId ?? null,
@@ -84,6 +113,7 @@ export async function POST(req: NextRequest) {
       plan: body.plan ?? {},
       calibration: body.calibration ?? {},
       capability_snapshot: body.capabilities ?? {},
+      payload_snapshot: body.payload ?? {},
       coverage_summary: body.coverageSummary ?? {},
       started_at: body.startedAtMs ? new Date(body.startedAtMs).toISOString() : new Date().toISOString(),
     })
@@ -147,7 +177,12 @@ export async function PATCH(req: NextRequest) {
   }
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (typeof body.status === "string") update.status = body.status;
+  if (typeof body.status === "string") {
+    if (!RUN_STATUSES.has(body.status)) {
+      return NextResponse.json({ error: "Unsupported flight status." }, { status: 400 });
+    }
+    update.status = body.status;
+  }
   if (body.coverageSummary) update.coverage_summary = body.coverageSummary;
   if (body.failureMessage !== undefined) update.failure_message = body.failureMessage || null;
   if (body.completedAtMs) update.completed_at = new Date(body.completedAtMs).toISOString();

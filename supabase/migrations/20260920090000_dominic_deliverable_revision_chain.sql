@@ -1,3 +1,12 @@
+-- Revision lifecycle adds a terminal superseded state used by both owner
+-- delivery and DOM QC handoff.
+alter table public.deliverables
+  drop constraint if exists deliverables_client_status_check;
+
+alter table public.deliverables
+  add constraint deliverables_client_status_check
+  check (client_status in ('pending','approved','revision_requested','superseded'));
+
 -- DOMINIC deliverable revision chain.
 -- A corrected mapping output is a new immutable deliverable row that points
 -- back to the client-rejected/revision-requested version it replaces.

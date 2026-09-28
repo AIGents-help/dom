@@ -4805,3 +4805,113 @@ test("storefront renders product images and fulfillment state", { skip: !isolate
     await admin.from("shop_inventory").delete().in("product_key", [madeKey, stockKey]);
   }
 });
+
+
+test("admin cannot QC pilot-owned mission deliverables", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const adminEmail = `pilot-qc-admin-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Pilot-QC-${stamp}!Aa1`;
+
+  const { data: adminUserData, error: adminUserError } = await admin.auth.admin.createUser({
+    email: adminEmail,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(adminUserError);
+  const adminUser = adminUserData.user;
+  assert.ok(adminUser);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email: adminEmail,
+    full_name: "E2E Pilot QC Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { data: owner, error: ownerError } = await admin.from("contractors").insert({
+    full_name: "Pilot Mission Owner",
+    email: `pilot-owner-${stamp}@e2e.dom.invalid`,
+    status: "active",
+    part107_verified: true,
+    can_create_missions: true,
+  }).select("id").single();
+  assert.ifError(ownerError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    requester_name: "Pilot Client",
+    requester_email: `pilot-client-${stamp}@e2e.dom.invalid`,
+    company: "Pilot Owned Mission",
+    service_type: "aerial_images",
+    location: "Pilot Owned Site",
+    status: "in_progress",
+    created_by_contractor_id: owner.id,
+    requires_admin_approval: false,
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    title: "Pilot Owned Mission",
+    service_type: "aerial_images",
+    location: "Pilot Owned Site",
+    status: "in_progress",
+    delivery_responsibility: "pilot",
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: deliverable, error: deliverableError } = await admin.from("deliverables").insert({
+    job_id: job.id,
+    name: "Pilot Owned Deliverable",
+    type: "raw_images",
+    storage_url: `${job.id}/pilot-owned.zip`,
+    qc_passed: false,
+  }).select("id").single();
+  assert.ifError(deliverableError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({
+    email: adminEmail,
+    password,
+  });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const response = await api.post(`/api/admin/missions/${mission.id}/manage`, {
+      headers: {
+        Authorization: `Bearer ${signedIn.session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      data: {
+        action: "set_deliverable_qc",
+        deliverableId: deliverable.id,
+        passed: true,
+      },
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 409, JSON.stringify(body));
+    assert.match(body.error ?? "", /do not use DOM QC/i);
+
+    const { data: unchanged, error: unchangedError } = await admin.from("deliverables")
+      .select("qc_passed,delivered_at")
+      .eq("id", deliverable.id)
+      .single();
+    assert.ifError(unchangedError);
+    assert.equal(unchanged.qc_passed, false);
+    assert.equal(unchanged.delivered_at, null);
+  } finally {
+    await api.dispose();
+    await admin.from("deliverables").delete().eq("id", deliverable.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("contractors").delete().eq("id", owner.id);
+    await admin.from("admin_users").delete().eq("email", adminEmail);
+    await admin.auth.admin.deleteUser(adminUser.id);
+  }
+});

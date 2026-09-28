@@ -85,6 +85,22 @@ or an address reachable from the device running DOMINIC.
 The first message sent to a DOMINIC client must be `hello` using
 `dominic.flight-bridge.v1`, followed by normalized `telemetry` messages.
 
+## Safe read-only hardware stage
+
+Before any autonomous command is enabled on a physical DJI aircraft, DOMINIC can run the
+bridge in **read-only telemetry mode** using `DjiTelemetryOnlyDriver`.
+
+That mode deliberately advertises:
+
+- telemetry: enabled,
+- RTK / obstacle sensing: enabled only when the native source reports support,
+- arm, takeoff, go-to, velocity, yaw, gimbal, camera, video, pause/resume, RTH and land: disabled.
+
+This lets the Android MSDK V5 binding validate live Matrice telemetry, controller/network
+stability, payload identity and DOMINIC state rendering without giving DOMINIC authority
+to move the aircraft. Any inbound flight command is rejected at the capability boundary
+before it can reach native DJI hardware.
+
 ## Hardware rollout
 
 1. Build and validate against DJI Mobile SDK V5 sample/simulator.

@@ -1183,6 +1183,7 @@ export default function DominicCapturePlanner() {
     setAutonomousTarget("simulator");
     setAutonomousRunning(true);
     setAutonomousSnapshot(null);
+    setFlightAuditStatus("saving");
 
     const aircraft = new SimulatorAircraftAdapter({
       latitude: homeLatitude,
@@ -1190,6 +1191,32 @@ export default function DominicCapturePlanner() {
       homeLatitude,
       homeLongitude,
     });
+    let auditRunId: string | null = null;
+    try {
+      const payload =
+        aircraft.payloads?.find((item) => item.id === aircraft.activePayloadId) ??
+        aircraft.payloads?.[0] ??
+        null;
+      auditRunId = await startFlightAudit({
+        missionType: "object",
+        mode,
+        checkpoints,
+        aircraft: {
+          vendor: aircraft.vendor,
+          model: aircraft.getState().model,
+          aircraftId: aircraft.getState().aircraftId,
+        },
+        capabilities: aircraft.capabilities,
+        payload,
+        coverageSummary: adaptiveCoverage as unknown as Record<string, unknown>,
+        planSignature: realFlightPlanSignature,
+        calibrationSnapshot: calibration,
+      });
+      if (auditRunId) setLastFlightRunId(auditRunId);
+    } catch {
+      auditRunId = null;
+    }
+
     const engine = new DominicMissionEngine(aircraft, {
       centerLatitude,
       centerLongitude,
@@ -1232,6 +1259,23 @@ export default function DominicCapturePlanner() {
         ),
       );
     }
+    if (auditRunId) {
+      try {
+        const saved = await finishFlightAudit({
+          runId: auditRunId,
+          snapshot: result,
+          observations: captureObservations,
+          coverageSummary: adaptiveCoverage as unknown as Record<string, unknown>,
+        });
+        setFlightAuditStatus(saved ? "saved" : "error");
+        if (saved) void loadRecentFlightRuns();
+      } catch {
+        setFlightAuditStatus("error");
+      }
+    } else {
+      setFlightAuditStatus("error");
+    }
+
     autonomousEngineRef.current = null;
     setAutonomousRunning(false);
   };

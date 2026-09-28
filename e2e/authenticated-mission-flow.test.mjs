@@ -5041,3 +5041,192 @@ test("pilot corrected deliverable links to requested revision", { skip: !isolate
     await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("pilot owner certification exposes only corrected deliverable revision", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Owner-Revision-${stamp}!Aa1`;
+  const ownerEmail = `owner-revision-${stamp}@e2e.dom.invalid`;
+  const clientEmail = `client-revision-${stamp}@e2e.dom.invalid`;
+
+  const createUser = async (email) => {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    return data.user;
+  };
+  const ownerUser = await createUser(ownerEmail);
+  const clientUser = await createUser(clientEmail);
+
+  const { data: owner, error: ownerError } = await admin.from("contractors").insert({
+    user_id: ownerUser.id,
+    full_name: "Revision Mission Owner",
+    email: ownerEmail,
+    status: "active",
+    part107_verified: true,
+    insurance_verified: true,
+    insurance_provider: "E2E",
+    insurance_policy_number: "REVISION-E2E",
+    insurance_expires_on: "2099-12-31",
+    can_create_missions: true,
+  }).select("id").single();
+  assert.ifError(ownerError);
+
+  const { data: client, error: clientError } = await admin.from("clients").insert({
+    company_name: "Revision Client",
+    contact_name: "Revision Client",
+    email: clientEmail,
+    user_id: clientUser.id,
+  }).select("id").single();
+  assert.ifError(clientError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    client_id: client.id,
+    requester_name: "Revision Client",
+    requester_email: clientEmail,
+    company: "Revision Client",
+    service_type: "aerial_images",
+    location: "Revision Certification Site",
+    status: "in_progress",
+    created_by_contractor_id: owner.id,
+    requires_admin_approval: false,
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    client_id: client.id,
+    title: "Revision Certification Mission",
+    service_type: "aerial_images",
+    location: "Revision Certification Site",
+    status: "in_progress",
+    delivery_responsibility: "pilot",
+    completed_at: new Date().toISOString(),
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: assignment, error: assignmentError } = await admin.from("mission_assignments").insert({
+    job_id: job.id,
+    contractor_id: owner.id,
+    status: "in_progress",
+    assignment_role: "owner",
+    assigned_uav: "E2E Registered UAV",
+  }).select("id").single();
+  assert.ifError(assignmentError);
+
+  const { data: prior, error: priorError } = await admin.from("deliverables").insert({
+    job_id: job.id,
+    name: "Rejected Revision",
+    type: "raw_images",
+    storage_url: `${job.id}/revision-1.zip`,
+    storage_provider: "supabase",
+    qc_passed: true,
+    client_status: "revision_requested",
+    client_feedback: "Please correct this.",
+    revision_number: 1,
+    delivered_at: new Date().toISOString(),
+  }).select("id").single();
+  assert.ifError(priorError);
+
+  const { data: corrected, error: correctedError } = await admin.from("deliverables").insert({
+    job_id: job.id,
+    name: "Corrected Revision",
+    type: "raw_images",
+    storage_url: `${job.id}/revision-2.zip`,
+    storage_provider: "supabase",
+    qc_passed: false,
+    supersedes_deliverable_id: prior.id,
+    revision_number: 2,
+  }).select("id").single();
+  assert.ifError(correctedError);
+
+  const ownerAuth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: ownerSignedIn, error: ownerSignInError } = await ownerAuth.auth.signInWithPassword({
+    email: ownerEmail,
+    password,
+  });
+  assert.ifError(ownerSignInError);
+  assert.ok(ownerSignedIn.session);
+
+  const clientAuth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: clientSignedIn, error: clientSignInError } = await clientAuth.auth.signInWithPassword({
+    email: clientEmail,
+    password,
+  });
+  assert.ifError(clientSignInError);
+  assert.ok(clientSignedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const beforeResponse = await api.get("/api/client/access", {
+      headers: { Authorization: `Bearer ${clientSignedIn.session.access_token}` },
+      failOnStatusCode: false,
+    });
+    const before = await beforeResponse.json().catch(() => ({}));
+    assert.equal(beforeResponse.status(), 200, JSON.stringify(before));
+    const beforeJob = before.jobs.find((item) => item.id === job.id);
+    assert.ok(beforeJob);
+    assert.equal(beforeJob.deliverables.length, 0, "no rejected or pre-approval correction should be client-visible");
+
+    const workflowResponse = await api.get(`/api/pilot/missions/${assignment.id}/workflow`, {
+      headers: { Authorization: `Bearer ${ownerSignedIn.session.access_token}` },
+      failOnStatusCode: false,
+    });
+    const workflow = await workflowResponse.json().catch(() => ({}));
+    assert.equal(workflowResponse.status(), 200, JSON.stringify(workflow));
+
+    const requiredIds = workflow.items
+      .filter((item) => item.required && item.item_key !== "mission_submitted")
+      .map((item) => item.id);
+    if (requiredIds.length) {
+      const { error: checklistError } = await admin.from("mission_checklist_items")
+        .update({ completed: true, completed_at: new Date().toISOString() })
+        .in("id", requiredIds);
+      assert.ifError(checklistError);
+    }
+
+    const completeResponse = await api.post(`/api/pilot/missions/${assignment.id}/workflow`, {
+      headers: { Authorization: `Bearer ${ownerSignedIn.session.access_token}` },
+      data: { action: "complete_mission" },
+      failOnStatusCode: false,
+    });
+    const completeBody = await completeResponse.json().catch(() => ({}));
+    assert.equal(completeResponse.status(), 200, JSON.stringify(completeBody));
+
+    const [{ data: priorAfter }, { data: correctedAfter }] = await Promise.all([
+      admin.from("deliverables").select("client_status,qc_passed").eq("id", prior.id).single(),
+      admin.from("deliverables").select("client_status,qc_passed,delivered_at").eq("id", corrected.id).single(),
+    ]);
+    assert.equal(priorAfter.client_status, "superseded");
+    assert.equal(correctedAfter.qc_passed, true);
+    assert.ok(correctedAfter.delivered_at);
+
+    const afterResponse = await api.get("/api/client/access", {
+      headers: { Authorization: `Bearer ${clientSignedIn.session.access_token}` },
+      failOnStatusCode: false,
+    });
+    const after = await afterResponse.json().catch(() => ({}));
+    assert.equal(afterResponse.status(), 200, JSON.stringify(after));
+    const afterJob = after.jobs.find((item) => item.id === job.id);
+    assert.ok(afterJob);
+    assert.equal(afterJob.deliverables.length, 1);
+    assert.equal(afterJob.deliverables[0].id, corrected.id);
+    assert.equal(afterJob.deliverables[0].revision_number, 2);
+  } finally {
+    await api.dispose();
+    await admin.from("notification_log").delete().eq("assignment_id", assignment.id);
+    await admin.from("mission_activity_events").delete().eq("job_id", job.id);
+    await admin.from("deliverables").delete().eq("job_id", job.id);
+    await admin.from("mission_checklist_items").delete().eq("assignment_id", assignment.id);
+    await admin.from("mission_assignments").delete().eq("id", assignment.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("clients").delete().eq("id", client.id);
+    await admin.from("contractors").delete().eq("id", owner.id);
+    await admin.auth.admin.deleteUser(clientUser.id);
+    await admin.auth.admin.deleteUser(ownerUser.id);
+  }
+});

@@ -5471,3 +5471,123 @@ test("pilot cannot update another pilot CRM account", { skip: !isolated }, async
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("lead conversion preserves CRM history and links the client", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const adminEmail = `convert-admin-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Convert-E2E-${stamp}!Aa1`;
+  const leadEmail = `convert-lead-${stamp}@e2e.dom.invalid`;
+
+  const { data: adminUserData, error: adminUserError } = await admin.auth.admin.createUser({
+    email: adminEmail,
+    password,
+    email_confirm: true,
+  });
+  assert.ifError(adminUserError);
+  const adminUser = adminUserData.user;
+  assert.ok(adminUser);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email: adminEmail,
+    full_name: "E2E Convert Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { data: lead, error: leadError } = await admin.from("leads").insert({
+    name: "Conversion Contact",
+    email: leadEmail,
+    phone: "555-0101",
+    company: "Conversion Company",
+    industry: "Construction",
+    source: "e2e",
+    status: "qualified",
+  }).select("id").single();
+  assert.ifError(leadError);
+
+  const { data: contact, error: contactError } = await admin.from("lead_contacts").insert({
+    lead_id: lead.id,
+    name: "Secondary Estimator",
+    email: `estimator-${stamp}@e2e.dom.invalid`,
+    phone: "555-0102",
+    title: "Estimator",
+    is_primary: false,
+  }).select("id").single();
+  assert.ifError(contactError);
+
+  const { data: location, error: locationError } = await admin.from("lead_locations").insert({
+    lead_id: lead.id,
+    label: "Main Yard",
+    address: "123 E2E Test Ave",
+    notes: "Keep this location after conversion",
+  }).select("id").single();
+  assert.ifError(locationError);
+
+  const { data: existingActivity, error: activityError } = await admin.from("lead_activities").insert({
+    lead_id: lead.id,
+    activity_type: "call",
+    summary: "Initial qualification call",
+    created_by: adminEmail,
+  }).select("id").single();
+  assert.ifError(activityError);
+
+  const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({
+    email: adminEmail,
+    password,
+  });
+  assert.ifError(signInError);
+  assert.ok(signedIn.session);
+
+  const api = await request.newContext({ baseURL });
+  let clientId = null;
+  try {
+    const response = await api.post(`/api/admin/leads/${lead.id}/convert`, {
+      headers: {
+        Authorization: `Bearer ${signedIn.session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      data: {},
+      failOnStatusCode: false,
+    });
+    const body = await response.json().catch(() => ({}));
+    assert.equal(response.status(), 200, JSON.stringify(body));
+    clientId = body.clientId;
+    assert.ok(clientId);
+
+    const [{ data: leadAfter }, { data: clientAfter }, { data: contacts }, { data: locations }, { data: activities }] = await Promise.all([
+      admin.from("leads").select("status").eq("id", lead.id).single(),
+      admin.from("clients").select("lead_id,company_name,contact_name,email,phone,industry").eq("id", clientId).single(),
+      admin.from("lead_contacts").select("id,name,email").eq("lead_id", lead.id),
+      admin.from("lead_locations").select("id,label,address,notes").eq("lead_id", lead.id),
+      admin.from("lead_activities").select("id,activity_type,summary").eq("lead_id", lead.id).order("created_at"),
+    ]);
+
+    assert.equal(leadAfter.status, "won");
+    assert.equal(clientAfter.lead_id, lead.id);
+    assert.equal(clientAfter.company_name, "Conversion Company");
+    assert.equal(clientAfter.contact_name, "Conversion Contact");
+    assert.equal(clientAfter.email, leadEmail);
+    assert.equal(clientAfter.phone, "555-0101");
+    assert.equal(clientAfter.industry, "Construction");
+
+    assert.ok(contacts.some((item) => item.id === contact.id && item.name === "Secondary Estimator"));
+    assert.ok(locations.some((item) => item.id === location.id && item.label === "Main Yard"));
+    assert.ok(activities.some((item) => item.id === existingActivity.id && item.summary === "Initial qualification call"));
+    assert.ok(activities.some((item) => item.activity_type === "status_change" && /Converted to client/i.test(item.summary)));
+  } finally {
+    await api.dispose();
+    if (clientId) await admin.from("clients").delete().eq("id", clientId);
+    await admin.from("lead_activities").delete().eq("lead_id", lead.id);
+    await admin.from("lead_locations").delete().eq("lead_id", lead.id);
+    await admin.from("lead_contacts").delete().eq("lead_id", lead.id);
+    await admin.from("leads").delete().eq("id", lead.id);
+    await admin.from("admin_users").delete().eq("email", adminEmail);
+    await admin.auth.admin.deleteUser(adminUser.id);
+  }
+});

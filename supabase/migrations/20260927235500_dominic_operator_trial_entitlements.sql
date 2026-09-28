@@ -1,3 +1,42 @@
+-- Keep fresh/local databases self-contained. The live DOM project already has
+-- this table, but earlier source migrations did not create it, which caused
+-- disposable Supabase stacks in CI to fail before the trial entitlement
+-- migration could run.
+create table if not exists public.dominic_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  full_name text,
+  company text,
+  plan text not null default 'free'
+    check (plan in ('free','operator','team','organization')),
+  status text not null default 'active'
+    check (status in ('active','suspended')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists dominic_profiles_plan_idx
+  on public.dominic_profiles (plan);
+
+alter table public.dominic_profiles enable row level security;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'dominic_profiles'
+      and policyname = 'Users can view their own DOMINIC profile'
+  ) then
+    create policy "Users can view their own DOMINIC profile"
+      on public.dominic_profiles
+      for select
+      to authenticated
+      using ((select auth.uid()) = user_id);
+  end if;
+end
+$$;
+
 alter table public.dominic_profiles
   add column if not exists trial_started_at timestamptz,
   add column if not exists trial_ends_at timestamptz;

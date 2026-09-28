@@ -31,8 +31,31 @@ begin
   for update;
 
   if found then
+    update public.clients
+    set contact_name = coalesce(contact_name, v_lead.name),
+        email = coalesce(email, v_lead.email),
+        phone = coalesce(phone, v_lead.phone),
+        industry = coalesce(industry, v_lead.industry)
+    where id = v_client.id
+    returning id into v_client_id;
+
     update public.leads set status = 'won' where id = v_lead.id and status <> 'won';
-    return v_client.id;
+
+    if not exists (
+      select 1 from public.lead_activities
+      where lead_id = v_lead.id
+        and summary = 'Linked to existing client (status: Won)'
+    ) then
+      insert into public.lead_activities (lead_id, activity_type, summary, created_by)
+      values (
+        v_lead.id,
+        'status_change',
+        'Linked to existing client (status: Won)',
+        nullif(trim(p_actor), '')
+      );
+    end if;
+
+    return v_client_id;
   end if;
 
   if p_existing_client_id is not null then

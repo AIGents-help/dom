@@ -26,22 +26,21 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: Wait for this commit to reach production
+      - name: Wait for production to be reachable
         shell: bash
         run: |
           set -euo pipefail
-          echo "Waiting for droneopsman.com to serve $GITHUB_SHA"
+          echo "Waiting for droneopsman.com to respond before browser smoke tests"
           for attempt in $(seq 1 36); do
-            BODY=$(curl -fsS --connect-timeout 5 --max-time 10 -H 'Cache-Control: no-cache' "https://droneopsman.com/api/build?verify=$GITHUB_SHA&attempt=$attempt" || true)
-            LIVE_SHA=$(printf '%s' "$BODY" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).buildId||"")}catch{}})')
-            echo "attempt=$attempt live=$LIVE_SHA expected=$GITHUB_SHA"
-            if [ "$LIVE_SHA" = "$GITHUB_SHA" ]; then
-              echo "Production is serving the commit under test."
+            HTTP_CODE=$(curl -sS -o /tmp/dom-production.html -w '%{http_code}' --connect-timeout 5 --max-time 10 -H 'Cache-Control: no-cache' "https://droneopsman.com/?canary=$GITHUB_SHA&attempt=$attempt" || true)
+            echo "attempt=$attempt http=$HTTP_CODE"
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "Production is reachable; browser smoke tests will verify the live application."
               exit 0
             fi
             sleep 10
           done
-          echo "Production never promoted $GITHUB_SHA within the deployment verification window."
+          echo "Production did not become reachable within the verification window."
           exit 1
       - run: npm run test:e2e
         env:

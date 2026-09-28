@@ -135,6 +135,22 @@ type SavedCapturePlan = {
   updated_at: string;
 };
 
+type RecentFlightRun = {
+  id: string;
+  mission_type: CaptureMissionType;
+  status: string;
+  aircraft_vendor?: string | null;
+  aircraft_model?: string | null;
+  aircraft_id?: string | null;
+  payload_snapshot?: { id?: string; name?: string; kind?: string } | null;
+  coverage_summary?: { coveragePct?: number } | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  aborted_at?: string | null;
+  failure_message?: string | null;
+  created_at: string;
+};
+
 const V = {
   bg: "#0B1117",
   panel: "#10161D",
@@ -289,6 +305,10 @@ export default function DominicCapturePlanner() {
   const [autonomousRunning, setAutonomousRunning] = useState(false);
   const [autonomousMode, setAutonomousMode] = useState<"full" | "repair">("full");
   const [autonomousTarget, setAutonomousTarget] = useState<"simulator" | "connected">("simulator");
+  const [lastFlightRunId, setLastFlightRunId] = useState<string | null>(null);
+  const [flightAuditStatus, setFlightAuditStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [recentFlightRuns, setRecentFlightRuns] = useState<RecentFlightRun[]>([]);
+  const [flightHistoryLoading, setFlightHistoryLoading] = useState(false);
   const [realFlightApprovalSignature, setRealFlightApprovalSignature] = useState<string | null>(null);
   const [bridgeUrl, setBridgeUrl] = useState("ws://127.0.0.1:8787");
   const [bridgeStatus, setBridgeStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
@@ -297,6 +317,7 @@ export default function DominicCapturePlanner() {
   const [imageAnalysisMessage, setImageAnalysisMessage] = useState<string | null>(null);
   const [lastImageQuality, setLastImageQuality] = useState<ImageQualityAssessment | null>(null);
   const [bridgeInfo, setBridgeInfo] = useState<{
+    bridgeId: string;
     vendor: string;
     model?: string;
     aircraftId: string;
@@ -932,6 +953,7 @@ export default function DominicCapturePlanner() {
           })
         : null;
       setBridgeInfo({
+        bridgeId: hello.bridgeId,
         vendor: hello.vendor,
         model: hello.model,
         aircraftId: hello.aircraftId,

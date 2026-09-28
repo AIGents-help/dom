@@ -101,6 +101,30 @@ stability, payload identity and DOMINIC state rendering without giving DOMINIC a
 to move the aircraft. Any inbound flight command is rejected at the capability boundary
 before it can reach native DJI hardware.
 
+## Payload-control hardware stage
+
+After read-only telemetry is stable, DOMINIC can move to a deliberately limited
+**payload-control validation mode** using `DjiPayloadControlDriver` and
+`createDjiPayloadControlFlightBridgeHost`.
+
+This stage can advertise and route only the native capabilities explicitly confirmed by
+the DJI source:
+
+- gimbal control,
+- still-image capture,
+- video start/stop,
+- telemetry, RTK and obstacle state.
+
+Aircraft movement authority remains disabled: arm, takeoff, go-to, velocity, yaw,
+pause/resume, return-home, land and abort are all rejected at the capability boundary.
+That allows a Matrice/controller bench or props-off test to validate payload identity,
+gimbal motion, camera capture, media correlation and DOMINIC image-quality ingestion
+before any movement command is enabled.
+
+The payload-control host is covered by
+`services/flight-bridge-dji/payloadControlHost.test.ts`, including proof that a takeoff
+command is rejected while gimbal/photo commands are accepted.
+
 ## Hardware rollout
 
 1. Build and validate against DJI Mobile SDK V5 sample/simulator.

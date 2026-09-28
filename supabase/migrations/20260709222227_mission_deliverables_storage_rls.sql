@@ -1,3 +1,7 @@
+insert into storage.buckets (id, name, public)
+values ('mission-deliverables', 'mission-deliverables', false)
+on conflict (id) do nothing;
+
 drop policy if exists "admin manages mission deliverables" on storage.objects;
 create policy "admin manages mission deliverables" on storage.objects
   for all to authenticated

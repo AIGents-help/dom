@@ -153,6 +153,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
 
     const name = String(body.name).trim().slice(0, 160);
     const category = String(body.category);
+
+    let replacement: { id: string; revision_number: number | null } | null = null;
+    if (body.kind === "deliverable") {
+      const { data: priorRevision, error: priorRevisionError } = await ctx.admin
+        .from("deliverables")
+        .select("id,revision_number")
+        .eq("job_id", ctx.assignment.job_id)
+        .eq("type", category)
+        .eq("client_status", "revision_requested")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (priorRevisionError) {
+        await ctx.admin.storage.from(config.bucket).remove([body.path]);
+        return NextResponse.json({ error: "The corrected deliverable lineage could not be checked. Please try again." }, { status: 500 });
+      }
+      replacement = priorRevision;
+    }
+
     const result = body.kind === "document"
       ? await ctx.admin.from("mission_documents").insert({
           mission_request_id: missionRequestId,
@@ -167,6 +186,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ass
           type: category,
           storage_url: body.path,
           storage_provider: "supabase",
+          supersedes_deliverable_id: replacement?.id ?? null,
+          revision_number: replacement ? Math.max(2, Number(replacement.revision_number ?? 1) + 1) : 1,
         });
 
     if (result.error) {

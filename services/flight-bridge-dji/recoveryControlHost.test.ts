@@ -53,7 +53,12 @@ function snapshot(): DjiSdkSnapshot {
   };
 }
 
-function makeSource() {
+function makeSource(options: {
+  pauseResume?: boolean;
+  returnHome?: boolean;
+  land?: boolean;
+  abort?: boolean;
+} = {}) {
   const calls: string[] = [];
   const state = snapshot();
   const stateListeners = new Set<(next: DjiSdkSnapshot) => void>();
@@ -65,10 +70,10 @@ function makeSource() {
     supportsGimbalControl: true,
     supportsPhotoCapture: true,
     supportsVideoCapture: true,
-    supportsPauseResume: true,
-    supportsReturnHome: true,
-    supportsLand: true,
-    supportsAbort: true,
+    supportsPauseResume: options.pauseResume ?? true,
+    supportsReturnHome: options.returnHome ?? true,
+    supportsLand: options.land ?? true,
+    supportsAbort: options.abort ?? true,
     payloads: [{
       id: "m4e-wide",
       name: "Matrice 4E Wide RGB",
@@ -187,11 +192,12 @@ describe("DJI recovery-control hardware stage", () => {
   });
 
   it("refuses recovery commands that the native source has not explicitly enabled", async () => {
-    const fake = makeSource();
-    fake.source.supportsReturnHome = false;
-    fake.source.supportsLand = false;
-    fake.source.supportsPauseResume = false;
-    fake.source.supportsAbort = false;
+    const fake = makeSource({
+      pauseResume: false,
+      returnHome: false,
+      land: false,
+      abort: false,
+    });
 
     const socket = new FakeSocket();
     const host = createDjiRecoveryControlFlightBridgeHost(fake.source, socket, {

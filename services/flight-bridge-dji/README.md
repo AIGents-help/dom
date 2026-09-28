@@ -125,6 +125,28 @@ The payload-control host is covered by
 `services/flight-bridge-dji/payloadControlHost.test.ts`, including proof that a takeoff
 command is rejected while gimbal/photo commands are accepted.
 
+## Recovery-control hardware stage
+
+After payload controls are validated, DOMINIC can move to a controlled-field
+**recovery-control mode** using `DjiRecoveryControlDriver` and
+`createDjiRecoveryControlFlightBridgeHost`.
+
+This stage may explicitly enable:
+
+- pause / resume,
+- return-home,
+- land,
+- emergency abort,
+- the already-validated telemetry, gimbal, photo and video controls.
+
+It still refuses autonomous movement authority: arm, takeoff, go-to, velocity control
+and aircraft yaw remain disabled. Every recovery capability is opt-in from the native
+DJI source; if MSDK or the connected product does not advertise/validate one of them,
+DOMINIC rejects that command before it reaches hardware.
+
+This stage is intended for controlled-field validation of recovery behavior before
+autonomous movement is enabled.
+
 ## Hardware rollout
 
 1. Build and validate against DJI Mobile SDK V5 sample/simulator.

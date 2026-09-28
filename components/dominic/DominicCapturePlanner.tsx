@@ -1030,6 +1030,143 @@ export default function DominicCapturePlanner() {
     setValidationMessage(null);
   };
 
+  const pilotAccessToken = async () => {
+    const { data } = await getSupabaseBrowser().auth.getSession();
+    return data.session?.access_token ?? "";
+  };
+
+  const loadRecentFlightRuns = async () => {
+    setFlightHistoryLoading(true);
+    try {
+      const token = await pilotAccessToken();
+      if (!token) return;
+      const response = await fetch("/api/pilot/dominic/flights?limit=8", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      const body = await response.json();
+      setRecentFlightRuns(Array.isArray(body?.runs) ? body.runs : []);
+    } finally {
+      setFlightHistoryLoading(false);
+    }
+  };
+
+  const startFlightAudit = async (input: {
+    missionType: CaptureMissionType;
+    mode: "full" | "repair";
+    checkpoints: Array<{
+      id: string;
+      sequence: number;
+      latitude: number;
+      longitude: number;
+      relativeAltitudeFt: number;
+      cameraAngle: number;
+    }>;
+    aircraft: {
+      vendor: string;
+      model?: string;
+      aircraftId?: string;
+      bridgeId?: string;
+    };
+    capabilities?: AircraftCapabilities;
+    payload?: CameraPayloadProfile | null;
+    coverageSummary?: Record<string, unknown>;
+    planSignature?: string;
+    calibrationSnapshot?: unknown;
+  }) => {
+    const token = await pilotAccessToken();
+    if (!token) return null;
+    const response = await fetch("/api/pilot/dominic/flights", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        missionType: input.missionType,
+        startedAtMs: Date.now(),
+        aircraft: input.aircraft,
+        capabilities: input.capabilities ?? {},
+        payload: input.payload ?? {},
+        plan: {
+          mode: input.mode,
+          checkpointCount: input.checkpoints.length,
+          checkpointIds: input.checkpoints.map((checkpoint) => checkpoint.id),
+          planSignature: input.planSignature ?? null,
+          centerLatitude,
+          centerLongitude,
+        },
+        calibration: input.calibrationSnapshot ?? {},
+        coverageSummary: input.coverageSummary ?? {},
+      }),
+    });
+    if (!response.ok) return null;
+    const body = await response.json();
+    return typeof body?.run?.id === "string" ? body.run.id : null;
+  };
+
+  const finishFlightAudit = async (input: {
+    runId: string;
+    snapshot: MissionExecutionSnapshot;
+    observations: CaptureObservation[];
+    coverageSummary: Record<string, unknown>;
+  }) => {
+    const token = await pilotAccessToken();
+    if (!token) return false;
+
+    const finishedAt = Date.now();
+    const status =
+      input.snapshot.phase === "COMPLETE"
+        ? "complete"
+        : input.snapshot.phase === "ABORTED"
+          ? "aborted"
+          : input.snapshot.phase === "FAILED"
+            ? "failed"
+            : input.snapshot.phase === "PAUSED"
+              ? "paused"
+              : "started";
+
+    const events = input.snapshot.events.map((event) => ({
+      atMs: event.atMs,
+      phase: event.phase,
+      message: event.message,
+      checkpointId: event.checkpointId,
+    }));
+    events.push({
+      atMs: finishedAt,
+      phase: input.snapshot.phase,
+      message: "DOMINIC execution snapshot persisted.",
+      checkpointId: input.snapshot.currentCheckpointId,
+      aircraftState: input.snapshot.lastAircraftState ?? null,
+      details: {
+        completedCheckpointIds: input.snapshot.completedCheckpointIds,
+        safetyIssues: input.snapshot.safetyIssues,
+      },
+    } as (typeof events)[number] & {
+      aircraftState: MissionExecutionSnapshot["lastAircraftState"] | null;
+      details: Record<string, unknown>;
+    });
+
+    const response = await fetch("/api/pilot/dominic/flights", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        runId: input.runId,
+        status,
+        completedAtMs: status === "complete" ? finishedAt : undefined,
+        abortedAtMs: status === "aborted" ? finishedAt : undefined,
+        failureMessage: status === "failed" ? input.snapshot.error ?? "Mission failed." : undefined,
+        coverageSummary: input.coverageSummary,
+        events,
+        observations: input.observations,
+      }),
+    });
+    return response.ok;
+  };
+
   const runAutonomousSimulation = async (
     mode: "full" | "repair" = "full",
   ) => {

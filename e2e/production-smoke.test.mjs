@@ -44,10 +44,11 @@ test("homepage exposes the approved DOMINIC layout", async () => {
   const response = await page.goto(`${baseURL}/`, { waitUntil: "networkidle", timeout: 45_000 });
   assert.ok(response && response.status() < 400, `homepage returned ${response?.status()}`);
 
-  await page.getByRole("heading", { name: /Higher Insights\.\s*Real Results\./i }).waitFor();
+  const hero = page.locator("section").filter({ has: page.getByRole("heading", { name: /Higher Insights\.\s*Real Results\./i }) }).first();
+  await hero.getByRole("heading", { name: /Higher Insights\.\s*Real Results\./i }).waitFor();
 
-  const heroDrone = page.getByAltText("DOM drone staged inside a Drone Operation landing zone");
-  const heroMascot = page.getByAltText("DOM mascot deploying the drone");
+  const heroDrone = hero.getByAltText("DOM drone staged inside a Drone Operation landing zone");
+  const heroMascot = hero.getByAltText("DOM mascot deploying the drone");
   await heroDrone.waitFor();
   await heroMascot.waitFor();
 
@@ -56,13 +57,15 @@ test("homepage exposes the approved DOMINIC layout", async () => {
     assert.equal(loaded, true, "current DOM homepage hero asset failed to load");
   }
 
-  await page.getByRole("link", { name: /Request a Mission/i }).waitFor();
-  await page.getByRole("link", { name: /Explore Services/i }).waitFor();
-  await page.getByText("Meet DOM", { exact: true }).waitFor();
-  await page.getByRole("link", { name: /Explore DOMINIC/i }).waitFor();
-  await page.getByRole("link", { name: /Pilot Login \/ Get Access/i }).waitFor();
+  await hero.getByRole("link", { name: /Request a Mission/i }).waitFor();
+  await hero.getByRole("link", { name: /Explore Services/i }).waitFor();
 
-  const workspacePreview = page.getByAltText("DOMINIC map workspace preview");
+  const dominicSection = page.locator("section").filter({ hasText: "Meet DOM" }).first();
+  await dominicSection.getByText("Meet DOM", { exact: true }).waitFor();
+  await dominicSection.getByRole("link", { name: /Explore DOMINIC/i }).waitFor();
+  await dominicSection.getByRole("link", { name: /Pilot Login \/ Get Access/i }).waitFor();
+
+  const workspacePreview = dominicSection.getByAltText("DOMINIC map workspace preview");
   await workspacePreview.waitFor();
   assert.equal(
     await workspacePreview.evaluate((image) => image.complete && image.naturalWidth > 0 && image.naturalHeight > 0),

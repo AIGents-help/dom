@@ -52,10 +52,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const nextScheduledFor = scheduledFor instanceof Date ? scheduledFor.toISOString() : null;
-    const { data: updated, error: scheduleError } = await auth.admin.from("jobs")
+    let scheduleUpdate = auth.admin.from("jobs")
       .update({ scheduled_for: nextScheduledFor })
-      .eq("id", job.id)
-      .eq("scheduled_for", job.scheduled_for)
+      .eq("id", job.id);
+    scheduleUpdate = job.scheduled_for === null
+      ? scheduleUpdate.is("scheduled_for", null)
+      : scheduleUpdate.eq("scheduled_for", job.scheduled_for);
+    const { data: updated, error: scheduleError } = await scheduleUpdate
       .select("id,scheduled_for")
       .maybeSingle();
     if (scheduleError) return NextResponse.json({ error: "Mission schedule could not be updated." }, { status: 500 });

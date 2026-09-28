@@ -1458,6 +1458,50 @@ export default function DominicCapturePlanner() {
     calibration,
   });
 
+  const downloadSecondaryCheckpointPayload = () => {
+    if (!secondaryPlan) return;
+    const payload = {
+      schema: "dominic.capture-plan.v1",
+      missionType,
+      generatedAt: new Date().toISOString(),
+      geometry: {
+        lengthFt: patternLengthFt,
+        widthFt: patternWidthFt,
+        heightFt: patternHeightFt,
+        altitudeFt: patternAltitudeFt,
+        standoffFt: patternStandoffFt,
+        overlapPct: patternOverlapPct,
+        headingDeg: patternHeadingDeg,
+      },
+      camera: {
+        horizontalFovDeg,
+        verticalFovDeg,
+      },
+      subjectCenter: {
+        latitude: centerLatitude,
+        longitude: centerLongitude,
+      },
+      plan: {
+        passCount: secondaryPlan.passCount,
+        estimatedMinutes: secondaryPlan.estimatedMinutes,
+        warnings: secondaryPlan.warnings,
+        metrics: secondaryPlan.metrics,
+      },
+      checkpoints: secondaryPlan.checkpoints,
+      geographicCheckpoints: secondaryGeographicCheckpoints,
+      repairCheckpoints: secondaryRepairPlan,
+      calibration,
+      calibrationValidation: secondaryCalibrationValidation,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `dominic-${missionType}-checkpoints.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
   const activeSecondaryIndex = Math.min(
     secondaryIndex,
     Math.max(0, secondaryGeographicCheckpoints.length - 1),
@@ -1798,7 +1842,20 @@ export default function DominicCapturePlanner() {
                   <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>Calculated capture pattern</div>
                   <div style={{ color: V.muted, fontSize: 10, marginTop: 3 }}>DOMINIC is generating real checkpoints for this mission type—not just instructions.</div>
                 </div>
-                <div style={{ color: V.green, fontSize: 9, fontWeight: 900 }}>GEOMETRY ACTIVE</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ color: secondaryCalibrationValidation.ready ? V.green : V.amber, fontSize: 9, fontWeight: 900 }}>
+                    {secondaryCalibrationValidation.ready ? "GEOMETRY ACTIVE" : "SAFETY BLOCKED"}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={downloadSecondaryCheckpointPayload}
+                    disabled={!secondaryPlan || !secondaryGeographicCheckpoints.length}
+                    title="Export this DOMINIC pattern as a portable waypoint payload"
+                    style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 8, padding: "6px 8px", display: "flex", alignItems: "center", gap: 5, cursor: secondaryPlan ? "pointer" : "not-allowed", fontSize: 9, fontWeight: 800 }}
+                  >
+                    <Download size={12} /> Export checkpoints
+                  </button>
+                </div>
               </div>
 
               <div style={{ padding: 14, display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8 }}>

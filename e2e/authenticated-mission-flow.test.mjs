@@ -5805,3 +5805,194 @@ test("pilot equipment inventory exists only in Profile and Settings", { skip: !i
     await admin.auth.admin.deleteUser(user.id);
   }
 });
+
+
+test("DOMINIC flight audits persist and remain pilot-owned", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Flight-Audit-${stamp}!Aa1`;
+  const pilotAEmail = `flight-audit-a-${stamp}@e2e.dom.invalid`;
+  const pilotBEmail = `flight-audit-b-${stamp}@e2e.dom.invalid`;
+
+  const createUser = async (email) => {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    assert.ok(data.user);
+    return data.user;
+  };
+  const userA = await createUser(pilotAEmail);
+  const userB = await createUser(pilotBEmail);
+
+  const { data: contractors, error: contractorError } = await admin.from("contractors").insert([
+    {
+      user_id: userA.id,
+      full_name: "Flight Audit Pilot A",
+      email: pilotAEmail,
+      status: "active",
+      part107_verified: true,
+      can_create_missions: true,
+    },
+    {
+      user_id: userB.id,
+      full_name: "Flight Audit Pilot B",
+      email: pilotBEmail,
+      status: "active",
+      part107_verified: true,
+      can_create_missions: true,
+    },
+  ]).select("id,user_id");
+  assert.ifError(contractorError);
+  const contractorA = contractors.find((item) => item.user_id === userA.id);
+  const contractorB = contractors.find((item) => item.user_id === userB.id);
+  assert.ok(contractorA && contractorB);
+
+  const signIn = async (email) => {
+    const client = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const { data, error } = await client.auth.signInWithPassword({ email, password });
+    assert.ifError(error);
+    assert.ok(data.session);
+    return data.session;
+  };
+  const sessionA = await signIn(pilotAEmail);
+  const sessionB = await signIn(pilotBEmail);
+
+  const apiA = await request.newContext({
+    baseURL,
+    extraHTTPHeaders: { Authorization: `Bearer ${sessionA.access_token}` },
+  });
+  const apiB = await request.newContext({
+    baseURL,
+    extraHTTPHeaders: { Authorization: `Bearer ${sessionB.access_token}` },
+  });
+
+  let runId = null;
+  try {
+    const createResponse = await apiA.post("/api/pilot/dominic/flights", {
+      data: {
+        missionType: "object",
+        aircraft: {
+          vendor: "simulator",
+          model: "DOMINIC Virtual Aircraft",
+          aircraftId: `audit-aircraft-${stamp}`,
+        },
+        capabilities: { telemetry: true, photoCapture: true },
+        payload: {
+          id: "generic-wide-rgb",
+          name: "Generic Wide RGB Camera",
+          kind: "rgb",
+          horizontalFovDeg: 84,
+          verticalFovDeg: 60,
+        },
+        plan: {
+          mode: "full",
+          checkpointCount: 1,
+          checkpointIds: ["audit-checkpoint-1"],
+        },
+        calibration: { ready: true },
+        coverageSummary: { coveragePct: 0 },
+      },
+      failOnStatusCode: false,
+    });
+    const createBody = await createResponse.json().catch(() => ({}));
+    assert.equal(createResponse.status(), 201, JSON.stringify(createBody));
+    runId = createBody.run?.id;
+    assert.ok(runId);
+
+    const ownerListResponse = await apiA.get("/api/pilot/dominic/flights?limit=10", {
+      failOnStatusCode: false,
+    });
+    const ownerList = await ownerListResponse.json().catch(() => ({}));
+    assert.equal(ownerListResponse.status(), 200, JSON.stringify(ownerList));
+    assert.ok(ownerList.runs.some((run) => run.id === runId));
+    const listed = ownerList.runs.find((run) => run.id === runId);
+    assert.equal(listed.payload_snapshot?.name, "Generic Wide RGB Camera");
+
+    const otherListResponse = await apiB.get("/api/pilot/dominic/flights?limit=10", {
+      failOnStatusCode: false,
+    });
+    const otherList = await otherListResponse.json().catch(() => ({}));
+    assert.equal(otherListResponse.status(), 200, JSON.stringify(otherList));
+    assert.equal(otherList.runs.some((run) => run.id === runId), false);
+
+    const foreignPatchResponse = await apiB.patch("/api/pilot/dominic/flights", {
+      data: { runId, status: "complete", completedAtMs: Date.now() },
+      failOnStatusCode: false,
+    });
+    assert.equal(foreignPatchResponse.status(), 404);
+
+    const capturedAtMs = Date.now();
+    const finishResponse = await apiA.patch("/api/pilot/dominic/flights", {
+      data: {
+        runId,
+        status: "complete",
+        completedAtMs: capturedAtMs,
+        coverageSummary: { coveragePct: 100 },
+        events: [{
+          atMs: capturedAtMs,
+          phase: "COMPLETE",
+          message: "E2E flight complete.",
+          checkpointId: "audit-checkpoint-1",
+          aircraftState: { flightMode: "LANDED", batteryPercent: 88 },
+        }],
+        observations: [{
+          id: `audit-observation-${stamp}`,
+          checkpointId: "audit-checkpoint-1",
+          capturedAtMs,
+          latitude: 39.95,
+          longitude: -75.16,
+          relativeAltitudeFt: 30,
+          cameraAngle: -25,
+          sharpnessScore: 0.94,
+          exposureScore: 0.91,
+          usable: true,
+          imageReference: "e2e://capture/1",
+        }],
+      },
+      failOnStatusCode: false,
+    });
+    const finishBody = await finishResponse.json().catch(() => ({}));
+    assert.equal(finishResponse.status(), 200, JSON.stringify(finishBody));
+    assert.equal(finishBody.eventsRecorded, 1);
+    assert.equal(finishBody.observationsRecorded, 1);
+
+    const [{ data: run }, { data: events }, { data: observations }] = await Promise.all([
+      admin.from("dominic_flight_runs")
+        .select("contractor_id,status,payload_snapshot,coverage_summary,completed_at")
+        .eq("id", runId)
+        .single(),
+      admin.from("dominic_flight_events")
+        .select("phase,message,checkpoint_id,aircraft_state")
+        .eq("flight_run_id", runId),
+      admin.from("dominic_capture_observations")
+        .select("checkpoint_id,usable,image_reference,metadata")
+        .eq("flight_run_id", runId),
+    ]);
+
+    assert.equal(run.contractor_id, contractorA.id);
+    assert.equal(run.status, "complete");
+    assert.equal(run.payload_snapshot.name, "Generic Wide RGB Camera");
+    assert.equal(run.coverage_summary.coveragePct, 100);
+    assert.ok(run.completed_at);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].message, "E2E flight complete.");
+    assert.equal(events[0].aircraft_state.flightMode, "LANDED");
+    assert.equal(observations.length, 1);
+    assert.equal(observations[0].checkpoint_id, "audit-checkpoint-1");
+    assert.equal(observations[0].usable, true);
+    assert.equal(observations[0].metadata.clientObservationId, `audit-observation-${stamp}`);
+  } finally {
+    await apiA.dispose();
+    await apiB.dispose();
+    if (runId) {
+      await admin.from("dominic_capture_observations").delete().eq("flight_run_id", runId);
+      await admin.from("dominic_flight_events").delete().eq("flight_run_id", runId);
+      await admin.from("dominic_flight_runs").delete().eq("id", runId);
+    }
+    await admin.from("contractors").delete().in("id", [contractorA.id, contractorB.id]);
+    await admin.auth.admin.deleteUser(userA.id);
+    await admin.auth.admin.deleteUser(userB.id);
+  }
+});

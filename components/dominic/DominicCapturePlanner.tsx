@@ -135,6 +135,22 @@ type SavedCapturePlan = {
   updated_at: string;
 };
 
+type RecentFlightRun = {
+  id: string;
+  mission_type: CaptureMissionType;
+  status: string;
+  aircraft_vendor?: string | null;
+  aircraft_model?: string | null;
+  aircraft_id?: string | null;
+  payload_snapshot?: { id?: string; name?: string; kind?: string } | null;
+  coverage_summary?: { coveragePct?: number } | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  aborted_at?: string | null;
+  failure_message?: string | null;
+  created_at: string;
+};
+
 const V = {
   bg: "#0B1117",
   panel: "#10161D",
@@ -289,6 +305,10 @@ export default function DominicCapturePlanner() {
   const [autonomousRunning, setAutonomousRunning] = useState(false);
   const [autonomousMode, setAutonomousMode] = useState<"full" | "repair">("full");
   const [autonomousTarget, setAutonomousTarget] = useState<"simulator" | "connected">("simulator");
+  const [lastFlightRunId, setLastFlightRunId] = useState<string | null>(null);
+  const [flightAuditStatus, setFlightAuditStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [recentFlightRuns, setRecentFlightRuns] = useState<RecentFlightRun[]>([]);
+  const [flightHistoryLoading, setFlightHistoryLoading] = useState(false);
   const [realFlightApprovalSignature, setRealFlightApprovalSignature] = useState<string | null>(null);
   const [bridgeUrl, setBridgeUrl] = useState("ws://127.0.0.1:8787");
   const [bridgeStatus, setBridgeStatus] = useState<"disconnected" | "connecting" | "connected" | "error">("disconnected");
@@ -297,6 +317,7 @@ export default function DominicCapturePlanner() {
   const [imageAnalysisMessage, setImageAnalysisMessage] = useState<string | null>(null);
   const [lastImageQuality, setLastImageQuality] = useState<ImageQualityAssessment | null>(null);
   const [bridgeInfo, setBridgeInfo] = useState<{
+    bridgeId: string;
     vendor: string;
     model?: string;
     aircraftId: string;
@@ -932,6 +953,7 @@ export default function DominicCapturePlanner() {
           })
         : null;
       setBridgeInfo({
+        bridgeId: hello.bridgeId,
         vendor: hello.vendor,
         model: hello.model,
         aircraftId: hello.aircraftId,
@@ -1008,6 +1030,147 @@ export default function DominicCapturePlanner() {
     setValidationMessage(null);
   };
 
+  const pilotAccessToken = async () => {
+    const { data } = await getSupabaseBrowser().auth.getSession();
+    return data.session?.access_token ?? "";
+  };
+
+  const loadRecentFlightRuns = async () => {
+    setFlightHistoryLoading(true);
+    try {
+      const token = await pilotAccessToken();
+      if (!token) return;
+      const response = await fetch("/api/pilot/dominic/flights?limit=8", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) return;
+      const body = await response.json();
+      setRecentFlightRuns(Array.isArray(body?.runs) ? body.runs : []);
+    } finally {
+      setFlightHistoryLoading(false);
+    }
+  };
+
+  const startFlightAudit = async (input: {
+    missionType: CaptureMissionType;
+    mode: "full" | "repair";
+    checkpoints: Array<{
+      id: string;
+      sequence: number;
+      latitude: number;
+      longitude: number;
+      relativeAltitudeFt: number;
+      cameraAngle: number;
+    }>;
+    aircraft: {
+      vendor: string;
+      model?: string;
+      aircraftId?: string;
+      bridgeId?: string;
+    };
+    capabilities?: AircraftCapabilities;
+    payload?: CameraPayloadProfile | null;
+    coverageSummary?: Record<string, unknown>;
+    planSignature?: string;
+    calibrationSnapshot?: unknown;
+  }) => {
+    const token = await pilotAccessToken();
+    if (!token) return null;
+    const response = await fetch("/api/pilot/dominic/flights", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        missionType: input.missionType,
+        aircraft: input.aircraft,
+        capabilities: input.capabilities ?? {},
+        payload: input.payload ?? {},
+        plan: {
+          mode: input.mode,
+          checkpointCount: input.checkpoints.length,
+          checkpointIds: input.checkpoints.map((checkpoint) => checkpoint.id),
+          planSignature: input.planSignature ?? null,
+          centerLatitude,
+          centerLongitude,
+        },
+        calibration: input.calibrationSnapshot ?? {},
+        coverageSummary: input.coverageSummary ?? {},
+      }),
+    });
+    if (!response.ok) return null;
+    const body = await response.json();
+    return typeof body?.run?.id === "string" ? body.run.id : null;
+  };
+
+  const finishFlightAudit = async (input: {
+    runId: string;
+    snapshot: MissionExecutionSnapshot;
+    observations: CaptureObservation[];
+    coverageSummary: Record<string, unknown>;
+  }) => {
+    const token = await pilotAccessToken();
+    if (!token) return false;
+
+    const auditEventAtMs =
+      input.snapshot.events.at(-1)?.atMs ??
+      input.snapshot.lastAircraftState?.timestampMs ??
+      0;
+    const status =
+      input.snapshot.phase === "COMPLETE"
+        ? "complete"
+        : input.snapshot.phase === "ABORTED"
+          ? "aborted"
+          : input.snapshot.phase === "FAILED"
+            ? "failed"
+            : input.snapshot.phase === "PAUSED"
+              ? "paused"
+              : "started";
+
+    const events: Array<{
+      atMs: number;
+      phase: string;
+      message: string;
+      checkpointId?: string;
+      aircraftState?: MissionExecutionSnapshot["lastAircraftState"] | null;
+      details?: Record<string, unknown>;
+    }> = input.snapshot.events.map((event) => ({
+      atMs: event.atMs,
+      phase: event.phase,
+      message: event.message,
+      checkpointId: event.checkpointId,
+    }));
+    events.push({
+      atMs: auditEventAtMs,
+      phase: input.snapshot.phase,
+      message: "DOMINIC execution snapshot persisted.",
+      checkpointId: input.snapshot.currentCheckpointId,
+      aircraftState: input.snapshot.lastAircraftState ?? null,
+      details: {
+        completedCheckpointIds: input.snapshot.completedCheckpointIds,
+        safetyIssues: input.snapshot.safetyIssues,
+      },
+    });
+
+    const response = await fetch("/api/pilot/dominic/flights", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        runId: input.runId,
+        status,
+        failureMessage: status === "failed" ? input.snapshot.error ?? "Mission failed." : undefined,
+        coverageSummary: input.coverageSummary,
+        events,
+        observations: input.observations,
+      }),
+    });
+    return response.ok;
+  };
+
   const runAutonomousSimulation = async (
     mode: "full" | "repair" = "full",
   ) => {
@@ -1020,6 +1183,7 @@ export default function DominicCapturePlanner() {
     setAutonomousTarget("simulator");
     setAutonomousRunning(true);
     setAutonomousSnapshot(null);
+    setFlightAuditStatus("saving");
 
     const aircraft = new SimulatorAircraftAdapter({
       latitude: homeLatitude,
@@ -1027,6 +1191,32 @@ export default function DominicCapturePlanner() {
       homeLatitude,
       homeLongitude,
     });
+    let auditRunId: string | null = null;
+    try {
+      const payload =
+        aircraft.payloads?.find((item) => item.id === aircraft.activePayloadId) ??
+        aircraft.payloads?.[0] ??
+        null;
+      auditRunId = await startFlightAudit({
+        missionType: "object",
+        mode,
+        checkpoints,
+        aircraft: {
+          vendor: aircraft.vendor,
+          model: aircraft.getState().model,
+          aircraftId: aircraft.getState().aircraftId,
+        },
+        capabilities: aircraft.capabilities,
+        payload,
+        coverageSummary: adaptiveCoverage as unknown as Record<string, unknown>,
+        planSignature: realFlightPlanSignature,
+        calibrationSnapshot: calibration,
+      });
+      if (auditRunId) setLastFlightRunId(auditRunId);
+    } catch {
+      auditRunId = null;
+    }
+
     const engine = new DominicMissionEngine(aircraft, {
       centerLatitude,
       centerLongitude,
@@ -1069,6 +1259,23 @@ export default function DominicCapturePlanner() {
         ),
       );
     }
+    if (auditRunId) {
+      try {
+        const saved = await finishFlightAudit({
+          runId: auditRunId,
+          snapshot: result,
+          observations: captureObservations,
+          coverageSummary: adaptiveCoverage as unknown as Record<string, unknown>,
+        });
+        setFlightAuditStatus(saved ? "saved" : "error");
+        if (saved) void loadRecentFlightRuns();
+      } catch {
+        setFlightAuditStatus("error");
+      }
+    } else {
+      setFlightAuditStatus("error");
+    }
+
     autonomousEngineRef.current = null;
     setAutonomousRunning(false);
   };
@@ -1167,6 +1374,30 @@ export default function DominicCapturePlanner() {
     setAutonomousTarget("connected");
     setAutonomousRunning(true);
     setAutonomousSnapshot(null);
+    setFlightAuditStatus("saving");
+
+    let auditRunId: string | null = null;
+    try {
+      auditRunId = await startFlightAudit({
+        missionType: "object",
+        mode,
+        checkpoints,
+        aircraft: {
+          vendor: bridgeInfo?.vendor ?? adapter.vendor,
+          model: bridgeInfo?.model ?? adapter.getState().model,
+          aircraftId: bridgeInfo?.aircraftId ?? adapter.getState().aircraftId,
+          bridgeId: bridgeInfo?.bridgeId,
+        },
+        capabilities: adapter.capabilities,
+        payload: activeConnectedPayload,
+        coverageSummary: adaptiveCoverage as unknown as Record<string, unknown>,
+        planSignature: realFlightPlanSignature,
+        calibrationSnapshot: calibration,
+      });
+      if (auditRunId) setLastFlightRunId(auditRunId);
+    } catch {
+      auditRunId = null;
+    }
 
     const engine = new DominicMissionEngine(adapter, {
       centerLatitude,
@@ -1183,9 +1414,27 @@ export default function DominicCapturePlanner() {
     const unsubscribe = engine.subscribe((snapshot) =>
       setAutonomousSnapshot(snapshot),
     );
-    await engine.execute();
+    const result = await engine.execute();
     unsubscribe();
-    setAutonomousSnapshot(engine.getSnapshot());
+    setAutonomousSnapshot(result);
+
+    if (auditRunId) {
+      try {
+        const saved = await finishFlightAudit({
+          runId: auditRunId,
+          snapshot: result,
+          observations: captureObservations,
+          coverageSummary: adaptiveCoverage as unknown as Record<string, unknown>,
+        });
+        setFlightAuditStatus(saved ? "saved" : "error");
+        if (saved) void loadRecentFlightRuns();
+      } catch {
+        setFlightAuditStatus("error");
+      }
+    } else {
+      setFlightAuditStatus("error");
+    }
+
     autonomousEngineRef.current = null;
     setAutonomousRunning(false);
     setRealFlightApprovalSignature(null);
@@ -1204,6 +1453,7 @@ export default function DominicCapturePlanner() {
     setAutonomousRunning(true);
     setAutonomousSnapshot(null);
     setMissionControlMessage(null);
+    setFlightAuditStatus("saving");
 
     const aircraft = new SimulatorAircraftAdapter({
       latitude: homeLatitude,
@@ -1215,6 +1465,33 @@ export default function DominicCapturePlanner() {
       gnssQuality: "good",
       rtkState: "fixed",
     });
+
+    let auditRunId: string | null = null;
+    try {
+      const payload =
+        aircraft.payloads?.find((item) => item.id === aircraft.activePayloadId) ??
+        aircraft.payloads?.[0] ??
+        null;
+      auditRunId = await startFlightAudit({
+        missionType,
+        mode,
+        checkpoints,
+        aircraft: {
+          vendor: aircraft.vendor,
+          model: aircraft.getState().model,
+          aircraftId: aircraft.getState().aircraftId,
+        },
+        capabilities: aircraft.capabilities,
+        payload,
+        coverageSummary: secondaryCoverage as unknown as Record<string, unknown>,
+        planSignature: secondaryFlightPlanSignature,
+        calibrationSnapshot: secondaryCalibrationValidation,
+      });
+      if (auditRunId) setLastFlightRunId(auditRunId);
+    } catch {
+      auditRunId = null;
+    }
+
     const engine = new DominicMissionEngine(aircraft, {
       centerLatitude,
       centerLongitude,
@@ -1257,6 +1534,24 @@ export default function DominicCapturePlanner() {
         ),
       );
     }
+
+    if (auditRunId) {
+      try {
+        const saved = await finishFlightAudit({
+          runId: auditRunId,
+          snapshot: result,
+          observations: secondaryObservations,
+          coverageSummary: secondaryCoverage as unknown as Record<string, unknown>,
+        });
+        setFlightAuditStatus(saved ? "saved" : "error");
+        if (saved) void loadRecentFlightRuns();
+      } catch {
+        setFlightAuditStatus("error");
+      }
+    } else {
+      setFlightAuditStatus("error");
+    }
+
     autonomousEngineRef.current = null;
     setAutonomousRunning(false);
   };
@@ -1283,6 +1578,30 @@ export default function DominicCapturePlanner() {
     setAutonomousRunning(true);
     setAutonomousSnapshot(null);
     setMissionControlMessage(null);
+    setFlightAuditStatus("saving");
+
+    let auditRunId: string | null = null;
+    try {
+      auditRunId = await startFlightAudit({
+        missionType,
+        mode,
+        checkpoints,
+        aircraft: {
+          vendor: bridgeInfo?.vendor ?? adapter.vendor,
+          model: bridgeInfo?.model ?? adapter.getState().model,
+          aircraftId: bridgeInfo?.aircraftId ?? adapter.getState().aircraftId,
+          bridgeId: bridgeInfo?.bridgeId,
+        },
+        capabilities: adapter.capabilities,
+        payload: activeConnectedPayload,
+        coverageSummary: secondaryCoverage as unknown as Record<string, unknown>,
+        planSignature: secondaryFlightPlanSignature,
+        calibrationSnapshot: secondaryCalibrationValidation,
+      });
+      if (auditRunId) setLastFlightRunId(auditRunId);
+    } catch {
+      auditRunId = null;
+    }
 
     const engine = new DominicMissionEngine(adapter, {
       centerLatitude,
@@ -1304,6 +1623,24 @@ export default function DominicCapturePlanner() {
     const result = await engine.execute();
     unsubscribe();
     setAutonomousSnapshot(result);
+
+    if (auditRunId) {
+      try {
+        const saved = await finishFlightAudit({
+          runId: auditRunId,
+          snapshot: result,
+          observations: secondaryObservations,
+          coverageSummary: secondaryCoverage as unknown as Record<string, unknown>,
+        });
+        setFlightAuditStatus(saved ? "saved" : "error");
+        if (saved) void loadRecentFlightRuns();
+      } catch {
+        setFlightAuditStatus("error");
+      }
+    } else {
+      setFlightAuditStatus("error");
+    }
+
     autonomousEngineRef.current = null;
     setAutonomousRunning(false);
     setSecondaryFlightApprovalSignature(null);
@@ -2724,9 +3061,14 @@ export default function DominicCapturePlanner() {
                         : "Virtual aircraft end-to-end test"}
                   </div>
                 </div>
-                <span style={{ color: autonomousSnapshot?.phase === "COMPLETE" ? V.green : autonomousSnapshot?.phase === "FAILED" ? "#FF8B7A" : V.muted, fontSize: 9, fontWeight: 900 }}>
-                  {autonomousSnapshot?.phase ?? "IDLE"}
-                </span>
+                <div style={{ display: "grid", justifyItems: "end", gap: 3 }}>
+                  <span style={{ color: autonomousSnapshot?.phase === "COMPLETE" ? V.green : autonomousSnapshot?.phase === "FAILED" ? "#FF8B7A" : V.muted, fontSize: 9, fontWeight: 900 }}>
+                    {autonomousSnapshot?.phase ?? "IDLE"}
+                  </span>
+                  <span style={{ color: flightAuditStatus === "saved" ? V.green : flightAuditStatus === "error" ? V.amber : V.muted, fontSize: 7, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em" }}>
+                    Audit {flightAuditStatus}{lastFlightRunId ? ` · ${lastFlightRunId.slice(0, 8)}` : ""}
+                  </span>
+                </div>
               </div>
               <p style={{ color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
                 Runs this exact Object Scan through DOMINIC's universal aircraft interface: connect, preflight, arm, takeoff, fly every checkpoint, aim, capture, return home and land.
@@ -2934,6 +3276,47 @@ export default function DominicCapturePlanner() {
                   </div>
                 </>
               ) : null}
+            </section>
+
+            <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div>
+                  <div style={{ color: V.text, fontSize: 12, fontWeight: 900 }}>Flight audit history</div>
+                  <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>Persistent pilot-owned DOMINIC execution records</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void loadRecentFlightRuns()}
+                  disabled={flightHistoryLoading}
+                  style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: flightHistoryLoading ? "not-allowed" : "pointer" }}
+                >
+                  {flightHistoryLoading ? "Loading..." : "Refresh"}
+                </button>
+              </div>
+              <div style={{ display: "grid", gap: 6, marginTop: 9 }}>
+                {recentFlightRuns.length ? recentFlightRuns.map((run) => (
+                  <div key={run.id} style={{ border: `1px solid ${V.line}`, background: "#0D1319", borderRadius: 8, padding: 8 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                      <strong style={{ color: V.text, fontSize: 9 }}>
+                        {run.mission_type.toUpperCase()} · {run.aircraft_model ?? run.aircraft_vendor ?? "Aircraft"}
+                      </strong>
+                      <span style={{ color: run.status === "complete" ? V.green : run.status === "failed" ? "#FF8B7A" : run.status === "aborted" ? V.amber : V.muted, fontSize: 7, fontWeight: 900, textTransform: "uppercase" }}>
+                        {run.status}
+                      </span>
+                    </div>
+                    <div style={{ color: V.muted, fontSize: 8, marginTop: 4 }}>
+                      {new Date(run.started_at ?? run.created_at).toLocaleString()}
+                      {typeof run.coverage_summary?.coveragePct === "number" ? ` · coverage ${run.coverage_summary.coveragePct}%` : ""}
+                      {run.payload_snapshot?.name ? ` · ${run.payload_snapshot.name}` : ""}
+                    </div>
+                    <div style={{ color: "#66727D", fontSize: 7, marginTop: 3, fontFamily: "monospace" }}>{run.id}</div>
+                  </div>
+                )) : (
+                  <div style={{ color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
+                    Refresh to load your recent DOMINIC flight records. New autonomous runs are saved here automatically.
+                  </div>
+                )}
+              </div>
             </section>
 
             <section style={{ border: `1px solid ${adaptiveCoverage.missing ? "rgba(255,184,107,.28)" : "rgba(112,214,160,.22)"}`, borderRadius: 12, background: V.panel, padding: 13 }}>

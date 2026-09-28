@@ -5230,3 +5230,161 @@ test("pilot owner certification exposes only corrected deliverable revision", { 
     await admin.auth.admin.deleteUser(ownerUser.id);
   }
 });
+
+
+test("DOM QC handoff exposes only corrected deliverable revision", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-QC-Revision-${stamp}!Aa1`;
+  const adminEmail = `qc-admin-${stamp}@e2e.dom.invalid`;
+  const clientEmail = `qc-client-${stamp}@e2e.dom.invalid`;
+
+  const makeUser = async (email) => {
+    const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+    assert.ifError(error);
+    return data.user;
+  };
+  const adminUser = await makeUser(adminEmail);
+  const clientUser = await makeUser(clientEmail);
+
+  const { error: allowError } = await admin.from("admin_users").insert({
+    email: adminEmail,
+    full_name: "E2E QC Admin",
+    role: "admin",
+  });
+  assert.ifError(allowError);
+
+  const { data: client, error: clientError } = await admin.from("clients").insert({
+    company_name: "DOM QC Revision Client",
+    contact_name: "DOM QC Client",
+    email: clientEmail,
+    user_id: clientUser.id,
+  }).select("id").single();
+  assert.ifError(clientError);
+
+  const { data: mission, error: missionError } = await admin.from("mission_requests").insert({
+    client_id: client.id,
+    requester_name: "DOM QC Client",
+    requester_email: clientEmail,
+    company: "DOM QC Revision Client",
+    service_type: "aerial_images",
+    location: "DOM QC Site",
+    status: "in_progress",
+  }).select("id").single();
+  assert.ifError(missionError);
+
+  const { data: job, error: jobError } = await admin.from("jobs").insert({
+    mission_request_id: mission.id,
+    client_id: client.id,
+    title: "DOM QC Revision Mission",
+    service_type: "aerial_images",
+    location: "DOM QC Site",
+    status: "in_progress",
+    delivery_responsibility: "admin",
+  }).select("id").single();
+  assert.ifError(jobError);
+
+  const { data: prior, error: priorError } = await admin.from("deliverables").insert({
+    job_id: job.id,
+    name: "DOM Rejected Revision",
+    type: "raw_images",
+    storage_url: `${job.id}/dom-revision-1.zip`,
+    storage_provider: "supabase",
+    qc_passed: true,
+    client_status: "revision_requested",
+    client_feedback: "Please correct this output.",
+    revision_number: 1,
+    delivered_at: new Date().toISOString(),
+  }).select("id").single();
+  assert.ifError(priorError);
+
+  const { data: corrected, error: correctedError } = await admin.from("deliverables").insert({
+    job_id: job.id,
+    name: "DOM Corrected Revision",
+    type: "raw_images",
+    storage_url: `${job.id}/dom-revision-2.zip`,
+    storage_provider: "supabase",
+    qc_passed: false,
+    supersedes_deliverable_id: prior.id,
+    revision_number: 2,
+  }).select("id").single();
+  assert.ifError(correctedError);
+
+  const adminAuth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: adminSession, error: adminSignInError } = await adminAuth.auth.signInWithPassword({
+    email: adminEmail,
+    password,
+  });
+  assert.ifError(adminSignInError);
+  assert.ok(adminSession.session);
+
+  const clientAuth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+  const { data: clientSession, error: clientSignInError } = await clientAuth.auth.signInWithPassword({
+    email: clientEmail,
+    password,
+  });
+  assert.ifError(clientSignInError);
+  assert.ok(clientSession.session);
+
+  const api = await request.newContext({ baseURL });
+  try {
+    const beforeResponse = await api.get("/api/client/access", {
+      headers: { Authorization: `Bearer ${clientSession.session.access_token}` },
+      failOnStatusCode: false,
+    });
+    const before = await beforeResponse.json().catch(() => ({}));
+    assert.equal(beforeResponse.status(), 200, JSON.stringify(before));
+    const beforeJob = before.jobs.find((item) => item.id === job.id);
+    assert.ok(beforeJob);
+    assert.equal(beforeJob.deliverables.length, 0);
+
+    const qcResponse = await api.post(`/api/admin/missions/${mission.id}/manage`, {
+      headers: {
+        Authorization: `Bearer ${adminSession.session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      data: {
+        action: "set_deliverable_qc",
+        deliverableId: corrected.id,
+        passed: true,
+      },
+      failOnStatusCode: false,
+    });
+    const qcBody = await qcResponse.json().catch(() => ({}));
+    assert.equal(qcResponse.status(), 200, JSON.stringify(qcBody));
+
+    const [{ data: priorAfter }, { data: correctedAfter }] = await Promise.all([
+      admin.from("deliverables").select("client_status,qc_passed").eq("id", prior.id).single(),
+      admin.from("deliverables").select("client_status,qc_passed,delivered_at").eq("id", corrected.id).single(),
+    ]);
+    assert.equal(priorAfter.client_status, "superseded");
+    assert.equal(correctedAfter.qc_passed, true);
+    assert.ok(correctedAfter.delivered_at);
+
+    const afterResponse = await api.get("/api/client/access", {
+      headers: { Authorization: `Bearer ${clientSession.session.access_token}` },
+      failOnStatusCode: false,
+    });
+    const after = await afterResponse.json().catch(() => ({}));
+    assert.equal(afterResponse.status(), 200, JSON.stringify(after));
+    const afterJob = after.jobs.find((item) => item.id === job.id);
+    assert.ok(afterJob);
+    assert.equal(afterJob.deliverables.length, 1);
+    assert.equal(afterJob.deliverables[0].id, corrected.id);
+    assert.equal(afterJob.deliverables[0].revision_number, 2);
+  } finally {
+    await api.dispose();
+    await admin.from("notification_log").delete().eq("job_id", job.id);
+    await admin.from("mission_activity_events").delete().eq("job_id", job.id);
+    await admin.from("deliverables").delete().eq("job_id", job.id);
+    await admin.from("jobs").delete().eq("id", job.id);
+    await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("clients").delete().eq("id", client.id);
+    await admin.from("admin_users").delete().eq("email", adminEmail);
+    await admin.auth.admin.deleteUser(clientUser.id);
+    await admin.auth.admin.deleteUser(adminUser.id);
+  }
+});

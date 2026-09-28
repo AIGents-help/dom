@@ -1084,7 +1084,6 @@ export default function DominicCapturePlanner() {
       },
       body: JSON.stringify({
         missionType: input.missionType,
-        startedAtMs: Date.now(),
         aircraft: input.aircraft,
         capabilities: input.capabilities ?? {},
         payload: input.payload ?? {},
@@ -1114,7 +1113,10 @@ export default function DominicCapturePlanner() {
     const token = await pilotAccessToken();
     if (!token) return false;
 
-    const finishedAt = Date.now();
+    const auditEventAtMs =
+      input.snapshot.events.at(-1)?.atMs ??
+      input.snapshot.lastAircraftState?.timestampMs ??
+      0;
     const status =
       input.snapshot.phase === "COMPLETE"
         ? "complete"
@@ -1140,7 +1142,7 @@ export default function DominicCapturePlanner() {
       checkpointId: event.checkpointId,
     }));
     events.push({
-      atMs: finishedAt,
+      atMs: auditEventAtMs,
       phase: input.snapshot.phase,
       message: "DOMINIC execution snapshot persisted.",
       checkpointId: input.snapshot.currentCheckpointId,
@@ -1160,8 +1162,6 @@ export default function DominicCapturePlanner() {
       body: JSON.stringify({
         runId: input.runId,
         status,
-        completedAtMs: status === "complete" ? finishedAt : undefined,
-        abortedAtMs: status === "aborted" ? finishedAt : undefined,
         failureMessage: status === "failed" ? input.snapshot.error ?? "Mission failed." : undefined,
         coverageSummary: input.coverageSummary,
         events,

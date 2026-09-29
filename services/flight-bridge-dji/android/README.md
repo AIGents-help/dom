@@ -105,3 +105,28 @@ The remaining step is no longer application wiring. It is physical/simulator val
 7. repeat the read-only validation on the Matrice 4E/controller.
 
 Do not enable aircraft movement commands until these checks are stable.
+
+
+## DOMINIC -> DJI mission handoff
+
+Saved map plans can now export a `dominic.dji-mission.v1` JSON package from the DOMINIC
+Review screen. The package contains the exact reviewed waypoint coordinates, relative
+altitudes, gimbal pitch values and per-waypoint photo intent.
+
+On the Android controller:
+
+```kotlin
+val mission = DominicDjiMissionPackage.parse(json)
+val exporter = DominicDjiKmzExporter(applicationContext)
+val kmzPath = exporter.export(
+    mission,
+    File(cacheDir, "dominic/${mission.name}.kmz").absolutePath,
+)
+```
+
+`DominicDjiKmzExporter` uses DJI's own `WPMZManager.generateKMZFile()`, matching the
+current DJI MSDK V5 Wayline sample rather than hand-authoring WPML in the browser.
+
+This stage is **file generation only**. The read-only bridge still does not upload the KMZ,
+start a mission, arm, take off, or send aircraft-control commands. That authority remains
+locked behind the staged hardware-validation work.

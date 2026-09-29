@@ -10,6 +10,21 @@ supported DOMINIC commands into the connected aircraft SDK.
 
 DOMINIC Capture Planner and the mission engine do not contain Autel-specific logic.
 
+## Current executable bridge core
+
+Autel now has the same transport-independent DOMINIC Flight Bridge boundary as DJI:
+
+- `services/flight-bridge-autel/session.ts` composes `AutelSdkDriver` with the universal bridge session,
+- `services/flight-bridge-autel/host.ts` binds that session to the shared text/WebSocket host,
+- active Autel payload metadata is advertised in the `hello` handshake,
+- supported DOMINIC commands are capability-gated and routed to the Autel driver,
+- telemetry and camera media use the universal DOMINIC message shapes, and
+- capture media preserves the originating checkpoint ID for coverage/QC correlation.
+
+The session contract is covered by `services/flight-bridge-autel/session.test.ts`.
+The remaining vendor-specific work is the concrete Autel native SDK implementation of
+`AutelSdkDriver` and hardware validation on supported enterprise aircraft/controllers.
+
 Recommended rollout:
 
 1. Read-only connection/model/GPS/battery telemetry.

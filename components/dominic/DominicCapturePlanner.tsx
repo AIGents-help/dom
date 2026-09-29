@@ -262,7 +262,7 @@ function sectorPath(startBearingDeg: number, endBearingDeg: number, radius = 46)
 }
 
 export default function DominicCapturePlanner() {
-  const [missionType, setMissionType] = useState<CaptureMissionType>("object");
+  const [missionType, setMissionType] = useState<CaptureMissionType>("roof");
   const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">("map");
   const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
   const [mapDrawing, setMapDrawing] = useState(false);

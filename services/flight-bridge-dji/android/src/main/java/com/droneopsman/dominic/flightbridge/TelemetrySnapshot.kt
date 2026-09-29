@@ -2,6 +2,7 @@ package com.droneopsman.dominic.flightbridge
 
 data class TelemetrySnapshot(
     val aircraftId: String,
+    val model: String? = null,
     val connected: Boolean,
     val latitude: Double? = null,
     val longitude: Double? = null,
@@ -12,7 +13,6 @@ data class TelemetrySnapshot(
     val velocityDownMps: Double? = null,
     val batteryPercent: Int? = null,
     val satelliteCount: Int? = null,
-    val rtkFixed: Boolean? = null,
     val flightMode: String? = null,
     val timestampMs: Long = System.currentTimeMillis(),
 )

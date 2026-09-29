@@ -42,6 +42,7 @@ import {
 } from "@/lib/capturePlanner";
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { buildDominicDjiMissionPackage, downloadDominicDjiMissionPackage } from "@/lib/aircraft/djiMissionPackage";
 import CapturePlanningMap from "@/components/dominic/CapturePlanningMap";
 import { resolveCaptureCameraProfile } from "@/lib/captureCameraProfiles";
 import {
@@ -2219,6 +2220,23 @@ export default function DominicCapturePlanner() {
           passCount: secondaryPlan?.passCount ?? 0,
         };
 
+  const exportDjiMissionPackage = () => {
+    if (!activeSimpleCheckpoints.length) {
+      setPlanPersistenceStatus("Generate a route before exporting the DJI mission package.");
+      return;
+    }
+    const mission = buildDominicDjiMissionPackage({
+      name: planName,
+      missionType,
+      centerLatitude,
+      centerLongitude,
+      cruiseSpeedMps: 5,
+      checkpoints: activeSimpleCheckpoints,
+    });
+    downloadDominicDjiMissionPackage(mission);
+    setPlanPersistenceStatus("DJI handoff package exported. The DOMINIC Android host can convert it to a DJI KMZ.");
+  };
+
   return (
     <div style={{ minHeight: 650, background: V.bg, color: V.text }}>
       <div style={{ padding: "18px 18px 12px", borderBottom: `1px solid ${V.line}`, display: showAdvancedPlanner ? "flex" : "none", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
@@ -2785,7 +2803,7 @@ export default function DominicCapturePlanner() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => missionType === "object" ? downloadCheckpointPayload() : downloadSecondaryCheckpointPayload()}
+                  onClick={exportDjiMissionPackage}
                   style={{ width: "100%", marginTop: 10, border: `1px solid ${V.line}`, background: V.panel, color: V.text, borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
                 >
                   Export Mission

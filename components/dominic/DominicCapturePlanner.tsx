@@ -119,6 +119,9 @@ type PersistedCapturePlanState = {
   patternOverlapPct: number;
   patternHeadingDeg: number;
   waypointOverrides?: Record<string, { latitude: number; longitude: number }>;
+  mapAreaPoints?: Array<{ xPct: number; yPct: number; latitude: number; longitude: number }>;
+  mapLocationLabel?: string | null;
+  planningSource?: "map" | "live" | "local";
 };
 
 type PlannerAircraft = {
@@ -268,6 +271,7 @@ export default function DominicCapturePlanner() {
   const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
   const [plannerView, setPlannerView] = useState<"plan" | "review">("plan");
   const [reviewPreflightRan, setReviewPreflightRan] = useState(false);
+  const [reviewFlightConfirmed, setReviewFlightConfirmed] = useState(false);
   const [mapDrawing, setMapDrawing] = useState(false);
   const [mapAreaPoints, setMapAreaPoints] = useState<Array<{ xPct: number; yPct: number; latitude: number; longitude: number }>>([]);
   const [mapAreaDefined, setMapAreaDefined] = useState(false);
@@ -451,6 +455,9 @@ export default function DominicCapturePlanner() {
     patternOverlapPct,
     patternHeadingDeg,
     waypointOverrides,
+    mapAreaPoints,
+    mapLocationLabel,
+    planningSource,
   });
 
   const refreshSavedPlans = async () => {
@@ -510,6 +517,8 @@ export default function DominicCapturePlanner() {
       await refreshSavedPlans();
       setPlanPersistenceStatus("Capture plan saved.");
       setReviewPreflightRan(false);
+      setReviewFlightConfirmed(false);
+      setShowAdvancedPlanner(false);
       setPlannerView("review");
     } catch (error) {
       setPlanPersistenceStatus(error instanceof Error ? error.message : "Capture plan could not be saved.");
@@ -551,6 +560,11 @@ export default function DominicCapturePlanner() {
     setPatternOverlapPct(state.patternOverlapPct);
     setPatternHeadingDeg(state.patternHeadingDeg);
     setWaypointOverrides(state.waypointOverrides ?? {});
+    setMapAreaPoints(Array.isArray(state.mapAreaPoints) ? state.mapAreaPoints : []);
+    setMapAreaDefined(Array.isArray(state.mapAreaPoints) && state.mapAreaPoints.length >= 3);
+    setMapLocationLabel(state.mapLocationLabel ?? null);
+    setPlanningSource(state.planningSource ?? (saved.mission_type === "object" ? "local" : "map"));
+    setMapFocusRevision((value) => value + 1);
     setSelectedWaypointId(null);
 
     // A reopened plan restores planning geometry only. Runtime capture/flight state
@@ -571,6 +585,7 @@ export default function DominicCapturePlanner() {
     setPlanName(saved.name);
     setPlanPersistenceStatus("Saved geometry loaded. Review the plan before flight.");
     setReviewPreflightRan(false);
+    setReviewFlightConfirmed(false);
     setPlannerView("review");
   };
 
@@ -2249,6 +2264,7 @@ export default function DominicCapturePlanner() {
                 setSelectedWaypointId(null);
                 setPlanPersistenceStatus("New unsaved plan.");
                 setReviewPreflightRan(false);
+                setReviewFlightConfirmed(false);
                 setPlannerView("plan");
               }}
               style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}
@@ -2660,7 +2676,7 @@ export default function DominicCapturePlanner() {
             </div>
             <button
               type="button"
-              onClick={() => setPlannerView("plan")}
+              onClick={() => { setReviewPreflightRan(false); setReviewFlightConfirmed(false); setPlannerView("plan"); }}
               style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 8, padding: "8px 11px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
             >
               Back to Edit Plan
@@ -2774,11 +2790,28 @@ export default function DominicCapturePlanner() {
                 >
                   Export Mission
                 </button>
+                <label style={{ display: "grid", gridTemplateColumns: "16px minmax(0,1fr)", gap: 7, alignItems: "start", color: bridgeStatus === "connected" ? "#DCE3EA" : V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 9 }}>
+                  <input
+                    type="checkbox"
+                    checked={reviewFlightConfirmed}
+                    disabled={bridgeStatus !== "connected" || !productionFlightUnlocked}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      setReviewFlightConfirmed(checked);
+                      if (missionType === "object") {
+                        setRealFlightApprovalSignature(checked ? realFlightPlanSignature : null);
+                      } else {
+                        setSecondaryFlightApprovalSignature(checked ? secondaryFlightPlanSignature : null);
+                      }
+                    }}
+                  />
+                  <span>I confirm this route, aircraft, home/RTH point, airspace, people and obstacles are safe for execution.</span>
+                </label>
                 <button
                   type="button"
-                  disabled={!productionFlightUnlocked || bridgeStatus !== "connected" || !reviewPreflightRan}
+                  disabled={!productionFlightUnlocked || bridgeStatus !== "connected" || !reviewPreflightRan || !reviewFlightConfirmed}
                   onClick={() => missionType === "object" ? void runConnectedAircraftMission("full") : void runSecondaryConnectedMission("full")}
-                  style={{ width: "100%", marginTop: 7, border: `1px solid ${productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan ? "rgba(112,214,160,.38)" : V.line}`, background: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan ? "rgba(112,214,160,.10)" : "#1B222A", color: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan ? V.green : "#6F7A84", borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan ? "pointer" : "not-allowed" }}
+                  style={{ width: "100%", marginTop: 7, border: `1px solid ${productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed ? "rgba(112,214,160,.38)" : V.line}`, background: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed ? "rgba(112,214,160,.10)" : "#1B222A", color: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed ? V.green : "#6F7A84", borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed ? "pointer" : "not-allowed" }}
                 >
                   Fly Mission
                 </button>

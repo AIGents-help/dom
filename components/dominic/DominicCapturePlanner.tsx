@@ -1461,7 +1461,7 @@ export default function DominicCapturePlanner() {
   };
 
   const runSecondarySimulation = async (mode: "full" | "repair" = "full") => {
-    const checkpoints = mode === "repair" ? secondaryRepairPlan : secondaryGeographicCheckpoints;
+    const checkpoints = mode === "repair" ? secondaryRepairPlan : effectiveSecondaryGeographicCheckpoints;
     if (autonomousRunning || !checkpoints.length || !secondaryCalibrationValidation.ready) {
       if (!secondaryCalibrationValidation.ready) {
         setMissionControlMessage("Pattern mission is blocked by calibration or no-fly constraints.");
@@ -1577,7 +1577,7 @@ export default function DominicCapturePlanner() {
   };
 
   const runSecondaryConnectedMission = async (mode: "full" | "repair" = "full") => {
-    const checkpoints = mode === "repair" ? secondaryRepairPlan : secondaryGeographicCheckpoints;
+    const checkpoints = mode === "repair" ? secondaryRepairPlan : effectiveSecondaryGeographicCheckpoints;
     if (
       autonomousRunning ||
       !checkpoints.length ||

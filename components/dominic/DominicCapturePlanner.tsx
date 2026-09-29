@@ -276,6 +276,7 @@ export default function DominicCapturePlanner() {
   const [mapSearchBusy, setMapSearchBusy] = useState(false);
   const [mapSearchResults, setMapSearchResults] = useState<Array<{ latitude: number; longitude: number; label: string }>>([]);
   const [mapLocationLabel, setMapLocationLabel] = useState<string | null>(null);
+  const [mapFocusRevision, setMapFocusRevision] = useState(0);
   const [objectDiameterFt, setObjectDiameterFt] = useState(12);
   const [objectHeightFt, setObjectHeightFt] = useState(10);
   const [standoffFt, setStandoffFt] = useState(18);
@@ -2053,6 +2054,7 @@ export default function DominicCapturePlanner() {
         setHomeLatitude(result.latitude);
         setHomeLongitude(result.longitude);
         setMapLocationLabel(result.label);
+        setMapFocusRevision((value) => value + 1);
         setMapAreaPoints([]);
         setMapAreaDefined(false);
         setMapDrawing(false);
@@ -2078,6 +2080,7 @@ export default function DominicCapturePlanner() {
     setHomeLatitude(result.latitude);
     setHomeLongitude(result.longitude);
     setMapLocationLabel(result.label);
+    setMapFocusRevision((value) => value + 1);
     setMapSearch(result.label);
     setMapSearchResults([]);
     setMapAreaPoints([]);
@@ -2504,6 +2507,15 @@ export default function DominicCapturePlanner() {
                     if (!aircraftTelemetry) return;
                     setCenterLatitude(aircraftTelemetry.latitude);
                     setCenterLongitude(aircraftTelemetry.longitude);
+                    setHomeLatitude(aircraftTelemetry.latitude);
+                    setHomeLongitude(aircraftTelemetry.longitude);
+                    setMapLocationLabel("Connected aircraft location");
+                    setMapFocusRevision((value) => value + 1);
+                    setMapAreaPoints([]);
+                    setMapAreaDefined(false);
+                    setWaypointOverrides({});
+                    setSelectedWaypointId(null);
+                    setMapAreaMessage("Map centered on the connected aircraft. Pan/zoom if needed, then define the mapping area.");
                   }}
                   style={{ border: `1px solid ${V.line}`, background: V.panel2, color: aircraftTelemetry ? V.green : V.muted, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900, cursor: aircraftTelemetry ? "pointer" : "not-allowed" }}
                 >
@@ -2515,7 +2527,7 @@ export default function DominicCapturePlanner() {
               <CapturePlanningMap
                 focusLatitude={centerLatitude}
                 focusLongitude={centerLongitude}
-                focusToken={mapLocationLabel ?? `${centerLatitude.toFixed(6)},${centerLongitude.toFixed(6)}`}
+                focusToken={String(mapFocusRevision)}
                 drawing={mapDrawing}
                 boundary={mapAreaPoints}
                 route={activeSimpleCheckpoints}

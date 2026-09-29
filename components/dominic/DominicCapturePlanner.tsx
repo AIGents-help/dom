@@ -267,7 +267,11 @@ export default function DominicCapturePlanner() {
   const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
   const [mapDrawing, setMapDrawing] = useState(false);
   const [mapAreaPoints, setMapAreaPoints] = useState<Array<{ xPct: number; yPct: number; latitude: number; longitude: number }>>([]);
-  const [mapAreaMessage, setMapAreaMessage] = useState("Choose a mission type, then define the mapping area on the map.");
+  const [mapAreaMessage, setMapAreaMessage] = useState("Search for the site, choose a mission type, then define the mapping area.");
+  const [mapSearch, setMapSearch] = useState("");
+  const [mapSearchBusy, setMapSearchBusy] = useState(false);
+  const [mapSearchResults, setMapSearchResults] = useState<Array<{ latitude: number; longitude: number; label: string }>>([]);
+  const [mapLocationLabel, setMapLocationLabel] = useState<string | null>(null);
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const [objectDiameterFt, setObjectDiameterFt] = useState(12);
   const [objectHeightFt, setObjectHeightFt] = useState(10);
@@ -2036,7 +2040,65 @@ export default function DominicCapturePlanner() {
     };
   };
 
+  const searchMapLocation = async () => {
+    const query = mapSearch.trim();
+    if (query.length < 3) {
+      setMapAreaMessage("Enter a street address, city, business, or place name.");
+      return;
+    }
+    setMapSearchBusy(true);
+    setMapSearchResults([]);
+    setMapAreaMessage("Searching for that location…");
+    try {
+      const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
+      const payload = (await response.json()) as {
+        results?: Array<{ latitude: number; longitude: number; label: string }>;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(payload.error || "Location search failed.");
+      const results = payload.results ?? [];
+      setMapSearchResults(results);
+      if (!results.length) {
+        setMapAreaMessage("No matching location found. Try a more complete street address.");
+        return;
+      }
+      if (results.length === 1) {
+        const result = results[0];
+        setCenterLatitude(result.latitude);
+        setCenterLongitude(result.longitude);
+        setHomeLatitude(result.latitude);
+        setHomeLongitude(result.longitude);
+        setMapLocationLabel(result.label);
+        setMapAreaPoints([]);
+        setMapAreaMessage(`Location set: ${result.label}. Now choose Define Mapping Area.`);
+      } else {
+        setMapAreaMessage("Choose the correct location from the search results.");
+      }
+    } catch (error) {
+      setMapAreaMessage(error instanceof Error ? error.message : "Location search failed.");
+    } finally {
+      setMapSearchBusy(false);
+    }
+  };
+
+  const selectMapSearchResult = (result: { latitude: number; longitude: number; label: string }) => {
+    setCenterLatitude(result.latitude);
+    setCenterLongitude(result.longitude);
+    setHomeLatitude(result.latitude);
+    setHomeLongitude(result.longitude);
+    setMapLocationLabel(result.label);
+    setMapSearch(result.label);
+    setMapSearchResults([]);
+    setMapAreaPoints([]);
+    setMapDrawing(false);
+    setMapAreaMessage(`Location set: ${result.label}. Now choose Define Mapping Area.`);
+  };
+
   const startMapAreaDrawing = () => {
+    if (!mapLocationLabel) {
+      setMapAreaMessage("Search for the site address or place first so DOMINIC owns the correct map center.");
+      return;
+    }
     if (missionType === "object" || missionType === "interior") {
       setMissionType("roof");
       setMapAreaMessage("Roof selected. Click each corner of the area you want DOMINIC to map.");
@@ -2095,6 +2157,7 @@ export default function DominicCapturePlanner() {
     setPatternLengthFt(Number(lengthFt.toFixed(1)));
     setPatternWidthFt(Number(widthFt.toFixed(1)));
     setPatternHeadingDeg(Number(headingDeg.toFixed(1)));
+    setMapLocationLabel((label) => label ?? "Selected mapping area");
     setMapDrawing(false);
     setMapAreaMessage(
       `Area defined · ${lengthFt.toFixed(0)} × ${widthFt.toFixed(0)} ft · ${mapAreaPoints.length} boundary points. DOMINIC regenerated the ${missionProfiles[missionType === "object" || missionType === "interior" ? "roof" : missionType].label} route.`,
@@ -2297,6 +2360,45 @@ export default function DominicCapturePlanner() {
       <section style={{ margin: "10px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: "#0D1319", overflow: "hidden" }}>
         {planningSource === "map" ? (
           <div>
+            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${V.line}`, background: V.panel }}>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 7 }}>
+                <input
+                  aria-label="Search address or place"
+                  value={mapSearch}
+                  onChange={(event) => setMapSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") void searchMapLocation();
+                  }}
+                  placeholder="Enter address, e.g. 123 Main St, Linwood, PA"
+                  style={{ minWidth: 0, border: `1px solid ${V.line}`, background: "#0B1117", color: V.text, borderRadius: 8, padding: "9px 10px", fontSize: 10, outline: 0 }}
+                />
+                <button
+                  type="button"
+                  onClick={() => void searchMapLocation()}
+                  disabled={mapSearchBusy}
+                  style={{ border: `1px solid rgba(244,90,30,.45)`, background: "rgba(244,90,30,.13)", color: "#FFD3C0", borderRadius: 8, padding: "9px 12px", fontSize: 9, fontWeight: 900, cursor: mapSearchBusy ? "wait" : "pointer" }}
+                >
+                  {mapSearchBusy ? "Searching…" : "Find location"}
+                </button>
+              </div>
+              {mapSearchResults.length > 1 ? (
+                <div style={{ display: "grid", gap: 5, marginTop: 7 }}>
+                  {mapSearchResults.map((result, index) => (
+                    <button
+                      key={`${result.latitude}-${result.longitude}-${index}`}
+                      type="button"
+                      onClick={() => selectMapSearchResult(result)}
+                      style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", textAlign: "left", fontSize: 8, lineHeight: 1.35, cursor: "pointer" }}
+                    >
+                      {result.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              <div style={{ color: mapLocationLabel ? V.green : V.muted, fontSize: 8, marginTop: 6, lineHeight: 1.4 }}>
+                {mapLocationLabel ? `Planning location: ${mapLocationLabel}` : "Search first. DOMINIC uses this location as the authoritative map center so the plan cannot jump back to an old default."}
+              </div>
+            </div>
             <div style={{ padding: "10px 12px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               <div>
                 <div style={{ color: V.orange, fontSize: 9, fontWeight: 900 }}>MAP / SATELLITE PLANNING</div>
@@ -2319,7 +2421,8 @@ export default function DominicCapturePlanner() {
                   <button
                     type="button"
                     onClick={startMapAreaDrawing}
-                    style={{ border: `1px solid rgba(244,90,30,.55)`, background: "rgba(244,90,30,.16)", color: "#FFD3C0", borderRadius: 7, padding: "7px 10px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                    disabled={!mapLocationLabel}
+                    style={{ border: `1px solid rgba(244,90,30,.55)`, background: mapLocationLabel ? "rgba(244,90,30,.16)" : "#20272E", color: mapLocationLabel ? "#FFD3C0" : V.muted, borderRadius: 7, padding: "7px 10px", fontSize: 8, fontWeight: 900, cursor: mapLocationLabel ? "pointer" : "not-allowed" }}
                   >
                     Define Mapping Area
                   </button>
@@ -2364,7 +2467,7 @@ export default function DominicCapturePlanner() {
               <iframe
                 title="DOMINIC satellite planning map"
                 src={satelliteMapUrl}
-                style={{ width: "100%", height: "100%", border: 0, display: "block" }}
+                style={{ width: "100%", height: "100%", border: 0, display: "block", pointerEvents: "none" }}
                 loading="lazy"
               />
               {mapDrawing ? (

@@ -4,18 +4,72 @@ This directory is the native Android boundary for DJI Mobile SDK V5.
 
 The first hardware milestone remains intentionally **read-only**:
 
-- connect to DJI Mobile SDK V5 on the Android controller,
+- initialize/register DJI Mobile SDK V5 on the Android controller,
 - subscribe to Matrice telemetry through DJI `KeyManager`,
 - expose a loopback WebSocket at `ws://127.0.0.1:8787`,
 - send the exact `dominic.flight-bridge.v1` hello / telemetry / heartbeat contract,
 - reject every aircraft and payload command.
 
-DJI currently lists Android Mobile SDK V5 5.18.0 and Matrice 4E as supported. The module
-pins 5.18.0 for hardware validation.
+The module pins DJI Mobile SDK V5 5.18.0 for Matrice 4E hardware validation.
 
-## Implemented native boundary
+## MSDK host lifecycle
 
-`DjiKeyManagerTelemetryProvider` now reads/listens to:
+`DjiMsdkReadOnlyHost` now owns the registration lifecycle used by DJI's V5 sample:
+
+1. `SDKManager.init(...)`
+2. wait for `DJISDKInitEvent.INITIALIZE_COMPLETE`
+3. call `SDKManager.registerApp()`
+4. retry registration when network returns if the SDK is not registered
+5. start `DjiReadOnlyBridgeRuntime` only after `onRegisterSuccess()`
+6. stop the bridge and destroy MSDK together
+
+Product connection/disconnection, registration failures, init progress and database
+download progress are surfaced through the host status callback.
+
+Example:
+
+```kotlin
+private val dominicHost = DjiMsdkReadOnlyHost(
+    context = applicationContext,
+    bridgeId = "dominic-matrice-4e",
+) { status ->
+    Log.i("DOMINIC", "DJI bridge status: $status")
+}
+
+fun onCreate() {
+    dominicHost.start()
+}
+
+fun onDestroy() {
+    dominicHost.stop()
+}
+```
+
+## DJI application key
+
+The DJI application key is **not committed to this repository**.
+
+The library manifest declares DJI's required metadata entry:
+
+```xml
+<meta-data
+    android:name="com.dji.sdk.API_KEY"
+    android:value="${DOMINIC_DJI_API_KEY}" />
+```
+
+Provide the key to Gradle outside source control, for example in the developer/controller
+environment:
+
+```properties
+DOMINIC_DJI_API_KEY=your_registered_dji_app_key
+```
+
+If the module is copied into DJI's sample project instead of consumed as a library, map
+the same secret to that project's `API_KEY` / `AIRCRAFT_API_KEY` placeholder.
+
+## Telemetry boundary
+
+`DjiKeyManagerTelemetryProvider` reads/listens to:
 
 - flight-controller connection,
 - flight-controller serial number (DOMINIC aircraft ID),
@@ -31,46 +85,23 @@ pins 5.18.0 for hardware validation.
 `ReadOnlyProtocol` converts those values to DOMINIC's vendor-neutral state contract,
 including meters-to-feet conversion and NED vertical-speed sign conversion.
 
-`LoopbackWebSocketServer` uses a local-only `127.0.0.1` socket so this validation bridge
-is not exposed on Wi-Fi/LAN interfaces. `DjiReadOnlyBridgeRuntime` composes the telemetry
-provider, protocol service and WebSocket server.
+`LoopbackWebSocketServer` binds only to `127.0.0.1`, so the validation bridge is not
+exposed on controller Wi-Fi/LAN interfaces.
 
 The bridge advertises **no movement, recovery, gimbal or camera authority**. All inbound
 DOMINIC commands receive a rejected `command_result`.
 
-## Host application integration
-
-The Android controller application remains responsible for registering and activating DJI
-MSDK. Start the bridge only after MSDK initialization succeeds:
-
-```kotlin
-private val dominicBridge = DjiReadOnlyBridgeRuntime(
-    bridgeId = "dominic-dji-controller",
-)
-
-fun onMsdkReady() {
-    dominicBridge.start()
-}
-
-fun onDestroy() {
-    dominicBridge.stop()
-}
-```
-
-The module declares DJI Mobile SDK V5 5.18.0 and Java-WebSocket 1.6.0. If this source is
-embedded directly into DJI's sample application instead of included as a library module,
-copy those dependencies into the host app's Gradle dependencies.
-
 ## Next hardware-validation step
 
-1. Wire this module into the DJI V5 sample/controller application with the registered DJI
-   application key.
-2. Start the DJI simulator and verify `hello`, telemetry sequencing and heartbeats from
-   `ws://127.0.0.1:8787`.
-3. Confirm latitude/longitude, altitude, heading, NED speed, battery, satellite count and
-   flight mode against DJI Pilot/sample UI.
-4. Repeat the read-only test on the Matrice 4E/controller.
-5. Add RTK/gimbal/camera telemetry only after the basic stream is stable.
-6. Keep all command capabilities disabled until the later controlled hardware stages pass.
+The remaining step is no longer application wiring. It is physical/simulator validation:
 
-No aircraft movement authority is enabled by this module.
+1. supply the registered DJI application key outside source control,
+2. launch the host on DJI's supported Android/controller environment,
+3. verify successful MSDK initialization and registration,
+4. connect a WebSocket client to `ws://127.0.0.1:8787`,
+5. verify hello, telemetry sequence and one-second heartbeats,
+6. compare position, altitude, heading, velocity, battery, satellites and flight mode
+   against the DJI simulator/sample UI,
+7. repeat the read-only validation on the Matrice 4E/controller.
+
+Do not enable aircraft movement commands until these checks are stable.

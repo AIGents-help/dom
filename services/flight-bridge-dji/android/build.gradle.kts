@@ -9,6 +9,8 @@ android {
 
     defaultConfig {
         minSdk = 24
+        manifestPlaceholders["DOMINIC_DJI_API_KEY"] =
+            providers.gradleProperty("DOMINIC_DJI_API_KEY").orElse("__MISSING_DJI_API_KEY__").get()
     }
 }
 

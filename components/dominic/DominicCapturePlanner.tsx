@@ -54,8 +54,9 @@ import {
   safetyScenarioLabels,
   type SafetyScenario,
 } from "@/lib/aircraft/safetyScenarioAdapter";
-import { WebSocketFlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
+import { WebSocketFlightBridgeTransport, type FlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
 import { connectFlightBridgeAdapter } from "@/lib/aircraft/bridgeConnect";
+import { requestBridgeMissionValidation } from "@/lib/aircraft/missionValidationBridge";
 import type {
   DominicAircraftAdapter,
   AircraftCapabilities,
@@ -273,6 +274,12 @@ export default function DominicCapturePlanner() {
   const [plannerView, setPlannerView] = useState<"plan" | "review">("plan");
   const [reviewPreflightRan, setReviewPreflightRan] = useState(false);
   const [reviewFlightConfirmed, setReviewFlightConfirmed] = useState(false);
+  const [reviewPreflightRunning, setReviewPreflightRunning] = useState(false);
+  const [djiMissionValidation, setDjiMissionValidation] = useState<{
+    status: "idle" | "validating" | "valid" | "invalid" | "error";
+    errors: string[];
+    raw?: string;
+  }>({ status: "idle", errors: [] });
   const [mapDrawing, setMapDrawing] = useState(false);
   const [mapAreaPoints, setMapAreaPoints] = useState<Array<{ xPct: number; yPct: number; latitude: number; longitude: number }>>([]);
   const [mapAreaDefined, setMapAreaDefined] = useState(false);
@@ -348,6 +355,7 @@ export default function DominicCapturePlanner() {
     activePayloadId?: string;
   } | null>(null);
   const bridgeAdapterRef = useRef<DominicAircraftAdapter | null>(null);
+  const bridgeTransportRef = useRef<FlightBridgeTransport | null>(null);
   const autonomousEngineRef = useRef<DominicMissionEngine | null>(null);
   const [missionControlMessage, setMissionControlMessage] = useState<string | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
@@ -519,6 +527,7 @@ export default function DominicCapturePlanner() {
       setPlanPersistenceStatus("Capture plan saved.");
       setReviewPreflightRan(false);
       setReviewFlightConfirmed(false);
+      setDjiMissionValidation({ status: "idle", errors: [] });
       setShowAdvancedPlanner(false);
       setPlannerView("review");
     } catch (error) {
@@ -587,6 +596,7 @@ export default function DominicCapturePlanner() {
     setPlanPersistenceStatus("Saved geometry loaded. Review the plan before flight.");
     setReviewPreflightRan(false);
     setReviewFlightConfirmed(false);
+    setDjiMissionValidation({ status: "idle", errors: [] });
     setPlannerView("review");
   };
 
@@ -975,6 +985,7 @@ export default function DominicCapturePlanner() {
     try {
       const transport = new WebSocketFlightBridgeTransport(bridgeUrl);
       const { adapter, hello } = await connectFlightBridgeAdapter(transport, 5000);
+      bridgeTransportRef.current = transport;
       bridgeAdapterRef.current = adapter;
       bridgeUnsubscribeRef.current = adapter.subscribe((state) => {
         setAircraftTelemetry({
@@ -1058,6 +1069,7 @@ export default function DominicCapturePlanner() {
     bridgeMediaUnsubscribeRef.current = null;
     const adapter = bridgeAdapterRef.current;
     bridgeAdapterRef.current = null;
+    bridgeTransportRef.current = null;
     if (adapter) await adapter.disconnect();
     setBridgeInfo(null);
     setBridgeStatus("disconnected");
@@ -1068,6 +1080,7 @@ export default function DominicCapturePlanner() {
     setFlightValidation(null);
     setControlledFieldNotes("");
     setValidationMessage(null);
+    setDjiMissionValidation({ status: "idle", errors: [] });
   };
 
   const pilotAccessToken = async () => {
@@ -2228,12 +2241,11 @@ export default function DominicCapturePlanner() {
           passCount: secondaryPlan?.passCount ?? 0,
         };
 
-  const exportDjiMissionPackage = () => {
-    if (!activeSimpleCheckpoints.length) {
-      setPlanPersistenceStatus("Generate a route before exporting the DJI mission package.");
-      return;
-    }
-    const mission = buildDominicDjiMissionPackage({
+  const djiStaticValidationPassed =
+    bridgeInfo?.vendor !== "dji" || djiMissionValidation.status === "valid";
+
+  const buildCurrentDjiMissionPackage = () =>
+    buildDominicDjiMissionPackage({
       name: planName,
       missionType,
       centerLatitude,
@@ -2241,8 +2253,55 @@ export default function DominicCapturePlanner() {
       cruiseSpeedMps: 5,
       checkpoints: activeSimpleCheckpoints,
     });
-    downloadDominicDjiMissionPackage(mission);
+
+  const exportDjiMissionPackage = () => {
+    if (!activeSimpleCheckpoints.length) {
+      setPlanPersistenceStatus("Generate a route before exporting the DJI mission package.");
+      return;
+    }
+    downloadDominicDjiMissionPackage(buildCurrentDjiMissionPackage());
     setPlanPersistenceStatus("DJI handoff package exported. The DOMINIC Android host can convert it to a DJI KMZ.");
+  };
+
+  const runReviewPreflight = async () => {
+    setReviewPreflightRan(true);
+    setReviewPreflightRunning(true);
+    setReviewFlightConfirmed(false);
+    setRealFlightApprovalSignature(null);
+    setSecondaryFlightApprovalSignature(null);
+
+    try {
+      if (
+        bridgeStatus !== "connected" ||
+        bridgeInfo?.vendor !== "dji" ||
+        !bridgeTransportRef.current
+      ) {
+        setDjiMissionValidation({ status: "idle", errors: [] });
+        return;
+      }
+
+      setDjiMissionValidation({ status: "validating", errors: [] });
+      const result = await requestBridgeMissionValidation(
+        bridgeTransportRef.current,
+        buildCurrentDjiMissionPackage(),
+      );
+      setDjiMissionValidation({
+        status: result.valid ? "valid" : "invalid",
+        errors: result.errors,
+        raw: result.raw,
+      });
+    } catch (error) {
+      setDjiMissionValidation({
+        status: "error",
+        errors: [
+          error instanceof Error
+            ? error.message
+            : "DJI mission validation failed unexpectedly.",
+        ],
+      });
+    } finally {
+      setReviewPreflightRunning(false);
+    }
   };
 
   return (
@@ -2291,6 +2350,7 @@ export default function DominicCapturePlanner() {
                 setPlanPersistenceStatus("New unsaved plan.");
                 setReviewPreflightRan(false);
                 setReviewFlightConfirmed(false);
+                setDjiMissionValidation({ status: "idle", errors: [] });
                 setPlannerView("plan");
               }}
               style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}
@@ -2699,6 +2759,17 @@ export default function DominicCapturePlanner() {
                     ["Route generated", activeSimplePlan.checkpointCount > 0, `${activeSimplePlan.checkpointCount} capture points in the active route.`],
                     ["Calibration", missionType === "object" ? preflightReady : secondaryCalibrationValidation.ready, missionType === "object" ? (preflightReady ? "Object-scan calibration is clear." : "Object-scan calibration requires attention.") : (secondaryCalibrationValidation.ready ? "Pattern calibration is clear." : "Pattern calibration requires attention.")],
                     ["Aircraft connected", bridgeStatus === "connected", bridgeStatus === "connected" ? "Live aircraft telemetry bridge is connected." : "Connect the aircraft before attempting flight."],
+                    ["DJI mission validation", bridgeInfo?.vendor !== "dji" ? true : djiMissionValidation.status === "valid", bridgeInfo?.vendor !== "dji"
+                      ? "DJI KMZ validation is not required for this aircraft vendor."
+                      : djiMissionValidation.status === "valid"
+                        ? "DJI WPMZ static validation passed on the controller."
+                        : djiMissionValidation.status === "invalid"
+                          ? `DJI WPMZ found ${djiMissionValidation.errors.length || 1} mission issue(s).`
+                          : djiMissionValidation.status === "error"
+                            ? "DJI static validation could not complete."
+                            : bridgeStatus === "connected"
+                              ? "Run Preflight Check to validate the generated KMZ on the DJI controller."
+                              : "Connect the DJI controller before static KMZ validation."],
                     ["Control authority", productionFlightUnlocked, productionFlightUnlocked ? "DOMINIC connected-flight validation is unlocked." : "Connected flight remains locked until bench/simulation/controlled-field validation is complete."],
                   ].map(([label, ok, detail]) => (
                     <div key={String(label)} style={{ display: "grid", gridTemplateColumns: "18px minmax(0,1fr)", gap: 7, alignItems: "start", padding: "7px 8px", border: `1px solid ${V.line}`, borderRadius: 7, background: V.panel }}>
@@ -2712,16 +2783,27 @@ export default function DominicCapturePlanner() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setReviewPreflightRan(true)}
-                  style={{ width: "100%", marginTop: 9, border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.10)", color: "#FFD3C0", borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
+                  onClick={() => void runReviewPreflight()}
+                  disabled={reviewPreflightRunning}
+                  style={{ width: "100%", marginTop: 9, border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.10)", color: "#FFD3C0", borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: reviewPreflightRunning ? "wait" : "pointer" }}
                 >
-                  Run Preflight Check
+                  {reviewPreflightRunning ? "Running Preflight…" : "Run Preflight Check"}
                 </button>
                 {reviewPreflightRan ? (
-                  <div style={{ color: productionFlightUnlocked && bridgeStatus === "connected" ? V.green : V.amber, fontSize: 8, marginTop: 7, lineHeight: 1.45 }}>
-                    {productionFlightUnlocked && bridgeStatus === "connected"
+                  <div style={{ color: productionFlightUnlocked && bridgeStatus === "connected" && djiStaticValidationPassed ? V.green : V.amber, fontSize: 8, marginTop: 7, lineHeight: 1.45 }}>
+                    {productionFlightUnlocked && bridgeStatus === "connected" && djiStaticValidationPassed
                       ? "Preflight review is clear for the current validated aircraft and plan."
                       : "Plan review complete. Export is available; connected autonomous flight remains locked until the aircraft validation ladder is complete."}
+                  </div>
+                ) : null}
+                {djiMissionValidation.status === "invalid" || djiMissionValidation.status === "error" ? (
+                  <div style={{ marginTop: 7, border: "1px solid rgba(255,184,107,.28)", background: "rgba(255,184,107,.07)", borderRadius: 7, padding: 8 }}>
+                    <div style={{ color: V.amber, fontSize: 8, fontWeight: 900 }}>DJI mission validation requires attention</div>
+                    <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>
+                      {djiMissionValidation.errors.length
+                        ? djiMissionValidation.errors.join(" · ")
+                        : "DJI returned an invalid mission result without a detailed message."}
+                    </div>
                   </div>
                 ) : null}
               </div>
@@ -2738,13 +2820,13 @@ export default function DominicCapturePlanner() {
                   onClick={exportDjiMissionPackage}
                   style={{ width: "100%", marginTop: 10, border: `1px solid ${V.line}`, background: V.panel, color: V.text, borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
                 >
-                  Export Mission
+                  Export DJI Mission
                 </button>
                 <label style={{ display: "grid", gridTemplateColumns: "16px minmax(0,1fr)", gap: 7, alignItems: "start", color: bridgeStatus === "connected" ? "#DCE3EA" : V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 9 }}>
                   <input
                     type="checkbox"
                     checked={reviewFlightConfirmed}
-                    disabled={bridgeStatus !== "connected" || !productionFlightUnlocked}
+                    disabled={bridgeStatus !== "connected" || !productionFlightUnlocked || !djiStaticValidationPassed}
                     onChange={(event) => {
                       const checked = event.target.checked;
                       setReviewFlightConfirmed(checked);
@@ -2759,9 +2841,9 @@ export default function DominicCapturePlanner() {
                 </label>
                 <button
                   type="button"
-                  disabled={!productionFlightUnlocked || bridgeStatus !== "connected" || !reviewPreflightRan || !reviewFlightConfirmed}
+                  disabled={!productionFlightUnlocked || bridgeStatus !== "connected" || !reviewPreflightRan || !reviewFlightConfirmed || !djiStaticValidationPassed}
                   onClick={() => missionType === "object" ? void runConnectedAircraftMission("full") : void runSecondaryConnectedMission("full")}
-                  style={{ width: "100%", marginTop: 7, border: `1px solid ${productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed ? "rgba(112,214,160,.38)" : V.line}`, background: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed ? "rgba(112,214,160,.10)" : "#1B222A", color: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed ? V.green : "#6F7A84", borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed ? "pointer" : "not-allowed" }}
+                  style={{ width: "100%", marginTop: 7, border: `1px solid ${productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && djiStaticValidationPassed ? "rgba(112,214,160,.38)" : V.line}`, background: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && djiStaticValidationPassed ? "rgba(112,214,160,.10)" : "#1B222A", color: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && djiStaticValidationPassed ? V.green : "#6F7A84", borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && djiStaticValidationPassed ? "pointer" : "not-allowed" }}
                 >
                   Fly Mission
                 </button>

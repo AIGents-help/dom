@@ -78,6 +78,19 @@ object ReadOnlyProtocol {
             .put("sentAtMs", System.currentTimeMillis())
             .toString()
 
+    fun missionValidationResult(
+        requestId: String,
+        report: DominicDjiMissionValidationReport,
+    ): String =
+        JSONObject()
+            .put("type", "mission_validation_result")
+            .put("protocol", PROTOCOL)
+            .put("requestId", requestId)
+            .put("valid", report.valid)
+            .put("errors", org.json.JSONArray(report.errors))
+            .put("raw", report.raw)
+            .toString()
+
     fun handleInbound(raw: String): String? {
         val parsed = runCatching { JSONObject(raw) }.getOrElse {
             return error("invalid_json", "Inbound Flight Bridge frame is not valid JSON.")
@@ -116,7 +129,7 @@ object ReadOnlyProtocol {
             .toString()
     }
 
-    private fun error(code: String, message: String, requestId: String? = null): String =
+    fun error(code: String, message: String, requestId: String? = null): String =
         JSONObject()
             .put("type", "error")
             .put("protocol", PROTOCOL)

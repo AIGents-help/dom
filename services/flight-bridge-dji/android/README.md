@@ -130,3 +130,21 @@ current DJI MSDK V5 Wayline sample rather than hand-authoring WPML in the browse
 This stage is **file generation only**. The read-only bridge still does not upload the KMZ,
 start a mission, arm, take off, or send aircraft-control commands. That authority remains
 locked behind the staged hardware-validation work.
+
+
+## Static DJI mission validation
+
+The read-only controller bridge now accepts a non-flight `mission_validate` request from
+DOMINIC. The Android host:
+
+1. parses the reviewed `dominic.dji-mission.v1` package,
+2. generates a temporary KMZ with DJI's `WPMZManager.generateKMZFile()`,
+3. runs `WPMZManager.checkValidation(kmzPath)`,
+4. returns `mission_validation_result` with `valid`, `errors` and DJI's raw validation
+   message,
+5. deletes the temporary KMZ.
+
+This validation path is intentionally isolated from aircraft execution. It does **not**
+call `pushKMZFileToAircraft()`, `startMission()`, arm, take off, or send any movement
+command. DOMINIC's Review screen can therefore verify the generated DJI mission file
+against DJI's own WPMZ rules before any future upload stage is enabled.

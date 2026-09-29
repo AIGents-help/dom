@@ -130,3 +130,35 @@ current DJI MSDK V5 Wayline sample rather than hand-authoring WPML in the browse
 This stage is **file generation only**. The read-only bridge still does not upload the KMZ,
 start a mission, arm, take off, or send aircraft-control commands. That authority remains
 locked behind the staged hardware-validation work.
+
+
+## DJI KMZ validation and staging
+
+`DominicDjiMissionStager` is the next controller-side step after KMZ generation.
+
+It uses DJI MSDK V5 directly to:
+
+1. verify the KMZ file exists and is non-empty,
+2. call `WPMZManager.checkValidation(kmzPath)`,
+3. force DJI's WPMZ parser to load the KMZ through `getKMZInfo(kmzPath)`,
+4. retrieve DJI wayline IDs with `WaypointMissionManager.getAvailableWaylineIDs(kmzPath)`,
+5. optionally stage the validated KMZ with `pushKMZFileToAircraft(...)`,
+6. report upload progress, DJI upload errors, and the final staged state.
+
+Example:
+
+```kotlin
+val stager = DominicDjiMissionStager()
+
+val inspection = stager.inspect(kmzPath)
+if (inspection.readyToStage) {
+    stager.stage(kmzPath) { status ->
+        Log.i("DOMINIC", "DJI mission staging: $status")
+    }
+}
+```
+
+This class intentionally exposes **no mission-start API**. Staging a KMZ does not arm,
+take off, start a waypoint mission, move the aircraft, operate the payload, or invoke RTH.
+Those controls remain outside this validation layer until simulator, bench and controlled
+field validation are complete.

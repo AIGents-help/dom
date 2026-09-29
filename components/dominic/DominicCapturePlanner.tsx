@@ -267,6 +267,7 @@ export default function DominicCapturePlanner() {
   const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
   const [mapDrawing, setMapDrawing] = useState(false);
   const [mapAreaPoints, setMapAreaPoints] = useState<Array<{ xPct: number; yPct: number; latitude: number; longitude: number }>>([]);
+  const [mapAreaDefined, setMapAreaDefined] = useState(false);
   const [mapAreaMessage, setMapAreaMessage] = useState("Search for the site, choose a mission type, then define the mapping area.");
   const [mapSearch, setMapSearch] = useState("");
   const [mapSearchBusy, setMapSearchBusy] = useState(false);
@@ -2070,11 +2071,12 @@ export default function DominicCapturePlanner() {
         setHomeLongitude(result.longitude);
         setMapLocationLabel(result.label);
         setMapAreaPoints([]);
+        setMapAreaDefined(false);
+        setMapDrawing(false);
         if (planName === "Untitled Capture Plan") {
           setPlanName(`${missionProfiles[missionType === "object" || missionType === "interior" ? "roof" : missionType].label} · ${result.label.split(",")[0]}`);
         }
-        setMapDrawing(true);
-        setMapAreaMessage(`Location set: ${result.label}. Click around the mapping boundary, then choose Finish Area.`);
+        setMapAreaMessage(`Location set: ${result.label}. Move/zoom the map if needed, then choose Define Mapping Area.`);
       } else {
         setMapAreaMessage("Choose the correct location from the search results.");
       }
@@ -2094,11 +2096,12 @@ export default function DominicCapturePlanner() {
     setMapSearch(result.label);
     setMapSearchResults([]);
     setMapAreaPoints([]);
+    setMapAreaDefined(false);
+    setMapDrawing(false);
     if (planName === "Untitled Capture Plan") {
       setPlanName(`${missionProfiles[missionType === "object" || missionType === "interior" ? "roof" : missionType].label} · ${result.label.split(",")[0]}`);
     }
-    setMapDrawing(true);
-    setMapAreaMessage(`Location set: ${result.label}. Click around the mapping boundary, then choose Finish Area.`);
+    setMapAreaMessage(`Location set: ${result.label}. Move/zoom the map if needed, then choose Define Mapping Area.`);
   };
 
   const choosePlanningSource = (source: "map" | "live" | "local") => {
@@ -2124,6 +2127,7 @@ export default function DominicCapturePlanner() {
       setMapAreaMessage("Click each corner of the area you want DOMINIC to map, then choose Finish Area.");
     }
     setMapAreaPoints([]);
+    setMapAreaDefined(false);
     setMapDrawing(true);
   };
 
@@ -2177,6 +2181,7 @@ export default function DominicCapturePlanner() {
     setPatternHeadingDeg(Number(headingDeg.toFixed(1)));
     setMapLocationLabel((label) => label ?? "Selected mapping area");
     setMapDrawing(false);
+    setMapAreaDefined(true);
     setMapAreaMessage(
       `Area defined · ${lengthFt.toFixed(0)} × ${widthFt.toFixed(0)} ft · ${mapAreaPoints.length} boundary points. DOMINIC regenerated the ${missionProfiles[missionType === "object" || missionType === "interior" ? "roof" : missionType].label} route.`,
     );
@@ -2268,6 +2273,9 @@ export default function DominicCapturePlanner() {
               onClick={() => {
                 setActiveSavedPlanId(null);
                 setPlanName("Untitled Capture Plan");
+                setMapAreaPoints([]);
+                setMapAreaDefined(false);
+                setMapDrawing(false);
                 setPlanPersistenceStatus("New unsaved plan.");
               }}
               style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}
@@ -2479,14 +2487,30 @@ export default function DominicCapturePlanner() {
                   <option value="facade">Facade</option>
                 </select>
                 {!mapDrawing ? (
-                  <button
-                    type="button"
-                    onClick={startMapAreaDrawing}
-                    disabled={!mapLocationLabel}
-                    style={{ border: `1px solid rgba(244,90,30,.55)`, background: mapLocationLabel ? "rgba(244,90,30,.16)" : "#20272E", color: mapLocationLabel ? "#FFD3C0" : V.muted, borderRadius: 7, padding: "7px 10px", fontSize: 8, fontWeight: 900, cursor: mapLocationLabel ? "pointer" : "not-allowed" }}
-                  >
-                    Define Mapping Area
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={startMapAreaDrawing}
+                      disabled={!mapLocationLabel}
+                      style={{ border: `1px solid rgba(244,90,30,.55)`, background: mapLocationLabel ? "rgba(244,90,30,.16)" : "#20272E", color: mapLocationLabel ? "#FFD3C0" : V.muted, borderRadius: 7, padding: "7px 10px", fontSize: 8, fontWeight: 900, cursor: mapLocationLabel ? "pointer" : "not-allowed" }}
+                    >
+                      {mapAreaDefined ? "Redraw Mapping Area" : "Define Mapping Area"}
+                    </button>
+                    {mapAreaDefined ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMapAreaPoints([]);
+                          setMapAreaDefined(false);
+                          setMapDrawing(false);
+                          setMapAreaMessage("Plan cleared. Move/zoom the map, then define a new mapping area.");
+                        }}
+                        style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                      >
+                        Move Map / Clear Plan
+                      </button>
+                    ) : null}
+                  </>
                 ) : (
                   <>
                     <button
@@ -2501,8 +2525,9 @@ export default function DominicCapturePlanner() {
                       type="button"
                       onClick={() => {
                         setMapAreaPoints([]);
+                        setMapAreaDefined(false);
                         setMapDrawing(false);
-                        setMapAreaMessage("Mapping area drawing cancelled.");
+                        setMapAreaMessage("Mapping area cleared. Move/zoom the map or define a new area.");
                       }}
                       style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
                     >
@@ -2526,9 +2551,10 @@ export default function DominicCapturePlanner() {
             </div>
             <div ref={mapContainerRef} style={{ position: "relative", height: 420, background: "#111" }}>
               <iframe
+                key={satelliteMapUrl}
                 title="DOMINIC satellite planning map"
                 src={satelliteMapUrl}
-                style={{ width: "100%", height: "100%", border: 0, display: "block", pointerEvents: "none" }}
+                style={{ width: "100%", height: "100%", border: 0, display: "block", pointerEvents: mapDrawing || mapAreaDefined ? "none" : "auto" }}
                 loading="lazy"
               />
               {mapDrawing ? (
@@ -2562,7 +2588,7 @@ export default function DominicCapturePlanner() {
                   ))}
                 </svg>
               ) : null}
-              {mapRoutePoints && !mapDrawing ? (
+              {mapAreaDefined && mapRoutePoints && !mapDrawing ? (
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="DOMINIC planned flight route overlay" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
                   <polyline points={mapRoutePoints} fill="none" stroke={V.orange} strokeWidth="0.9" vectorEffect="non-scaling-stroke" opacity=".95" />
                   {mapRouteProjected.map((point, index) => (
@@ -2575,14 +2601,14 @@ export default function DominicCapturePlanner() {
               </div>
               <div style={{ position: "absolute", left: 10, right: 10, bottom: 10, display: "flex", justifyContent: "space-between", gap: 8, pointerEvents: "none" }}>
                 <div style={{ background: "rgba(11,17,23,.88)", border: `1px solid ${V.line}`, borderRadius: 8, padding: "7px 9px", color: "#DCE3EA", fontSize: 9 }}>
-                  {activeSimplePlan.checkpointCount} checkpoints · {activeSimplePlan.passCount} passes · ~{activeSimplePlan.estimatedMinutes} min
+                  {mapAreaDefined ? `${activeSimplePlan.checkpointCount} checkpoints · ${activeSimplePlan.passCount} passes · ~${activeSimplePlan.estimatedMinutes} min` : "Move/zoom map, then define the mapping area"}
                 </div>
                 <div style={{ background: "rgba(11,17,23,.88)", border: `1px solid ${V.line}`, borderRadius: 8, padding: "7px 9px", color: V.muted, fontSize: 8 }}>
                   Orange = planned route · White = capture point
                 </div>
               </div>
             </div>
-            {!mapDrawing && mapAreaPoints.length >= 3 ? (
+            {mapAreaDefined && !mapDrawing ? (
               <div style={{ borderTop: `1px solid ${V.line}`, background: V.panel, padding: "10px 12px", display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 10, alignItems: "center" }}>
                 <div>
                   <div style={{ color: V.green, fontSize: 9, fontWeight: 900 }}>PLAN READY</div>

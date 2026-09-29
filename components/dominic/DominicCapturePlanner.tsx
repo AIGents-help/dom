@@ -118,6 +118,7 @@ type PersistedCapturePlanState = {
   patternStandoffFt: number;
   patternOverlapPct: number;
   patternHeadingDeg: number;
+  waypointOverrides?: Record<string, { latitude: number; longitude: number }>;
 };
 
 type PlannerAircraft = {
@@ -268,6 +269,9 @@ export default function DominicCapturePlanner() {
   const [mapDrawing, setMapDrawing] = useState(false);
   const [mapAreaPoints, setMapAreaPoints] = useState<Array<{ xPct: number; yPct: number; latitude: number; longitude: number }>>([]);
   const [mapAreaDefined, setMapAreaDefined] = useState(false);
+  const [waypointOverrides, setWaypointOverrides] = useState<Record<string, { latitude: number; longitude: number }>>({});
+  const [draggingWaypointId, setDraggingWaypointId] = useState<string | null>(null);
+  const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(null);
   const [mapAreaMessage, setMapAreaMessage] = useState("Search for the site, choose a mission type, then define the mapping area.");
   const [mapSearch, setMapSearch] = useState("");
   const [mapSearchBusy, setMapSearchBusy] = useState(false);
@@ -445,6 +449,7 @@ export default function DominicCapturePlanner() {
     patternStandoffFt,
     patternOverlapPct,
     patternHeadingDeg,
+    waypointOverrides,
   });
 
   const refreshSavedPlans = async () => {
@@ -542,6 +547,9 @@ export default function DominicCapturePlanner() {
     setPatternStandoffFt(state.patternStandoffFt);
     setPatternOverlapPct(state.patternOverlapPct);
     setPatternHeadingDeg(state.patternHeadingDeg);
+    setWaypointOverrides(state.waypointOverrides ?? {});
+    setSelectedWaypointId(null);
+    setDraggingWaypointId(null);
 
     // A reopened plan restores planning geometry only. Runtime capture/flight state
     // must be deliberately re-established for safety.
@@ -1453,7 +1461,7 @@ export default function DominicCapturePlanner() {
   };
 
   const runSecondarySimulation = async (mode: "full" | "repair" = "full") => {
-    const checkpoints = mode === "repair" ? secondaryRepairPlan : secondaryGeographicCheckpoints;
+    const checkpoints = mode === "repair" ? secondaryRepairPlan : effectiveSecondaryGeographicCheckpoints;
     if (autonomousRunning || !checkpoints.length || !secondaryCalibrationValidation.ready) {
       if (!secondaryCalibrationValidation.ready) {
         setMissionControlMessage("Pattern mission is blocked by calibration or no-fly constraints.");
@@ -1569,7 +1577,7 @@ export default function DominicCapturePlanner() {
   };
 
   const runSecondaryConnectedMission = async (mode: "full" | "repair" = "full") => {
-    const checkpoints = mode === "repair" ? secondaryRepairPlan : secondaryGeographicCheckpoints;
+    const checkpoints = mode === "repair" ? secondaryRepairPlan : effectiveSecondaryGeographicCheckpoints;
     if (
       autonomousRunning ||
       !checkpoints.length ||
@@ -1833,8 +1841,12 @@ export default function DominicCapturePlanner() {
         patternHeadingDeg,
       )
     : [];
+  const effectiveSecondaryGeographicCheckpoints = secondaryGeographicCheckpoints.map((point) => {
+    const override = waypointOverrides[point.id];
+    return override ? { ...point, ...override } : point;
+  });
   const secondaryCalibrationValidation = validatePatternCalibration({
-    checkpoints: secondaryGeographicCheckpoints,
+    checkpoints: effectiveSecondaryGeographicCheckpoints,
     centerLatitude,
     centerLongitude,
     calibration,
@@ -1870,7 +1882,7 @@ export default function DominicCapturePlanner() {
         metrics: secondaryPlan.metrics,
       },
       checkpoints: secondaryPlan.checkpoints,
-      geographicCheckpoints: secondaryGeographicCheckpoints,
+      geographicCheckpoints: effectiveSecondaryGeographicCheckpoints,
       repairCheckpoints: secondaryRepairPlan,
       calibration,
       calibrationValidation: secondaryCalibrationValidation,
@@ -1886,23 +1898,23 @@ export default function DominicCapturePlanner() {
 
   const activeSecondaryIndex = Math.min(
     secondaryIndex,
-    Math.max(0, secondaryGeographicCheckpoints.length - 1),
+    Math.max(0, effectiveSecondaryGeographicCheckpoints.length - 1),
   );
   const currentSecondaryCheckpoint =
-    secondaryGeographicCheckpoints[activeSecondaryIndex] ?? null;
+    effectiveSecondaryGeographicCheckpoints[activeSecondaryIndex] ?? null;
   const secondaryCoverage = assessCoverage({
-    checkpoints: secondaryGeographicCheckpoints,
+    checkpoints: effectiveSecondaryGeographicCheckpoints,
     observations: secondaryObservations,
     centerLatitude,
     centerLongitude,
   });
   const secondaryRepairPlan = buildRepairPlan({
-    checkpoints: secondaryGeographicCheckpoints,
+    checkpoints: effectiveSecondaryGeographicCheckpoints,
     coverage: secondaryCoverage,
     includeWeak: true,
   });
   const secondaryCoverageByPass = summarizeCoverageByRing(
-    secondaryGeographicCheckpoints,
+    effectiveSecondaryGeographicCheckpoints,
     secondaryCoverage,
   );
 
@@ -1911,7 +1923,7 @@ export default function DominicCapturePlanner() {
     capturedAtMs: number,
     quality?: ImageQualityAssessment,
   ) => {
-    const checkpoint = secondaryGeographicCheckpoints.find(
+    const checkpoint = effectiveSecondaryGeographicCheckpoints.find(
       (point) => point.id === checkpointId,
     );
     if (!checkpoint) return;
@@ -1945,7 +1957,7 @@ export default function DominicCapturePlanner() {
     if (!currentSecondaryCheckpoint) return;
     recordSecondaryObservation(currentSecondaryCheckpoint.id, capturedAtMs);
     setSecondaryIndex((index) =>
-      Math.min(secondaryGeographicCheckpoints.length - 1, index + 1),
+      Math.min(effectiveSecondaryGeographicCheckpoints.length - 1, index + 1),
     );
   };
 
@@ -1982,7 +1994,7 @@ export default function DominicCapturePlanner() {
     centerLatitude,
     centerLongitude,
     patternHeadingDeg,
-    checkpoints: secondaryGeographicCheckpoints.map((point) => [
+    checkpoints: effectiveSecondaryGeographicCheckpoints.map((point) => [
       point.id,
       point.latitude,
       point.longitude,
@@ -2041,6 +2053,28 @@ export default function DominicCapturePlanner() {
     };
   };
 
+  const updateDraggedWaypoint = (clientX: number, clientY: number) => {
+    if (!draggingWaypointId) return;
+    const point = mapPixelToLatLng(clientX, clientY);
+    if (!point) return;
+    setWaypointOverrides((current) => ({
+      ...current,
+      [draggingWaypointId]: {
+        latitude: point.latitude,
+        longitude: point.longitude,
+      },
+    }));
+    setSelectedWaypointId(draggingWaypointId);
+  };
+
+  const resetWaypointEdits = () => {
+    setWaypointOverrides({});
+    setSelectedWaypointId(null);
+    setDraggingWaypointId(null);
+    setSecondaryFlightApprovalSignature(null);
+    setMapAreaMessage("Manual waypoint edits reset to DOMINIC's generated route.");
+  };
+
   const searchMapLocation = async () => {
     const query = mapSearch.trim();
     if (query.length < 3) {
@@ -2073,6 +2107,8 @@ export default function DominicCapturePlanner() {
         setMapAreaPoints([]);
         setMapAreaDefined(false);
         setMapDrawing(false);
+        setWaypointOverrides({});
+        setSelectedWaypointId(null);
         if (planName === "Untitled Capture Plan") {
           setPlanName(`${missionProfiles[missionType === "object" || missionType === "interior" ? "roof" : missionType].label} · ${result.label.split(",")[0]}`);
         }
@@ -2098,6 +2134,8 @@ export default function DominicCapturePlanner() {
     setMapAreaPoints([]);
     setMapAreaDefined(false);
     setMapDrawing(false);
+    setWaypointOverrides({});
+    setSelectedWaypointId(null);
     if (planName === "Untitled Capture Plan") {
       setPlanName(`${missionProfiles[missionType === "object" || missionType === "interior" ? "roof" : missionType].label} · ${result.label.split(",")[0]}`);
     }
@@ -2108,6 +2146,8 @@ export default function DominicCapturePlanner() {
     setPlanningSource(source);
     setMapAreaPoints([]);
     setMapDrawing(false);
+    setWaypointOverrides({});
+    setSelectedWaypointId(null);
     if (source === "local") {
       setMissionType("object");
     } else if (source === "map" && (missionType === "object" || missionType === "interior")) {
@@ -2128,6 +2168,8 @@ export default function DominicCapturePlanner() {
     }
     setMapAreaPoints([]);
     setMapAreaDefined(false);
+    setWaypointOverrides({});
+    setSelectedWaypointId(null);
     setMapDrawing(true);
   };
 
@@ -2190,7 +2232,7 @@ export default function DominicCapturePlanner() {
   const activeProfile = missionProfiles[missionType];
 
   const activeSimpleCheckpoints =
-    missionType === "object" ? geographicCheckpoints : secondaryGeographicCheckpoints;
+    missionType === "object" ? geographicCheckpoints : effectiveSecondaryGeographicCheckpoints;
   const activeSimplePlan =
     missionType === "object"
       ? {
@@ -2199,7 +2241,7 @@ export default function DominicCapturePlanner() {
           passCount: plan.rings.length,
         }
       : {
-          checkpointCount: secondaryGeographicCheckpoints.length,
+          checkpointCount: effectiveSecondaryGeographicCheckpoints.length,
           estimatedMinutes: secondaryPlan?.estimatedMinutes ?? 0,
           passCount: secondaryPlan?.passCount ?? 0,
         };
@@ -2276,6 +2318,9 @@ export default function DominicCapturePlanner() {
                 setMapAreaPoints([]);
                 setMapAreaDefined(false);
                 setMapDrawing(false);
+                setWaypointOverrides({});
+                setSelectedWaypointId(null);
+                setDraggingWaypointId(null);
                 setPlanPersistenceStatus("New unsaved plan.");
               }}
               style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}
@@ -2477,7 +2522,7 @@ export default function DominicCapturePlanner() {
                 <select
                   aria-label="Map mission type"
                   value={missionType === "object" || missionType === "interior" ? "roof" : missionType}
-                  onChange={(event) => setMissionType(event.target.value as CaptureMissionType)}
+                  onChange={(event) => { setMissionType(event.target.value as CaptureMissionType); setWaypointOverrides({}); setSelectedWaypointId(null); }}
                   style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900 }}
                 >
                   <option value="roof">Roof</option>
@@ -2589,11 +2634,45 @@ export default function DominicCapturePlanner() {
                 </svg>
               ) : null}
               {mapAreaDefined && mapRoutePoints && !mapDrawing ? (
-                <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="DOMINIC planned flight route overlay" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
+                <svg
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  aria-label="DOMINIC editable flight route"
+                  onPointerMove={(event) => updateDraggedWaypoint(event.clientX, event.clientY)}
+                  onPointerUp={() => setDraggingWaypointId(null)}
+                  onPointerLeave={() => setDraggingWaypointId(null)}
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "auto", touchAction: "none", zIndex: 4 }}
+                >
                   <polyline points={mapRoutePoints} fill="none" stroke={V.orange} strokeWidth="0.9" vectorEffect="non-scaling-stroke" opacity=".95" />
-                  {mapRouteProjected.map((point, index) => (
-                    <circle key={point.id} cx={point.xPct} cy={point.yPct} r={index === 0 ? 1.25 : .7} fill={index === 0 ? V.green : "#FFFFFF"} stroke={V.orange} strokeWidth=".25" />
-                  ))}
+                  {mapRouteProjected.map((point, index) => {
+                    const edited = Boolean(waypointOverrides[point.id]);
+                    const selected = selectedWaypointId === point.id;
+                    return (
+                      <g key={point.id}>
+                        <circle
+                          cx={point.xPct}
+                          cy={point.yPct}
+                          r={selected ? 1.7 : 1.05}
+                          fill={selected ? V.green : edited ? V.amber : "#FFFFFF"}
+                          stroke={V.orange}
+                          strokeWidth=".4"
+                          style={{ cursor: "grab" }}
+                          onPointerDown={(event) => {
+                            event.preventDefault();
+                            setDraggingWaypointId(point.id);
+                            setSelectedWaypointId(point.id);
+                            setSecondaryFlightApprovalSignature(null);
+                            event.currentTarget.setPointerCapture?.(event.pointerId);
+                          }}
+                        />
+                        {selected ? (
+                          <text x={point.xPct + 1.4} y={point.yPct - 1.4} fill="#fff" fontSize="2.5" fontWeight="900">
+                            {index + 1}
+                          </text>
+                        ) : null}
+                      </g>
+                    );
+                  })}
                 </svg>
               ) : null}
               <div style={{ position: "absolute", left: 10, top: 10, zIndex: 5, maxWidth: 520, background: mapDrawing ? "rgba(60,22,8,.94)" : "rgba(11,17,23,.9)", border: `1px solid ${mapDrawing ? "rgba(244,90,30,.55)" : V.line}`, color: mapDrawing ? "#FFD3C0" : "#DCE3EA", borderRadius: 8, padding: "8px 10px", fontSize: 9, lineHeight: 1.45, pointerEvents: "none" }}>
@@ -2616,10 +2695,16 @@ export default function DominicCapturePlanner() {
                     {missionProfiles[missionType].label} · {activeSimplePlan.checkpointCount} capture points · ~{activeSimplePlan.estimatedMinutes} min
                   </div>
                   <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>
-                    {patternLengthFt.toFixed(0)} × {patternWidthFt.toFixed(0)} ft · {patternAltitudeFt.toFixed(0)} ft altitude · {patternOverlapPct}% overlap
+                    {patternLengthFt.toFixed(0)} × {patternWidthFt.toFixed(0)} ft · {patternAltitudeFt.toFixed(0)} ft altitude · {patternOverlapPct}% overlap{Object.keys(waypointOverrides).length ? ` · ${Object.keys(waypointOverrides).length} waypoint edit(s)` : ""}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
+                <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  <span style={{ color: V.muted, fontSize: 8 }}>Drag any white waypoint to fine-tune the route.</span>
+                  {Object.keys(waypointOverrides).length ? (
+                    <button type="button" onClick={resetWaypointEdits} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.amber, borderRadius: 8, padding: "8px 10px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}>
+                      Reset Waypoints
+                    </button>
+                  ) : null}
                   <button type="button" onClick={startMapAreaDrawing} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 8, padding: "8px 10px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}>
                     Redraw Area
                   </button>
@@ -2754,7 +2839,7 @@ export default function DominicCapturePlanner() {
                 <Field label="Center longitude" value={centerLongitude} min={-180} max={180} step={0.000001} onChange={setCenterLongitude} />
               </div>
               <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 7 }}>
-                {secondaryGeographicCheckpoints.length} geographic checkpoints generated · route heading {patternHeadingDeg}°.
+                {effectiveSecondaryGeographicCheckpoints.length} geographic checkpoints generated · route heading {patternHeadingDeg}°.
               </div>
               <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 9, paddingTop: 9 }}>
                 <div style={{ color: bridgeStatus === "connected" ? V.green : V.muted, fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>
@@ -2799,7 +2884,7 @@ export default function DominicCapturePlanner() {
                   <button
                     type="button"
                     onClick={downloadSecondaryCheckpointPayload}
-                    disabled={!secondaryPlan || !secondaryGeographicCheckpoints.length}
+                    disabled={!secondaryPlan || !effectiveSecondaryGeographicCheckpoints.length}
                     title="Export this DOMINIC pattern as a portable waypoint payload"
                     style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 8, padding: "6px 8px", display: "flex", alignItems: "center", gap: 5, cursor: secondaryPlan ? "pointer" : "not-allowed", fontSize: 9, fontWeight: 800 }}
                   >
@@ -2920,7 +3005,7 @@ export default function DominicCapturePlanner() {
                     {currentSecondaryCheckpoint ? (
                       <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 8, paddingTop: 8 }}>
                         <div style={{ color: V.text, fontSize: 9, fontWeight: 900 }}>
-                          Checkpoint {activeSecondaryIndex + 1}/{secondaryGeographicCheckpoints.length}
+                          Checkpoint {activeSecondaryIndex + 1}/{effectiveSecondaryGeographicCheckpoints.length}
                         </div>
                         <div style={{ color: V.muted, fontSize: 8, marginTop: 3 }}>
                           {currentSecondaryCheckpoint.passId} · {currentSecondaryCheckpoint.relativeAltitudeFt.toFixed(1)} ft · camera {currentSecondaryCheckpoint.cameraAngle}°
@@ -2928,7 +3013,7 @@ export default function DominicCapturePlanner() {
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5, marginTop: 7 }}>
                           <button type="button" disabled={activeSecondaryIndex === 0} onClick={() => setSecondaryIndex((index) => Math.max(0, index - 1))} style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 800 }}>Previous</button>
                           <button type="button" onClick={(event) => markSecondaryCaptured(Math.round(event.timeStamp))} style={{ border: 0, background: V.orange, color: "#180A02", borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 900 }}>Mark captured</button>
-                          <button type="button" disabled={activeSecondaryIndex >= secondaryGeographicCheckpoints.length - 1} onClick={() => setSecondaryIndex((index) => Math.min(secondaryGeographicCheckpoints.length - 1, index + 1))} style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 800 }}>Next</button>
+                          <button type="button" disabled={activeSecondaryIndex >= effectiveSecondaryGeographicCheckpoints.length - 1} onClick={() => setSecondaryIndex((index) => Math.min(effectiveSecondaryGeographicCheckpoints.length - 1, index + 1))} style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 800 }}>Next</button>
                         </div>
                         <input
                           type="file"
@@ -2973,7 +3058,7 @@ export default function DominicCapturePlanner() {
                               key={repair.id}
                               type="button"
                               onClick={() => {
-                                const index = secondaryGeographicCheckpoints.findIndex((point) => point.id === repair.sourceCheckpointId);
+                                const index = effectiveSecondaryGeographicCheckpoints.findIndex((point) => point.id === repair.sourceCheckpointId);
                                 if (index >= 0) setSecondaryIndex(index);
                               }}
                               style={{ border: `1px solid ${repair.priority === 2 ? "rgba(255,139,122,.2)" : "rgba(255,184,107,.2)"}`, background: "transparent", color: repair.priority === 2 ? "#FFB6AA" : "#FFD0A0", borderRadius: 6, padding: "5px 6px", textAlign: "left", fontSize: 7, cursor: "pointer" }}
@@ -3016,7 +3101,7 @@ export default function DominicCapturePlanner() {
                     </div>
                     <button
                       type="button"
-                      disabled={autonomousRunning || !secondaryGeographicCheckpoints.length}
+                      disabled={autonomousRunning || !effectiveSecondaryGeographicCheckpoints.length}
                       onClick={() => void runSecondarySimulation()}
                       style={{ width: "100%", marginTop: 7, border: 0, background: autonomousRunning ? "#39424B" : `linear-gradient(90deg,${V.orangeDark},${V.orange})`, color: autonomousRunning ? "#88939E" : "#180A02", borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: autonomousRunning ? "not-allowed" : "pointer" }}
                     >

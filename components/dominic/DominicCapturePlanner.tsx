@@ -2817,7 +2817,7 @@ export default function DominicCapturePlanner() {
                   onClick={exportDjiMissionPackage}
                   style={{ width: "100%", marginTop: 10, border: `1px solid ${V.line}`, background: V.panel, color: V.text, borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
                 >
-                  Export Mission
+                  Export DJI Mission
                 </button>
                 <label style={{ display: "grid", gridTemplateColumns: "16px minmax(0,1fr)", gap: 7, alignItems: "start", color: bridgeStatus === "connected" ? "#DCE3EA" : V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 9 }}>
                   <input

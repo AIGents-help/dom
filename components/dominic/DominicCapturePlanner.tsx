@@ -266,6 +266,8 @@ export default function DominicCapturePlanner() {
   const [missionType, setMissionType] = useState<CaptureMissionType>("roof");
   const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">("map");
   const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
+  const [plannerView, setPlannerView] = useState<"plan" | "review">("plan");
+  const [reviewPreflightRan, setReviewPreflightRan] = useState(false);
   const [mapDrawing, setMapDrawing] = useState(false);
   const [mapAreaPoints, setMapAreaPoints] = useState<Array<{ xPct: number; yPct: number; latitude: number; longitude: number }>>([]);
   const [mapAreaDefined, setMapAreaDefined] = useState(false);
@@ -507,6 +509,8 @@ export default function DominicCapturePlanner() {
 
       await refreshSavedPlans();
       setPlanPersistenceStatus("Capture plan saved.");
+      setReviewPreflightRan(false);
+      setPlannerView("review");
     } catch (error) {
       setPlanPersistenceStatus(error instanceof Error ? error.message : "Capture plan could not be saved.");
     } finally {
@@ -565,7 +569,9 @@ export default function DominicCapturePlanner() {
     setAutonomousRunning(false);
     setActiveSavedPlanId(saved.id);
     setPlanName(saved.name);
-    setPlanPersistenceStatus("Saved geometry loaded. Re-run safety checks before flight.");
+    setPlanPersistenceStatus("Saved geometry loaded. Review the plan before flight.");
+    setReviewPreflightRan(false);
+    setPlannerView("review");
   };
 
 
@@ -2242,6 +2248,8 @@ export default function DominicCapturePlanner() {
                 setWaypointOverrides({});
                 setSelectedWaypointId(null);
                 setPlanPersistenceStatus("New unsaved plan.");
+                setReviewPreflightRan(false);
+                setPlannerView("plan");
               }}
               style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}
             >
@@ -2356,7 +2364,7 @@ export default function DominicCapturePlanner() {
         </div>
       </section>
 
-      <section style={{ margin: "14px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 12 }}>
+      <section style={{ margin: "14px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 12, display: plannerView === "plan" ? "block" : "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div>
             <div style={{ color: V.text, fontSize: 18, fontWeight: 900 }}>Create a capture plan</div>
@@ -2391,7 +2399,7 @@ export default function DominicCapturePlanner() {
         </div>
       </section>
 
-      <section style={{ margin: "10px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: "#0D1319", overflow: "hidden" }}>
+      <section style={{ margin: "10px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: "#0D1319", overflow: "hidden", display: plannerView === "plan" ? "block" : "none" }}>
         {planningSource === "map" ? (
           <div>
             <div style={{ padding: "10px 12px", borderBottom: `1px solid ${V.line}`, background: V.panel }}>
@@ -2641,6 +2649,160 @@ export default function DominicCapturePlanner() {
           </div>
         )}
       </section>
+
+      {plannerView === "review" ? (
+        <section style={{ margin: "14px", border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, overflow: "hidden" }}>
+          <div style={{ padding: "14px 16px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ color: V.green, fontSize: 9, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>Saved plan</div>
+              <div style={{ color: V.text, fontSize: 20, fontWeight: 900, marginTop: 3 }}>{planName}</div>
+              <div style={{ color: V.muted, fontSize: 9, marginTop: 4 }}>Review the mission, connect the aircraft, run preflight, then export or fly when control is unlocked.</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPlannerView("plan")}
+              style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 8, padding: "8px 11px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+            >
+              Back to Edit Plan
+            </button>
+          </div>
+
+          <div style={{ padding: 14, display: "grid", gridTemplateColumns: "minmax(0,1.25fr) minmax(300px,.75fr)", gap: 12 }}>
+            <div style={{ display: "grid", gap: 10 }}>
+              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", padding: 12 }}>
+                <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Mission summary</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8, marginTop: 10 }}>
+                  {[
+                    ["Mission", missionProfiles[missionType].label],
+                    ["Capture points", String(activeSimplePlan.checkpointCount)],
+                    ["Passes", String(activeSimplePlan.passCount)],
+                    ["Estimated time", `~${activeSimplePlan.estimatedMinutes} min`],
+                    ["Altitude", `${patternAltitudeFt.toFixed(0)} ft`],
+                    ["Overlap", `${patternOverlapPct}%`],
+                    ["Area", `${patternLengthFt.toFixed(0)} × ${patternWidthFt.toFixed(0)} ft`],
+                    ["Waypoint edits", String(Object.keys(waypointOverrides).length)],
+                  ].map(([label, value]) => (
+                    <div key={label} style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: V.panel, padding: "8px 9px" }}>
+                      <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>{label}</div>
+                      <div style={{ color: V.text, fontSize: 11, fontWeight: 900, marginTop: 3 }}>{value}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", padding: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <div>
+                    <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Aircraft</div>
+                    <div style={{ color: V.text, fontSize: 13, fontWeight: 900, marginTop: 3 }}>
+                      {bridgeStatus === "connected" ? `${bridgeInfo?.vendor?.toUpperCase() ?? "Aircraft"} ${bridgeInfo?.model ?? ""}`.trim() : "No aircraft connected"}
+                    </div>
+                    <div style={{ color: V.muted, fontSize: 8, marginTop: 3 }}>
+                      {bridgeStatus === "connected"
+                        ? `Flight Bridge connected · ${bridgeInfo?.aircraftId ?? "aircraft ID unavailable"}`
+                        : "Connect the DJI controller/bridge to validate this plan against the real aircraft."}
+                    </div>
+                  </div>
+                  {bridgeStatus === "connected" ? (
+                    <button
+                      type="button"
+                      onClick={() => void disconnectAircraftBridge()}
+                      style={{ border: `1px solid ${V.line}`, background: V.panel, color: V.text, borderRadius: 8, padding: "8px 10px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                    >
+                      Disconnect
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => void connectAircraftBridge()}
+                      disabled={bridgeStatus === "connecting"}
+                      style={{ border: 0, background: V.orange, color: "#160901", borderRadius: 8, padding: "8px 12px", fontSize: 9, fontWeight: 900, cursor: bridgeStatus === "connecting" ? "wait" : "pointer" }}
+                    >
+                      {bridgeStatus === "connecting" ? "Connecting…" : "Connect Aircraft"}
+                    </button>
+                  )}
+                </div>
+                {bridgeError ? <div style={{ color: "#FFB6AA", fontSize: 8, marginTop: 7 }}>{bridgeError}</div> : null}
+              </div>
+
+              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", padding: 12 }}>
+                <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Preflight</div>
+                <div style={{ display: "grid", gap: 6, marginTop: 9 }}>
+                  {[
+                    ["Plan saved", Boolean(activeSavedPlanId), activeSavedPlanId ? "Saved mission record is available." : "Save the plan before flight."],
+                    ["Route generated", activeSimplePlan.checkpointCount > 0, `${activeSimplePlan.checkpointCount} capture points in the active route.`],
+                    ["Calibration", missionType === "object" ? preflightReady : secondaryCalibrationValidation.ready, missionType === "object" ? (preflightReady ? "Object-scan calibration is clear." : "Object-scan calibration requires attention.") : (secondaryCalibrationValidation.ready ? "Pattern calibration is clear." : "Pattern calibration requires attention.")],
+                    ["Aircraft connected", bridgeStatus === "connected", bridgeStatus === "connected" ? "Live aircraft telemetry bridge is connected." : "Connect the aircraft before attempting flight."],
+                    ["Control authority", productionFlightUnlocked, productionFlightUnlocked ? "DOMINIC connected-flight validation is unlocked." : "Connected flight remains locked until bench/simulation/controlled-field validation is complete."],
+                  ].map(([label, ok, detail]) => (
+                    <div key={String(label)} style={{ display: "grid", gridTemplateColumns: "18px minmax(0,1fr)", gap: 7, alignItems: "start", padding: "7px 8px", border: `1px solid ${V.line}`, borderRadius: 7, background: V.panel }}>
+                      <div style={{ color: ok ? V.green : V.amber, fontWeight: 900 }}>{ok ? "✓" : "!"}</div>
+                      <div>
+                        <div style={{ color: V.text, fontSize: 9, fontWeight: 900 }}>{label}</div>
+                        <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>{detail}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReviewPreflightRan(true)}
+                  style={{ width: "100%", marginTop: 9, border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.10)", color: "#FFD3C0", borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
+                >
+                  Run Preflight Check
+                </button>
+                {reviewPreflightRan ? (
+                  <div style={{ color: productionFlightUnlocked && bridgeStatus === "connected" ? V.green : V.amber, fontSize: 8, marginTop: 7, lineHeight: 1.45 }}>
+                    {productionFlightUnlocked && bridgeStatus === "connected"
+                      ? "Preflight review is clear for the current validated aircraft and plan."
+                      : "Plan review complete. Export is available; connected autonomous flight remains locked until the aircraft validation ladder is complete."}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <aside style={{ display: "grid", gap: 10, alignContent: "start" }}>
+              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", padding: 12 }}>
+                <div style={{ color: V.text, fontSize: 13, fontWeight: 900 }}>Next action</div>
+                <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.5, marginTop: 4 }}>
+                  The plan is saved. You can export it now, or connect the aircraft and complete preflight validation.
+                </div>
+                <button
+                  type="button"
+                  onClick={() => missionType === "object" ? downloadCheckpointPayload() : downloadSecondaryCheckpointPayload()}
+                  style={{ width: "100%", marginTop: 10, border: `1px solid ${V.line}`, background: V.panel, color: V.text, borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
+                >
+                  Export Mission
+                </button>
+                <button
+                  type="button"
+                  disabled={!productionFlightUnlocked || bridgeStatus !== "connected" || !reviewPreflightRan}
+                  onClick={() => missionType === "object" ? void runConnectedAircraftMission("full") : void runSecondaryConnectedMission("full")}
+                  style={{ width: "100%", marginTop: 7, border: `1px solid ${productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan ? "rgba(112,214,160,.38)" : V.line}`, background: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan ? "rgba(112,214,160,.10)" : "#1B222A", color: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan ? V.green : "#6F7A84", borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan ? "pointer" : "not-allowed" }}
+                >
+                  Fly Mission
+                </button>
+                {!productionFlightUnlocked ? (
+                  <div style={{ color: V.amber, fontSize: 8, lineHeight: 1.45, marginTop: 7 }}>
+                    Flight is intentionally locked. The current DJI bridge is not yet cleared for autonomous aircraft control.
+                  </div>
+                ) : null}
+              </div>
+
+              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: V.panel, padding: 12 }}>
+                <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>Saved mission</div>
+                <div style={{ color: V.text, fontSize: 10, fontWeight: 900, marginTop: 5 }}>{mapLocationLabel ?? "Local object / saved subject"}</div>
+                <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>
+                  Center: {centerLatitude.toFixed(6)}, {centerLongitude.toFixed(6)}
+                </div>
+                <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 2 }}>
+                  {Object.keys(waypointOverrides).length ? `${Object.keys(waypointOverrides).length} manually adjusted waypoint(s) are included.` : "Route uses DOMINIC-generated waypoint positions."}
+                </div>
+              </div>
+            </aside>
+          </div>
+        </section>
+      ) : null}
 
       <div style={{ display: showAdvancedPlanner ? "block" : "none" }}>
       <section style={{ margin: "12px 14px 0", border: `1px solid ${V.line}`, borderRadius: 10, background: V.panel, padding: 11 }}>

@@ -6,6 +6,7 @@ import type {
   UniversalAircraftState,
   UniversalMediaCapture,
 } from "@/lib/aircraft/contract";
+import type { CameraPayloadProfile } from "@/lib/aircraft/payload";
 
 export type AutelSdkSnapshot = {
   aircraftId: string;
@@ -36,6 +37,8 @@ export type AutelSdkCapabilities = AircraftCapabilities;
 
 export interface AutelSdkDriver {
   readonly capabilities: AutelSdkCapabilities;
+  readonly payloads?: CameraPayloadProfile[];
+  readonly activePayloadId?: string;
 
   connect(): Promise<void>;
   disconnect(): Promise<void>;
@@ -101,6 +104,8 @@ export function mapAutelSnapshot(
 export class AutelAircraftAdapter implements DominicAircraftAdapter {
   readonly vendor = "autel" as const;
   readonly capabilities: AircraftCapabilities;
+  readonly payloads?: CameraPayloadProfile[];
+  readonly activePayloadId?: string;
   private state: UniversalAircraftState;
   private listeners = new Set<(state: UniversalAircraftState) => void>();
   private mediaListeners = new Set<(capture: UniversalMediaCapture) => void>();
@@ -109,6 +114,8 @@ export class AutelAircraftAdapter implements DominicAircraftAdapter {
 
   constructor(private readonly driver: AutelSdkDriver) {
     this.capabilities = { ...driver.capabilities };
+    this.payloads = driver.payloads?.map((payload) => ({ ...payload }));
+    this.activePayloadId = driver.activePayloadId;
     this.state = mapAutelSnapshot(driver.getSnapshot());
   }
 

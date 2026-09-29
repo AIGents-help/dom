@@ -2241,6 +2241,9 @@ export default function DominicCapturePlanner() {
           passCount: secondaryPlan?.passCount ?? 0,
         };
 
+  const djiStaticValidationPassed =
+    bridgeInfo?.vendor !== "dji" || djiMissionValidation.status === "valid";
+
   const buildCurrentDjiMissionPackage = () =>
     buildDominicDjiMissionPackage({
       name: planName,
@@ -2787,8 +2790,8 @@ export default function DominicCapturePlanner() {
                   {reviewPreflightRunning ? "Running Preflight…" : "Run Preflight Check"}
                 </button>
                 {reviewPreflightRan ? (
-                  <div style={{ color: productionFlightUnlocked && bridgeStatus === "connected" ? V.green : V.amber, fontSize: 8, marginTop: 7, lineHeight: 1.45 }}>
-                    {productionFlightUnlocked && bridgeStatus === "connected"
+                  <div style={{ color: productionFlightUnlocked && bridgeStatus === "connected" && djiStaticValidationPassed ? V.green : V.amber, fontSize: 8, marginTop: 7, lineHeight: 1.45 }}>
+                    {productionFlightUnlocked && bridgeStatus === "connected" && djiStaticValidationPassed
                       ? "Preflight review is clear for the current validated aircraft and plan."
                       : "Plan review complete. Export is available; connected autonomous flight remains locked until the aircraft validation ladder is complete."}
                   </div>
@@ -2823,7 +2826,7 @@ export default function DominicCapturePlanner() {
                   <input
                     type="checkbox"
                     checked={reviewFlightConfirmed}
-                    disabled={bridgeStatus !== "connected" || !productionFlightUnlocked}
+                    disabled={bridgeStatus !== "connected" || !productionFlightUnlocked || !djiStaticValidationPassed}
                     onChange={(event) => {
                       const checked = event.target.checked;
                       setReviewFlightConfirmed(checked);
@@ -2838,9 +2841,9 @@ export default function DominicCapturePlanner() {
                 </label>
                 <button
                   type="button"
-                  disabled={!productionFlightUnlocked || bridgeStatus !== "connected" || !reviewPreflightRan || !reviewFlightConfirmed || (bridgeInfo?.vendor === "dji" && djiMissionValidation.status !== "valid")}
+                  disabled={!productionFlightUnlocked || bridgeStatus !== "connected" || !reviewPreflightRan || !reviewFlightConfirmed || !djiStaticValidationPassed}
                   onClick={() => missionType === "object" ? void runConnectedAircraftMission("full") : void runSecondaryConnectedMission("full")}
-                  style={{ width: "100%", marginTop: 7, border: `1px solid ${productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && (bridgeInfo?.vendor !== "dji" || djiMissionValidation.status === "valid") ? "rgba(112,214,160,.38)" : V.line}`, background: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && (bridgeInfo?.vendor !== "dji" || djiMissionValidation.status === "valid") ? "rgba(112,214,160,.10)" : "#1B222A", color: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && (bridgeInfo?.vendor !== "dji" || djiMissionValidation.status === "valid") ? V.green : "#6F7A84", borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && (bridgeInfo?.vendor !== "dji" || djiMissionValidation.status === "valid") ? "pointer" : "not-allowed" }}
+                  style={{ width: "100%", marginTop: 7, border: `1px solid ${productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && djiStaticValidationPassed ? "rgba(112,214,160,.38)" : V.line}`, background: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && djiStaticValidationPassed ? "rgba(112,214,160,.10)" : "#1B222A", color: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && djiStaticValidationPassed ? V.green : "#6F7A84", borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && djiStaticValidationPassed ? "pointer" : "not-allowed" }}
                 >
                   Fly Mission
                 </button>

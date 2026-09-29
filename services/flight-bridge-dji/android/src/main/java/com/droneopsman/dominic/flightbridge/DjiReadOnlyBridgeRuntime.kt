@@ -9,9 +9,14 @@ package com.droneopsman.dominic.flightbridge
 class DjiReadOnlyBridgeRuntime(
     bridgeId: String,
     telemetryProvider: MsdkTelemetryProvider = DjiKeyManagerTelemetryProvider(),
+    missionValidator: DominicDjiMissionValidator? = null,
     port: Int = 8787,
 ) {
-    private val service = DominicReadOnlyBridgeService(bridgeId, telemetryProvider)
+    private val service = DominicReadOnlyBridgeService(
+        bridgeId = bridgeId,
+        telemetryProvider = telemetryProvider,
+        missionValidator = missionValidator,
+    )
     private val socketServer = LoopbackWebSocketServer(service, port)
 
     fun start() {

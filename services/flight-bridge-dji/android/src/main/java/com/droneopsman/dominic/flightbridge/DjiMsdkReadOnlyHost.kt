@@ -112,6 +112,7 @@ class DjiMsdkReadOnlyHost(
 
         val runtime = DjiReadOnlyBridgeRuntime(
             bridgeId = bridgeId,
+            missionValidator = DominicDjiMissionValidator(context.applicationContext),
             port = port,
         )
         bridgeRuntime = runtime

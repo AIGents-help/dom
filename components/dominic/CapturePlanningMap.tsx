@@ -84,10 +84,13 @@ export default function CapturePlanningMap({
   } | null>(null);
   const [dragWaypointId, setDragWaypointId] = useState<string | null>(null);
 
+  const focusRef = useRef({ latitude: focusLatitude, longitude: focusLongitude });
+  focusRef.current = { latitude: focusLatitude, longitude: focusLongitude };
+
   useEffect(() => {
-    setViewCenter({ latitude: focusLatitude, longitude: focusLongitude });
+    setViewCenter(focusRef.current);
     setZoom(INITIAL_ZOOM);
-  }, [focusToken, focusLatitude, focusLongitude]);
+  }, [focusToken]);
 
   useEffect(() => {
     const node = containerRef.current;

@@ -57,6 +57,22 @@ export type BridgeHeartbeat = {
   sentAtMs: number;
 };
 
+export type BridgeMissionValidateRequest = {
+  type: "mission_validate";
+  protocol: typeof DOMINIC_BRIDGE_PROTOCOL;
+  requestId: string;
+  mission: unknown;
+};
+
+export type BridgeMissionValidationResult = {
+  type: "mission_validation_result";
+  protocol: typeof DOMINIC_BRIDGE_PROTOCOL;
+  requestId: string;
+  valid: boolean;
+  errors: string[];
+  raw?: string;
+};
+
 export type BridgeError = {
   type: "error";
   protocol: typeof DOMINIC_BRIDGE_PROTOCOL;
@@ -72,15 +88,25 @@ export type FlightBridgeMessage =
   | BridgeCommand
   | BridgeCommandResult
   | BridgeHeartbeat
+  | BridgeMissionValidateRequest
+  | BridgeMissionValidationResult
   | BridgeError;
 
 export function isFlightBridgeMessage(value: unknown): value is FlightBridgeMessage {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<FlightBridgeMessage> & { protocol?: string; type?: string };
   if (candidate.protocol !== DOMINIC_BRIDGE_PROTOCOL) return false;
-  return ["hello", "telemetry", "media_capture", "command", "command_result", "heartbeat", "error"].includes(
-    String(candidate.type),
-  );
+  return [
+    "hello",
+    "telemetry",
+    "media_capture",
+    "command",
+    "command_result",
+    "heartbeat",
+    "mission_validate",
+    "mission_validation_result",
+    "error",
+  ].includes(String(candidate.type));
 }
 
 export function parseFlightBridgeMessage(raw: string): FlightBridgeMessage {

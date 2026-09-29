@@ -2491,9 +2491,9 @@ export default function DominicCapturePlanner() {
             </div>
             <div style={{ position: "relative" }}>
               <CapturePlanningMap
+                key={mapFocusRevision}
                 focusLatitude={centerLatitude}
                 focusLongitude={centerLongitude}
-                focusToken={String(mapFocusRevision)}
                 drawing={mapDrawing}
                 boundary={mapAreaPoints}
                 route={activeSimpleCheckpoints}

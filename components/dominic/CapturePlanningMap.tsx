@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- interactive raster map tiles are rendered directly */
+
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type LatLng = { latitude: number; longitude: number };
@@ -16,7 +18,6 @@ type BoundaryPoint = LatLng & {
 type Props = {
   focusLatitude: number;
   focusLongitude: number;
-  focusToken: string;
   drawing: boolean;
   boundary: BoundaryPoint[];
   route: RoutePoint[];
@@ -57,7 +58,6 @@ function worldToLatLng(x: number, y: number, zoom: number): LatLng {
 export default function CapturePlanningMap({
   focusLatitude,
   focusLongitude,
-  focusToken,
   drawing,
   boundary,
   route,
@@ -83,14 +83,6 @@ export default function CapturePlanningMap({
     moved: boolean;
   } | null>(null);
   const [dragWaypointId, setDragWaypointId] = useState<string | null>(null);
-
-  const focusRef = useRef({ latitude: focusLatitude, longitude: focusLongitude });
-  focusRef.current = { latitude: focusLatitude, longitude: focusLongitude };
-
-  useEffect(() => {
-    setViewCenter(focusRef.current);
-    setZoom(INITIAL_ZOOM);
-  }, [focusToken]);
 
   useEffect(() => {
     const node = containerRef.current;

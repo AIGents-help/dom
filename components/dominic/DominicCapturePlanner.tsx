@@ -2129,6 +2129,14 @@ export default function DominicCapturePlanner() {
     }
   };
 
+  const resetWaypointEdits = () => {
+    setWaypointOverrides({});
+    setSelectedWaypointId(null);
+    setRealFlightApprovalSignature(null);
+    setSecondaryFlightApprovalSignature(null);
+    setMapAreaMessage("Manual waypoint edits reset to DOMINIC's generated route.");
+  };
+
   const startMapAreaDrawing = () => {
     if (!mapLocationLabel) {
       setMapAreaMessage("Search for the site address or place first so DOMINIC owns the correct map center.");
@@ -2491,9 +2499,9 @@ export default function DominicCapturePlanner() {
             </div>
             <div style={{ position: "relative" }}>
               <CapturePlanningMap
+                key={mapFocusRevision}
                 focusLatitude={centerLatitude}
                 focusLongitude={centerLongitude}
-                focusToken={String(mapFocusRevision)}
                 drawing={mapDrawing}
                 boundary={mapAreaPoints}
                 route={activeSimpleCheckpoints}

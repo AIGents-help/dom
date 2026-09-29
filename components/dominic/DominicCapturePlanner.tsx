@@ -42,7 +42,7 @@ import {
 } from "@/lib/capturePlanner";
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
-import { googleMapsSatelliteEmbedUrl } from "@/lib/googleMaps";
+import CapturePlanningMap from "@/components/dominic/CapturePlanningMap";
 import { resolveCaptureCameraProfile } from "@/lib/captureCameraProfiles";
 import {
   deriveFieldOfView,
@@ -270,14 +270,12 @@ export default function DominicCapturePlanner() {
   const [mapAreaPoints, setMapAreaPoints] = useState<Array<{ xPct: number; yPct: number; latitude: number; longitude: number }>>([]);
   const [mapAreaDefined, setMapAreaDefined] = useState(false);
   const [waypointOverrides, setWaypointOverrides] = useState<Record<string, { latitude: number; longitude: number }>>({});
-  const [draggingWaypointId, setDraggingWaypointId] = useState<string | null>(null);
   const [selectedWaypointId, setSelectedWaypointId] = useState<string | null>(null);
   const [mapAreaMessage, setMapAreaMessage] = useState("Search for the site, choose a mission type, then define the mapping area.");
   const [mapSearch, setMapSearch] = useState("");
   const [mapSearchBusy, setMapSearchBusy] = useState(false);
   const [mapSearchResults, setMapSearchResults] = useState<Array<{ latitude: number; longitude: number; label: string }>>([]);
   const [mapLocationLabel, setMapLocationLabel] = useState<string | null>(null);
-  const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const [objectDiameterFt, setObjectDiameterFt] = useState(12);
   const [objectHeightFt, setObjectHeightFt] = useState(10);
   const [standoffFt, setStandoffFt] = useState(18);
@@ -549,7 +547,6 @@ export default function DominicCapturePlanner() {
     setPatternHeadingDeg(state.patternHeadingDeg);
     setWaypointOverrides(state.waypointOverrides ?? {});
     setSelectedWaypointId(null);
-    setDraggingWaypointId(null);
 
     // A reopened plan restores planning geometry only. Runtime capture/flight state
     // must be deliberately re-established for safety.
@@ -2027,54 +2024,6 @@ export default function DominicCapturePlanner() {
     Boolean(benchReport?.readyForPropOnFieldTest) &&
     Boolean(flightValidationStatus?.productionUnlocked);
 
-  const MAP_PLANNING_ZOOM = 18;
-
-  const mapPixelToLatLng = (clientX: number, clientY: number) => {
-    const container = mapContainerRef.current;
-    if (!container) return null;
-    const rect = container.getBoundingClientRect();
-    const localX = clientX - rect.left;
-    const localY = clientY - rect.top;
-    const worldSize = 256 * 2 ** MAP_PLANNING_ZOOM;
-    const centerSin = Math.sin((centerLatitude * Math.PI) / 180);
-    const centerWorldX = ((centerLongitude + 180) / 360) * worldSize;
-    const centerWorldY =
-      (0.5 - Math.log((1 + centerSin) / (1 - centerSin)) / (4 * Math.PI)) * worldSize;
-    const worldX = centerWorldX + localX - rect.width / 2;
-    const worldY = centerWorldY + localY - rect.height / 2;
-    const longitude = (worldX / worldSize) * 360 - 180;
-    const mercatorN = Math.PI - (2 * Math.PI * worldY) / worldSize;
-    const latitude = (Math.atan(Math.sinh(mercatorN)) * 180) / Math.PI;
-    return {
-      xPct: (localX / rect.width) * 100,
-      yPct: (localY / rect.height) * 100,
-      latitude,
-      longitude,
-    };
-  };
-
-  const updateDraggedWaypoint = (clientX: number, clientY: number) => {
-    if (!draggingWaypointId) return;
-    const point = mapPixelToLatLng(clientX, clientY);
-    if (!point) return;
-    setWaypointOverrides((current) => ({
-      ...current,
-      [draggingWaypointId]: {
-        latitude: point.latitude,
-        longitude: point.longitude,
-      },
-    }));
-    setSelectedWaypointId(draggingWaypointId);
-  };
-
-  const resetWaypointEdits = () => {
-    setWaypointOverrides({});
-    setSelectedWaypointId(null);
-    setDraggingWaypointId(null);
-    setSecondaryFlightApprovalSignature(null);
-    setMapAreaMessage("Manual waypoint edits reset to DOMINIC's generated route.");
-  };
-
   const searchMapLocation = async () => {
     const query = mapSearch.trim();
     if (query.length < 3) {
@@ -2246,37 +2195,6 @@ export default function DominicCapturePlanner() {
           passCount: secondaryPlan?.passCount ?? 0,
         };
 
-  const satelliteMapUrl = googleMapsSatelliteEmbedUrl(
-    `${centerLatitude.toFixed(7)},${centerLongitude.toFixed(7)}`,
-  );
-
-  const projectMapPoint = (latitude: number, longitude: number) => {
-    const width = mapContainerRef.current?.clientWidth ?? 1200;
-    const height = mapContainerRef.current?.clientHeight ?? 420;
-    const worldSize = 256 * 2 ** MAP_PLANNING_ZOOM;
-    const toWorld = (lat: number, lng: number) => {
-      const sin = Math.sin((lat * Math.PI) / 180);
-      return {
-        x: ((lng + 180) / 360) * worldSize,
-        y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * worldSize,
-      };
-    };
-    const center = toWorld(centerLatitude, centerLongitude);
-    const point = toWorld(latitude, longitude);
-    return {
-      xPct: 50 + ((point.x - center.x) / width) * 100,
-      yPct: 50 + ((point.y - center.y) / height) * 100,
-    };
-  };
-
-  const mapRouteProjected = activeSimpleCheckpoints.map((point) => ({
-    ...point,
-    ...projectMapPoint(point.latitude, point.longitude),
-  }));
-  const mapRoutePoints = mapRouteProjected
-    .map((point) => `${point.xPct.toFixed(2)},${point.yPct.toFixed(2)}`)
-    .join(" ");
-
   return (
     <div style={{ minHeight: 650, background: V.bg, color: V.text }}>
       <div style={{ padding: "18px 18px 12px", borderBottom: `1px solid ${V.line}`, display: showAdvancedPlanner ? "flex" : "none", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
@@ -2320,7 +2238,6 @@ export default function DominicCapturePlanner() {
                 setMapDrawing(false);
                 setWaypointOverrides({});
                 setSelectedWaypointId(null);
-                setDraggingWaypointId(null);
                 setPlanPersistenceStatus("New unsaved plan.");
               }}
               style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}
@@ -2594,97 +2511,36 @@ export default function DominicCapturePlanner() {
                 </button>
               </div>
             </div>
-            <div ref={mapContainerRef} style={{ position: "relative", height: 420, background: "#111" }}>
-              <iframe
-                key={satelliteMapUrl}
-                title="DOMINIC satellite planning map"
-                src={satelliteMapUrl}
-                style={{ width: "100%", height: "100%", border: 0, display: "block", pointerEvents: mapDrawing || mapAreaDefined ? "none" : "auto" }}
-                loading="lazy"
+            <div style={{ position: "relative" }}>
+              <CapturePlanningMap
+                focusLatitude={centerLatitude}
+                focusLongitude={centerLongitude}
+                focusToken={mapLocationLabel ?? `${centerLatitude.toFixed(6)},${centerLongitude.toFixed(6)}`}
+                drawing={mapDrawing}
+                boundary={mapAreaPoints}
+                route={activeSimpleCheckpoints}
+                routeVisible={mapAreaDefined && !mapDrawing}
+                selectedWaypointId={selectedWaypointId}
+                onBoundaryPoint={(point) => {
+                  setMapAreaPoints((points) => [...points, point]);
+                  setMapAreaMessage("Keep clicking around the boundary. Choose Finish Area when the subject is enclosed.");
+                }}
+                onWaypointSelect={setSelectedWaypointId}
+                onWaypointMove={(id, latitude, longitude) => {
+                  setWaypointOverrides((current) => ({
+                    ...current,
+                    [id]: { latitude, longitude },
+                  }));
+                  setSelectedWaypointId(id);
+                  setSecondaryFlightApprovalSignature(null);
+                  setMapAreaMessage("Waypoint adjusted. Review the route and save the updated plan.");
+                }}
               />
-              {mapDrawing ? (
-                <svg
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                  aria-label="Define mapping area"
-                  onClick={(event) => {
-                    const point = mapPixelToLatLng(event.clientX, event.clientY);
-                    if (point) {
-                      setMapAreaPoints((points) => [...points, point]);
-                      setMapAreaMessage("Keep clicking around the boundary. Choose Finish Area when the subject is enclosed.");
-                    }
-                  }}
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", cursor: "crosshair", zIndex: 4 }}
-                >
-                  {mapAreaPoints.length > 1 ? (
-                    <polyline
-                      points={mapAreaPoints.map((point) => `${point.xPct.toFixed(2)},${point.yPct.toFixed(2)}`).join(" ")}
-                      fill="rgba(244,90,30,.12)"
-                      stroke={V.orange}
-                      strokeWidth=".7"
-                      vectorEffect="non-scaling-stroke"
-                    />
-                  ) : null}
-                  {mapAreaPoints.map((point, index) => (
-                    <g key={`${point.latitude}-${point.longitude}-${index}`}>
-                      <circle cx={point.xPct} cy={point.yPct} r="1.15" fill={V.orange} stroke="#fff" strokeWidth=".35" />
-                      <text x={point.xPct + 1.5} y={point.yPct - 1.5} fill="#fff" fontSize="2.6" fontWeight="900">{index + 1}</text>
-                    </g>
-                  ))}
-                </svg>
-              ) : null}
-              {mapAreaDefined && mapRoutePoints && !mapDrawing ? (
-                <svg
-                  viewBox="0 0 100 100"
-                  preserveAspectRatio="none"
-                  aria-label="DOMINIC editable flight route"
-                  onPointerMove={(event) => updateDraggedWaypoint(event.clientX, event.clientY)}
-                  onPointerUp={() => setDraggingWaypointId(null)}
-                  onPointerLeave={() => setDraggingWaypointId(null)}
-                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "auto", touchAction: "none", zIndex: 4 }}
-                >
-                  <polyline points={mapRoutePoints} fill="none" stroke={V.orange} strokeWidth="0.9" vectorEffect="non-scaling-stroke" opacity=".95" />
-                  {mapRouteProjected.map((point, index) => {
-                    const edited = Boolean(waypointOverrides[point.id]);
-                    const selected = selectedWaypointId === point.id;
-                    return (
-                      <g key={point.id}>
-                        <circle
-                          cx={point.xPct}
-                          cy={point.yPct}
-                          r={selected ? 1.7 : 1.05}
-                          fill={selected ? V.green : edited ? V.amber : "#FFFFFF"}
-                          stroke={V.orange}
-                          strokeWidth=".4"
-                          style={{ cursor: "grab" }}
-                          onPointerDown={(event) => {
-                            event.preventDefault();
-                            setDraggingWaypointId(point.id);
-                            setSelectedWaypointId(point.id);
-                            setSecondaryFlightApprovalSignature(null);
-                            event.currentTarget.setPointerCapture?.(event.pointerId);
-                          }}
-                        />
-                        {selected ? (
-                          <text x={point.xPct + 1.4} y={point.yPct - 1.4} fill="#fff" fontSize="2.5" fontWeight="900">
-                            {index + 1}
-                          </text>
-                        ) : null}
-                      </g>
-                    );
-                  })}
-                </svg>
-              ) : null}
-              <div style={{ position: "absolute", left: 10, top: 10, zIndex: 5, maxWidth: 520, background: mapDrawing ? "rgba(60,22,8,.94)" : "rgba(11,17,23,.9)", border: `1px solid ${mapDrawing ? "rgba(244,90,30,.55)" : V.line}`, color: mapDrawing ? "#FFD3C0" : "#DCE3EA", borderRadius: 8, padding: "8px 10px", fontSize: 9, lineHeight: 1.45, pointerEvents: "none" }}>
+              <div style={{ position: "absolute", left: 10, top: 10, zIndex: 20, maxWidth: 520, background: mapDrawing ? "rgba(60,22,8,.94)" : "rgba(11,17,23,.9)", border: `1px solid ${mapDrawing ? "rgba(244,90,30,.55)" : V.line}`, color: mapDrawing ? "#FFD3C0" : "#DCE3EA", borderRadius: 8, padding: "8px 10px", fontSize: 9, lineHeight: 1.45, pointerEvents: "none" }}>
                 {mapDrawing ? <strong>DRAWING AREA · </strong> : null}{mapAreaMessage}
               </div>
-              <div style={{ position: "absolute", left: 10, right: 10, bottom: 10, display: "flex", justifyContent: "space-between", gap: 8, pointerEvents: "none" }}>
-                <div style={{ background: "rgba(11,17,23,.88)", border: `1px solid ${V.line}`, borderRadius: 8, padding: "7px 9px", color: "#DCE3EA", fontSize: 9 }}>
-                  {mapAreaDefined ? `${activeSimplePlan.checkpointCount} checkpoints · ${activeSimplePlan.passCount} passes · ~${activeSimplePlan.estimatedMinutes} min` : "Move/zoom map, then define the mapping area"}
-                </div>
-                <div style={{ background: "rgba(11,17,23,.88)", border: `1px solid ${V.line}`, borderRadius: 8, padding: "7px 9px", color: V.muted, fontSize: 8 }}>
-                  Orange = planned route · White = capture point
-                </div>
+              <div style={{ position: "absolute", left: 10, bottom: 10, zIndex: 20, background: "rgba(11,17,23,.88)", border: `1px solid ${V.line}`, borderRadius: 8, padding: "7px 9px", color: "#DCE3EA", fontSize: 9, pointerEvents: "none" }}>
+                {mapAreaDefined ? `${activeSimplePlan.checkpointCount} checkpoints · ${activeSimplePlan.passCount} passes · ~${activeSimplePlan.estimatedMinutes} min` : "Pan/zoom freely, then define the mapping area"}
               </div>
             </div>
             {mapAreaDefined && !mapDrawing ? (

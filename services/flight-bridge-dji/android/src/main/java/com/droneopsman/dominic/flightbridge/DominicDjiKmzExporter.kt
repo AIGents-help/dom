@@ -1,5 +1,6 @@
 package com.droneopsman.dominic.flightbridge
 
+import android.content.Context
 import com.dji.wpmzsdk.common.data.Template
 import com.dji.wpmzsdk.manager.WPMZManager
 import dji.sdk.wpmz.value.mission.ActionTakePhotoParam
@@ -38,7 +39,12 @@ import dji.sdk.wpmz.value.mission.WaylineWaypointYawParam
  * by DJI's own WPMZ SDK. This class only creates a file; it does not upload, start,
  * arm, take off, or otherwise command an aircraft.
  */
-class DominicDjiKmzExporter {
+class DominicDjiKmzExporter(
+    context: Context,
+) {
+    init {
+        WPMZManager.getInstance().init(context.applicationContext)
+    }
     fun export(
         mission: DominicDjiMissionPackage,
         outputPath: String,

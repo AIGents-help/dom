@@ -1,12 +1,11 @@
 package com.droneopsman.dominic.flightbridge
 
-/**
- * Transport-neutral Android host lifecycle.
- *
- * Bind a concrete loopback WebSocket implementation to [Client] in the Android app.
- * Keeping the socket dependency outside this class lets us use the controller-compatible
- * server library selected by the DJI sample project without changing DOMINIC protocol logic.
- */
+import java.util.concurrent.CopyOnWriteArraySet
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
+
 class DominicReadOnlyBridgeService(
     private val bridgeId: String,
     private val telemetryProvider: MsdkTelemetryProvider,
@@ -17,16 +16,32 @@ class DominicReadOnlyBridgeService(
         fun close()
     }
 
-    private val clients = linkedSetOf<Client>()
+    private val clients = CopyOnWriteArraySet<Client>()
+    private val telemetrySequence = AtomicLong(0)
+    private var heartbeatExecutor: ScheduledExecutorService? = null
 
     fun start() {
         telemetryProvider.start { snapshot ->
-            val frame = ReadOnlyProtocol.telemetry(snapshot)
-            clients.filter { it.open }.forEach { it.send(frame) }
+            val frame = ReadOnlyProtocol.telemetry(
+                telemetrySequence.incrementAndGet(),
+                snapshot,
+            )
+            broadcast(frame)
+        }
+
+        heartbeatExecutor = Executors.newSingleThreadScheduledExecutor().also { executor ->
+            executor.scheduleAtFixedRate(
+                { broadcast(ReadOnlyProtocol.heartbeat()) },
+                1,
+                1,
+                TimeUnit.SECONDS,
+            )
         }
     }
 
     fun stop() {
+        heartbeatExecutor?.shutdownNow()
+        heartbeatExecutor = null
         telemetryProvider.stop()
         clients.toList().forEach { it.close() }
         clients.clear()
@@ -34,16 +49,27 @@ class DominicReadOnlyBridgeService(
 
     fun onClientConnected(client: Client) {
         clients += client
-        client.send(ReadOnlyProtocol.hello(bridgeId, telemetryProvider.current()))
-        client.send(ReadOnlyProtocol.telemetry(telemetryProvider.current()))
+        val snapshot = telemetryProvider.current()
+        client.send(ReadOnlyProtocol.hello(bridgeId, snapshot))
+        client.send(
+            ReadOnlyProtocol.telemetry(
+                telemetrySequence.incrementAndGet(),
+                snapshot,
+            ),
+        )
     }
 
     fun onClientText(client: Client, text: String) {
-        // Stage 1 is deliberately incapable of commanding hardware.
-        client.send(ReadOnlyProtocol.rejectCommand(text))
+        ReadOnlyProtocol.handleInbound(text)?.let(client::send)
     }
 
     fun onClientClosed(client: Client) {
         clients -= client
+    }
+
+    private fun broadcast(frame: String) {
+        clients.filter { it.open }.forEach { client ->
+            runCatching { client.send(frame) }
+        }
     }
 }

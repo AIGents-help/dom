@@ -265,6 +265,10 @@ export default function DominicCapturePlanner() {
   const [missionType, setMissionType] = useState<CaptureMissionType>("object");
   const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">("map");
   const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
+  const [mapDrawing, setMapDrawing] = useState(false);
+  const [mapAreaPoints, setMapAreaPoints] = useState<Array<{ xPct: number; yPct: number; latitude: number; longitude: number }>>([]);
+  const [mapAreaMessage, setMapAreaMessage] = useState("Choose a mission type, then define the mapping area on the map.");
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const [objectDiameterFt, setObjectDiameterFt] = useState(12);
   const [objectHeightFt, setObjectHeightFt] = useState(10);
   const [standoffFt, setStandoffFt] = useState(18);
@@ -2006,6 +2010,97 @@ export default function DominicCapturePlanner() {
     Boolean(benchReport?.readyForPropOnFieldTest) &&
     Boolean(flightValidationStatus?.productionUnlocked);
 
+  const MAP_PLANNING_ZOOM = 18;
+
+  const mapPixelToLatLng = (clientX: number, clientY: number) => {
+    const container = mapContainerRef.current;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
+    const localX = clientX - rect.left;
+    const localY = clientY - rect.top;
+    const worldSize = 256 * 2 ** MAP_PLANNING_ZOOM;
+    const centerSin = Math.sin((centerLatitude * Math.PI) / 180);
+    const centerWorldX = ((centerLongitude + 180) / 360) * worldSize;
+    const centerWorldY =
+      (0.5 - Math.log((1 + centerSin) / (1 - centerSin)) / (4 * Math.PI)) * worldSize;
+    const worldX = centerWorldX + localX - rect.width / 2;
+    const worldY = centerWorldY + localY - rect.height / 2;
+    const longitude = (worldX / worldSize) * 360 - 180;
+    const mercatorN = Math.PI - (2 * Math.PI * worldY) / worldSize;
+    const latitude = (Math.atan(Math.sinh(mercatorN)) * 180) / Math.PI;
+    return {
+      xPct: (localX / rect.width) * 100,
+      yPct: (localY / rect.height) * 100,
+      latitude,
+      longitude,
+    };
+  };
+
+  const startMapAreaDrawing = () => {
+    if (missionType === "object" || missionType === "interior") {
+      setMissionType("roof");
+      setMapAreaMessage("Roof selected. Click each corner of the area you want DOMINIC to map.");
+    } else {
+      setMapAreaMessage("Click each corner of the area you want DOMINIC to map, then choose Finish Area.");
+    }
+    setMapAreaPoints([]);
+    setMapDrawing(true);
+  };
+
+  const finishMapAreaDrawing = () => {
+    if (mapAreaPoints.length < 3) {
+      setMapAreaMessage("Add at least 3 points before finishing the mapping area.");
+      return;
+    }
+
+    const centerLat =
+      mapAreaPoints.reduce((sum, point) => sum + point.latitude, 0) / mapAreaPoints.length;
+    const centerLon =
+      mapAreaPoints.reduce((sum, point) => sum + point.longitude, 0) / mapAreaPoints.length;
+
+    const first = mapAreaPoints[0];
+    const second = mapAreaPoints[1];
+    const firstEdge = bearingAndDistanceBetween({
+      fromLatitude: first.latitude,
+      fromLongitude: first.longitude,
+      toLatitude: second.latitude,
+      toLongitude: second.longitude,
+    });
+    const headingDeg = firstEdge.bearingDeg;
+    const headingRad = (headingDeg * Math.PI) / 180;
+
+    const localPoints = mapAreaPoints.map((point) => {
+      const relative = bearingAndDistanceBetween({
+        fromLatitude: centerLat,
+        fromLongitude: centerLon,
+        toLatitude: point.latitude,
+        toLongitude: point.longitude,
+      });
+      const bearingRad = (relative.bearingDeg * Math.PI) / 180;
+      const north = Math.cos(bearingRad) * relative.distanceFt;
+      const east = Math.sin(bearingRad) * relative.distanceFt;
+      return {
+        along: north * Math.cos(headingRad) + east * Math.sin(headingRad),
+        across: -north * Math.sin(headingRad) + east * Math.cos(headingRad),
+      };
+    });
+
+    const alongValues = localPoints.map((point) => point.along);
+    const acrossValues = localPoints.map((point) => point.across);
+    const lengthFt = Math.max(4, Math.max(...alongValues) - Math.min(...alongValues));
+    const widthFt = Math.max(4, Math.max(...acrossValues) - Math.min(...acrossValues));
+
+    setCenterLatitude(centerLat);
+    setCenterLongitude(centerLon);
+    setPatternLengthFt(Number(lengthFt.toFixed(1)));
+    setPatternWidthFt(Number(widthFt.toFixed(1)));
+    setPatternHeadingDeg(Number(headingDeg.toFixed(1)));
+    setMapDrawing(false);
+    setMapAreaMessage(
+      `Area defined · ${lengthFt.toFixed(0)} × ${widthFt.toFixed(0)} ft · ${mapAreaPoints.length} boundary points. DOMINIC regenerated the ${missionProfiles[missionType === "object" || missionType === "interior" ? "roof" : missionType].label} route.`,
+    );
+  };
+
   const activeProfile = missionProfiles[missionType];
 
   const activeSimpleCheckpoints =
@@ -2207,7 +2302,50 @@ export default function DominicCapturePlanner() {
                 <div style={{ color: V.orange, fontSize: 9, fontWeight: 900 }}>MAP / SATELLITE PLANNING</div>
                 <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>DOMINIC route preview centered on the current subject location.</div>
               </div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                <select
+                  aria-label="Map mission type"
+                  value={missionType === "object" || missionType === "interior" ? "roof" : missionType}
+                  onChange={(event) => setMissionType(event.target.value as CaptureMissionType)}
+                  style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900 }}
+                >
+                  <option value="roof">Roof</option>
+                  <option value="building">Building / 3D Structure</option>
+                  <option value="stockpile">Stockpile</option>
+                  <option value="corridor">Corridor</option>
+                  <option value="facade">Facade</option>
+                </select>
+                {!mapDrawing ? (
+                  <button
+                    type="button"
+                    onClick={startMapAreaDrawing}
+                    style={{ border: `1px solid rgba(244,90,30,.55)`, background: "rgba(244,90,30,.16)", color: "#FFD3C0", borderRadius: 7, padding: "7px 10px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                  >
+                    Define Mapping Area
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      disabled={mapAreaPoints.length < 3}
+                      onClick={finishMapAreaDrawing}
+                      style={{ border: `1px solid rgba(112,214,160,.45)`, background: "rgba(112,214,160,.10)", color: mapAreaPoints.length >= 3 ? V.green : V.muted, borderRadius: 7, padding: "7px 10px", fontSize: 8, fontWeight: 900, cursor: mapAreaPoints.length >= 3 ? "pointer" : "not-allowed" }}
+                    >
+                      Finish Area ({mapAreaPoints.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMapAreaPoints([]);
+                        setMapDrawing(false);
+                        setMapAreaMessage("Mapping area drawing cancelled.");
+                      }}
+                      style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
                   disabled={!aircraftTelemetry}
@@ -2220,19 +2358,47 @@ export default function DominicCapturePlanner() {
                 >
                   Use aircraft location
                 </button>
-                <button type="button" onClick={() => setShowAdvancedPlanner(true)} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}>
-                  Edit center / settings
-                </button>
               </div>
             </div>
-            <div style={{ position: "relative", height: 420, background: "#111" }}>
+            <div ref={mapContainerRef} style={{ position: "relative", height: 420, background: "#111" }}>
               <iframe
                 title="DOMINIC satellite planning map"
                 src={satelliteMapUrl}
                 style={{ width: "100%", height: "100%", border: 0, display: "block" }}
                 loading="lazy"
               />
-              {mapRoutePoints ? (
+              {mapDrawing ? (
+                <svg
+                  viewBox="0 0 100 100"
+                  preserveAspectRatio="none"
+                  aria-label="Define mapping area"
+                  onClick={(event) => {
+                    const point = mapPixelToLatLng(event.clientX, event.clientY);
+                    if (point) {
+                      setMapAreaPoints((points) => [...points, point]);
+                      setMapAreaMessage("Keep clicking around the boundary. Choose Finish Area when the subject is enclosed.");
+                    }
+                  }}
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", cursor: "crosshair", zIndex: 4 }}
+                >
+                  {mapAreaPoints.length > 1 ? (
+                    <polyline
+                      points={mapAreaPoints.map((point) => `${point.xPct.toFixed(2)},${point.yPct.toFixed(2)}`).join(" ")}
+                      fill="rgba(244,90,30,.12)"
+                      stroke={V.orange}
+                      strokeWidth=".7"
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  ) : null}
+                  {mapAreaPoints.map((point, index) => (
+                    <g key={`${point.latitude}-${point.longitude}-${index}`}>
+                      <circle cx={point.xPct} cy={point.yPct} r="1.15" fill={V.orange} stroke="#fff" strokeWidth=".35" />
+                      <text x={point.xPct + 1.5} y={point.yPct - 1.5} fill="#fff" fontSize="2.6" fontWeight="900">{index + 1}</text>
+                    </g>
+                  ))}
+                </svg>
+              ) : null}
+              {mapRoutePoints && !mapDrawing ? (
                 <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="DOMINIC planned flight route overlay" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
                   <polyline points={mapRoutePoints} fill="none" stroke={V.orange} strokeWidth="0.9" vectorEffect="non-scaling-stroke" opacity=".95" />
                   {activeSimpleCheckpoints.map((point, index) => {
@@ -2246,6 +2412,9 @@ export default function DominicCapturePlanner() {
                   })}
                 </svg>
               ) : null}
+              <div style={{ position: "absolute", left: 10, top: 10, zIndex: 5, maxWidth: 520, background: mapDrawing ? "rgba(60,22,8,.94)" : "rgba(11,17,23,.9)", border: `1px solid ${mapDrawing ? "rgba(244,90,30,.55)" : V.line}`, color: mapDrawing ? "#FFD3C0" : "#DCE3EA", borderRadius: 8, padding: "8px 10px", fontSize: 9, lineHeight: 1.45, pointerEvents: "none" }}>
+                {mapDrawing ? <strong>DRAWING AREA · </strong> : null}{mapAreaMessage}
+              </div>
               <div style={{ position: "absolute", left: 10, right: 10, bottom: 10, display: "flex", justifyContent: "space-between", gap: 8, pointerEvents: "none" }}>
                 <div style={{ background: "rgba(11,17,23,.88)", border: `1px solid ${V.line}`, borderRadius: 8, padding: "7px 9px", color: "#DCE3EA", fontSize: 9 }}>
                   {activeSimplePlan.checkpointCount} checkpoints · {activeSimplePlan.passCount} passes · ~{activeSimplePlan.estimatedMinutes} min

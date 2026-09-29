@@ -23,15 +23,15 @@ class DjiMsdkReadOnlyHost(
 ) {
     sealed class Status {
         data class Initializing(val event: DJISDKInitEvent, val progress: Int) : Status()
-        data object Registering : Status()
-        data object Registered : Status()
+        object Registering : Status()
+        object Registered : Status()
         data class RegistrationFailed(val error: IDJIError) : Status()
         data class ProductConnected(val productId: Int) : Status()
         data class ProductDisconnected(val productId: Int) : Status()
         data class ProductChanged(val productId: Int) : Status()
         data class DatabaseDownload(val current: Long, val total: Long) : Status()
         data class BridgeStarted(val endpoint: String) : Status()
-        data object Stopped : Status()
+        object Stopped : Status()
     }
 
     private val started = AtomicBoolean(false)

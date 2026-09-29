@@ -2322,88 +2322,12 @@ export default function DominicCapturePlanner() {
         </div>
       </div>
 
-      <div style={{ padding: 14, display: showAdvancedPlanner ? "grid" : "none", gap: 8, gridTemplateColumns: "repeat(auto-fit,minmax(125px,1fr))", borderBottom: `1px solid ${V.line}` }}>
-        {(Object.keys(missionProfiles) as CaptureMissionType[]).map((type) => {
-          const profile = missionProfiles[type];
-          const active = missionType === type;
-          return (
-            <button
-              key={type}
-              type="button"
-              onClick={() => setMissionType(type)}
-              style={{
-                border: active ? `1px solid ${V.orange}` : `1px solid ${V.line}`,
-                borderRadius: 9,
-                background: active ? "rgba(244,90,30,.14)" : V.panel,
-                color: active ? V.text : "#C6CFD8",
-                padding: "9px 10px",
-                textAlign: "left",
-                cursor: "pointer",
-              }}
-            >
-              <div style={{ fontSize: 11, fontWeight: 900 }}>{profile.label}</div>
-              <div style={{ color: active ? "#FFAA88" : V.muted, fontSize: 8, marginTop: 3, letterSpacing: ".08em", textTransform: "uppercase" }}>
-                {type === "object" ? "Interactive planner" : "Manual pattern"}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <section style={{ margin: "12px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 14, display: showAdvancedPlanner ? "block" : "none" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <div>
-            <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>1 · Choose how to define the mission</div>
-            <div style={{ color: V.text, fontSize: 17, fontWeight: 900, marginTop: 3 }}>Plan from the real world, not from raw coordinates.</div>
-            <div style={{ color: V.muted, fontSize: 10, marginTop: 4, lineHeight: 1.5 }}>
-              Use satellite imagery, the connected drone camera, or a local-object workspace. DOMINIC uses the same capture engine after the subject is defined.
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowAdvancedPlanner((value) => !value)}
-            style={{ border: `1px solid ${V.line}`, background: showAdvancedPlanner ? "rgba(244,90,30,.12)" : V.panel2, color: showAdvancedPlanner ? "#FFD3C0" : V.text, borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
-          >
-            {showAdvancedPlanner ? "Hide advanced / engineering" : "Advanced / engineering"}
-          </button>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 8, marginTop: 12 }}>
-          {([
-            ["map", "Map / Satellite", "Draw and review the route over current Google satellite imagery."],
-            ["live", "Live Drone View", "Use the connected aircraft camera to define what exists right now."],
-            ["local", "Local Object", "Scan a chair, vehicle, machine or indoor object without a map."],
-          ] as const).map(([value, label, description]) => {
-            const active = planningSource === value;
-            const unavailable = value === "live" && bridgeStatus !== "connected";
-            return (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setPlanningSource(value)}
-                style={{ border: active ? `1px solid ${V.orange}` : `1px solid ${V.line}`, background: active ? "rgba(244,90,30,.12)" : "#0D1319", borderRadius: 10, padding: 11, color: V.text, textAlign: "left", cursor: "pointer" }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                  <strong style={{ fontSize: 11 }}>{label}</strong>
-                  {value === "live" ? (
-                    <span style={{ color: bridgeStatus === "connected" ? V.green : V.amber, fontSize: 8, fontWeight: 900 }}>
-                      {bridgeStatus === "connected" ? "AIRCRAFT CONNECTED" : "CONNECT AIRCRAFT"}
-                    </span>
-                  ) : null}
-                </div>
-                <div style={{ color: unavailable ? "#C6A070" : V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>{description}</div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
       <section style={{ margin: "14px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 12, display: plannerView === "plan" ? "block" : "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div>
             <div style={{ color: V.text, fontSize: 18, fontWeight: 900 }}>Create a capture plan</div>
             <div style={{ color: V.muted, fontSize: 9, marginTop: 3 }}>
-              Choose where the subject comes from. DOMINIC handles the route calculations.
+              Choose how you want to plan the mission. DOMINIC handles the route calculations.
             </div>
           </div>
           <button
@@ -2411,7 +2335,7 @@ export default function DominicCapturePlanner() {
             onClick={() => setShowAdvancedPlanner((value) => !value)}
             style={{ border: `1px solid ${V.line}`, background: showAdvancedPlanner ? "rgba(244,90,30,.12)" : "#0D1319", color: showAdvancedPlanner ? "#FFD3C0" : V.muted, borderRadius: 8, padding: "7px 10px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
           >
-            {showAdvancedPlanner ? "Hide Advanced" : "Advanced"}
+            {showAdvancedPlanner ? "Hide Advanced Settings" : "Advanced Settings"}
           </button>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 7, marginTop: 10 }}>

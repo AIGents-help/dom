@@ -42,6 +42,7 @@ import {
 } from "@/lib/capturePlanner";
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { googleMapsSatelliteEmbedUrl } from "@/lib/googleMaps";
 import { resolveCaptureCameraProfile } from "@/lib/captureCameraProfiles";
 import {
   deriveFieldOfView,
@@ -262,6 +263,8 @@ function sectorPath(startBearingDeg: number, endBearingDeg: number, radius = 46)
 
 export default function DominicCapturePlanner() {
   const [missionType, setMissionType] = useState<CaptureMissionType>("object");
+  const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">("map");
+  const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
   const [objectDiameterFt, setObjectDiameterFt] = useState(12);
   const [objectHeightFt, setObjectHeightFt] = useState(10);
   const [standoffFt, setStandoffFt] = useState(18);
@@ -2005,6 +2008,44 @@ export default function DominicCapturePlanner() {
 
   const activeProfile = missionProfiles[missionType];
 
+  const activeSimpleCheckpoints =
+    missionType === "object" ? geographicCheckpoints : secondaryGeographicCheckpoints;
+  const activeSimplePlan =
+    missionType === "object"
+      ? {
+          checkpointCount: geographicCheckpoints.length,
+          estimatedMinutes: plan.estimatedMinutes,
+          passCount: plan.rings.length,
+        }
+      : {
+          checkpointCount: secondaryGeographicCheckpoints.length,
+          estimatedMinutes: secondaryPlan?.estimatedMinutes ?? 0,
+          passCount: secondaryPlan?.passCount ?? 0,
+        };
+
+  const satelliteMapUrl = googleMapsSatelliteEmbedUrl(
+    `${centerLatitude.toFixed(7)},${centerLongitude.toFixed(7)}`,
+  );
+
+  const mapRoutePoints = (() => {
+    if (!activeSimpleCheckpoints.length) return "";
+    const lats = activeSimpleCheckpoints.map((point) => point.latitude);
+    const lngs = activeSimpleCheckpoints.map((point) => point.longitude);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLng = Math.min(...lngs);
+    const maxLng = Math.max(...lngs);
+    const latSpan = Math.max(0.000001, maxLat - minLat);
+    const lngSpan = Math.max(0.000001, maxLng - minLng);
+    return activeSimpleCheckpoints
+      .map((point) => {
+        const x = 8 + ((point.longitude - minLng) / lngSpan) * 84;
+        const y = 92 - ((point.latitude - minLat) / latSpan) * 84;
+        return `${x.toFixed(2)},${y.toFixed(2)}`;
+      })
+      .join(" ");
+  })();
+
   return (
     <div style={{ minHeight: 650, background: V.bg, color: V.text }}>
       <div style={{ padding: "18px 18px 12px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
@@ -2110,6 +2151,171 @@ export default function DominicCapturePlanner() {
         })}
       </div>
 
+      <section style={{ margin: "12px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div>
+            <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>1 · Choose how to define the mission</div>
+            <div style={{ color: V.text, fontSize: 17, fontWeight: 900, marginTop: 3 }}>Plan from the real world, not from raw coordinates.</div>
+            <div style={{ color: V.muted, fontSize: 10, marginTop: 4, lineHeight: 1.5 }}>
+              Use satellite imagery, the connected drone camera, or a local-object workspace. DOMINIC uses the same capture engine after the subject is defined.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowAdvancedPlanner((value) => !value)}
+            style={{ border: `1px solid ${V.line}`, background: showAdvancedPlanner ? "rgba(244,90,30,.12)" : V.panel2, color: showAdvancedPlanner ? "#FFD3C0" : V.text, borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
+          >
+            {showAdvancedPlanner ? "Hide advanced / engineering" : "Advanced / engineering"}
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 8, marginTop: 12 }}>
+          {([
+            ["map", "Map / Satellite", "Draw and review the route over current Google satellite imagery."],
+            ["live", "Live Drone View", "Use the connected aircraft camera to define what exists right now."],
+            ["local", "Local Object", "Scan a chair, vehicle, machine or indoor object without a map."],
+          ] as const).map(([value, label, description]) => {
+            const active = planningSource === value;
+            const unavailable = value === "live" && bridgeStatus !== "connected";
+            return (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setPlanningSource(value)}
+                style={{ border: active ? `1px solid ${V.orange}` : `1px solid ${V.line}`, background: active ? "rgba(244,90,30,.12)" : "#0D1319", borderRadius: 10, padding: 11, color: V.text, textAlign: "left", cursor: "pointer" }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
+                  <strong style={{ fontSize: 11 }}>{label}</strong>
+                  {value === "live" ? (
+                    <span style={{ color: bridgeStatus === "connected" ? V.green : V.amber, fontSize: 8, fontWeight: 900 }}>
+                      {bridgeStatus === "connected" ? "AIRCRAFT CONNECTED" : "CONNECT AIRCRAFT"}
+                    </span>
+                  ) : null}
+                </div>
+                <div style={{ color: unavailable ? "#C6A070" : V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>{description}</div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section style={{ margin: "10px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: "#0D1319", overflow: "hidden" }}>
+        {planningSource === "map" ? (
+          <div>
+            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ color: V.orange, fontSize: 9, fontWeight: 900 }}>MAP / SATELLITE PLANNING</div>
+                <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>DOMINIC route preview centered on the current subject location.</div>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  disabled={!aircraftTelemetry}
+                  onClick={() => {
+                    if (!aircraftTelemetry) return;
+                    setCenterLatitude(aircraftTelemetry.latitude);
+                    setCenterLongitude(aircraftTelemetry.longitude);
+                  }}
+                  style={{ border: `1px solid ${V.line}`, background: V.panel2, color: aircraftTelemetry ? V.green : V.muted, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900, cursor: aircraftTelemetry ? "pointer" : "not-allowed" }}
+                >
+                  Use aircraft location
+                </button>
+                <button type="button" onClick={() => setShowAdvancedPlanner(true)} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}>
+                  Edit center / settings
+                </button>
+              </div>
+            </div>
+            <div style={{ position: "relative", height: 420, background: "#111" }}>
+              <iframe
+                title="DOMINIC satellite planning map"
+                src={satelliteMapUrl}
+                style={{ width: "100%", height: "100%", border: 0, display: "block" }}
+                loading="lazy"
+              />
+              {mapRoutePoints ? (
+                <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="DOMINIC planned flight route overlay" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
+                  <polyline points={mapRoutePoints} fill="none" stroke={V.orange} strokeWidth="0.9" vectorEffect="non-scaling-stroke" opacity=".95" />
+                  {activeSimpleCheckpoints.map((point, index) => {
+                    const lats = activeSimpleCheckpoints.map((p) => p.latitude);
+                    const lngs = activeSimpleCheckpoints.map((p) => p.longitude);
+                    const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+                    const minLng = Math.min(...lngs), maxLng = Math.max(...lngs);
+                    const x = 8 + ((point.longitude - minLng) / Math.max(0.000001, maxLng - minLng)) * 84;
+                    const y = 92 - ((point.latitude - minLat) / Math.max(0.000001, maxLat - minLat)) * 84;
+                    return <circle key={point.id} cx={x} cy={y} r={index === 0 ? 1.25 : .7} fill={index === 0 ? V.green : "#FFFFFF"} stroke={V.orange} strokeWidth=".25" />;
+                  })}
+                </svg>
+              ) : null}
+              <div style={{ position: "absolute", left: 10, right: 10, bottom: 10, display: "flex", justifyContent: "space-between", gap: 8, pointerEvents: "none" }}>
+                <div style={{ background: "rgba(11,17,23,.88)", border: `1px solid ${V.line}`, borderRadius: 8, padding: "7px 9px", color: "#DCE3EA", fontSize: 9 }}>
+                  {activeSimplePlan.checkpointCount} checkpoints · {activeSimplePlan.passCount} passes · ~{activeSimplePlan.estimatedMinutes} min
+                </div>
+                <div style={{ background: "rgba(11,17,23,.88)", border: `1px solid ${V.line}`, borderRadius: 8, padding: "7px 9px", color: V.muted, fontSize: 8 }}>
+                  Orange = planned route · White = capture point
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : planningSource === "live" ? (
+          <div style={{ minHeight: 420, display: "grid", placeItems: "center", padding: 24, textAlign: "center" }}>
+            <div style={{ maxWidth: 620 }}>
+              <Radio size={34} color={bridgeStatus === "connected" ? V.green : V.orange} />
+              <div style={{ color: V.text, fontSize: 18, fontWeight: 900, marginTop: 10 }}>Live Drone View</div>
+              <div style={{ color: V.muted, fontSize: 10, lineHeight: 1.6, marginTop: 6 }}>
+                {bridgeStatus === "connected"
+                  ? "The aircraft telemetry bridge is connected. Camera-video transport is the remaining piece before DOMINIC can let you outline the subject directly on the live image."
+                  : "Connect the DJI bridge first. DOMINIC will use the aircraft camera plus telemetry to let you outline a current stockpile, construction area, roof, vehicle or other subject."}
+              </div>
+              <div style={{ marginTop: 12, border: `1px solid ${bridgeStatus === "connected" ? "rgba(112,214,160,.25)" : "rgba(255,184,107,.25)"}`, background: V.panel, borderRadius: 9, padding: 10, color: bridgeStatus === "connected" ? V.green : V.amber, fontSize: 9, fontWeight: 900 }}>
+                {bridgeStatus === "connected" ? "Telemetry connected · video feed not yet available" : "Aircraft not connected"}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: 18 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ color: V.orange, fontSize: 9, fontWeight: 900 }}>LOCAL OBJECT WORKSPACE</div>
+                <div style={{ color: V.text, fontSize: 17, fontWeight: 900, marginTop: 3 }}>No map required.</div>
+                <div style={{ color: V.muted, fontSize: 9, lineHeight: 1.5, marginTop: 4 }}>Use this for chairs, machinery, vehicles, equipment and indoor objects. The subject is treated as the local origin and DOMINIC builds the capture path around it.</div>
+              </div>
+              {missionType !== "object" ? (
+                <button type="button" onClick={() => setMissionType("object")} style={{ border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.10)", color: "#FFD3C0", borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}>Switch to Object Scan</button>
+              ) : null}
+            </div>
+            {missionType === "object" ? (
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(260px,.8fr) minmax(320px,1.2fr)", gap: 14, marginTop: 14 }}>
+                <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: V.panel, padding: 12 }}>
+                  <div style={{ color: V.text, fontSize: 11, fontWeight: 900 }}>Object size & capture quality</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 9 }}>
+                    <Field label="Width / diameter" value={objectDiameterFt} min={1} max={1000} suffix="ft" onChange={setObjectDiameterFt} />
+                    <Field label="Height" value={objectHeightFt} min={1} max={1000} suffix="ft" onChange={setObjectHeightFt} />
+                    <Field label="Stand-off" value={standoffFt} min={2} max={500} suffix="ft" onChange={setStandoffFt} />
+                    <Field label="Overlap" value={overlapPct} min={40} max={95} suffix="%" onChange={setOverlapPct} />
+                  </div>
+                  <div style={{ marginTop: 10, color: V.green, fontSize: 9, fontWeight: 900 }}>{geographicCheckpoints.length} capture positions generated</div>
+                </div>
+                <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#090D12", minHeight: 300, display: "grid", placeItems: "center", padding: 12 }}>
+                  <svg viewBox="0 0 100 100" style={{ width: "100%", maxHeight: 330 }} role="img" aria-label="Local object capture path">
+                    <circle cx="50" cy="50" r="5" fill="rgba(244,90,30,.16)" stroke={V.orange} strokeWidth=".7" />
+                    {plan.rings.map((ring, ringIndex) => {
+                      const radius = 22 + ringIndex * 11;
+                      return <circle key={ring.label} cx="50" cy="50" r={radius} fill="none" stroke={ringIndex === 1 ? V.orange : "rgba(245,247,250,.45)"} strokeWidth=".6" strokeDasharray={ringIndex === 1 ? "0" : "2 2"} />;
+                    })}
+                    {sequence.map((shot, index) => {
+                      const ringIndex = Math.max(0, plan.rings.findIndex((ring) => ring.label === shot.ringLabel));
+                      const p = polarPoint(shot.bearingDeg, 22 + ringIndex * 11);
+                      return <circle key={shot.id} cx={p.x} cy={p.y} r={index === currentIndex ? 1.35 : .7} fill={index === currentIndex ? V.green : "#FFF"} stroke={V.orange} strokeWidth=".25" />;
+                    })}
+                  </svg>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </section>
+
+      <div style={{ display: showAdvancedPlanner ? "block" : "none" }}>
       <section style={{ margin: "12px 14px 0", border: `1px solid ${V.line}`, borderRadius: 10, background: V.panel, padding: 11 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 10, flexWrap: "wrap" }}>
           <div style={{ minWidth: 220, flex: "1 1 260px" }}>
@@ -3527,6 +3733,7 @@ export default function DominicCapturePlanner() {
           </aside>
         </div>
       )}
+      </div>
     </div>
   );
 }

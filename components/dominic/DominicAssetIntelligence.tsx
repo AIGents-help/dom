@@ -23,6 +23,7 @@ import {
   type InspectionType,
 } from "@/lib/aircraft/inspectionCapabilities";
 import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
+import DominicInspectionEvidenceReview from "@/components/dominic/DominicInspectionEvidenceReview";
 
 const ORANGE = "#F45A1E";
 const BG = "#0B1117";
@@ -186,6 +187,7 @@ export default function DominicAssetIntelligence({
   const [inspectionEquipment, setInspectionEquipment] = useState<InspectionEquipmentRow[]>([]);
   const [selectedPilotAssetId, setSelectedPilotAssetId] = useState<string>("");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
+  const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -312,6 +314,10 @@ export default function DominicAssetIntelligence({
   const selectedIssues = useMemo(
     () => issues.filter((issue) => issue.asset_id === selectedAssetId),
     [issues, selectedAssetId],
+  );
+  const selectedReviewInspection = useMemo(
+    () => selectedInspections.find((inspection) => inspection.id === selectedInspectionId) ?? null,
+    [selectedInspections, selectedInspectionId],
   );
 
   const openIssues = issues.filter((issue) =>
@@ -500,6 +506,7 @@ export default function DominicAssetIntelligence({
       }
 
       setInspectionObjective("");
+      setSelectedInspectionId(inspection?.id ?? null);
       await refresh();
       setMessage(
         selectedEquipmentReadiness.ready
@@ -776,23 +783,46 @@ export default function DominicAssetIntelligence({
                       </div>
                       <div style={{ display: "grid", justifyItems: "end", gap: 6 }}>
                         <div style={{ color: inspection.status === "complete" ? GREEN : AMBER, fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>{inspection.status}</div>
-                        {onPlanInspection && inspection.status !== "cancelled" ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const context = buildPlanningContext(inspection);
-                              if (context) onPlanInspection(context);
-                            }}
-                            style={{ border: `1px solid rgba(244,90,30,.4)`, background: "rgba(244,90,30,.10)", color: "#FFD3C0", borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
-                          >
-                            Plan Capture
-                          </button>
-                        ) : null}
+                        <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                          {onPlanInspection && inspection.status !== "cancelled" ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const context = buildPlanningContext(inspection);
+                                if (context) onPlanInspection(context);
+                              }}
+                              style={{ border: `1px solid rgba(244,90,30,.4)`, background: "rgba(244,90,30,.10)", color: "#FFD3C0", borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                            >
+                              Plan Capture
+                            </button>
+                          ) : null}
+                          {inspection.status !== "cancelled" ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedInspectionId(inspection.id)}
+                              style={{ border: `1px solid ${selectedInspectionId === inspection.id ? "rgba(112,214,160,.45)" : LINE}`, background: selectedInspectionId === inspection.id ? "rgba(112,214,160,.09)" : PANEL_2, color: selectedInspectionId === inspection.id ? GREEN : TEXT, borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                            >
+                              Review Evidence
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   ))
                 )}
               </Card>
+
+              {selectedReviewInspection ? (
+                <DominicInspectionEvidenceReview
+                  inspection={selectedReviewInspection}
+                  asset={{
+                    id: selectedAsset.id,
+                    name: selectedAsset.name,
+                    asset_type: selectedAsset.asset_type,
+                  }}
+                  onChanged={() => refresh()}
+                />
+              ) : null}
             </>
           ) : (
             <Card style={{ padding: 24, minHeight: 260, display: "grid", placeItems: "center", textAlign: "center" }}>

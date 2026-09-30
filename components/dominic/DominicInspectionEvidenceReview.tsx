@@ -343,7 +343,9 @@ export default function DominicInspectionEvidenceReview({
       await onChanged?.();
       setMessage(
         action === "confirm"
-          ? "Finding confirmed and converted into a tracked DOMINIC issue."
+          ? body?.reusedIssue
+            ? "Finding confirmed as another observation of an existing DOMINIC issue. Issue history updated."
+            : "Finding confirmed and converted into a new tracked DOMINIC issue."
           : "Candidate finding dismissed.",
       );
     } catch (error) {
@@ -415,7 +417,11 @@ export default function DominicInspectionEvidenceReview({
       });
       await load();
       await onChanged?.();
-      setMessage("Operator finding recorded as a tracked issue.");
+      setMessage(
+        body?.reusedIssue
+          ? "Operator finding linked to an existing issue and recorded as progression."
+          : "Operator finding recorded as a new tracked issue.",
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Operator finding could not be saved.");
     } finally {

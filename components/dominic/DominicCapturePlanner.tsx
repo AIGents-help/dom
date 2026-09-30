@@ -1044,7 +1044,7 @@ export default function DominicCapturePlanner({
       .replace(/^-|-$/g, "")
       .slice(0, 120) || `${capture.id}.jpg`;
     const storagePath =
-      `${userId}/dominic-inspections/${inspectionContext.inspectionId}/${Date.now()}-${capture.id}-${safeName}`;
+      `${userId}/dominic-inspections/${inspectionContext.inspectionId}/${capture.capturedAtMs}-${capture.id}-${safeName}`;
 
     const { error: uploadError } = await sb.storage
       .from("pilot-media")

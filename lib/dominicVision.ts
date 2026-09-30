@@ -24,6 +24,64 @@ export type DominicVisionScreening = {
   limitations: string[];
 };
 
+
+export const DOMINIC_VISION_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    summary: { type: "string" },
+    candidates: {
+      type: "array",
+      maxItems: 12,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          finding_type: { type: "string" },
+          tracking_key: { type: "string" },
+          title: { type: "string" },
+          description: { type: "string" },
+          severity: { type: "string", enum: ["info", "low", "medium", "high"] },
+          confidence: { type: "number", minimum: 0, maximum: 1 },
+          region: {
+            anyOf: [
+              {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  x: { type: "number", minimum: 0, maximum: 1 },
+                  y: { type: "number", minimum: 0, maximum: 1 },
+                  width: { type: "number", minimum: 0, maximum: 1 },
+                  height: { type: "number", minimum: 0, maximum: 1 },
+                },
+                required: ["x", "y", "width", "height"],
+              },
+              { type: "null" },
+            ],
+          },
+          recommended_action: { type: "string" },
+        },
+        required: [
+          "finding_type",
+          "tracking_key",
+          "title",
+          "description",
+          "severity",
+          "confidence",
+          "region",
+          "recommended_action",
+        ],
+      },
+    },
+    limitations: {
+      type: "array",
+      items: { type: "string" },
+      maxItems: 12,
+    },
+  },
+  required: ["summary", "candidates", "limitations"],
+} as const;
+
 const severities = new Set<DominicVisionSeverity>(["info", "low", "medium", "high"]);
 
 function round6(value: number) {
@@ -151,8 +209,7 @@ export function buildDominicVisionPrompt(input: {
     "A candidate is not a diagnosis. Prefer zero candidates over inventing a defect.",
     "For corrosion-like discoloration, coating damage, staining, deformation, debris, vegetation, cracks, missing components, loose-looking components, or other visible irregularities, describe what is actually visible.",
     "Severity is triage priority only, not engineering severity. Never output critical from image-only screening.",
-    "Return JSON only with this exact shape:",
-    '{"summary":"short image-level summary","candidates":[{"finding_type":"snake_case_type","tracking_key":"stable_snake_case_identity_for_same_visible_condition","title":"short title","description":"visible evidence only","severity":"info|low|medium|high","confidence":0.0,"region":{"x":0.0,"y":0.0,"width":0.0,"height":0.0},"recommended_action":"human review or additional capture recommendation"}],"limitations":["important limitation"]}',
+    "Return only the fields required by the DOMINIC screening schema.",
     "Region values are normalized 0..1 relative to the full image. Use null for region if localization is uncertain.",
     "tracking_key should describe the same visible condition consistently across repeat inspections when possible. Use visible feature + approximate location, not a diagnosis or root cause.",
     `Asset: ${input.assetName} (${input.assetType})`,

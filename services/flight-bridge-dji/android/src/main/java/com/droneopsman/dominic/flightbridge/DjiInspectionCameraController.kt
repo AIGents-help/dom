@@ -81,6 +81,7 @@ class DjiInspectionCameraController(
     fun capturePhoto(
         captureId: String,
         checkpointId: String?,
+        onAccepted: () -> Unit,
         onSuccess: (DjiInspectionMediaCapture) -> Unit,
         onFailure: (String) -> Unit,
     ) {
@@ -106,6 +107,7 @@ class DjiInspectionCameraController(
             )
             .subscribe(
                 {
+                    onAccepted()
                     scheduler.schedule(
                         {
                             refreshAndDownloadLatest(

@@ -44,6 +44,10 @@ import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { buildDominicDjiMissionPackage, downloadDominicDjiMissionPackage } from "@/lib/aircraft/djiMissionPackage";
 import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
+import {
+  decideRealtimeInspectionScreening,
+  realtimeScreeningReasonLabel,
+} from "@/lib/dominicRealtimeScreening";
 import CapturePlanningMap from "@/components/dominic/CapturePlanningMap";
 import { resolveCaptureCameraProfile } from "@/lib/captureCameraProfiles";
 import {
@@ -361,7 +365,9 @@ export default function DominicCapturePlanner({
   const [missionControlMessage, setMissionControlMessage] = useState<string | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
   const bridgeMediaUnsubscribeRef = useRef<(() => void) | null>(null);
+  const realtimeScreeningQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [automaticMediaCount, setAutomaticMediaCount] = useState(0);
+  const [automaticScreeningCount, setAutomaticScreeningCount] = useState(0);
   const [automaticMediaStatus, setAutomaticMediaStatus] = useState<string | null>(null);
   const [benchReport, setBenchReport] = useState<BenchReadinessReport | null>(null);
   const [benchRunning, setBenchRunning] = useState(false);
@@ -1020,8 +1026,15 @@ export default function DominicCapturePlanner({
     capture: UniversalMediaCapture,
     file: File,
     quality: ImageQualityAssessment,
-  ) => {
-    if (!inspectionContext) return false;
+  ): Promise<{
+    persisted: boolean;
+    created: boolean;
+    mediaId: string | null;
+    sensorMode: string | null;
+  }> => {
+    if (!inspectionContext) {
+      return { persisted: false, created: false, mediaId: null, sensorMode: null };
+    }
 
     const sb = getSupabaseBrowser();
     const { data: sessionData } = await sb.auth.getSession();
@@ -1030,12 +1043,19 @@ export default function DominicCapturePlanner({
 
     const { data: existing, error: existingError } = await sb
       .from("dominic_inspection_media")
-      .select("id")
+      .select("id,sensor_mode")
       .eq("user_id", userId)
       .eq("source_capture_id", capture.id)
       .maybeSingle();
     if (existingError) throw existingError;
-    if (existing) return true;
+    if (existing) {
+      return {
+        persisted: true,
+        created: false,
+        mediaId: existing.id,
+        sensorMode: existing.sensor_mode,
+      };
+    }
 
     const safeName = (capture.filename ?? file.name ?? `${capture.id}.jpg`)
       .normalize("NFKD")
@@ -1061,7 +1081,7 @@ export default function DominicCapturePlanner({
         ? payloadKind
         : inspectionContext.sensorModes[0] ?? "rgb";
 
-    const { error: rowError } = await sb
+    const { data: insertedMedia, error: rowError } = await sb
       .from("dominic_inspection_media")
       .insert({
         user_id: userId,
@@ -1103,9 +1123,11 @@ export default function DominicCapturePlanner({
           assetName: inspectionContext.assetName,
           inspectionType: inspectionContext.inspectionType,
         },
-      });
+      })
+      .select("id,sensor_mode")
+      .single();
 
-    if (rowError) {
+    if (rowError || !insertedMedia) {
       await sb.storage.from("pilot-media").remove([storagePath]);
       throw rowError;
     }
@@ -1117,7 +1139,85 @@ export default function DominicCapturePlanner({
       .eq("user_id", userId)
       .eq("status", "planned");
 
-    return true;
+    return {
+      persisted: true,
+      created: true,
+      mediaId: insertedMedia.id,
+      sensorMode: insertedMedia.sensor_mode,
+    };
+  };
+
+  const queueRealtimeInspectionScreening = (
+    mediaId: string,
+    sensorMode: string,
+    quality: ImageQualityAssessment,
+  ) => {
+    if (!inspectionContext) return;
+
+    const decision = decideRealtimeInspectionScreening({
+      hasInspectionContext: true,
+      inspectionType: inspectionContext.inspectionType,
+      sensorMode,
+      mediaType: "image",
+      qualityUsable: quality.usable,
+    });
+
+    if (!decision.screen) {
+      setAutomaticMediaStatus(
+        `Evidence saved to ${inspectionContext.assetName}. ${realtimeScreeningReasonLabel(decision.reason)}`,
+      );
+      return;
+    }
+
+    realtimeScreeningQueueRef.current = realtimeScreeningQueueRef.current
+      .catch(() => undefined)
+      .then(async () => {
+        setAutomaticMediaStatus(
+          `Evidence saved to ${inspectionContext.assetName} · DOMINIC screening in progress…`,
+        );
+
+        const sb = getSupabaseBrowser();
+        const { data: sessionData } = await sb.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) throw new Error("Your DOMINIC session expired.");
+
+        const response = await fetch(
+          `/api/dominic/inspections/${inspectionContext.inspectionId}/analyze-media`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ mediaId }),
+          },
+        );
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          if (body?.code === "VISION_NOT_CONFIGURED") {
+            setAutomaticMediaStatus(
+              `Evidence saved to ${inspectionContext.assetName}. AI screening is not configured on this deployment.`,
+            );
+            return;
+          }
+          throw new Error(body?.error ?? "Automatic DOMINIC screening failed.");
+        }
+
+        const candidateCount = Number(body?.candidateCount ?? 0);
+        setAutomaticScreeningCount((count) => count + 1);
+        setAutomaticMediaStatus(
+          candidateCount > 0
+            ? `DOMINIC screened the new capture and flagged ${candidateCount} candidate finding${candidateCount === 1 ? "" : "s"} for review.`
+            : "DOMINIC screened the new capture and did not flag a visible anomaly.",
+        );
+      })
+      .catch((error) => {
+        setAutomaticMediaStatus(
+          error instanceof Error
+            ? `Evidence saved, but automatic screening failed: ${error.message}`
+            : "Evidence saved, but automatic screening failed.",
+        );
+      });
   };
 
   const ingestBridgeMediaCapture = async (capture: UniversalMediaCapture) => {
@@ -1166,13 +1266,30 @@ export default function DominicCapturePlanner({
           : "Aircraft capture automatically passed DOMINIC image-quality analysis.",
       );
 
-      const persisted = await persistInspectionBridgeMedia(capture, file, quality);
+      const persistence = await persistInspectionBridgeMedia(capture, file, quality);
       setAutomaticMediaCount((count) => count + 1);
-      setAutomaticMediaStatus(
-        `${capture.filename ?? capture.id} analyzed automatically · sharpness ${Math.round(quality.sharpnessScore * 100)}% · exposure ${Math.round(quality.exposureScore * 100)}%${
-          persisted && inspectionContext ? ` · saved to ${inspectionContext.assetName} inspection evidence` : ""
-        }.`,
-      );
+
+      if (
+        persistence.persisted &&
+        persistence.created &&
+        persistence.mediaId &&
+        persistence.sensorMode &&
+        inspectionContext
+      ) {
+        queueRealtimeInspectionScreening(
+          persistence.mediaId,
+          persistence.sensorMode,
+          quality,
+        );
+      } else {
+        setAutomaticMediaStatus(
+          `${capture.filename ?? capture.id} analyzed automatically · sharpness ${Math.round(quality.sharpnessScore * 100)}% · exposure ${Math.round(quality.exposureScore * 100)}%${
+            persistence.persisted && inspectionContext
+              ? ` · saved to ${inspectionContext.assetName} inspection evidence`
+              : ""
+          }.`,
+        );
+      }
     } catch (error) {
       setImageAnalysisStatus("error");
       setAutomaticMediaStatus(
@@ -3559,10 +3676,12 @@ export default function DominicCapturePlanner({
                   </div>
                   <div style={{ borderTop: `1px solid rgba(112,214,160,.16)`, marginTop: 7, paddingTop: 7 }}>
                     <div style={{ color: "#BFEBD2", fontSize: 8, fontWeight: 900 }}>
-                      Automatic media ingestion · {automaticMediaCount} analyzed
+                      Automatic inspection ingestion · {automaticMediaCount} captured · {automaticScreeningCount} AI-screened
                     </div>
                     <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 3 }}>
-                      {automaticMediaStatus ?? "Waiting for aircraft capture events. Photos with a bridge media URL are quality-checked and added to coverage automatically."}
+                      {automaticMediaStatus ?? (inspectionContext
+                        ? "Waiting for aircraft capture events. Eligible RGB/zoom inspection images are quality-checked, saved to the active asset, and queued for DOMINIC screening automatically."
+                        : "Waiting for aircraft capture events. Photos are quality-checked and added to coverage automatically. Start from Asset Intelligence to attach them to an inspection.")}
                     </div>
                   </div>
                   <div style={{ borderTop: `1px solid rgba(112,214,160,.16)`, marginTop: 8, paddingTop: 8 }}>

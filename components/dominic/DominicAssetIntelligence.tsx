@@ -111,7 +111,9 @@ type IssueRow = {
   severity: "info" | "low" | "medium" | "high" | "critical";
   status: "open" | "monitoring" | "in_progress" | "resolved" | "verified" | "dismissed";
   recommended_action: string | null;
+  first_seen_at: string;
   last_seen_at: string;
+  metadata: Record<string, unknown>;
 };
 
 type NewAssetForm = {
@@ -230,7 +232,7 @@ export default function DominicAssetIntelligence({
           .limit(100),
         sb
           .from("dominic_issues")
-          .select("id,asset_id,issue_type,title,severity,status,recommended_action,last_seen_at")
+          .select("id,asset_id,issue_type,title,severity,status,recommended_action,first_seen_at,last_seen_at,metadata")
           .order("last_seen_at", { ascending: false })
           .limit(100),
         sb
@@ -855,7 +857,15 @@ export default function DominicAssetIntelligence({
                       <strong style={{ fontSize: 10 }}>{issue.title}</strong>
                       <span style={{ color: severityColor(issue.severity), fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>{issue.severity}</span>
                     </div>
-                    <div style={{ color: MUTED, fontSize: 8, marginTop: 3 }}>{issue.issue_type.replaceAll("_", " ")} · {issue.status.replaceAll("_", " ")}</div>
+                    <div style={{ color: MUTED, fontSize: 8, marginTop: 3 }}>
+                      {issue.issue_type.replaceAll("_", " ")} · {issue.status.replaceAll("_", " ")}
+                    </div>
+                    <div style={{ color: "#B9C3CC", fontSize: 8, marginTop: 3 }}>
+                      First seen {formatWhen(issue.first_seen_at)} · Last seen {formatWhen(issue.last_seen_at)}
+                      {typeof issue.metadata?.recurrenceCount === "number" && issue.metadata.recurrenceCount > 0
+                        ? ` · observed again ${issue.metadata.recurrenceCount}×`
+                        : ""}
+                    </div>
                     {issue.recommended_action ? <div style={{ color: "#CBD3DA", fontSize: 8, marginTop: 5 }}><Wrench size={11} style={{ display: "inline", marginRight: 4 }} />{issue.recommended_action}</div> : null}
                   </div>
                 ))

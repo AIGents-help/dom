@@ -182,6 +182,7 @@ export async function POST(
     const candidateRows = screening.candidates.map((candidate) => {
       const candidateFingerprint = `vision:${media.id}:${fingerprint([
         candidate.finding_type,
+        candidate.tracking_key || candidate.title.toLowerCase(),
         candidate.title.toLowerCase(),
         candidate.description.toLowerCase(),
       ].join("|"))}`;
@@ -210,6 +211,7 @@ export async function POST(
           mediaId: media.id,
           candidate: true,
           recommendedAction: candidate.recommended_action,
+          trackingKey: candidate.tracking_key || null,
           screeningSummary: screening.summary,
           limitations: screening.limitations,
         },

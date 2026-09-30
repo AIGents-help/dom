@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { deriveIssueTrackingKey, severityRank } from "@/lib/dominicIssueTracking";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -94,6 +95,7 @@ export async function POST(
       status: "confirmed",
       issueId: existingLink.issue_id,
       alreadyLinked: true,
+      reusedIssue: true,
     }, { headers: { "Cache-Control": "no-store" } });
   }
 
@@ -101,45 +103,121 @@ export async function POST(
     finding.detector && typeof finding.detector === "object"
       ? (finding.detector as Record<string, unknown>)
       : {};
+  const spatialAnchor =
+    finding.spatial_anchor && typeof finding.spatial_anchor === "object"
+      ? (finding.spatial_anchor as Record<string, unknown>)
+      : {};
   const recommendedAction =
     typeof detector.recommendedAction === "string"
       ? detector.recommendedAction.slice(0, 1000)
       : null;
   const mediaId = typeof detector.mediaId === "string" ? detector.mediaId : null;
+  const issueKey = deriveIssueTrackingKey({
+    findingType: finding.finding_type,
+    title: finding.title,
+    spatialAnchor,
+    detector,
+  });
+  const linkedAt = new Date().toISOString();
 
-  const { data: issue, error: issueError } = await admin
+  const { data: previousIssue } = await admin
     .from("dominic_issues")
-    .insert({
-      user_id: user.id,
-      asset_id: finding.asset_id,
-      first_finding_id: finding.id,
-      current_finding_id: finding.id,
-      issue_type: finding.finding_type,
-      title: finding.title,
-      description: finding.description,
-      severity: finding.severity,
-      status: "open",
-      confidence: finding.confidence,
-      recommended_action: recommendedAction,
-      first_seen_at: finding.observed_at,
-      last_seen_at: finding.observed_at,
-      metadata: {
-        source: "confirmed_finding",
-        inspectionId: finding.inspection_id,
-        sensorMode: finding.sensor_mode,
-        latitude: finding.latitude,
-        longitude: finding.longitude,
-        spatialAnchor: finding.spatial_anchor,
-      },
-    })
-    .select("id")
-    .single();
+    .select("id,severity,status,confidence,recommended_action,metadata,last_seen_at")
+    .eq("user_id", user.id)
+    .eq("asset_id", finding.asset_id)
+    .eq("issue_key", issueKey)
+    .in("status", ["open", "monitoring", "in_progress"])
+    .order("last_seen_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (issueError || !issue) {
-    return NextResponse.json({ error: "Confirmed finding could not be converted into an issue." }, { status: 500 });
+  let issueId: string;
+  let reusedIssue = false;
+
+  if (previousIssue) {
+    issueId = previousIssue.id;
+    reusedIssue = true;
+    const severity =
+      severityRank(finding.severity) > severityRank(previousIssue.severity)
+        ? finding.severity
+        : previousIssue.severity;
+    const confidence =
+      finding.confidence === null
+        ? previousIssue.confidence
+        : previousIssue.confidence === null
+          ? finding.confidence
+          : Math.max(finding.confidence, previousIssue.confidence);
+
+    const previousMetadata =
+      previousIssue.metadata && typeof previousIssue.metadata === "object"
+        ? previousIssue.metadata as Record<string, unknown>
+        : {};
+
+    const { error: updateIssueError } = await admin
+      .from("dominic_issues")
+      .update({
+        current_finding_id: finding.id,
+        severity,
+        confidence,
+        recommended_action: recommendedAction ?? previousIssue.recommended_action,
+        last_seen_at: finding.observed_at,
+        metadata: {
+          ...previousMetadata,
+          latestInspectionId: finding.inspection_id,
+          latestSensorMode: finding.sensor_mode,
+          latestLatitude: finding.latitude,
+          latestLongitude: finding.longitude,
+          latestSpatialAnchor: spatialAnchor,
+          recurrenceCount:
+            typeof previousMetadata.recurrenceCount === "number"
+              ? previousMetadata.recurrenceCount + 1
+              : 1,
+        },
+      })
+      .eq("id", issueId)
+      .eq("user_id", user.id);
+
+    if (updateIssueError) {
+      return NextResponse.json({ error: "Existing issue could not be updated." }, { status: 500 });
+    }
+  } else {
+    const { data: issue, error: issueError } = await admin
+      .from("dominic_issues")
+      .insert({
+        user_id: user.id,
+        asset_id: finding.asset_id,
+        first_finding_id: finding.id,
+        current_finding_id: finding.id,
+        issue_key: issueKey,
+        issue_type: finding.finding_type,
+        title: finding.title,
+        description: finding.description,
+        severity: finding.severity,
+        status: "open",
+        confidence: finding.confidence,
+        recommended_action: recommendedAction,
+        first_seen_at: finding.observed_at,
+        last_seen_at: finding.observed_at,
+        metadata: {
+          source: "confirmed_finding",
+          inspectionId: finding.inspection_id,
+          latestInspectionId: finding.inspection_id,
+          sensorMode: finding.sensor_mode,
+          latitude: finding.latitude,
+          longitude: finding.longitude,
+          spatialAnchor,
+          recurrenceCount: 0,
+        },
+      })
+      .select("id")
+      .single();
+
+    if (issueError || !issue) {
+      return NextResponse.json({ error: "Confirmed finding could not be converted into an issue." }, { status: 500 });
+    }
+    issueId = issue.id;
   }
 
-  const linkedAt = new Date().toISOString();
   const writes: Array<PromiseLike<unknown>> = [
     admin
       .from("dominic_findings")
@@ -150,25 +228,29 @@ export async function POST(
       .from("dominic_issue_findings")
       .insert({
         user_id: user.id,
-        issue_id: issue.id,
+        issue_id: issueId,
         finding_id: finding.id,
         inspection_id: finding.inspection_id,
-        relation_type: "discovered",
+        relation_type: reusedIssue ? "progression" : "discovered",
         linked_at: linkedAt,
       }),
     admin
       .from("dominic_issue_events")
       .insert({
         user_id: user.id,
-        issue_id: issue.id,
+        issue_id: issueId,
         inspection_id: finding.inspection_id,
         finding_id: finding.id,
-        event_type: "confirmed",
-        summary: `Finding confirmed by operator: ${finding.title}`,
+        event_type: reusedIssue ? "observed_again" : "confirmed",
+        summary: reusedIssue
+          ? `Issue observed again during inspection: ${finding.title}`
+          : `Finding confirmed by operator: ${finding.title}`,
         details: {
+          issueKey,
           severity: finding.severity,
           confidence: finding.confidence,
           sensorMode: finding.sensor_mode,
+          recurrence: reusedIssue,
         },
       }),
   ];
@@ -198,7 +280,8 @@ export async function POST(
             captured_at: media.captured_at,
             metadata: {
               ...(media.metadata && typeof media.metadata === "object" ? media.metadata : {}),
-              spatialAnchor: finding.spatial_anchor,
+              spatialAnchor,
+              issueKey,
             },
           }),
       );
@@ -211,7 +294,11 @@ export async function POST(
     .find((result) => result?.error)?.error;
   if (writeError) {
     return NextResponse.json(
-      { error: "Issue was created, but one or more evidence/history records could not be linked." },
+      {
+        error: reusedIssue
+          ? "Issue was updated, but one or more evidence/history records could not be linked."
+          : "Issue was created, but one or more evidence/history records could not be linked.",
+      },
       { status: 500 },
     );
   }
@@ -243,8 +330,10 @@ export async function POST(
   return NextResponse.json({
     findingId: finding.id,
     status: "confirmed",
-    issueId: issue.id,
+    issueId,
+    issueKey,
     alreadyLinked: false,
+    reusedIssue,
   }, {
     headers: { "Cache-Control": "no-store" },
   });

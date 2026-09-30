@@ -150,6 +150,18 @@ type SavedCapturePlan = {
   updated_at: string;
 };
 
+type LiveInspectionFinding = {
+  id: string;
+  finding_type: string;
+  title: string;
+  description?: string | null;
+  severity: "info" | "low" | "medium" | "high" | "critical";
+  review_status: "detected" | "needs_review" | "confirmed" | "dismissed";
+  confidence: number | null;
+  sensor_mode?: string | null;
+  observed_at?: string;
+};
+
 type RecentFlightRun = {
   id: string;
   mission_type: CaptureMissionType;
@@ -369,6 +381,9 @@ export default function DominicCapturePlanner({
   const [automaticMediaCount, setAutomaticMediaCount] = useState(0);
   const [automaticScreeningCount, setAutomaticScreeningCount] = useState(0);
   const [automaticMediaStatus, setAutomaticMediaStatus] = useState<string | null>(null);
+  const [liveInspectionFindings, setLiveInspectionFindings] = useState<LiveInspectionFinding[]>([]);
+  const [liveFindingReviewBusyId, setLiveFindingReviewBusyId] = useState<string | null>(null);
+  const [followUpFindingId, setFollowUpFindingId] = useState<string | null>(null);
   const [benchReport, setBenchReport] = useState<BenchReadinessReport | null>(null);
   const [benchRunning, setBenchRunning] = useState(false);
   const [benchRequireRtk, setBenchRequireRtk] = useState(false);
@@ -428,6 +443,9 @@ export default function DominicCapturePlanner({
   }, []);
 
   useEffect(() => {
+    setLiveInspectionFindings([]);
+    setFollowUpFindingId(null);
+    setAutomaticScreeningCount(0);
     if (!inspectionContext) return;
 
     setPlanName(
@@ -1204,6 +1222,18 @@ export default function DominicCapturePlanner({
         }
 
         const candidateCount = Number(body?.candidateCount ?? 0);
+        const screenedFindings = Array.isArray(body?.findings)
+          ? (body.findings as LiveInspectionFinding[]).filter(
+              (finding) => finding.review_status === "needs_review",
+            )
+          : [];
+        if (screenedFindings.length) {
+          setLiveInspectionFindings((current) => {
+            const byId = new Map(current.map((finding) => [finding.id, finding]));
+            for (const finding of screenedFindings) byId.set(finding.id, finding);
+            return Array.from(byId.values()).slice(-12);
+          });
+        }
         setAutomaticScreeningCount((count) => count + 1);
         setAutomaticMediaStatus(
           candidateCount > 0
@@ -1218,6 +1248,57 @@ export default function DominicCapturePlanner({
             : "Evidence saved, but automatic screening failed.",
         );
       });
+  };
+
+  const reviewLiveInspectionFinding = async (
+    findingId: string,
+    action: "confirm" | "dismiss",
+  ) => {
+    setLiveFindingReviewBusyId(findingId);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data: sessionData } = await sb.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Your DOMINIC session expired.");
+
+      const response = await fetch(`/api/dominic/findings/${findingId}/review`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ action }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error ?? "Finding review failed.");
+      }
+
+      setLiveInspectionFindings((current) =>
+        current.map((finding) =>
+          finding.id === findingId
+            ? {
+                ...finding,
+                review_status: action === "confirm" ? "confirmed" : "dismissed",
+              }
+            : finding,
+        ),
+      );
+      if (followUpFindingId === findingId) setFollowUpFindingId(null);
+      setAutomaticMediaStatus(
+        action === "confirm"
+          ? body?.reusedIssue
+            ? "Candidate confirmed. DOMINIC updated the existing issue history for this asset."
+            : "Candidate confirmed. DOMINIC created a tracked issue for this asset."
+          : "Candidate dismissed by the pilot/operator.",
+      );
+    } catch (error) {
+      setAutomaticMediaStatus(
+        error instanceof Error ? error.message : "Finding review failed.",
+      );
+    } finally {
+      setLiveFindingReviewBusyId(null);
+    }
   };
 
   const ingestBridgeMediaCapture = async (capture: UniversalMediaCapture) => {
@@ -2724,6 +2805,81 @@ export default function DominicCapturePlanner({
           ))}
         </div>
       </section>
+
+      {inspectionContext && liveInspectionFindings.some((finding) => finding.review_status === "needs_review") ? (
+        <section style={{ margin: "10px 14px 0", border: `1px solid rgba(255,184,107,.38)`, borderRadius: 12, background: "rgba(255,184,107,.055)", overflow: "hidden" }}>
+          <div style={{ padding: "10px 12px", borderBottom: `1px solid rgba(255,184,107,.22)`, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ color: V.amber, fontSize: 9, fontWeight: 900, letterSpacing: ".09em", textTransform: "uppercase" }}>
+                Live Inspection Intelligence
+              </div>
+              <div style={{ color: V.text, fontSize: 13, fontWeight: 900, marginTop: 3 }}>
+                DOMINIC found something that needs a human look.
+              </div>
+              <div style={{ color: V.muted, fontSize: 8, marginTop: 3 }}>
+                {inspectionContext.assetName} · candidates are visual screening only until you confirm them.
+              </div>
+            </div>
+            <div style={{ color: V.amber, fontSize: 9, fontWeight: 900 }}>
+              {liveInspectionFindings.filter((finding) => finding.review_status === "needs_review").length} NEED REVIEW
+            </div>
+          </div>
+          <div style={{ display: "grid", gap: 7, padding: 10 }}>
+            {liveInspectionFindings
+              .filter((finding) => finding.review_status === "needs_review")
+              .map((finding) => (
+                <div key={finding.id} style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: V.panel, padding: 9 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start" }}>
+                    <div>
+                      <div style={{ color: V.text, fontSize: 10, fontWeight: 900 }}>{finding.title}</div>
+                      {finding.description ? (
+                        <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 3 }}>{finding.description}</div>
+                      ) : null}
+                      <div style={{ color: V.muted, fontSize: 7, marginTop: 5 }}>
+                        {finding.finding_type.replaceAll("_", " ")}
+                        {finding.sensor_mode ? ` · ${finding.sensor_mode.toUpperCase()}` : ""}
+                        {finding.confidence !== null ? ` · ${Math.round(finding.confidence * 100)}% model confidence` : ""}
+                      </div>
+                    </div>
+                    <span style={{ color: finding.severity === "high" || finding.severity === "critical" ? "#FF9A86" : finding.severity === "medium" ? V.amber : V.green, fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>
+                      {finding.severity}
+                    </span>
+                  </div>
+                  {followUpFindingId === finding.id ? (
+                    <div style={{ marginTop: 7, border: `1px solid rgba(244,90,30,.28)`, borderRadius: 7, background: "rgba(244,90,30,.07)", color: "#FFD3C0", padding: "7px 8px", fontSize: 8, lineHeight: 1.4 }}>
+                      Follow-up requested: capture a closer or alternate-angle RGB/zoom image of this same visible condition while you are still on site. DOMINIC will screen the new evidence automatically.
+                    </div>
+                  ) : null}
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                    <button
+                      type="button"
+                      disabled={liveFindingReviewBusyId === finding.id}
+                      onClick={() => void reviewLiveInspectionFinding(finding.id, "confirm")}
+                      style={{ border: `1px solid rgba(112,214,160,.35)`, background: "rgba(112,214,160,.09)", color: V.green, borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: liveFindingReviewBusyId === finding.id ? "wait" : "pointer" }}
+                    >
+                      Confirm Issue
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFollowUpFindingId((current) => current === finding.id ? null : finding.id)}
+                      style={{ border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.08)", color: "#FFD3C0", borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                    >
+                      {followUpFindingId === finding.id ? "Cancel Follow-up" : "Capture Another View"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={liveFindingReviewBusyId === finding.id}
+                      onClick={() => void reviewLiveInspectionFinding(finding.id, "dismiss")}
+                      style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.muted, borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: liveFindingReviewBusyId === finding.id ? "wait" : "pointer" }}
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </section>
+      ) : null}
 
       <section style={{ margin: "10px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: "#0D1319", overflow: "hidden", display: plannerView === "plan" ? "block" : "none" }}>
         {planningSource === "map" ? (

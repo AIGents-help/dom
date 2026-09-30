@@ -3674,11 +3674,31 @@ export default function DominicCapturePlanner({
                   </div>
                   <div style={{ borderTop: `1px solid rgba(112,214,160,.16)`, marginTop: 7, paddingTop: 7 }}>
                     <div style={{ color: "#BFEBD2", fontSize: 8, fontWeight: 900 }}>
-                      Automatic media ingestion · {automaticMediaCount} analyzed
+                      Automatic media ingestion · {automaticMediaCount} received
                     </div>
                     <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 3 }}>
                       {automaticMediaStatus ?? "Waiting for aircraft capture events. Photos with a bridge media URL are quality-checked and added to coverage automatically."}
                     </div>
+                    {inspectionContext ? (
+                      <div style={{ marginTop: 7, border: `1px solid rgba(244,90,30,.18)`, background: "rgba(244,90,30,.04)", borderRadius: 7, padding: 7 }}>
+                        <div style={{ color: "#FFD3C0", fontSize: 8, fontWeight: 900 }}>
+                          Linked inspection · {inspectionContext.assetName}
+                        </div>
+                        <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 3 }}>
+                          {inspectionMediaCount} bridge capture{inspectionMediaCount === 1 ? "" : "s"} saved to this inspection during this session.
+                        </div>
+                        <label style={{ display: "grid", gridTemplateColumns: "16px minmax(0,1fr)", gap: 6, alignItems: "start", color: "#DCE3EA", fontSize: 8, lineHeight: 1.4, marginTop: 6 }}>
+                          <input
+                            type="checkbox"
+                            checked={autoScreenInspectionMedia}
+                            onChange={(event) => setAutoScreenInspectionMedia(event.target.checked)}
+                          />
+                          <span>
+                            Screen each usable saved image for visible candidate anomalies. Findings still require human confirmation before they become issues.
+                          </span>
+                        </label>
+                      </div>
+                    ) : null}
                   </div>
                   <div style={{ borderTop: `1px solid rgba(112,214,160,.16)`, marginTop: 8, paddingTop: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>

@@ -96,8 +96,18 @@ export async function POST(
     return NextResponse.json({ error: "Inspection context is invalid." }, { status: 409 });
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
+  const vercelGatewayToken =
+    process.env.VERCEL_OIDC_TOKEN?.trim() ||
+    process.env.AI_GATEWAY_API_KEY?.trim() ||
+    process.env.VERCEL_AI_GATEWAY_KEY?.trim();
+  const openAiKey = process.env.OPENAI_API_KEY?.trim();
+  const provider = vercelGatewayToken ? "vercel-ai-gateway" : openAiKey ? "openai" : null;
+  const providerToken = vercelGatewayToken || openAiKey;
+  const providerUrl = vercelGatewayToken
+    ? "https://ai-gateway.vercel.sh/v1/responses"
+    : "https://api.openai.com/v1/responses";
+
+  if (!provider || !providerToken) {
     return NextResponse.json(
       {
         error: "DOMINIC AI screening is not configured on this deployment.",
@@ -115,7 +125,9 @@ export async function POST(
     return NextResponse.json({ error: "Inspection evidence could not be opened for analysis." }, { status: 502 });
   }
 
-  const model = process.env.DOMINIC_VISION_MODEL?.trim() || "gpt-5.6-terra";
+  const model =
+    process.env.DOMINIC_VISION_MODEL?.trim() ||
+    (provider === "vercel-ai-gateway" ? "openai/gpt-5.6-terra" : "gpt-5.6-terra");
   const prompt = buildDominicVisionPrompt({
     assetName: asset.name,
     assetType: asset.asset_type,
@@ -140,10 +152,10 @@ export async function POST(
   ]);
 
   try {
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const response = await fetch(providerUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${providerToken}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -193,7 +205,7 @@ export async function POST(
           imageRegion: candidate.region,
         },
         detector: {
-          provider: "openai",
+          provider,
           model,
           mediaId: media.id,
           candidate: true,
@@ -233,7 +245,7 @@ export async function POST(
         .update({
           analysis_status: "review",
           analysis_summary: {
-            provider: "openai",
+            provider,
             model,
             summary: screening.summary,
             candidateCount: screening.candidates.length,
@@ -249,7 +261,7 @@ export async function POST(
           status: "review",
           ai_summary: {
             latestMediaId: media.id,
-            provider: "openai",
+            provider,
             model,
             summary: screening.summary,
             candidateCount: screening.candidates.length,
@@ -286,7 +298,7 @@ export async function POST(
       .update({
         analysis_status: "failed",
         analysis_summary: {
-          provider: "openai",
+          provider,
           model,
           failedAt: new Date().toISOString(),
           error: message.slice(0, 500),

@@ -33,6 +33,7 @@ import DominicPreviewEnvironment from "@/components/dominic/DominicPreviewEnviro
 import DominicHub from "@/components/dominic/DominicHub";
 import DominicCapturePlanner from "@/components/dominic/DominicCapturePlanner";
 import DominicWelcome from "@/components/dominic/DominicWelcome";
+import DominicAssetIntelligence from "@/components/dominic/DominicAssetIntelligence";
 import { dominicPlanLabel, type DominicAccess } from "@/lib/dominicEntitlements";
 
 const ORANGE = "#F45A1E";
@@ -65,6 +66,7 @@ const mappingModules = new Set([
 
 const nav = [
   { label: "Home", icon: Home, upcoming: false, hub: false },
+  { label: "Asset Intelligence", icon: Factory, upcoming: false, hub: false },
   { label: "Projects", icon: FolderKanban, upcoming: false, hub: false },
   { label: "Map Viewer", icon: Map, upcoming: false, hub: false },
   { label: "Processing", icon: Activity, upcoming: false, hub: false },
@@ -364,7 +366,7 @@ export default function DominicApp() {
               if (projectTool && (!activeProjectId || !projectToolsExpanded)) return null;
               const preview = Boolean(upcoming);
               const licenseLocked = mappingModules.has(label) ? !featureAccess.mapping : hub ? !featureAccess.hub : false;
-              const projectRequired = label !== "Home" && label !== "Projects" && label !== "Capture Planner" && !preview && !hub;
+              const projectRequired = label !== "Home" && label !== "Asset Intelligence" && label !== "Projects" && label !== "Capture Planner" && !preview && !hub;
               const disabled = !licenseLocked && projectRequired && !activeProjectId;
               const active = activeModule === label;
               const requiredLicense = hub ? "Organization License" : mappingModules.has(label) ? "Operator License" : null;
@@ -639,6 +641,8 @@ export default function DominicApp() {
                       if (module === "Projects") setShowProjectsSignal((value) => value + 1);
                     }}
                   />
+                ) : activeModule === "Asset Intelligence" ? (
+                  <DominicAssetIntelligence />
                 ) : activeModule === "DOMINIC HUB" ? (
                   <DominicHub />
                 ) : activeModule === "Capture Planner" ? (
@@ -671,7 +675,7 @@ export default function DominicApp() {
             bottom: "max(8px, env(safe-area-inset-bottom))",
             zIndex: 60,
             display: "grid",
-            gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+            gridTemplateColumns: "repeat(5,minmax(0,1fr))",
             gap: 6,
             padding: 6,
             border: `1px solid ${LINE}`,
@@ -683,6 +687,7 @@ export default function DominicApp() {
         >
           {[
             { label: "Home", icon: Home },
+            { label: "Asset Intelligence", icon: Factory },
             { label: "Capture Planner", icon: Crosshair },
             { label: "Projects", icon: FolderKanban },
             { label: "DOMINIC HUB", icon: Factory },
@@ -721,7 +726,7 @@ export default function DominicApp() {
                 }}
               >
                 <DockIcon size={17} />
-                <span>{label === "Capture Planner" ? "Capture" : label === "DOMINIC HUB" ? "HUB" : label}</span>
+                <span>{label === "Asset Intelligence" ? "Assets" : label === "Capture Planner" ? "Capture" : label === "DOMINIC HUB" ? "HUB" : label}</span>
               </button>
             );
           })}

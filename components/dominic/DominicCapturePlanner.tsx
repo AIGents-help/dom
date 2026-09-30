@@ -391,13 +391,6 @@ export default function DominicCapturePlanner({
 
   useEffect(() => {
     inspectionContextRef.current = inspectionContext;
-    setInspectionMediaCount(0);
-    const defaultAutoScreen = Boolean(
-      inspectionContext &&
-      ["visual", "roof", "security"].includes(inspectionContext.inspectionType),
-    );
-    setAutoScreenInspectionMedia(defaultAutoScreen);
-    autoScreenInspectionMediaRef.current = defaultAutoScreen;
   }, [inspectionContext]);
 
   useEffect(() => {
@@ -447,6 +440,13 @@ export default function DominicCapturePlanner({
 
   useEffect(() => {
     if (!inspectionContext) return;
+
+    setInspectionMediaCount(0);
+    const defaultAutoScreen = ["visual", "roof", "security"].includes(
+      inspectionContext.inspectionType,
+    );
+    setAutoScreenInspectionMedia(defaultAutoScreen);
+    autoScreenInspectionMediaRef.current = defaultAutoScreen;
 
     setPlanName(
       `${inspectionContext.assetName} · ${inspectionContext.inspectionType.replaceAll("_", " ")} inspection`,

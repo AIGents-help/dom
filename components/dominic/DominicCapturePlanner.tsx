@@ -1183,6 +1183,29 @@ export default function DominicCapturePlanner({
     }
   };
 
+  const captureConnectedInspectionPhoto = async () => {
+    const adapter = bridgeAdapterRef.current;
+    if (!adapter || bridgeStatus !== "connected") {
+      setAutomaticMediaStatus("Connect the inspection camera bridge before capturing evidence.");
+      return;
+    }
+    if (!bridgeInfo?.capabilities.photoCapture) {
+      setAutomaticMediaStatus("The connected aircraft bridge does not expose still-photo capture.");
+      return;
+    }
+
+    setAutomaticMediaStatus("Requesting inspection photo from the connected aircraft…");
+    const result = await adapter.send({
+      type: "capturePhoto",
+      checkpointId: selectedWaypointId ?? current?.id,
+    });
+    setAutomaticMediaStatus(
+      result.accepted
+        ? "Shutter accepted. Waiting for the aircraft media file…"
+        : result.message ?? "Aircraft rejected the photo capture request.",
+    );
+  };
+
   const connectAircraftBridge = async () => {
     if (bridgeStatus === "connecting" || bridgeStatus === "connected") return;
     setBridgeStatus("connecting");
@@ -2931,6 +2954,27 @@ export default function DominicCapturePlanner({
                     </button>
                   )}
                 </div>
+                {bridgeStatus === "connected" && bridgeInfo?.capabilities.photoCapture ? (
+                  <div style={{ marginTop: 9, display: "grid", gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => void captureConnectedInspectionPhoto()}
+                      style={{ border: `1px solid rgba(112,214,160,.38)`, background: "rgba(112,214,160,.10)", color: V.green, borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
+                    >
+                      Capture Inspection Photo
+                    </button>
+                    <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45 }}>
+                      Camera-only inspection capture is allowed independently of flight-control authority.
+                      {inspectionContext ? ` Captures are saved to ${inspectionContext.assetName} inspection evidence automatically.` : ""}
+                    </div>
+                  </div>
+                ) : null}
+                {automaticMediaStatus ? (
+                  <div style={{ color: automaticMediaStatus.includes("failed") || automaticMediaStatus.includes("rejected") ? "#FFB6AA" : V.muted, fontSize: 8, marginTop: 7, lineHeight: 1.45 }}>
+                    {automaticMediaStatus}
+                    {automaticMediaCount > 0 ? ` · ${automaticMediaCount} capture(s) received` : ""}
+                  </div>
+                ) : null}
                 {bridgeError ? <div style={{ color: "#FFB6AA", fontSize: 8, marginTop: 7 }}>{bridgeError}</div> : null}
               </div>
 

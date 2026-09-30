@@ -2847,10 +2847,12 @@ export default function DominicCapturePlanner({
                   Run Preflight Check
                 </button>
                 {reviewPreflightRan ? (
-                  <div style={{ color: productionFlightUnlocked && bridgeStatus === "connected" ? V.green : V.amber, fontSize: 8, marginTop: 7, lineHeight: 1.45 }}>
-                    {productionFlightUnlocked && bridgeStatus === "connected"
-                      ? "Preflight review is clear for the current validated aircraft and plan."
-                      : "Plan review complete. Export is available; connected autonomous flight remains locked until the aircraft validation ladder is complete."}
+                  <div style={{ color: productionFlightUnlocked && bridgeStatus === "connected" && inspectionEquipmentReady ? V.green : V.amber, fontSize: 8, marginTop: 7, lineHeight: 1.45 }}>
+                    {productionFlightUnlocked && bridgeStatus === "connected" && inspectionEquipmentReady
+                      ? "Preflight review is clear for the current validated aircraft, inspection capabilities and plan."
+                      : !inspectionEquipmentReady
+                        ? "Plan review complete. Export remains available, but flight is blocked because the assigned inspection equipment is missing a required sensor capability."
+                        : "Plan review complete. Export is available; connected autonomous flight remains locked until the aircraft validation ladder is complete."}
                   </div>
                 ) : null}
               </div>
@@ -2894,7 +2896,11 @@ export default function DominicCapturePlanner({
                 >
                   Fly Mission
                 </button>
-                {!productionFlightUnlocked ? (
+                {!inspectionEquipmentReady ? (
+                  <div style={{ color: V.amber, fontSize: 8, lineHeight: 1.45, marginTop: 7 }}>
+                    Flight is blocked for this inspection because the assigned aircraft/payload does not satisfy the required sensor capabilities.
+                  </div>
+                ) : !productionFlightUnlocked ? (
                   <div style={{ color: V.amber, fontSize: 8, lineHeight: 1.45, marginTop: 7 }}>
                     Flight is intentionally locked. The current DJI bridge is not yet cleared for autonomous aircraft control.
                   </div>

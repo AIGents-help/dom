@@ -1129,7 +1129,7 @@ export default function DominicCapturePlanner({
 
     if (rowError || !insertedMedia) {
       await sb.storage.from("pilot-media").remove([storagePath]);
-      throw rowError;
+      throw rowError ?? new Error("Inspection media record could not be created.");
     }
 
     await sb

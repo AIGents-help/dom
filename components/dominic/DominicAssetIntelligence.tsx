@@ -15,6 +15,14 @@ import {
   Wrench,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import {
+  evaluateInspectionReadiness,
+  inspectionCapabilityLabel,
+  inspectionRequirements,
+  mergeInspectionCapabilities,
+  type InspectionType,
+} from "@/lib/aircraft/inspectionCapabilities";
+import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
 
 const ORANGE = "#F45A1E";
 const BG = "#0B1117";
@@ -56,6 +64,29 @@ type InspectionRow = {
   summary: string | null;
   created_at: string;
   completed_at: string | null;
+  required_capabilities: string[];
+  optional_capabilities: string[];
+  capability_snapshot: Record<string, unknown>;
+};
+
+type PilotAssetRow = {
+  id: string;
+  manufacturer: string | null;
+  model: string | null;
+  display_name: string | null;
+  capabilities_verified: boolean;
+};
+
+type PilotAssetCapabilityRow = {
+  asset_id: string;
+  capability: string;
+};
+
+type InspectionEquipmentRow = {
+  inspection_id: string;
+  pilot_asset_id: string;
+  role: string;
+  capabilities_snapshot: Record<string, unknown>;
 };
 
 type FindingRow = {
@@ -141,11 +172,19 @@ function Card({
   );
 }
 
-export default function DominicAssetIntelligence() {
+export default function DominicAssetIntelligence({
+  onPlanInspection,
+}: {
+  onPlanInspection?: (context: DominicInspectionPlanningContext) => void;
+}) {
   const [assets, setAssets] = useState<AssetRow[]>([]);
   const [inspections, setInspections] = useState<InspectionRow[]>([]);
   const [findings, setFindings] = useState<FindingRow[]>([]);
   const [issues, setIssues] = useState<IssueRow[]>([]);
+  const [pilotAssets, setPilotAssets] = useState<PilotAssetRow[]>([]);
+  const [pilotAssetCapabilities, setPilotAssetCapabilities] = useState<PilotAssetCapabilityRow[]>([]);
+  const [inspectionEquipment, setInspectionEquipment] = useState<InspectionEquipmentRow[]>([]);
+  const [selectedPilotAssetId, setSelectedPilotAssetId] = useState<string>("");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -164,14 +203,22 @@ export default function DominicAssetIntelligence() {
       const { data: sessionData } = await sb.auth.getSession();
       if (!sessionData.session?.user.id) throw new Error("Your DOMINIC session expired.");
 
-      const [assetResult, inspectionResult, findingResult, issueResult] = await Promise.all([
+      const [
+        assetResult,
+        inspectionResult,
+        findingResult,
+        issueResult,
+        pilotAssetResult,
+        pilotCapabilityResult,
+        equipmentResult,
+      ] = await Promise.all([
         sb
           .from("dominic_assets")
           .select("id,name,asset_type,external_ref,description,status,condition_state,condition_score,location_label,latitude,longitude,last_inspected_at,next_inspection_due_at,updated_at")
           .order("updated_at", { ascending: false }),
         sb
           .from("dominic_inspections")
-          .select("id,asset_id,inspection_type,objective,status,capture_source,sensor_modes,health_score,summary,created_at,completed_at")
+          .select("id,asset_id,inspection_type,objective,status,capture_source,sensor_modes,health_score,summary,created_at,completed_at,required_capabilities,optional_capabilities,capability_snapshot")
           .order("created_at", { ascending: false })
           .limit(100),
         sb
@@ -184,18 +231,45 @@ export default function DominicAssetIntelligence() {
           .select("id,asset_id,issue_type,title,severity,status,recommended_action,last_seen_at")
           .order("last_seen_at", { ascending: false })
           .limit(100),
+        sb
+          .from("pilot_assets")
+          .select("id,manufacturer,model,display_name,capabilities_verified")
+          .eq("asset_type", "uav")
+          .eq("status", "active")
+          .is("archived_at", null)
+          .order("created_at", { ascending: false }),
+        sb
+          .from("pilot_asset_capabilities")
+          .select("asset_id,capability"),
+        sb
+          .from("dominic_inspection_equipment")
+          .select("inspection_id,pilot_asset_id,role,capabilities_snapshot")
+          .eq("role", "aircraft")
+          .order("selected_at", { ascending: false }),
       ]);
 
       if (assetResult.error) throw assetResult.error;
       if (inspectionResult.error) throw inspectionResult.error;
       if (findingResult.error) throw findingResult.error;
       if (issueResult.error) throw issueResult.error;
+      if (pilotAssetResult.error) throw pilotAssetResult.error;
+      if (pilotCapabilityResult.error) throw pilotCapabilityResult.error;
+      if (equipmentResult.error) throw equipmentResult.error;
 
       const nextAssets = (assetResult.data ?? []) as AssetRow[];
+      const nextPilotAssets = (pilotAssetResult.data ?? []) as PilotAssetRow[];
       setAssets(nextAssets);
       setInspections((inspectionResult.data ?? []) as InspectionRow[]);
       setFindings((findingResult.data ?? []) as FindingRow[]);
       setIssues((issueResult.data ?? []) as IssueRow[]);
+      setPilotAssets(nextPilotAssets);
+      setPilotAssetCapabilities((pilotCapabilityResult.data ?? []) as PilotAssetCapabilityRow[]);
+      setInspectionEquipment((equipmentResult.data ?? []) as InspectionEquipmentRow[]);
+      setSelectedPilotAssetId((current) =>
+        current && nextPilotAssets.some((asset) => asset.id === current)
+          ? current
+          : nextPilotAssets[0]?.id ?? "",
+      );
       setSelectedAssetId((current) =>
         current && nextAssets.some((asset) => asset.id === current)
           ? current
@@ -247,6 +321,80 @@ export default function DominicAssetIntelligence() {
     ["critical", "high"].includes(issue.severity),
   );
 
+
+  const selectedPilotAsset = useMemo(
+    () => pilotAssets.find((asset) => asset.id === selectedPilotAssetId) ?? null,
+    [pilotAssets, selectedPilotAssetId],
+  );
+
+  const selectedInspectionType = inspectionType as InspectionType;
+
+  const selectedAircraftCapabilities = useMemo(
+    () =>
+      mergeInspectionCapabilities({
+        identity: selectedPilotAsset
+          ? {
+              manufacturer: selectedPilotAsset.manufacturer,
+              model: selectedPilotAsset.model,
+              displayName: selectedPilotAsset.display_name,
+            }
+          : undefined,
+        inventoryCapabilities: pilotAssetCapabilities
+          .filter((item) => item.asset_id === selectedPilotAssetId)
+          .map((item) => item.capability),
+      }),
+    [selectedPilotAsset, selectedPilotAssetId, pilotAssetCapabilities],
+  );
+
+  const selectedEquipmentReadiness = useMemo(
+    () =>
+      evaluateInspectionReadiness({
+        inspectionType: selectedInspectionType,
+        capabilities: selectedAircraftCapabilities,
+      }),
+    [selectedInspectionType, selectedAircraftCapabilities],
+  );
+
+  const buildPlanningContext = (inspection: InspectionRow): DominicInspectionPlanningContext | null => {
+    const asset = assets.find((item) => item.id === inspection.asset_id);
+    if (!asset) return null;
+    const equipment = inspectionEquipment.find((item) => item.inspection_id === inspection.id) ?? null;
+    const aircraft = equipment
+      ? pilotAssets.find((item) => item.id === equipment.pilot_asset_id) ?? null
+      : null;
+    const snapshot = equipment?.capabilities_snapshot as {
+      available?: string[];
+      missingRequired?: string[];
+      ready?: boolean;
+    } | undefined;
+
+    return {
+      inspectionId: inspection.id,
+      assetId: asset.id,
+      assetName: asset.name,
+      assetType: asset.asset_type,
+      locationLabel: asset.location_label,
+      latitude: asset.latitude,
+      longitude: asset.longitude,
+      inspectionType: inspection.inspection_type,
+      objective: inspection.objective,
+      sensorModes: inspection.sensor_modes,
+      requiredCapabilities: inspection.required_capabilities ?? [],
+      optionalCapabilities: inspection.optional_capabilities ?? [],
+      equipment: aircraft && equipment
+        ? {
+            pilotAssetId: aircraft.id,
+            manufacturer: aircraft.manufacturer,
+            model: aircraft.model,
+            displayName: aircraft.display_name,
+            capabilities: snapshot?.available ?? [],
+            ready: snapshot?.ready ?? false,
+            missingRequired: snapshot?.missingRequired ?? [],
+          }
+        : null,
+    };
+  };
+
   const createAsset = async () => {
     if (!assetForm.name.trim() || !assetForm.assetType.trim()) {
       setMessage("Asset name and type are required.");
@@ -296,6 +444,7 @@ export default function DominicAssetIntelligence() {
       const userId = sessionData.session?.user.id;
       if (!userId) throw new Error("Your DOMINIC session expired.");
 
+      const requirements = inspectionRequirements[selectedInspectionType];
       const sensorModes =
         inspectionType === "thermal"
           ? ["rgb", "thermal"]
@@ -303,20 +452,62 @@ export default function DominicAssetIntelligence() {
             ? ["rgb", "gas"]
             : ["rgb"];
 
-      const { error } = await sb.from("dominic_inspections").insert({
-        user_id: userId,
-        asset_id: selectedAsset.id,
-        inspection_type: inspectionType,
-        objective: inspectionObjective.trim() || null,
-        status: "planned",
-        capture_source: "manual",
-        sensor_modes: sensorModes,
-      });
+      const capabilitySnapshot = {
+        ready: selectedEquipmentReadiness.ready,
+        available: selectedEquipmentReadiness.available,
+        missingRequired: selectedEquipmentReadiness.missingRequired,
+        availableOptional: selectedEquipmentReadiness.availableOptional,
+        evidence: selectedEquipmentReadiness.evidence,
+        aircraft: selectedPilotAsset
+          ? {
+              id: selectedPilotAsset.id,
+              manufacturer: selectedPilotAsset.manufacturer,
+              model: selectedPilotAsset.model,
+              displayName: selectedPilotAsset.display_name,
+              capabilitiesVerified: selectedPilotAsset.capabilities_verified,
+            }
+          : null,
+      };
+
+      const { data: inspection, error } = await sb
+        .from("dominic_inspections")
+        .insert({
+          user_id: userId,
+          asset_id: selectedAsset.id,
+          inspection_type: inspectionType,
+          objective: inspectionObjective.trim() || null,
+          status: "planned",
+          capture_source: "manual",
+          sensor_modes: sensorModes,
+          required_capabilities: requirements.required,
+          optional_capabilities: requirements.optional,
+          capability_snapshot: capabilitySnapshot,
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
+
+      if (selectedPilotAsset && inspection?.id) {
+        const { error: equipmentError } = await sb.from("dominic_inspection_equipment").insert({
+          user_id: userId,
+          inspection_id: inspection.id,
+          pilot_asset_id: selectedPilotAsset.id,
+          role: "aircraft",
+          capabilities_snapshot: capabilitySnapshot,
+        });
+        if (equipmentError) throw equipmentError;
+      }
+
       setInspectionObjective("");
       await refresh();
-      setMessage("Inspection created. This record is now the anchor for capture, AI findings, and future comparison.");
+      setMessage(
+        selectedEquipmentReadiness.ready
+          ? "Inspection created with compatible equipment. Open Plan Capture to build the flight."
+          : selectedPilotAsset
+            ? `Inspection created, but selected equipment is missing: ${selectedEquipmentReadiness.missingRequired.map(inspectionCapabilityLabel).join(", ")}. DOMINIC will allow planning but will not mark this aircraft ready for execution.`
+            : "Inspection created without assigned aircraft. Select compatible equipment before execution.",
+      );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Inspection could not be created.");
     } finally {
@@ -539,6 +730,33 @@ export default function DominicAssetIntelligence() {
                     Create
                   </button>
                 </div>
+                <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,.8fr) minmax(0,1.2fr)", gap: 7, marginTop: 8 }}>
+                  <select
+                    aria-label="Inspection aircraft"
+                    value={selectedPilotAssetId}
+                    onChange={(event) => setSelectedPilotAssetId(event.target.value)}
+                    style={{ background: PANEL_2, border: `1px solid ${LINE}`, color: TEXT, borderRadius: 7, padding: 8 }}
+                  >
+                    <option value="">No aircraft selected</option>
+                    {pilotAssets.map((aircraft) => (
+                      <option key={aircraft.id} value={aircraft.id}>
+                        {[aircraft.manufacturer, aircraft.model, aircraft.display_name].filter(Boolean).join(" · ") || "Unnamed aircraft"}
+                      </option>
+                    ))}
+                  </select>
+                  <div style={{ border: `1px solid ${selectedEquipmentReadiness.ready ? "rgba(112,214,160,.35)" : "rgba(255,181,101,.35)"}`, borderRadius: 7, background: selectedEquipmentReadiness.ready ? "rgba(112,214,160,.07)" : "rgba(255,181,101,.07)", padding: "7px 9px" }}>
+                    <div style={{ color: selectedEquipmentReadiness.ready ? GREEN : AMBER, fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>
+                      {selectedPilotAsset ? (selectedEquipmentReadiness.ready ? "Equipment ready" : "Capability gap") : "Aircraft not assigned"}
+                    </div>
+                    <div style={{ color: MUTED, fontSize: 8, lineHeight: 1.4, marginTop: 3 }}>
+                      {selectedPilotAsset
+                        ? selectedEquipmentReadiness.ready
+                          ? `Required: ${selectedEquipmentReadiness.required.map(inspectionCapabilityLabel).join(", ")}.`
+                          : `Missing: ${selectedEquipmentReadiness.missingRequired.map(inspectionCapabilityLabel).join(", ")}. You can still create the inspection plan, but this aircraft will not be marked execution-ready.`
+                        : "DOMINIC plans by capability. Select the aircraft you intend to validate for this inspection."}
+                    </div>
+                  </div>
+                </div>
               </Card>
 
               <Card style={{ overflow: "hidden" }}>
@@ -556,7 +774,21 @@ export default function DominicAssetIntelligence() {
                         <div style={{ color: MUTED, fontSize: 8, marginTop: 3 }}>{inspection.objective ?? "No objective recorded"}</div>
                         <div style={{ color: "#B9C3CC", fontSize: 8, marginTop: 3 }}>{formatWhen(inspection.created_at)} · {inspection.sensor_modes.join(" + ") || "sensor not set"}</div>
                       </div>
-                      <div style={{ color: inspection.status === "complete" ? GREEN : AMBER, fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>{inspection.status}</div>
+                      <div style={{ display: "grid", justifyItems: "end", gap: 6 }}>
+                        <div style={{ color: inspection.status === "complete" ? GREEN : AMBER, fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>{inspection.status}</div>
+                        {onPlanInspection && inspection.status !== "cancelled" ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const context = buildPlanningContext(inspection);
+                              if (context) onPlanInspection(context);
+                            }}
+                            style={{ border: `1px solid rgba(244,90,30,.4)`, background: "rgba(244,90,30,.10)", color: "#FFD3C0", borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                          >
+                            Plan Capture
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
                   ))
                 )}

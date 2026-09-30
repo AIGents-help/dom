@@ -43,6 +43,7 @@ import {
 import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { buildDominicDjiMissionPackage, downloadDominicDjiMissionPackage } from "@/lib/aircraft/djiMissionPackage";
+import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
 import CapturePlanningMap from "@/components/dominic/CapturePlanningMap";
 import { resolveCaptureCameraProfile } from "@/lib/captureCameraProfiles";
 import {
@@ -123,6 +124,10 @@ type PersistedCapturePlanState = {
   mapAreaPoints?: Array<{ xPct: number; yPct: number; latitude: number; longitude: number }>;
   mapLocationLabel?: string | null;
   planningSource?: "map" | "live" | "local";
+  inspectionId?: string;
+  assetId?: string;
+  assetName?: string;
+  inspectionType?: string;
 };
 
 type PlannerAircraft = {
@@ -266,7 +271,11 @@ function sectorPath(startBearingDeg: number, endBearingDeg: number, radius = 46)
   return `M 50 50 L ${startPoint.x.toFixed(3)} ${startPoint.y.toFixed(3)} A ${radius} ${radius} 0 ${largeArc} 1 ${endPoint.x.toFixed(3)} ${endPoint.y.toFixed(3)} Z`;
 }
 
-export default function DominicCapturePlanner() {
+export default function DominicCapturePlanner({
+  inspectionContext = null,
+}: {
+  inspectionContext?: DominicInspectionPlanningContext | null;
+}) {
   const [missionType, setMissionType] = useState<CaptureMissionType>("roof");
   const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">("map");
   const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
@@ -413,6 +422,72 @@ export default function DominicCapturePlanner() {
   }, []);
 
   useEffect(() => {
+    if (!inspectionContext) return;
+
+    setPlanName(
+      `${inspectionContext.assetName} · ${inspectionContext.inspectionType.replaceAll("_", " ")} inspection`,
+    );
+    setPlannerView("plan");
+    setReviewPreflightRan(false);
+    setReviewFlightConfirmed(false);
+    setPlanPersistenceStatus(
+      inspectionContext.equipment?.ready
+        ? `Inspection linked to ${inspectionContext.assetName}. Selected aircraft satisfies the required capabilities.`
+        : inspectionContext.equipment
+          ? `Inspection linked to ${inspectionContext.assetName}. Selected aircraft is missing: ${inspectionContext.equipment.missingRequired.join(", ") || "required capability"}.`
+          : `Inspection linked to ${inspectionContext.assetName}. No aircraft is assigned yet.`,
+    );
+
+    if (inspectionContext.equipment) {
+      setSelectedAircraftId(inspectionContext.equipment.pilotAssetId);
+      const profile = resolveCaptureCameraProfile({
+        manufacturer: inspectionContext.equipment.manufacturer,
+        model: inspectionContext.equipment.model,
+        display_name: inspectionContext.equipment.displayName,
+      });
+      if (profile) {
+        setHorizontalFovDeg(profile.horizontalFovDeg);
+        setVerticalFovDeg(profile.verticalFovDeg);
+        setCameraProfileMessage(
+          `${profile.label}: ${profile.horizontalFovDeg}° horizontal · ${profile.verticalFovDeg.toFixed(1)}° vertical FOV applied from inspection equipment.`,
+        );
+      }
+    }
+
+    if (
+      typeof inspectionContext.latitude === "number" &&
+      typeof inspectionContext.longitude === "number"
+    ) {
+      setCenterLatitude(inspectionContext.latitude);
+      setCenterLongitude(inspectionContext.longitude);
+      setHomeLatitude(inspectionContext.latitude);
+      setHomeLongitude(inspectionContext.longitude);
+      setMapLocationLabel(
+        inspectionContext.locationLabel ?? inspectionContext.assetName,
+      );
+      setMapSearch(inspectionContext.locationLabel ?? inspectionContext.assetName);
+      setMapFocusRevision((value) => value + 1);
+      setPlanningSource("map");
+    }
+
+    if (inspectionContext.assetType === "roof" || inspectionContext.inspectionType === "roof") {
+      setMissionType("roof");
+    } else if (
+      inspectionContext.assetType === "stockpile" ||
+      inspectionContext.inspectionType === "stockpile"
+    ) {
+      setMissionType("stockpile");
+    } else if (inspectionContext.assetType === "pipeline") {
+      setMissionType("corridor");
+    } else if (
+      inspectionContext.assetType === "building" ||
+      inspectionContext.assetType === "structure"
+    ) {
+      setMissionType("building");
+    }
+  }, [inspectionContext]);
+
+  useEffect(() => {
     let active = true;
     (async () => {
       const sb = getSupabaseBrowser();
@@ -459,6 +534,10 @@ export default function DominicCapturePlanner() {
     mapAreaPoints,
     mapLocationLabel,
     planningSource,
+    inspectionId: inspectionContext?.inspectionId,
+    assetId: inspectionContext?.assetId,
+    assetName: inspectionContext?.assetName,
+    inspectionType: inspectionContext?.inspectionType,
   });
 
   const refreshSavedPlans = async () => {
@@ -493,6 +572,7 @@ export default function DominicCapturePlanner() {
         plan_state: persistedPlanState(),
       };
 
+      let savedPlanId = activeSavedPlanId;
       if (activeSavedPlanId) {
         const { data, error } = await sb
           .from("dominic_capture_plans")
@@ -503,6 +583,7 @@ export default function DominicCapturePlanner() {
           .maybeSingle();
         if (error) throw error;
         if (!data) throw new Error("Saved plan not found.");
+        savedPlanId = data.id;
         setPlanName(data.name);
       } else {
         const { data, error } = await sb
@@ -511,8 +592,27 @@ export default function DominicCapturePlanner() {
           .select("id,name")
           .single();
         if (error) throw error;
+        savedPlanId = data.id;
         setActiveSavedPlanId(data.id);
         setPlanName(data.name);
+      }
+
+      if (inspectionContext && savedPlanId) {
+        const captureSource =
+          planningSource === "live"
+            ? "live_drone"
+            : planningSource === "local"
+              ? "local_object"
+              : "map";
+        const { error: inspectionError } = await sb
+          .from("dominic_inspections")
+          .update({
+            capture_plan_id: savedPlanId,
+            capture_source: captureSource,
+          })
+          .eq("id", inspectionContext.inspectionId)
+          .eq("user_id", userId);
+        if (inspectionError) throw inspectionError;
       }
 
       await refreshSavedPlans();
@@ -2212,6 +2312,8 @@ export default function DominicCapturePlanner() {
   };
 
   const activeProfile = missionProfiles[missionType];
+  const inspectionEquipmentReady =
+    !inspectionContext || inspectionContext.equipment?.ready === true;
 
   const activeSimpleCheckpoints =
     missionType === "object" ? geographicCheckpoints : effectiveSecondaryGeographicCheckpoints;
@@ -2329,6 +2431,32 @@ export default function DominicCapturePlanner() {
           {planPersistenceStatus ? <div style={{ color: V.muted, fontSize: 8, marginTop: 6, lineHeight: 1.35 }}>{planPersistenceStatus}</div> : null}
         </div>
       </div>
+
+      {inspectionContext ? (
+        <section style={{ margin: "14px 14px 0", border: `1px solid ${inspectionEquipmentReady ? "rgba(112,214,160,.38)" : "rgba(255,184,107,.42)"}`, borderRadius: 12, background: inspectionEquipmentReady ? "rgba(112,214,160,.06)" : "rgba(255,184,107,.06)", padding: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+            <div>
+              <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".09em", textTransform: "uppercase" }}>Asset inspection</div>
+              <div style={{ color: V.text, fontSize: 17, fontWeight: 900, marginTop: 3 }}>
+                {inspectionContext.assetName} · {inspectionContext.inspectionType.replaceAll("_", " ")}
+              </div>
+              <div style={{ color: V.muted, fontSize: 9, lineHeight: 1.45, marginTop: 4 }}>
+                {inspectionContext.objective ?? "No inspection objective recorded."}
+              </div>
+            </div>
+            <div style={{ minWidth: 230, textAlign: "right" }}>
+              <div style={{ color: inspectionEquipmentReady ? V.green : V.amber, fontSize: 9, fontWeight: 900, textTransform: "uppercase" }}>
+                {inspectionEquipmentReady ? "Equipment compatible" : "Equipment not execution-ready"}
+              </div>
+              <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>
+                {inspectionContext.equipment
+                  ? `${[inspectionContext.equipment.manufacturer, inspectionContext.equipment.model, inspectionContext.equipment.displayName].filter(Boolean).join(" · ") || "Assigned aircraft"}${inspectionEquipmentReady ? "" : ` · missing ${inspectionContext.equipment.missingRequired.join(", ")}`}`
+                  : "No aircraft assigned to this inspection."}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section style={{ margin: "14px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 12, display: plannerView === "plan" ? "block" : "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -2698,6 +2826,7 @@ export default function DominicCapturePlanner() {
                     ["Plan saved", Boolean(activeSavedPlanId), activeSavedPlanId ? "Saved mission record is available." : "Save the plan before flight."],
                     ["Route generated", activeSimplePlan.checkpointCount > 0, `${activeSimplePlan.checkpointCount} capture points in the active route.`],
                     ["Calibration", missionType === "object" ? preflightReady : secondaryCalibrationValidation.ready, missionType === "object" ? (preflightReady ? "Object-scan calibration is clear." : "Object-scan calibration requires attention.") : (secondaryCalibrationValidation.ready ? "Pattern calibration is clear." : "Pattern calibration requires attention.")],
+                    ["Inspection equipment", inspectionEquipmentReady, inspectionEquipmentReady ? "Assigned inspection equipment satisfies the required sensor capabilities." : "The assigned aircraft/payload is missing a required inspection capability."],
                     ["Aircraft connected", bridgeStatus === "connected", bridgeStatus === "connected" ? "Live aircraft telemetry bridge is connected." : "Connect the aircraft before attempting flight."],
                     ["Control authority", productionFlightUnlocked, productionFlightUnlocked ? "DOMINIC connected-flight validation is unlocked." : "Connected flight remains locked until bench/simulation/controlled-field validation is complete."],
                   ].map(([label, ok, detail]) => (
@@ -2718,10 +2847,12 @@ export default function DominicCapturePlanner() {
                   Run Preflight Check
                 </button>
                 {reviewPreflightRan ? (
-                  <div style={{ color: productionFlightUnlocked && bridgeStatus === "connected" ? V.green : V.amber, fontSize: 8, marginTop: 7, lineHeight: 1.45 }}>
-                    {productionFlightUnlocked && bridgeStatus === "connected"
-                      ? "Preflight review is clear for the current validated aircraft and plan."
-                      : "Plan review complete. Export is available; connected autonomous flight remains locked until the aircraft validation ladder is complete."}
+                  <div style={{ color: productionFlightUnlocked && bridgeStatus === "connected" && inspectionEquipmentReady ? V.green : V.amber, fontSize: 8, marginTop: 7, lineHeight: 1.45 }}>
+                    {productionFlightUnlocked && bridgeStatus === "connected" && inspectionEquipmentReady
+                      ? "Preflight review is clear for the current validated aircraft, inspection capabilities and plan."
+                      : !inspectionEquipmentReady
+                        ? "Plan review complete. Export remains available, but flight is blocked because the assigned inspection equipment is missing a required sensor capability."
+                        : "Plan review complete. Export is available; connected autonomous flight remains locked until the aircraft validation ladder is complete."}
                   </div>
                 ) : null}
               </div>
@@ -2744,7 +2875,7 @@ export default function DominicCapturePlanner() {
                   <input
                     type="checkbox"
                     checked={reviewFlightConfirmed}
-                    disabled={bridgeStatus !== "connected" || !productionFlightUnlocked}
+                    disabled={bridgeStatus !== "connected" || !productionFlightUnlocked || !inspectionEquipmentReady}
                     onChange={(event) => {
                       const checked = event.target.checked;
                       setReviewFlightConfirmed(checked);
@@ -2759,13 +2890,17 @@ export default function DominicCapturePlanner() {
                 </label>
                 <button
                   type="button"
-                  disabled={!productionFlightUnlocked || bridgeStatus !== "connected" || !reviewPreflightRan || !reviewFlightConfirmed}
+                  disabled={!productionFlightUnlocked || bridgeStatus !== "connected" || !reviewPreflightRan || !reviewFlightConfirmed || !inspectionEquipmentReady}
                   onClick={() => missionType === "object" ? void runConnectedAircraftMission("full") : void runSecondaryConnectedMission("full")}
-                  style={{ width: "100%", marginTop: 7, border: `1px solid ${productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed ? "rgba(112,214,160,.38)" : V.line}`, background: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed ? "rgba(112,214,160,.10)" : "#1B222A", color: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed ? V.green : "#6F7A84", borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed ? "pointer" : "not-allowed" }}
+                  style={{ width: "100%", marginTop: 7, border: `1px solid ${productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && inspectionEquipmentReady ? "rgba(112,214,160,.38)" : V.line}`, background: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && inspectionEquipmentReady ? "rgba(112,214,160,.10)" : "#1B222A", color: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && inspectionEquipmentReady ? V.green : "#6F7A84", borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && inspectionEquipmentReady ? "pointer" : "not-allowed" }}
                 >
                   Fly Mission
                 </button>
-                {!productionFlightUnlocked ? (
+                {!inspectionEquipmentReady ? (
+                  <div style={{ color: V.amber, fontSize: 8, lineHeight: 1.45, marginTop: 7 }}>
+                    Flight is blocked for this inspection because the assigned aircraft/payload does not satisfy the required sensor capabilities.
+                  </div>
+                ) : !productionFlightUnlocked ? (
                   <div style={{ color: V.amber, fontSize: 8, lineHeight: 1.45, marginTop: 7 }}>
                     Flight is intentionally locked. The current DJI bridge is not yet cleared for autonomous aircraft control.
                   </div>
@@ -2775,6 +2910,11 @@ export default function DominicCapturePlanner() {
               <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: V.panel, padding: 12 }}>
                 <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>Saved mission</div>
                 <div style={{ color: V.text, fontSize: 10, fontWeight: 900, marginTop: 5 }}>{mapLocationLabel ?? "Local object / saved subject"}</div>
+                {inspectionContext ? (
+                  <div style={{ color: V.orange, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>
+                    Linked to {inspectionContext.assetName} · inspection {inspectionContext.inspectionId.slice(0, 8)}
+                  </div>
+                ) : null}
                 <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>
                   Center: {centerLatitude.toFixed(6)}, {centerLongitude.toFixed(6)}
                 </div>

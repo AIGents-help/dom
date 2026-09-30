@@ -35,6 +35,7 @@ import DominicCapturePlanner from "@/components/dominic/DominicCapturePlanner";
 import DominicWelcome from "@/components/dominic/DominicWelcome";
 import DominicAssetIntelligence from "@/components/dominic/DominicAssetIntelligence";
 import { dominicPlanLabel, type DominicAccess } from "@/lib/dominicEntitlements";
+import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
@@ -97,6 +98,7 @@ export default function DominicApp() {
   const [loading, setLoading] = useState(true);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState("Home");
+  const [inspectionPlanningContext, setInspectionPlanningContext] = useState<DominicInspectionPlanningContext | null>(null);
   const [showProjectsSignal, setShowProjectsSignal] = useState(0);
   const [newProjectSignal, setNewProjectSignal] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -642,11 +644,16 @@ export default function DominicApp() {
                     }}
                   />
                 ) : activeModule === "Asset Intelligence" ? (
-                  <DominicAssetIntelligence />
+                  <DominicAssetIntelligence
+                    onPlanInspection={(context) => {
+                      setInspectionPlanningContext(context);
+                      setActiveModule("Capture Planner");
+                    }}
+                  />
                 ) : activeModule === "DOMINIC HUB" ? (
                   <DominicHub />
                 ) : activeModule === "Capture Planner" ? (
-                  <DominicCapturePlanner />
+                  <DominicCapturePlanner inspectionContext={inspectionPlanningContext} />
                 ) : previewModules.has(activeModule) ? (
                   <DominicPreviewEnvironment module={activeModule as "Live Flight" | "AR View" | "AI Copilot"} />
                 ) : (

@@ -140,6 +140,12 @@ export default function DominicInspectionEvidenceReview({
   const [manualBusy, setManualBusy] = useState(false);
   const [manual, setManual] = useState<ManualFindingForm>(EMPTY_MANUAL);
   const [message, setMessage] = useState<string | null>(null);
+  const [aiReadiness, setAiReadiness] = useState<{
+    loading: boolean;
+    configured: boolean;
+    provider: string | null;
+    model: string | null;
+  }>({ loading: true, configured: false, provider: null, model: null });
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
@@ -191,6 +197,38 @@ export default function DominicInspectionEvidenceReview({
       setMessage(error instanceof Error ? error.message : "Inspection evidence could not be loaded.");
     });
   }, [load]);
+
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const sb = getSupabaseBrowser();
+        const { data: sessionData } = await sb.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) throw new Error("No active session.");
+        const response = await fetch("/api/dominic/ai/status", {
+          cache: "no-store",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body?.error ?? "AI status unavailable.");
+        if (!active) return;
+        setAiReadiness({
+          loading: false,
+          configured: Boolean(body?.configured),
+          provider: typeof body?.provider === "string" ? body.provider : null,
+          model: typeof body?.model === "string" ? body.model : null,
+        });
+      } catch {
+        if (!active) return;
+        setAiReadiness({ loading: false, configured: false, provider: null, model: null });
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const reviewableCount = useMemo(
     () => findings.filter((finding) => finding.review_status === "needs_review").length,
@@ -468,18 +506,34 @@ export default function DominicInspectionEvidenceReview({
             {inspection.objective ?? "Review captured evidence and document visible issues."}
           </div>
         </div>
-        <div
-          style={{
-            border: `1px solid ${reviewableCount ? "rgba(255,181,101,.35)" : LINE}`,
-            background: reviewableCount ? "rgba(255,181,101,.08)" : PANEL_2,
-            color: reviewableCount ? AMBER : MUTED,
-            borderRadius: 999,
-            padding: "5px 8px",
-            fontSize: 8,
-            fontWeight: 900,
-          }}
-        >
-          {reviewableCount} NEED REVIEW
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <div
+            title={aiReadiness.configured ? `AI screening via ${aiReadiness.model ?? aiReadiness.provider ?? "configured model"}` : "AI screening is not configured on this deployment"}
+            style={{
+              border: `1px solid ${aiReadiness.configured ? "rgba(112,214,160,.35)" : "rgba(255,181,101,.35)"}`,
+              background: aiReadiness.configured ? "rgba(112,214,160,.08)" : "rgba(255,181,101,.08)",
+              color: aiReadiness.loading ? MUTED : aiReadiness.configured ? GREEN : AMBER,
+              borderRadius: 999,
+              padding: "5px 8px",
+              fontSize: 8,
+              fontWeight: 900,
+            }}
+          >
+            {aiReadiness.loading ? "AI CHECKING…" : aiReadiness.configured ? "AI SCREENING READY" : "AI NOT CONFIGURED"}
+          </div>
+          <div
+            style={{
+              border: `1px solid ${reviewableCount ? "rgba(255,181,101,.35)" : LINE}`,
+              background: reviewableCount ? "rgba(255,181,101,.08)" : PANEL_2,
+              color: reviewableCount ? AMBER : MUTED,
+              borderRadius: 999,
+              padding: "5px 8px",
+              fontSize: 8,
+              fontWeight: 900,
+            }}
+          >
+            {reviewableCount} NEED REVIEW
+          </div>
         </div>
       </div>
 
@@ -668,7 +722,7 @@ export default function DominicInspectionEvidenceReview({
                     <button
                       type="button"
                       onClick={() => void runScreening(item.id)}
-                      disabled={analysisBusyId === item.id}
+                      disabled={analysisBusyId === item.id || !aiReadiness.configured}
                       style={{
                         border: `1px solid rgba(244,90,30,.4)`,
                         background: "rgba(244,90,30,.10)",
@@ -680,11 +734,12 @@ export default function DominicInspectionEvidenceReview({
                         alignItems: "center",
                         fontSize: 8,
                         fontWeight: 900,
-                        cursor: analysisBusyId === item.id ? "wait" : "pointer",
+                        cursor: analysisBusyId === item.id ? "wait" : aiReadiness.configured ? "pointer" : "not-allowed",
+                        opacity: aiReadiness.configured ? 1 : .55,
                       }}
                     >
                       <ScanSearch size={12} />
-                      {analysisBusyId === item.id ? "Screening…" : "Run AI Screening"}
+                      {analysisBusyId === item.id ? "Screening…" : aiReadiness.configured ? "Run AI Screening" : "AI Not Configured"}
                     </button>
                   </div>
 

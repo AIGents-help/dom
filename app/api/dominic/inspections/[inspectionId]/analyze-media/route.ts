@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   buildDominicVisionPrompt,
+  DOMINIC_VISION_SCHEMA,
   extractResponsesApiText,
   parseDominicVisionScreening,
 } from "@/lib/dominicVision";
@@ -169,7 +170,25 @@ export async function POST(
             ],
           },
         ],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "dominic_visual_screening",
+            strict: true,
+            schema: DOMINIC_VISION_SCHEMA,
+          },
+        },
+        store: false,
         max_output_tokens: 2400,
+        ...(provider === "vercel-ai-gateway"
+          ? {
+              providerOptions: {
+                gateway: {
+                  disallowPromptTraining: true,
+                },
+              },
+            }
+          : {}),
       }),
     });
 

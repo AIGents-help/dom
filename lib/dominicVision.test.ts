@@ -1,11 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDominicVisionPrompt,
+  DOMINIC_VISION_SCHEMA,
   extractResponsesApiText,
   parseDominicVisionScreening,
 } from "@/lib/dominicVision";
 
 describe("DOMINIC vision screening safeguards", () => {
+
+  it("defines strict structured output for screening candidates", () => {
+    expect(DOMINIC_VISION_SCHEMA.additionalProperties).toBe(false);
+    expect(DOMINIC_VISION_SCHEMA.required).toEqual([
+      "summary",
+      "candidates",
+      "limitations",
+    ]);
+    expect(DOMINIC_VISION_SCHEMA.properties.candidates.maxItems).toBe(12);
+    expect(
+      DOMINIC_VISION_SCHEMA.properties.candidates.items.properties.severity.enum,
+    ).toEqual(["info", "low", "medium", "high"]);
+  });
+
   it("parses bounded candidate findings", () => {
     const result = parseDominicVisionScreening(JSON.stringify({
       summary: "Surface review.",

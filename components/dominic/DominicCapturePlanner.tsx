@@ -62,7 +62,7 @@ import type {
   AircraftCapabilities,
   UniversalMediaCapture,
 } from "@/lib/aircraft/contract";
-import { analyzeImageFile, analyzeImageUrl, type ImageQualityAssessment } from "@/lib/imageQuality";
+import { analyzeImageFile, type ImageQualityAssessment } from "@/lib/imageQuality";
 import {
   runBenchReadiness,
   type BenchReadinessReport,
@@ -1016,6 +1016,110 @@ export default function DominicCapturePlanner({
     setNoFlySectors((current) => current.filter((sector) => sector.id !== id));
   };
 
+  const persistInspectionBridgeMedia = async (
+    capture: UniversalMediaCapture,
+    file: File,
+    quality: ImageQualityAssessment,
+  ) => {
+    if (!inspectionContext) return false;
+
+    const sb = getSupabaseBrowser();
+    const { data: sessionData } = await sb.auth.getSession();
+    const userId = sessionData.session?.user.id;
+    if (!userId) throw new Error("Your DOMINIC session expired.");
+
+    const { data: existing, error: existingError } = await sb
+      .from("dominic_inspection_media")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("source_capture_id", capture.id)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing) return true;
+
+    const safeName = (capture.filename ?? file.name ?? `${capture.id}.jpg`)
+      .normalize("NFKD")
+      .replace(/[^a-zA-Z0-9._-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 120) || `${capture.id}.jpg`;
+    const storagePath =
+      `${userId}/dominic-inspections/${inspectionContext.inspectionId}/${Date.now()}-${capture.id}-${safeName}`;
+
+    const { error: uploadError } = await sb.storage
+      .from("pilot-media")
+      .upload(storagePath, file, {
+        cacheControl: "3600",
+        contentType: file.type || capture.mimeType || "image/jpeg",
+        upsert: false,
+      });
+    if (uploadError) throw uploadError;
+
+    const payloadKind = activeConnectedPayload?.kind;
+    const sensorMode =
+      payloadKind && payloadKind !== "other"
+        ? payloadKind
+        : inspectionContext.sensorModes[0] ?? "rgb";
+
+    const { error: rowError } = await sb
+      .from("dominic_inspection_media")
+      .insert({
+        user_id: userId,
+        inspection_id: inspectionContext.inspectionId,
+        asset_id: inspectionContext.assetId,
+        sensor_mode: sensorMode,
+        media_type: "image",
+        storage_path: storagePath,
+        original_filename: capture.filename ?? file.name,
+        mime_type: file.type || capture.mimeType || "image/jpeg",
+        captured_at: new Date(capture.capturedAtMs).toISOString(),
+        latitude: capture.latitude,
+        longitude: capture.longitude,
+        relative_altitude_ft: capture.relativeAltitudeFt,
+        source_capture_id: capture.id,
+        source_aircraft_id: capture.aircraftId,
+        analysis_status: "pending",
+        analysis_summary: {
+          captureQuality: {
+            sharpnessScore: quality.sharpnessScore,
+            exposureScore: quality.exposureScore,
+            contrastScore: quality.contrastScore,
+            shadowClipPct: quality.shadowClipPct,
+            highlightClipPct: quality.highlightClipPct,
+            usable: quality.usable,
+            warnings: quality.warnings,
+          },
+        },
+        metadata: {
+          source: "flight_bridge",
+          checkpointId: capture.checkpointId ?? null,
+          headingDeg: capture.headingDeg,
+          gimbalPitchDeg: capture.gimbalPitchDeg,
+          gimbalYawDeg: capture.gimbalYawDeg ?? null,
+          bridgeId: bridgeInfo?.bridgeId ?? null,
+          vendor: bridgeInfo?.vendor ?? null,
+          model: bridgeInfo?.model ?? null,
+          payloadId: bridgeInfo?.activePayloadId ?? null,
+          assetName: inspectionContext.assetName,
+          inspectionType: inspectionContext.inspectionType,
+        },
+      });
+
+    if (rowError) {
+      await sb.storage.from("pilot-media").remove([storagePath]);
+      throw rowError;
+    }
+
+    await sb
+      .from("dominic_inspections")
+      .update({ status: "capturing" })
+      .eq("id", inspectionContext.inspectionId)
+      .eq("user_id", userId)
+      .eq("status", "planned");
+
+    return true;
+  };
+
   const ingestBridgeMediaCapture = async (capture: UniversalMediaCapture) => {
     setAutomaticMediaStatus(`Received ${capture.filename ?? capture.id} from aircraft.`);
     if (!capture.mediaUrl) {
@@ -1024,10 +1128,17 @@ export default function DominicCapturePlanner({
     }
 
     try {
-      const quality = await analyzeImageUrl(
-        capture.mediaUrl,
+      const response = await fetch(capture.mediaUrl);
+      if (!response.ok) {
+        throw new Error(`Unable to load aircraft capture (${response.status}).`);
+      }
+      const blob = await response.blob();
+      const file = new File(
+        [blob],
         capture.filename ?? `${capture.id}.jpg`,
+        { type: blob.type || capture.mimeType || "image/jpeg" },
       );
+      const quality = await analyzeImageFile(file);
       const observation: CaptureObservation = {
         id: capture.id,
         checkpointId: capture.checkpointId,
@@ -1054,16 +1165,20 @@ export default function DominicCapturePlanner({
           ? quality.warnings.join(" ")
           : "Aircraft capture automatically passed DOMINIC image-quality analysis.",
       );
+
+      const persisted = await persistInspectionBridgeMedia(capture, file, quality);
       setAutomaticMediaCount((count) => count + 1);
       setAutomaticMediaStatus(
-        `${capture.filename ?? capture.id} analyzed automatically · sharpness ${Math.round(quality.sharpnessScore * 100)}% · exposure ${Math.round(quality.exposureScore * 100)}%.`,
+        `${capture.filename ?? capture.id} analyzed automatically · sharpness ${Math.round(quality.sharpnessScore * 100)}% · exposure ${Math.round(quality.exposureScore * 100)}%${
+          persisted && inspectionContext ? ` · saved to ${inspectionContext.assetName} inspection evidence` : ""
+        }.`,
       );
     } catch (error) {
       setImageAnalysisStatus("error");
       setAutomaticMediaStatus(
         error instanceof Error
-          ? `Aircraft image received, but automatic analysis failed: ${error.message}`
-          : "Aircraft image received, but automatic analysis failed.",
+          ? `Aircraft image received, but automatic ingestion failed: ${error.message}`
+          : "Aircraft image received, but automatic ingestion failed.",
       );
     }
   };

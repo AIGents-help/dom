@@ -1136,7 +1136,7 @@ export default function DominicCapturePlanner({
       })
       .eq("id", context.inspectionId)
       .eq("user_id", userId)
-      .in("status", ["planned", "capturing"]);
+      .eq("status", "planned");
 
     setInspectionMediaCount((count) => count + 1);
     return { id: mediaRow.id as string, created: true };

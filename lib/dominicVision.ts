@@ -9,6 +9,7 @@ export type DominicVisionRegion = {
 
 export type DominicVisionCandidate = {
   finding_type: string;
+  tracking_key: string;
   title: string;
   description: string;
   severity: DominicVisionSeverity;
@@ -90,6 +91,7 @@ export function parseDominicVisionScreening(text: string): DominicVisionScreenin
     const rawSeverity = cleanString(item.severity, 20).toLowerCase() as DominicVisionSeverity;
     candidates.push({
       finding_type: cleanString(item.finding_type, 80).toLowerCase().replace(/[^a-z0-9_]+/g, "_") || "visual_anomaly",
+      tracking_key: cleanString(item.tracking_key, 120).toLowerCase().replace(/[^a-z0-9_]+/g, "_"),
       title,
       description,
       severity: severities.has(rawSeverity) ? rawSeverity : "info",
@@ -150,8 +152,9 @@ export function buildDominicVisionPrompt(input: {
     "For corrosion-like discoloration, coating damage, staining, deformation, debris, vegetation, cracks, missing components, loose-looking components, or other visible irregularities, describe what is actually visible.",
     "Severity is triage priority only, not engineering severity. Never output critical from image-only screening.",
     "Return JSON only with this exact shape:",
-    '{"summary":"short image-level summary","candidates":[{"finding_type":"snake_case_type","title":"short title","description":"visible evidence only","severity":"info|low|medium|high","confidence":0.0,"region":{"x":0.0,"y":0.0,"width":0.0,"height":0.0},"recommended_action":"human review or additional capture recommendation"}],"limitations":["important limitation"]}',
+    '{"summary":"short image-level summary","candidates":[{"finding_type":"snake_case_type","tracking_key":"stable_snake_case_identity_for_same_visible_condition","title":"short title","description":"visible evidence only","severity":"info|low|medium|high","confidence":0.0,"region":{"x":0.0,"y":0.0,"width":0.0,"height":0.0},"recommended_action":"human review or additional capture recommendation"}],"limitations":["important limitation"]}',
     "Region values are normalized 0..1 relative to the full image. Use null for region if localization is uncertain.",
+    "tracking_key should describe the same visible condition consistently across repeat inspections when possible. Use visible feature + approximate location, not a diagnosis or root cause.",
     `Asset: ${input.assetName} (${input.assetType})`,
     `Inspection: ${input.inspectionType}`,
     `Objective: ${input.objective ?? "General visual condition screening"}`,

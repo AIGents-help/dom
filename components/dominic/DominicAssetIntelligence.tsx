@@ -368,20 +368,20 @@ export default function DominicAssetIntelligence() {
         </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8, marginBottom: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 8, marginBottom: 12 }}>
         {[
-          ["Assets", assets.length, Factory, ORANGE],
-          ["Open issues", openIssues.length, AlertTriangle, AMBER],
-          ["High / critical", criticalIssues.length, ShieldAlert, RED],
-          ["Inspections", inspections.length, ClipboardCheck, GREEN],
-        ].map(([label, value, Icon, color]) => (
-          <Card key={String(label)} style={{ padding: 12 }}>
+          { label: "Assets", value: assets.length, icon: Factory, color: ORANGE },
+          { label: "Open issues", value: openIssues.length, icon: AlertTriangle, color: AMBER },
+          { label: "High / critical", value: criticalIssues.length, icon: ShieldAlert, color: RED },
+          { label: "Inspections", value: inspections.length, icon: ClipboardCheck, color: GREEN },
+        ].map(({ label, value, icon: Icon, color }) => (
+          <Card key={label} style={{ padding: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
               <div>
                 <div style={{ color: MUTED, fontSize: 9, textTransform: "uppercase", letterSpacing: ".08em" }}>{label}</div>
-                <div style={{ fontSize: 24, fontWeight: 900, marginTop: 4 }}>{String(value)}</div>
+                <div style={{ fontSize: 24, fontWeight: 900, marginTop: 4 }}>{value}</div>
               </div>
-              <Icon size={19} color={String(color)} />
+              <Icon size={19} color={color} />
             </div>
           </Card>
         ))}

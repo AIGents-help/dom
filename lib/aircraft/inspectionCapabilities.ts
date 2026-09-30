@@ -19,8 +19,12 @@ export const INSPECTION_CAPABILITIES = {
   dockAutomation: "dock_automation",
 } as const;
 
-export type InspectionCapabilityId =
+export type KnownInspectionCapabilityId =
   (typeof INSPECTION_CAPABILITIES)[keyof typeof INSPECTION_CAPABILITIES];
+
+export type InspectionCapabilityId =
+  | KnownInspectionCapabilityId
+  | (string & {});
 
 export type InspectionType =
   | "visual"
@@ -240,7 +244,7 @@ export function normalizeInspectionCapability(value: string): InspectionCapabili
   if (!normalized) return null;
   const canonical = Object.values(INSPECTION_CAPABILITIES).find((item) => item === normalized);
   if (canonical) return canonical;
-  return LEGACY_CAPABILITY_MAP[normalized] ?? null;
+  return LEGACY_CAPABILITY_MAP[normalized] ?? normalized;
 }
 
 export function resolveCatalogCapabilities(

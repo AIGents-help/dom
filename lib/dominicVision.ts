@@ -25,10 +25,14 @@ export type DominicVisionScreening = {
 
 const severities = new Set<DominicVisionSeverity>(["info", "low", "medium", "high"]);
 
+function round6(value: number) {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
+
 function clamp01(value: unknown) {
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(1, n));
+  return round6(Math.max(0, Math.min(1, n)));
 }
 
 function cleanString(value: unknown, max = 1000) {
@@ -45,8 +49,8 @@ function cleanRegion(value: unknown): DominicVisionRegion | null {
     height: clamp01(record.height),
   };
   if (region.width <= 0 || region.height <= 0) return null;
-  if (region.x + region.width > 1) region.width = Math.max(0, 1 - region.x);
-  if (region.y + region.height > 1) region.height = Math.max(0, 1 - region.y);
+  if (region.x + region.width > 1) region.width = round6(Math.max(0, 1 - region.x));
+  if (region.y + region.height > 1) region.height = round6(Math.max(0, 1 - region.y));
   return region.width > 0 && region.height > 0 ? region : null;
 }
 

@@ -79,4 +79,14 @@ describe("DOMINIC inspection capability engine", () => {
     expect(ids).toContain(INSPECTION_CAPABILITIES.mappingPhotogrammetry);
     expect(ids).toContain(INSPECTION_CAPABILITIES.zoomInspection);
   });
+
+  it("preserves custom third-party capabilities for future sensors", () => {
+    const capabilities = mergeInspectionCapabilities({
+      inventoryCapabilities: ["voc_sniffer_ppb", "custom-corrosion-probe"],
+    });
+    const ids = capabilities.map((item) => item.capability);
+
+    expect(ids).toContain("voc_sniffer_ppb");
+    expect(ids).toContain("custom_corrosion_probe");
+  });
 });

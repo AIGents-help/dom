@@ -6,6 +6,7 @@ import dji.sdk.keyvalue.key.KeyTools.createKey
 import dji.sdk.keyvalue.key.KeyTools.createCameraKey
 import dji.sdk.keyvalue.value.common.CameraLensType
 import dji.sdk.keyvalue.value.camera.CameraMode
+import dji.sdk.keyvalue.value.camera.CameraVideoStreamSourceType
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.common.callback.CommonCallbacks
 import dji.v5.common.error.IDJIError
@@ -79,6 +80,38 @@ class DjiInspectionCameraController(
             )
         }
         scheduler.shutdownNow()
+    }
+
+    fun setCameraSource(
+        source: String,
+        onSuccess: () -> Unit,
+        onFailure: (String) -> Unit,
+    ) {
+        if (!started.get()) {
+            onFailure("DJI inspection camera is not initialized.")
+            return
+        }
+        val sourceType = when (source.lowercase()) {
+            "wide" -> CameraVideoStreamSourceType.WIDE_CAMERA
+            "zoom" -> CameraVideoStreamSourceType.ZOOM_CAMERA
+            else -> {
+                onFailure("Unsupported DJI camera source: $source")
+                return
+            }
+        }
+        val key = createKey<CameraVideoStreamSourceType>(
+            CameraKey.KeyCameraVideoStreamSource,
+            cameraIndex,
+        )
+        KeyManager.getInstance().setValue(
+            key,
+            sourceType,
+            object : CommonCallbacks.CompletionCallback {
+                override fun onSuccess() = onSuccess()
+                override fun onFailure(error: IDJIError) =
+                    onFailure("DJI camera source change failed: $error")
+            },
+        )
     }
 
     fun setZoomRatio(

@@ -1129,6 +1129,14 @@ export default function DominicCapturePlanner({
       bridgeAdapterRef.current?.getState().rangefinderTarget,
       capture.capturedAtMs,
     );
+    const cameraPreset = inspectionContext.followUpCapture
+      ? buildDominicInspectionCameraPreset({
+          inspectionType: inspectionContext.inspectionType,
+          targetDistanceM: inspectionContext.targetLocation?.distanceM ?? null,
+          recommendedZoom: inspectionContext.followUpCapture.estimatedOpticalZoomMultiplier,
+          hasFocusTarget: Boolean(inspectionContext.followUpCapture.focusTarget),
+        })
+      : null;
 
     const { data: insertedMedia, error: rowError } = await sb
       .from("dominic_inspection_media")
@@ -1173,6 +1181,7 @@ export default function DominicCapturePlanner({
           zoomRatio: capture.zoomRatio ?? null,
           focusTarget: capture.focusTarget ?? null,
           aeLocked: capture.aeLocked ?? null,
+          cameraPreset,
           rangefinderTarget: rangefinderTarget
             ? {
                 ...rangefinderTarget,

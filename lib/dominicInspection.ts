@@ -23,6 +23,13 @@ export type DominicInspectionPlanningContext = {
     distanceM?: number;
     source: string;
   } | null;
+  followUpCapture?: {
+    findingId: string;
+    findingTitle: string;
+    estimatedOpticalZoomMultiplier: number;
+    reasons: string[];
+    guidance: string[];
+  } | null;
   inspectionType: string;
   objective: string | null;
   sensorModes: string[];

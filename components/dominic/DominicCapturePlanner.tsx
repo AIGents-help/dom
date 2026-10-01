@@ -479,14 +479,39 @@ export default function DominicCapturePlanner({
       }
     }
 
-    if (
+    const rawTarget = inspectionContext.targetLocation;
+    const target =
+      rawTarget &&
+      Number.isFinite(rawTarget.latitude) &&
+      Number.isFinite(rawTarget.longitude)
+        ? rawTarget
+        : null;
+    const hasAssetLocation =
       typeof inspectionContext.latitude === "number" &&
-      typeof inspectionContext.longitude === "number"
-    ) {
-      setCenterLatitude(inspectionContext.latitude);
-      setCenterLongitude(inspectionContext.longitude);
-      setHomeLatitude(inspectionContext.latitude);
-      setHomeLongitude(inspectionContext.longitude);
+      typeof inspectionContext.longitude === "number";
+
+    if (target) {
+      setCenterLatitude(target.latitude);
+      setCenterLongitude(target.longitude);
+      if (hasAssetLocation) {
+        setHomeLatitude(inspectionContext.latitude as number);
+        setHomeLongitude(inspectionContext.longitude as number);
+      } else {
+        setHomeLatitude(target.latitude);
+        setHomeLongitude(target.longitude);
+      }
+      const targetLabel = inspectionContext.followUpCapture
+        ? `Follow-up target · ${inspectionContext.followUpCapture.findingTitle}`
+        : `${inspectionContext.assetName} target`;
+      setMapLocationLabel(targetLabel);
+      setMapSearch(targetLabel);
+      setMapFocusRevision((value) => value + 1);
+      setPlanningSource("map");
+    } else if (hasAssetLocation) {
+      setCenterLatitude(inspectionContext.latitude as number);
+      setCenterLongitude(inspectionContext.longitude as number);
+      setHomeLatitude(inspectionContext.latitude as number);
+      setHomeLongitude(inspectionContext.longitude as number);
       setMapLocationLabel(
         inspectionContext.locationLabel ?? inspectionContext.assetName,
       );
@@ -2802,6 +2827,44 @@ export default function DominicCapturePlanner({
               </div>
             </div>
           </div>
+          {inspectionContext.followUpCapture ? (
+            <div
+              style={{
+                marginTop: 10,
+                border: `1px solid rgba(244,90,30,.38)`,
+                borderRadius: 9,
+                background: "rgba(244,90,30,.075)",
+                padding: 10,
+              }}
+            >
+              <div style={{ color: "#FFD3C0", fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em" }}>
+                Follow-up capture task
+              </div>
+              <div style={{ color: V.text, fontSize: 12, fontWeight: 900, marginTop: 3 }}>
+                {inspectionContext.followUpCapture.findingTitle}
+              </div>
+              <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>
+                Target framing: about {inspectionContext.followUpCapture.estimatedOpticalZoomMultiplier.toFixed(1)}x tighter than the source evidence.
+                {inspectionContext.targetLocation
+                  ? ` Target: ${inspectionContext.targetLocation.latitude.toFixed(6)}, ${inspectionContext.targetLocation.longitude.toFixed(6)}.`
+                  : " Re-center the marked image region before capture."}
+              </div>
+              {inspectionContext.followUpCapture.reasons.length ? (
+                <div style={{ color: V.amber, fontSize: 8, lineHeight: 1.45, marginTop: 5 }}>
+                  {inspectionContext.followUpCapture.reasons.join(" ")}
+                </div>
+              ) : null}
+              {inspectionContext.followUpCapture.guidance.length ? (
+                <div style={{ display: "grid", gap: 3, marginTop: 6 }}>
+                  {inspectionContext.followUpCapture.guidance.map((line, index) => (
+                    <div key={index} style={{ color: V.muted, fontSize: 8, lineHeight: 1.4 }}>
+                      {index + 1}. {line}
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </section>
       ) : null}
 

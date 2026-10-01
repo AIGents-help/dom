@@ -409,6 +409,38 @@ export default function DominicAssetIntelligence({
     };
   };
 
+  const planFindingFollowUp = (input: {
+    findingId: string;
+    findingTitle: string;
+    target: { latitude: number; longitude: number; distanceM?: number } | null;
+    estimatedOpticalZoomMultiplier: number;
+    reasons: string[];
+    guidance: string[];
+  }) => {
+    if (!onPlanInspection || !selectedReviewInspection) return;
+    const base = buildPlanningContext(selectedReviewInspection);
+    if (!base) return;
+    onPlanInspection({
+      ...base,
+      objective: `Follow-up: ${input.findingTitle}`,
+      targetLocation: input.target
+        ? {
+            latitude: input.target.latitude,
+            longitude: input.target.longitude,
+            distanceM: input.target.distanceM,
+            source: "finding_follow_up",
+          }
+        : base.targetLocation ?? null,
+      followUpCapture: {
+        findingId: input.findingId,
+        findingTitle: input.findingTitle,
+        estimatedOpticalZoomMultiplier: input.estimatedOpticalZoomMultiplier,
+        reasons: input.reasons,
+        guidance: input.guidance,
+      },
+    });
+  };
+
   const createAsset = async () => {
     if (!assetForm.name.trim() || !assetForm.assetType.trim()) {
       setMessage("Asset name and type are required.");
@@ -1009,6 +1041,7 @@ export default function DominicAssetIntelligence({
                     asset_type: selectedAsset.asset_type,
                   }}
                   onChanged={() => refresh()}
+                  onPlanFollowUp={onPlanInspection ? planFindingFollowUp : undefined}
                 />
               ) : null}
             </>

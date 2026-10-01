@@ -173,10 +173,19 @@ export default function DominicInspectionEvidenceReview({
   inspection,
   asset,
   onChanged,
+  onPlanFollowUp,
 }: {
   inspection: InspectionContext;
   asset: AssetContext;
   onChanged?: () => void | Promise<void>;
+  onPlanFollowUp?: (input: {
+    findingId: string;
+    findingTitle: string;
+    target: { latitude: number; longitude: number; distanceM?: number } | null;
+    estimatedOpticalZoomMultiplier: number;
+    reasons: string[];
+    guidance: string[];
+  }) => void;
 }) {
   const [media, setMedia] = useState<MediaRow[]>([]);
   const [findings, setFindings] = useState<FindingRow[]>([]);
@@ -947,6 +956,41 @@ export default function DominicInspectionEvidenceReview({
                                     </div>
                                   ))}
                                 </div>
+                              ) : null}
+                              {onPlanFollowUp ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    onPlanFollowUp({
+                                      findingId: finding.id,
+                                      findingTitle: finding.title,
+                                      target: followUp.target
+                                        ? {
+                                            latitude: followUp.target.latitude,
+                                            longitude: followUp.target.longitude,
+                                            distanceM: followUp.target.distanceM ?? undefined,
+                                          }
+                                        : null,
+                                      estimatedOpticalZoomMultiplier: followUp.zoom,
+                                      reasons: followUp.reasons,
+                                      guidance: followUp.guidance,
+                                    })
+                                  }
+                                  style={{
+                                    marginTop: 7,
+                                    width: "100%",
+                                    border: `1px solid rgba(244,90,30,.45)`,
+                                    background: "rgba(244,90,30,.12)",
+                                    color: "#FFD3C0",
+                                    borderRadius: 7,
+                                    padding: "7px 8px",
+                                    fontSize: 8,
+                                    fontWeight: 900,
+                                    cursor: "pointer",
+                                  }}
+                                >
+                                  Plan Follow-Up Capture
+                                </button>
                               ) : null}
                             </div>
                           ) : null}

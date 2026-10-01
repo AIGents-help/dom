@@ -40,11 +40,11 @@ export function findingPrimaryMediaId(
   return typeof anchorMediaId === "string" && anchorMediaId ? anchorMediaId : null;
 }
 
-export function selectMaintenancePackageMedia(
+export function selectMaintenancePackageMedia<T extends MaintenancePackageMediaLike>(
   finding: MaintenancePackageFindingLike,
-  media: MaintenancePackageMediaLike[],
+  media: T[],
   explicitEvidence: MaintenancePackageFindingEvidenceLike[] = [],
-) {
+): T[] {
   const inspectionMedia = media.filter(
     (item) => item.inspection_id === finding.inspection_id,
   );

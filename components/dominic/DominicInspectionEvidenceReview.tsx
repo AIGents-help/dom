@@ -140,11 +140,20 @@ function followUpFromFinding(finding: FindingRow) {
   const latitude = Number(target?.latitude);
   const longitude = Number(target?.longitude);
   const distanceM = Number(target?.distanceM);
+  const center = record.center && typeof record.center === "object"
+    ? (record.center as Record<string, unknown>)
+    : null;
+  const centerX = Number(center?.x);
+  const centerY = Number(center?.y);
   return {
     needed,
     zoom: Number.isFinite(zoom) ? zoom : 1,
     reasons,
     guidance,
+    focusTarget:
+      Number.isFinite(centerX) && Number.isFinite(centerY)
+        ? { x: centerX, y: centerY }
+        : null,
     target:
       Number.isFinite(latitude) && Number.isFinite(longitude)
         ? {
@@ -183,6 +192,7 @@ export default function DominicInspectionEvidenceReview({
     findingTitle: string;
     target: { latitude: number; longitude: number; distanceM?: number } | null;
     estimatedOpticalZoomMultiplier: number;
+    focusTarget: { x: number; y: number } | null;
     reasons: string[];
     guidance: string[];
   }) => void;
@@ -972,6 +982,7 @@ export default function DominicInspectionEvidenceReview({
                                           }
                                         : null,
                                       estimatedOpticalZoomMultiplier: followUp.zoom,
+                                      focusTarget: followUp.focusTarget,
                                       reasons: followUp.reasons,
                                       guidance: followUp.guidance,
                                     })

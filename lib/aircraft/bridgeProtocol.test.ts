@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FlightBridgeAircraftAdapter } from "@/lib/aircraft/bridgeAdapter";
 import { DOMINIC_BRIDGE_PROTOCOL, parseFlightBridgeMessage } from "@/lib/aircraft/bridgeProtocol";
-import type { UniversalMediaCapture } from "@/lib/aircraft/contract";
+import type { UniversalInspectionFrame, UniversalMediaCapture } from "@/lib/aircraft/contract";
 import { LoopbackFlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
 import { SimulatorAircraftAdapter, simulatorCapabilities } from "@/lib/aircraft/simulator";
 
@@ -57,7 +57,9 @@ describe("DOMINIC Flight Bridge", () => {
     await bridgeAdapter.connect();
 
     const media: UniversalMediaCapture[] = [];
+    const frames: UniversalInspectionFrame[] = [];
     bridgeAdapter.subscribeMedia((capture) => media.push(capture));
+    bridgeAdapter.subscribeInspectionFrames((frame) => frames.push(frame));
 
     const result = await bridgeAdapter.send({ type: "takeoff", altitudeFt: 25 });
     expect(result.accepted).toBe(true);
@@ -86,5 +88,28 @@ describe("DOMINIC Flight Bridge", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(media).toHaveLength(1);
     expect(media[0].checkpointId).toBe("mid-4");
+
+    await transport.send({
+      type: "inspection_frame",
+      protocol: DOMINIC_BRIDGE_PROTOCOL,
+      sequence: 3,
+      frame: {
+        id: "frame-1",
+        aircraftId: "bridge-sim-1",
+        observedAtMs: 124,
+        mimeType: "image/jpeg",
+        frameUrl: "http://127.0.0.1:8788/media/frame-1",
+        width: 1280,
+        height: 720,
+        latitude: 39.95,
+        longitude: -75.16,
+        relativeAltitudeFt: 30,
+        headingDeg: 180,
+        gimbalPitchDeg: -15,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(frames).toHaveLength(1);
+    expect(frames[0].width).toBe(1280);
   });
 });

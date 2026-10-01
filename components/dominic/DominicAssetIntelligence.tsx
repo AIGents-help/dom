@@ -487,10 +487,11 @@ export default function DominicAssetIntelligence({
           : typeof issue.metadata?.inspectionId === "string"
             ? issue.metadata.inspectionId
             : null;
+      const spatialAnchorCandidate =
+        issue.metadata?.latestSpatialAnchor ?? issue.metadata?.spatialAnchor;
       const latestSpatialAnchor =
-        issue.metadata?.latestSpatialAnchor &&
-        typeof issue.metadata.latestSpatialAnchor === "object"
-          ? (issue.metadata.latestSpatialAnchor as Record<string, unknown>)
+        spatialAnchorCandidate && typeof spatialAnchorCandidate === "object"
+          ? (spatialAnchorCandidate as Record<string, unknown>)
           : null;
       const rawTargetLocation =
         latestSpatialAnchor?.targetLocation &&

@@ -40,6 +40,11 @@ data class DjiInspectionMediaCapture(
     val relativeAltitudeFt: Double,
     val headingDeg: Double,
     val gimbalPitchDeg: Double,
+    val cameraSource: String?,
+    val zoomRatio: Double?,
+    val focusTargetX: Double?,
+    val focusTargetY: Double?,
+    val aeLocked: Boolean?,
 )
 
 /**
@@ -57,6 +62,11 @@ class DjiInspectionCameraController(
     private val cacheDir = File(context.applicationContext.cacheDir, "dominic-inspection-media")
     private val scheduler = Executors.newSingleThreadScheduledExecutor()
     private val started = AtomicBoolean(false)
+    @Volatile private var currentCameraSource: String? = null
+    @Volatile private var currentZoomRatio: Double? = null
+    @Volatile private var currentFocusTargetX: Double? = null
+    @Volatile private var currentFocusTargetY: Double? = null
+    @Volatile private var currentAELocked: Boolean? = null
 
     fun start(onReady: (Boolean, String?) -> Unit = { _, _ -> }) {
         if (!started.compareAndSet(false, true)) return
@@ -110,7 +120,10 @@ class DjiInspectionCameraController(
             key,
             sourceType,
             object : CommonCallbacks.CompletionCallback {
-                override fun onSuccess() = onSuccess()
+                override fun onSuccess() {
+                    currentCameraSource = source.lowercase()
+                    onSuccess()
+                }
                 override fun onFailure(error: IDJIError) =
                     onFailure("DJI camera source change failed: $error")
             },
@@ -151,7 +164,11 @@ class DjiInspectionCameraController(
                 ),
             )
             .subscribe(
-                { onSuccess() },
+                {
+                    currentFocusTargetX = x
+                    currentFocusTargetY = y
+                    onSuccess()
+                },
                 { throwable -> onFailure(throwable.message ?: throwable.toString()) },
             )
     }
@@ -173,7 +190,10 @@ class DjiInspectionCameraController(
         )
         if (!enabled) {
             RxUtil.setValue(lockKey, false).subscribe(
-                { onSuccess() },
+                {
+                    currentAELocked = false
+                    onSuccess()
+                },
                 { throwable -> onFailure(throwable.message ?: throwable.toString()) },
             )
             return
@@ -189,7 +209,10 @@ class DjiInspectionCameraController(
         )
             .andThen(RxUtil.setValue(lockKey, true))
             .subscribe(
-                { onSuccess() },
+                {
+                    currentAELocked = true
+                    onSuccess()
+                },
                 { throwable -> onFailure(throwable.message ?: throwable.toString()) },
             )
     }
@@ -217,7 +240,10 @@ class DjiInspectionCameraController(
             key,
             ratio,
             object : CommonCallbacks.CompletionCallback {
-                override fun onSuccess() = onSuccess()
+                override fun onSuccess() {
+                    currentZoomRatio = ratio
+                    onSuccess()
+                }
                 override fun onFailure(error: IDJIError) =
                     onFailure("DJI zoom command failed: $error")
             },
@@ -398,6 +424,11 @@ class DjiInspectionCameraController(
                             relativeAltitudeFt = (snapshot.altitudeM ?: 0.0) * feetPerMeter,
                             headingDeg = snapshot.headingDeg ?: 0.0,
                             gimbalPitchDeg = 0.0,
+                            cameraSource = currentCameraSource,
+                            zoomRatio = currentZoomRatio,
+                            focusTargetX = currentFocusTargetX,
+                            focusTargetY = currentFocusTargetY,
+                            aeLocked = currentAELocked,
                         ),
                     )
                 }

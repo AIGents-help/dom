@@ -353,7 +353,7 @@ export default function DominicAssetIntelligence({
             lastSeenAt: issue.last_seen_at,
             metadata: issue.metadata,
           }),
-        ]),
+        ] as const),
       ),
     [issues],
   );

@@ -1,5 +1,3 @@
-import "server-only";
-
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { deriveIssueTrend, issueTrendLabel } from "@/lib/dominicIssueTrend";
 import {

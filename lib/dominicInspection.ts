@@ -27,6 +27,7 @@ export type DominicInspectionPlanningContext = {
     findingId: string;
     findingTitle: string;
     estimatedOpticalZoomMultiplier: number;
+    focusTarget?: { x: number; y: number } | null;
     reasons: string[];
     guidance: string[];
   } | null;

@@ -34,6 +34,8 @@ data class DjiInspectionMediaCapture(
     val mimeType: String,
     val mediaUrl: String,
     val checkpointId: String?,
+    val evidenceRole: String?,
+    val evidenceSequenceId: String?,
     val capturedAtMs: Long,
     val latitude: Double,
     val longitude: Double,
@@ -259,6 +261,8 @@ class DjiInspectionCameraController(
     fun capturePhoto(
         captureId: String,
         checkpointId: String?,
+        evidenceRole: String?,
+        evidenceSequenceId: String?,
         onAccepted: () -> Unit,
         onSuccess: (DjiInspectionMediaCapture) -> Unit,
         onFailure: (String) -> Unit,
@@ -291,6 +295,8 @@ class DjiInspectionCameraController(
                             refreshAndDownloadLatest(
                                 captureId = captureId,
                                 checkpointId = checkpointId,
+                                evidenceRole = evidenceRole,
+                                evidenceSequenceId = evidenceSequenceId,
                                 previousFileIndex = beforeIndex,
                                 attemptsRemaining = 5,
                                 onSuccess = onSuccess,
@@ -308,6 +314,8 @@ class DjiInspectionCameraController(
     private fun refreshAndDownloadLatest(
         captureId: String,
         checkpointId: String?,
+        evidenceRole: String?,
+        evidenceSequenceId: String?,
         previousFileIndex: Int,
         attemptsRemaining: Int,
         onSuccess: (DjiInspectionMediaCapture) -> Unit,
@@ -338,6 +346,8 @@ class DjiInspectionCameraController(
                                 refreshAndDownloadLatest(
                                     captureId,
                                     checkpointId,
+                                    evidenceRole,
+                                    evidenceSequenceId,
                                     previousFileIndex,
                                     attemptsRemaining - 1,
                                     onSuccess,
@@ -353,6 +363,8 @@ class DjiInspectionCameraController(
                     downloadMedia(
                         captureId = captureId,
                         checkpointId = checkpointId,
+                        evidenceRole = evidenceRole,
+                        evidenceSequenceId = evidenceSequenceId,
                         mediaFile = latest,
                         onSuccess = onSuccess,
                         onFailure = onFailure,
@@ -369,6 +381,8 @@ class DjiInspectionCameraController(
     private fun downloadMedia(
         captureId: String,
         checkpointId: String?,
+        evidenceRole: String?,
+        evidenceSequenceId: String?,
         mediaFile: MediaFile,
         onSuccess: (DjiInspectionMediaCapture) -> Unit,
         onFailure: (String) -> Unit,
@@ -424,6 +438,8 @@ class DjiInspectionCameraController(
                             mimeType = mimeType,
                             mediaUrl = url,
                             checkpointId = checkpointId,
+                            evidenceRole = evidenceRole,
+                            evidenceSequenceId = evidenceSequenceId,
                             capturedAtMs = System.currentTimeMillis(),
                             latitude = snapshot.latitude ?: 0.0,
                             longitude = snapshot.longitude ?: 0.0,

@@ -3664,7 +3664,7 @@ export default function DominicCapturePlanner({
                       onClick={() => void captureConnectedInspectionPhoto()}
                       style={{ border: `1px solid rgba(112,214,160,.38)`, background: "rgba(112,214,160,.10)", color: V.green, borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
                     >
-                      {inspectionContext?.followUpCapture ? "Capture Follow-Up Photo" : "Capture Inspection Photo"}
+                      {inspectionContext?.followUpCapture ? "Capture Context + Detail Pair" : "Capture Inspection Photo"}
                     </button>
                     <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45 }}>
                       Camera-only inspection capture is available without enabling aircraft movement.

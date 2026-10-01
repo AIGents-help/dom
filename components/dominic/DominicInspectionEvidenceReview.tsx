@@ -103,6 +103,18 @@ function cleanFilename(name: string) {
   return cleaned.slice(0, 120) || "inspection-image.jpg";
 }
 
+function evidenceRoleFromMedia(item: MediaRow) {
+  const role = item.metadata?.evidenceRole;
+  return role === "context" || role === "detail" || role === "quality_retry"
+    ? role
+    : null;
+}
+
+function evidenceSequenceFromMedia(item: MediaRow) {
+  const sequenceId = item.metadata?.evidenceSequenceId;
+  return typeof sequenceId === "string" && sequenceId ? sequenceId : null;
+}
+
 function mediaIdFromFinding(finding: FindingRow) {
   const detectorMediaId = finding.detector?.mediaId;
   if (typeof detectorMediaId === "string") return detectorMediaId;
@@ -703,6 +715,8 @@ export default function DominicInspectionEvidenceReview({
               (finding) => mediaIdFromFinding(finding) === item.id,
             );
             const rangefinderTarget = readStoredRangefinderTarget(item.metadata);
+            const evidenceRole = evidenceRoleFromMedia(item);
+            const evidenceSequenceId = evidenceSequenceFromMedia(item);
             return (
               <div
                 key={item.id}
@@ -809,8 +823,24 @@ export default function DominicInspectionEvidenceReview({
                       <div style={{ color: TEXT, fontSize: 10, fontWeight: 900 }}>
                         {item.original_filename ?? "Inspection image"}
                       </div>
-                      <div style={{ color: MUTED, fontSize: 8, marginTop: 3 }}>
-                        {item.sensor_mode.toUpperCase()} · {item.analysis_status.replaceAll("_", " ")}
+                      <div style={{ color: MUTED, fontSize: 8, marginTop: 3, display: "flex", gap: 5, flexWrap: "wrap", alignItems: "center" }}>
+                        {evidenceRole ? (
+                          <span
+                            title={evidenceSequenceId ? `Linked evidence pair ${evidenceSequenceId}` : undefined}
+                            style={{
+                              border: `1px solid ${evidenceRole === "detail" ? "rgba(244,90,30,.45)" : "rgba(112,214,160,.4)"}`,
+                              borderRadius: 999,
+                              padding: "2px 5px",
+                              color: evidenceRole === "detail" ? "#FFD3C0" : GREEN,
+                              fontWeight: 900,
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            {evidenceRole.replace("_", " ")}
+                          </span>
+                        ) : null}
+                        <span>{item.sensor_mode.toUpperCase()} · {item.analysis_status.replaceAll("_", " ")}</span>
+                        {evidenceSequenceId ? <span>· linked pair</span> : null}
                       </div>
                       {rangefinderTarget ? (
                         <div style={{ color: GREEN, fontSize: 8, marginTop: 4, lineHeight: 1.4 }}>

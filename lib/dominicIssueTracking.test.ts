@@ -28,7 +28,7 @@ describe("DOMINIC issue tracking", () => {
     });
 
     expect(key).toBe(
-      "coating_damage:geo_39_85123_m75_45124:northeast_shell_coating",
+      "coating_damage:geo_39_85123_m75_45124",
     );
   });
 
@@ -43,6 +43,7 @@ describe("DOMINIC issue tracking", () => {
     const repeat = deriveIssueTrackingKey({
       findingType: "staining_or_residue",
       title: "Dark vertical streak",
+      detector: { trackingKey: "different_model_wording" },
       spatialAnchor: {
         targetLocation: { latitude: 39.8512344, longitude: -75.4512391 },
       },

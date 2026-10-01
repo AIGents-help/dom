@@ -414,6 +414,10 @@ export default function DominicCapturePlanner({
   }, [bridgeInfo]);
 
   useEffect(() => {
+    qualityRecaptureAttemptsRef.current = {};
+  }, [inspectionContext?.inspectionId, inspectionContext?.followUpCapture?.findingId]);
+
+  useEffect(() => {
     if (bridgeStatus !== "connected" || !activeConnectedPayload) return;
     const fov = deriveFieldOfView(activeConnectedPayload);
     if (fov.horizontalFovDeg === null || fov.verticalFovDeg === null) {
@@ -1423,6 +1427,40 @@ export default function DominicCapturePlanner({
           }.`,
         );
       }
+
+      const retryKey =
+        inspectionContext?.followUpCapture?.findingId ??
+        capture.checkpointId ??
+        inspectionContext?.inspectionId ??
+        capture.aircraftId;
+      const attempts = qualityRecaptureAttemptsRef.current[retryKey] ?? 0;
+      const recaptureDecision = decideInspectionQualityRecapture({
+        quality,
+        attempts,
+      });
+
+      if (
+        recaptureDecision.retry &&
+        inspectionContext?.followUpCapture &&
+        bridgeStatus === "connected" &&
+        bridgeInfo?.capabilities.photoCapture
+      ) {
+        qualityRecaptureAttemptsRef.current[retryKey] = attempts + 1;
+        setAutomaticMediaStatus(
+          `${recaptureDecision.message} Automatic retry ${attempts + 1}/1.`,
+        );
+        await captureConnectedInspectionPhoto({
+          qualityRetry: {
+            refocus: recaptureDecision.refocus,
+            unlockExposure: recaptureDecision.unlockExposure,
+            message: recaptureDecision.message,
+          },
+        });
+      } else if (!quality.usable && !recaptureDecision.retry) {
+        setAutomaticMediaStatus(
+          `${capture.filename ?? capture.id} was saved, but DOMINIC will not retry again automatically. ${recaptureDecision.message}`,
+        );
+      }
     } catch (error) {
       setImageAnalysisStatus("error");
       setAutomaticMediaStatus(
@@ -1433,7 +1471,13 @@ export default function DominicCapturePlanner({
     }
   };
 
-  const captureConnectedInspectionPhoto = async () => {
+  const captureConnectedInspectionPhoto = async (options?: {
+    qualityRetry?: {
+      refocus: boolean;
+      unlockExposure: boolean;
+      message: string;
+    };
+  }) => {
     const adapter = bridgeAdapterRef.current;
     if (!adapter || bridgeStatus !== "connected") {
       setAutomaticMediaStatus("Connect the inspection camera bridge before capturing evidence.");
@@ -1492,7 +1536,10 @@ export default function DominicCapturePlanner({
         appliedZoom = 1;
       }
 
-      if (bridgeInfo.capabilities.focusControl) {
+      if (
+        bridgeInfo.capabilities.focusControl &&
+        (!options?.qualityRetry || options.qualityRetry.refocus)
+      ) {
         const focusTarget =
           cameraPreset.focusStrategy === "anomaly" && followUp.focusTarget
             ? followUp.focusTarget
@@ -1515,7 +1562,17 @@ export default function DominicCapturePlanner({
         }
       }
 
-      if (cameraPreset.aeLock && bridgeInfo.capabilities.aeLockControl) {
+      if (options?.qualityRetry?.unlockExposure && bridgeInfo.capabilities.aeLockControl) {
+        setAutomaticMediaStatus("Releasing exposure lock and allowing the camera to re-meter…");
+        const aeReset = await adapter.send({ type: "setAELock", enabled: false });
+        if (!aeReset.accepted) {
+          setAutomaticMediaStatus(
+            aeReset.message ?? "Aircraft rejected automatic-exposure reset.",
+          );
+          return;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+      } else if (cameraPreset.aeLock && bridgeInfo.capabilities.aeLockControl) {
         setAutomaticMediaStatus("Locking exposure for repeatable evidence…");
         const aeResult = await adapter.send({ type: "setAELock", enabled: true });
         if (!aeResult.accepted) {

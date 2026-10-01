@@ -213,6 +213,30 @@ export async function POST(
       return NextResponse.json({ error: "Existing issue could not be updated." }, { status: 500 });
     }
   } else {
+    const initialMetadata = {
+      source: "confirmed_finding",
+      inspectionId: finding.inspection_id,
+      latestInspectionId: finding.inspection_id,
+      sensorMode: finding.sensor_mode,
+      latitude: finding.latitude,
+      longitude: finding.longitude,
+      spatialAnchor,
+      latestSpatialAnchor: spatialAnchor,
+      recurrenceCount: 0,
+      latestComparisonState: comparisonState,
+      latestComparisonNote: comparisonNote,
+    };
+    maintenanceReview = deriveMaintenanceReviewPriority(
+      {
+        severity: finding.severity,
+        status: "open",
+        firstSeenAt: finding.observed_at,
+        lastSeenAt: finding.observed_at,
+        metadata: initialMetadata,
+      },
+      new Date(linkedAt),
+    );
+
     const { data: issue, error: issueError } = await admin
       .from("dominic_issues")
       .insert({
@@ -230,38 +254,13 @@ export async function POST(
         recommended_action: recommendedAction,
         first_seen_at: finding.observed_at,
         last_seen_at: finding.observed_at,
-        metadata: (() => {
-          const initialMetadata = {
-            source: "confirmed_finding",
-            inspectionId: finding.inspection_id,
-            latestInspectionId: finding.inspection_id,
-            sensorMode: finding.sensor_mode,
-            latitude: finding.latitude,
-            longitude: finding.longitude,
-            spatialAnchor,
-            latestSpatialAnchor: spatialAnchor,
-            recurrenceCount: 0,
-            latestComparisonState: comparisonState,
-            latestComparisonNote: comparisonNote,
-          };
-          maintenanceReview = deriveMaintenanceReviewPriority(
-            {
-              severity: finding.severity,
-              status: "open",
-              firstSeenAt: finding.observed_at,
-              lastSeenAt: finding.observed_at,
-              metadata: initialMetadata,
-            },
-            new Date(linkedAt),
-          );
-          return {
-            ...initialMetadata,
-            maintenanceReviewPriority: maintenanceReview.priority,
-            maintenanceReviewScore: maintenanceReview.score,
-            maintenanceReviewReasons: maintenanceReview.reasons,
-            maintenanceReviewEvaluatedAt: linkedAt,
-          };
-        })(),
+        metadata: {
+          ...initialMetadata,
+          maintenanceReviewPriority: maintenanceReview.priority,
+          maintenanceReviewScore: maintenanceReview.score,
+          maintenanceReviewReasons: maintenanceReview.reasons,
+          maintenanceReviewEvaluatedAt: linkedAt,
+        },
       })
       .select("id")
       .single();

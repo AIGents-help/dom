@@ -414,6 +414,7 @@ export default function DominicAssetIntelligence({
     findingTitle: string;
     target: { latitude: number; longitude: number; distanceM?: number } | null;
     estimatedOpticalZoomMultiplier: number;
+    focusTarget: { x: number; y: number } | null;
     reasons: string[];
     guidance: string[];
   }) => {
@@ -435,6 +436,7 @@ export default function DominicAssetIntelligence({
         findingId: input.findingId,
         findingTitle: input.findingTitle,
         estimatedOpticalZoomMultiplier: input.estimatedOpticalZoomMultiplier,
+        focusTarget: input.focusTarget,
         reasons: input.reasons,
         guidance: input.guidance,
       },

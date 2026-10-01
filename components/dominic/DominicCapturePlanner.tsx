@@ -1141,7 +1141,7 @@ export default function DominicCapturePlanner({
       bridgeAdapterRef.current?.getState().rangefinderTarget,
       capture.capturedAtMs,
     );
-    const cameraPreset = inspectionContext.followUpCapture
+    const baseCameraPreset = inspectionContext.followUpCapture
       ? buildDominicInspectionCameraPreset({
           inspectionType: inspectionContext.inspectionType,
           targetDistanceM: inspectionContext.targetLocation?.distanceM ?? null,
@@ -1149,6 +1149,29 @@ export default function DominicCapturePlanner({
           hasFocusTarget: Boolean(inspectionContext.followUpCapture.focusTarget),
         })
       : null;
+    const cameraPreset =
+      capture.evidenceRole === "context" && baseCameraPreset
+        ? {
+            ...baseCameraPreset,
+            name: `${baseCameraPreset.name}-context`,
+            cameraSource: "wide" as const,
+            zoomRatio: 1,
+            rationale: [
+              ...baseCameraPreset.rationale,
+              "Linked evidence-pair context frame forces the wide camera.",
+            ],
+          }
+        : capture.evidenceRole === "detail" && inspectionContext.followUpCapture
+          ? buildDominicInspectionCameraPreset({
+              inspectionType: inspectionContext.inspectionType,
+              targetDistanceM: inspectionContext.targetLocation?.distanceM ?? null,
+              recommendedZoom: Math.max(
+                1.8,
+                inspectionContext.followUpCapture.estimatedOpticalZoomMultiplier,
+              ),
+              hasFocusTarget: true,
+            })
+          : baseCameraPreset;
 
     const { data: insertedMedia, error: rowError } = await sb
       .from("dominic_inspection_media")

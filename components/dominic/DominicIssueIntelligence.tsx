@@ -280,6 +280,17 @@ export default function DominicIssueIntelligence({
             const inspection = inspections.find((item) => item.id === finding.inspection_id) ?? null;
             const linkedEvidence = evidence.filter((item) => item.finding_id === finding.id);
             const relation = links.find((item) => item.finding_id === finding.id)?.relation_type ?? "observation";
+            const rawTarget =
+              finding.spatial_anchor?.targetLocation &&
+              typeof finding.spatial_anchor.targetLocation === "object"
+                ? (finding.spatial_anchor.targetLocation as Record<string, unknown>)
+                : null;
+            const targetLatitude = Number(rawTarget?.latitude);
+            const targetLongitude = Number(rawTarget?.longitude);
+            const targetDistance = Number(rawTarget?.distanceM);
+            const hasTarget =
+              Number.isFinite(targetLatitude) &&
+              Number.isFinite(targetLongitude);
             return (
               <div key={finding.id} style={{ border: `1px solid ${LINE}`, borderRadius: 9, background: PANEL_2, overflow: "hidden" }}>
                 <div style={{ padding: 9, display: "grid", gridTemplateColumns: "24px minmax(0,1fr) auto", gap: 8, alignItems: "start" }}>
@@ -293,6 +304,12 @@ export default function DominicIssueIntelligence({
                     </div>
                     {finding.description ? (
                       <div style={{ color: "#C9D2D9", fontSize: 8, lineHeight: 1.4, marginTop: 5 }}>{finding.description}</div>
+                    ) : null}
+                    {hasTarget ? (
+                      <div style={{ color: GREEN, fontSize: 7, lineHeight: 1.4, marginTop: 5 }}>
+                        Laser-localized target · {targetLatitude.toFixed(6)}, {targetLongitude.toFixed(6)}
+                        {Number.isFinite(targetDistance) ? ` · ${targetDistance.toFixed(1)} m` : ""}
+                      </div>
                     ) : null}
                   </div>
                   <div style={{ color: severityColor(finding.severity), fontSize: 7, fontWeight: 900, textTransform: "uppercase" }}>

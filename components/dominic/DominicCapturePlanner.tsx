@@ -1514,6 +1514,7 @@ export default function DominicCapturePlanner({
       setAutomaticMediaCount((count) => count + 1);
 
       if (
+        capture.evidenceRole !== "context" &&
         persistence.persisted &&
         persistence.created &&
         persistence.mediaId &&
@@ -1535,11 +1536,12 @@ export default function DominicCapturePlanner({
         );
       }
 
-      const retryKey =
+      const retryBaseKey =
         inspectionContext?.followUpCapture?.findingId ??
         capture.checkpointId ??
         inspectionContext?.inspectionId ??
         capture.aircraftId;
+      const retryKey = `${retryBaseKey}:${capture.evidenceRole ?? "single"}`;
       const attempts = qualityRecaptureAttemptsRef.current[retryKey] ?? 0;
       const recaptureDecision = decideInspectionQualityRecapture({
         quality,
@@ -1589,16 +1591,38 @@ export default function DominicCapturePlanner({
         const retryResult = await adapter.send({
           type: "capturePhoto",
           checkpointId: capture.checkpointId,
+          evidenceRole: capture.evidenceRole ?? "quality_retry",
+          evidenceSequenceId: capture.evidenceSequenceId,
         });
         setAutomaticMediaStatus(
           retryResult.accepted
             ? `Automatic quality retry ${attempts + 1}/1 shutter accepted.`
             : retryResult.message ?? "Automatic quality retry was rejected by the aircraft.",
         );
+        if (retryResult.accepted) return;
       } else if (!quality.usable && !recaptureDecision.retry) {
         setAutomaticMediaStatus(
           `${capture.filename ?? capture.id} was saved, but DOMINIC will not retry again automatically. ${recaptureDecision.message}`,
         );
+      }
+
+      const pendingPair = followUpEvidencePairRef.current;
+      if (
+        pendingPair &&
+        capture.evidenceSequenceId === pendingPair.sequenceId
+      ) {
+        if (capture.evidenceRole === "context") {
+          await captureFollowUpEvidenceDetail(pendingPair);
+          return;
+        }
+        if (capture.evidenceRole === "detail") {
+          followUpEvidencePairRef.current = null;
+          setAutomaticMediaStatus(
+            quality.usable
+              ? "Context + detail evidence pair complete and saved."
+              : "Context + detail evidence pair complete; detail remains below the preferred quality threshold after retry.",
+          );
+        }
       }
     } catch (error) {
       setImageAnalysisStatus("error");

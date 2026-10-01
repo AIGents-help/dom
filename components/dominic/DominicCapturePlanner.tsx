@@ -1704,6 +1704,7 @@ export default function DominicCapturePlanner({
     }
 
     const followUp = inspectionContext?.followUpCapture ?? null;
+    const repeatPreset = inspectionContext?.repeatCapturePreset ?? null;
     const cameraPreset =
       followUp && inspectionContext
         ? buildDominicInspectionCameraPreset({
@@ -1852,12 +1853,91 @@ export default function DominicCapturePlanner({
       }
     }
 
+    if (origin === "manual" && !followUp && repeatPreset) {
+      if (repeatPreset.cameraSource && bridgeInfo.capabilities.cameraSourceControl) {
+        setAutomaticMediaStatus(
+          `Restoring baseline ${repeatPreset.cameraSource} camera source…`,
+        );
+        const sourceResult = await adapter.send({
+          type: "setCameraSource",
+          source: repeatPreset.cameraSource,
+        });
+        if (!sourceResult.accepted) {
+          setAutomaticMediaStatus(
+            sourceResult.message ?? "Aircraft rejected the baseline camera source.",
+          );
+          return;
+        }
+      }
+
+      if (
+        typeof repeatPreset.zoomRatio === "number" &&
+        bridgeInfo.capabilities.zoomControl
+      ) {
+        const minZoom = activeConnectedPayload?.minZoom ?? 1;
+        const maxZoom = activeConnectedPayload?.maxZoom ?? 8;
+        const zoomRatio = Math.min(
+          maxZoom,
+          Math.max(minZoom, repeatPreset.zoomRatio),
+        );
+        setAutomaticMediaStatus(
+          `Restoring baseline ${zoomRatio.toFixed(1)}x zoom…`,
+        );
+        const zoomResult = await adapter.send({ type: "setZoom", ratio: zoomRatio });
+        if (!zoomResult.accepted) {
+          setAutomaticMediaStatus(
+            zoomResult.message ?? "Aircraft rejected the baseline zoom setting.",
+          );
+          return;
+        }
+        appliedZoom = zoomRatio;
+      }
+
+      if (repeatPreset.focusTarget && bridgeInfo.capabilities.focusControl) {
+        setAutomaticMediaStatus("Restoring baseline autofocus target…");
+        const focusResult = await adapter.send({
+          type: "setFocusTarget",
+          x: Math.min(1, Math.max(0, repeatPreset.focusTarget.x)),
+          y: Math.min(1, Math.max(0, repeatPreset.focusTarget.y)),
+        });
+        if (!focusResult.accepted) {
+          setAutomaticMediaStatus(
+            focusResult.message ?? "Aircraft rejected the baseline focus target.",
+          );
+          return;
+        }
+      }
+
+      if (
+        typeof repeatPreset.aeLocked === "boolean" &&
+        bridgeInfo.capabilities.aeLockControl
+      ) {
+        setAutomaticMediaStatus(
+          repeatPreset.aeLocked
+            ? "Restoring locked baseline exposure…"
+            : "Restoring unlocked baseline exposure…",
+        );
+        const aeResult = await adapter.send({
+          type: "setAELock",
+          enabled: repeatPreset.aeLocked,
+        });
+        if (!aeResult.accepted) {
+          setAutomaticMediaStatus(
+            aeResult.message ?? "Aircraft rejected the baseline exposure-lock state.",
+          );
+          return;
+        }
+      }
+    }
+
     setAutomaticMediaStatus(
       followUp && cameraPreset
         ? `${cameraPreset.name} preset ready · ${cameraPreset.cameraSource}${appliedZoom !== null ? ` · ${appliedZoom.toFixed(1)}x` : ""} · requesting inspection photo…`
         : followUp
           ? `Follow-up capture ready · set about ${followUp.estimatedOpticalZoomMultiplier.toFixed(1)}x framing manually if needed · requesting photo…`
-          : "Requesting inspection photo from the connected aircraft…",
+          : repeatPreset && origin === "manual"
+            ? "Baseline camera settings restored where supported · requesting repeat inspection photo…"
+            : "Requesting inspection photo from the connected aircraft…",
     );
     const result = await adapter.send({
       type: "capturePhoto",
@@ -3396,6 +3476,64 @@ export default function DominicCapturePlanner({
             </div>
           </div>
 
+          {inspectionContext.repeatCapturePreset ? (
+            <div
+              style={{
+                marginTop: 10,
+                border: `1px solid rgba(112,214,160,.34)`,
+                borderRadius: 9,
+                background: "rgba(112,214,160,.065)",
+                padding: 10,
+              }}
+            >
+              <div style={{ color: V.green, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em" }}>
+                Repeat baseline capture
+              </div>
+              <div style={{ color: V.text, fontSize: 11, fontWeight: 900, marginTop: 3 }}>
+                Reproduce the prior evidence camera setup
+              </div>
+              <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.5, marginTop: 5 }}>
+                DOMINIC restores supported camera settings automatically. Altitude, heading, and gimbal remain pilot-guided reference targets.
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
+                {inspectionContext.repeatCapturePreset.cameraSource ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    Lens · {inspectionContext.repeatCapturePreset.cameraSource}
+                  </span>
+                ) : null}
+                {typeof inspectionContext.repeatCapturePreset.zoomRatio === "number" ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    Zoom · {inspectionContext.repeatCapturePreset.zoomRatio.toFixed(1)}x
+                  </span>
+                ) : null}
+                {typeof inspectionContext.repeatCapturePreset.relativeAltitudeFt === "number" ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    Altitude ref · {inspectionContext.repeatCapturePreset.relativeAltitudeFt.toFixed(1)} ft
+                  </span>
+                ) : null}
+                {typeof inspectionContext.repeatCapturePreset.headingDeg === "number" ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    Heading ref · {inspectionContext.repeatCapturePreset.headingDeg.toFixed(1)}°
+                  </span>
+                ) : null}
+                {typeof inspectionContext.repeatCapturePreset.gimbalPitchDeg === "number" ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    Gimbal ref · {inspectionContext.repeatCapturePreset.gimbalPitchDeg.toFixed(1)}°
+                  </span>
+                ) : null}
+                {inspectionContext.repeatCapturePreset.focusTarget ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    Focus · {(inspectionContext.repeatCapturePreset.focusTarget.x * 100).toFixed(0)}%, {(inspectionContext.repeatCapturePreset.focusTarget.y * 100).toFixed(0)}%
+                  </span>
+                ) : null}
+                {typeof inspectionContext.repeatCapturePreset.aeLocked === "boolean" ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    AE · {inspectionContext.repeatCapturePreset.aeLocked ? "locked" : "unlocked"}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           {inspectionContext.followUpCapture ? (
             <div
               style={{
@@ -3877,7 +4015,11 @@ export default function DominicCapturePlanner({
                       onClick={() => void captureConnectedInspectionPhoto()}
                       style={{ border: `1px solid rgba(112,214,160,.38)`, background: "rgba(112,214,160,.10)", color: V.green, borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
                     >
-                      {inspectionContext?.followUpCapture ? "Capture Context + Detail Pair" : "Capture Inspection Photo"}
+                      {inspectionContext?.followUpCapture
+                        ? "Capture Context + Detail Pair"
+                        : inspectionContext?.repeatCapturePreset
+                          ? "Capture Repeat Baseline Photo"
+                          : "Capture Inspection Photo"}
                     </button>
                     <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45 }}>
                       Camera-only inspection capture is available without enabling aircraft movement.

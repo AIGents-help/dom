@@ -1503,13 +1503,7 @@ export default function DominicCapturePlanner({
     }
   };
 
-  const captureConnectedInspectionPhoto = async (options?: {
-    qualityRetry?: {
-      refocus: boolean;
-      unlockExposure: boolean;
-      message: string;
-    };
-  }) => {
+  const captureConnectedInspectionPhoto = async () => {
     const adapter = bridgeAdapterRef.current;
     if (!adapter || bridgeStatus !== "connected") {
       setAutomaticMediaStatus("Connect the inspection camera bridge before capturing evidence.");
@@ -1568,10 +1562,7 @@ export default function DominicCapturePlanner({
         appliedZoom = 1;
       }
 
-      if (
-        bridgeInfo.capabilities.focusControl &&
-        (!options?.qualityRetry || options.qualityRetry.refocus)
-      ) {
+      if (bridgeInfo.capabilities.focusControl) {
         const focusTarget =
           cameraPreset.focusStrategy === "anomaly" && followUp.focusTarget
             ? followUp.focusTarget
@@ -1594,17 +1585,7 @@ export default function DominicCapturePlanner({
         }
       }
 
-      if (options?.qualityRetry?.unlockExposure && bridgeInfo.capabilities.aeLockControl) {
-        setAutomaticMediaStatus("Releasing exposure lock and allowing the camera to re-meter…");
-        const aeReset = await adapter.send({ type: "setAELock", enabled: false });
-        if (!aeReset.accepted) {
-          setAutomaticMediaStatus(
-            aeReset.message ?? "Aircraft rejected automatic-exposure reset.",
-          );
-          return;
-        }
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
-      } else if (cameraPreset.aeLock && bridgeInfo.capabilities.aeLockControl) {
+      if (cameraPreset.aeLock && bridgeInfo.capabilities.aeLockControl) {
         setAutomaticMediaStatus("Locking exposure for repeatable evidence…");
         const aeResult = await adapter.send({ type: "setAELock", enabled: true });
         if (!aeResult.accepted) {

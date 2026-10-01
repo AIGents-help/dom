@@ -24,6 +24,7 @@ import {
 } from "@/lib/aircraft/inspectionCapabilities";
 import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
 import DominicInspectionEvidenceReview from "@/components/dominic/DominicInspectionEvidenceReview";
+import DominicIssueIntelligence from "@/components/dominic/DominicIssueIntelligence";
 
 const ORANGE = "#F45A1E";
 const BG = "#0B1117";
@@ -190,6 +191,7 @@ export default function DominicAssetIntelligence({
   const [selectedPilotAssetId, setSelectedPilotAssetId] = useState<string>("");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(null);
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -321,6 +323,15 @@ export default function DominicAssetIntelligence({
     () => selectedInspections.find((inspection) => inspection.id === selectedInspectionId) ?? null,
     [selectedInspections, selectedInspectionId],
   );
+  const selectedIssue = useMemo(
+    () => selectedIssues.find((issue) => issue.id === selectedIssueId) ?? null,
+    [selectedIssues, selectedIssueId],
+  );
+
+  useEffect(() => {
+    setSelectedInspectionId(null);
+    setSelectedIssueId(null);
+  }, [selectedAssetId]);
 
   const openIssues = issues.filter((issue) =>
     ["open", "monitoring", "in_progress"].includes(issue.status),
@@ -852,7 +863,21 @@ export default function DominicAssetIntelligence({
                 .filter((issue) => ["open","monitoring","in_progress"].includes(issue.status))
                 .slice(0, 8)
                 .map((issue) => (
-                  <div key={issue.id} style={{ padding: "10px 12px", borderBottom: `1px solid ${LINE}` }}>
+                  <button
+                    key={issue.id}
+                    type="button"
+                    onClick={() => setSelectedIssueId((current) => current === issue.id ? null : issue.id)}
+                    style={{
+                      width: "100%",
+                      border: 0,
+                      borderBottom: `1px solid ${LINE}`,
+                      background: selectedIssueId === issue.id ? "rgba(244,90,30,.08)" : "transparent",
+                      color: TEXT,
+                      textAlign: "left",
+                      padding: "10px 12px",
+                      cursor: "pointer",
+                    }}
+                  >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                       <strong style={{ fontSize: 10 }}>{issue.title}</strong>
                       <span style={{ color: severityColor(issue.severity), fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>{issue.severity}</span>
@@ -867,10 +892,17 @@ export default function DominicAssetIntelligence({
                         : ""}
                     </div>
                     {issue.recommended_action ? <div style={{ color: "#CBD3DA", fontSize: 8, marginTop: 5 }}><Wrench size={11} style={{ display: "inline", marginRight: 4 }} />{issue.recommended_action}</div> : null}
-                  </div>
+                    <div style={{ color: selectedIssueId === issue.id ? ORANGE : MUTED, fontSize: 7, fontWeight: 900, marginTop: 6, textTransform: "uppercase" }}>
+                      {selectedIssueId === issue.id ? "Hide history" : "View issue history"}
+                    </div>
+                  </button>
                 ))
             )}
           </Card>
+
+          {selectedIssue ? (
+            <DominicIssueIntelligence issue={selectedIssue} />
+          ) : null}
 
           <Card style={{ overflow: "hidden" }}>
             <div style={{ padding: "10px 12px", borderBottom: `1px solid ${LINE}`, display: "flex", alignItems: "center", gap: 7 }}>

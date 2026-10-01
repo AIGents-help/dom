@@ -9,6 +9,8 @@ export type AircraftCapabilities = {
   returnHome: boolean; land: boolean; obstacleSensing: boolean; rtk: boolean;
   zoomControl?: boolean;
   cameraSourceControl?: boolean;
+  focusControl?: boolean;
+  aeLockControl?: boolean;
 };
 
 export type RangefinderTarget = {
@@ -48,6 +50,10 @@ export type UniversalMediaCapture = {
   headingDeg: number;
   gimbalPitchDeg: number;
   gimbalYawDeg?: number;
+  cameraSource?: "wide" | "zoom";
+  zoomRatio?: number;
+  focusTarget?: { x: number; y: number };
+  aeLocked?: boolean;
 };
 
 export type UniversalAircraftCommand =
@@ -56,6 +62,8 @@ export type UniversalAircraftCommand =
   | { type:"setVelocity"; northFps:number; eastFps:number; downFps:number }
   | { type:"setYaw"; headingDeg:number } | { type:"setGimbal"; pitchDeg:number; yawDeg?:number }
   | { type:"setCameraSource"; source:"wide"|"zoom" }
+  | { type:"setFocusTarget"; x:number; y:number }
+  | { type:"setAELock"; enabled:boolean }
   | { type:"setZoom"; ratio:number }
   | { type:"capturePhoto"; checkpointId?:string } | { type:"startVideo" } | { type:"stopVideo" }
   | { type:"pause" } | { type:"resume" } | { type:"returnHome" } | { type:"land" }
@@ -77,7 +85,7 @@ export function commandCapability(command:UniversalAircraftCommand["type"]):keyo
   switch(command){
     case "arm":return "arm"; case "takeoff":return "takeoff"; case "goTo":return "goTo";
     case "setVelocity":return "velocityControl"; case "setYaw":return "yawControl";
-    case "setGimbal":return "gimbalControl"; case "setCameraSource":return "cameraSourceControl"; case "setZoom":return "zoomControl"; case "capturePhoto":return "photoCapture";
+    case "setGimbal":return "gimbalControl"; case "setCameraSource":return "cameraSourceControl"; case "setFocusTarget":return "focusControl"; case "setAELock":return "aeLockControl"; case "setZoom":return "zoomControl"; case "capturePhoto":return "photoCapture";
     case "startVideo":case "stopVideo":return "videoCapture";
     case "pause":case "resume":return "pauseResume"; case "returnHome":return "returnHome";
     case "land":return "land"; case "abort":return null;

@@ -129,6 +129,50 @@ class DominicInspectionBridgeService(
             return
         }
 
+        if (commandType == "setFocusTarget") {
+            val x = command?.optDouble("x", Double.NaN) ?: Double.NaN
+            val y = command?.optDouble("y", Double.NaN) ?: Double.NaN
+            cameraController.setFocusTarget(
+                x = x,
+                y = y,
+                onSuccess = {
+                    client.send(
+                        commandResult(
+                            requestId,
+                            "setFocusTarget",
+                            accepted = true,
+                            message = "DJI autofocus target set.",
+                        ),
+                    )
+                },
+                onFailure = { message ->
+                    client.send(error("camera_focus_failed", message, requestId))
+                },
+            )
+            return
+        }
+
+        if (commandType == "setAELock") {
+            val enabled = command?.optBoolean("enabled", true) ?: true
+            cameraController.setAELock(
+                enabled = enabled,
+                onSuccess = {
+                    client.send(
+                        commandResult(
+                            requestId,
+                            "setAELock",
+                            accepted = true,
+                            message = if (enabled) "DJI auto exposure locked." else "DJI auto exposure unlocked.",
+                        ),
+                    )
+                },
+                onFailure = { message ->
+                    client.send(error("camera_ae_lock_failed", message, requestId))
+                },
+            )
+            return
+        }
+
         if (commandType == "setZoom") {
             val ratio = command?.optDouble("ratio", Double.NaN) ?: Double.NaN
             cameraController.setZoomRatio(
@@ -232,6 +276,8 @@ class DominicInspectionBridgeService(
                     .put("gimbalControl", false)
                     .put("photoCapture", true)
                     .put("cameraSourceControl", true)
+                    .put("focusControl", true)
+                    .put("aeLockControl", true)
                     .put("zoomControl", true)
                     .put("videoCapture", false)
                     .put("pauseResume", false)
@@ -264,7 +310,20 @@ class DominicInspectionBridgeService(
                     .put("longitude", capture.longitude)
                     .put("relativeAltitudeFt", capture.relativeAltitudeFt)
                     .put("headingDeg", capture.headingDeg)
-                    .put("gimbalPitchDeg", capture.gimbalPitchDeg),
+                    .put("gimbalPitchDeg", capture.gimbalPitchDeg)
+                    .apply { capture.cameraSource?.let { put("cameraSource", it) } }
+                    .apply { capture.zoomRatio?.let { put("zoomRatio", it) } }
+                    .apply {
+                        if (capture.focusTargetX != null && capture.focusTargetY != null) {
+                            put(
+                                "focusTarget",
+                                JSONObject()
+                                    .put("x", capture.focusTargetX)
+                                    .put("y", capture.focusTargetY),
+                            )
+                        }
+                    }
+                    .apply { capture.aeLocked?.let { put("aeLocked", it) } },
             )
             .toString()
 

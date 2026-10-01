@@ -5,9 +5,12 @@ import dji.sdk.keyvalue.key.CameraKey
 import dji.sdk.keyvalue.key.KeyTools.createKey
 import dji.sdk.keyvalue.key.KeyTools.createCameraKey
 import dji.sdk.keyvalue.value.common.CameraLensType
+import dji.sdk.keyvalue.value.camera.CameraExposureMode
+import dji.sdk.keyvalue.value.camera.CameraFocusMode
 import dji.sdk.keyvalue.value.camera.CameraMode
 import dji.sdk.keyvalue.value.camera.CameraVideoStreamSourceType
 import dji.sdk.keyvalue.value.common.ComponentIndexType
+import dji.sdk.keyvalue.value.common.DoublePoint2D
 import dji.v5.common.callback.CommonCallbacks
 import dji.v5.common.error.IDJIError
 import dji.v5.common.utils.RxUtil
@@ -37,6 +40,11 @@ data class DjiInspectionMediaCapture(
     val relativeAltitudeFt: Double,
     val headingDeg: Double,
     val gimbalPitchDeg: Double,
+    val cameraSource: String?,
+    val zoomRatio: Double?,
+    val focusTargetX: Double?,
+    val focusTargetY: Double?,
+    val aeLocked: Boolean?,
 )
 
 /**
@@ -54,6 +62,11 @@ class DjiInspectionCameraController(
     private val cacheDir = File(context.applicationContext.cacheDir, "dominic-inspection-media")
     private val scheduler = Executors.newSingleThreadScheduledExecutor()
     private val started = AtomicBoolean(false)
+    @Volatile private var currentCameraSource: String? = null
+    @Volatile private var currentZoomRatio: Double? = null
+    @Volatile private var currentFocusTargetX: Double? = null
+    @Volatile private var currentFocusTargetY: Double? = null
+    @Volatile private var currentAELocked: Boolean? = null
 
     fun start(onReady: (Boolean, String?) -> Unit = { _, _ -> }) {
         if (!started.compareAndSet(false, true)) return
@@ -107,11 +120,101 @@ class DjiInspectionCameraController(
             key,
             sourceType,
             object : CommonCallbacks.CompletionCallback {
-                override fun onSuccess() = onSuccess()
+                override fun onSuccess() {
+                    currentCameraSource = source.lowercase()
+                    onSuccess()
+                }
                 override fun onFailure(error: IDJIError) =
                     onFailure("DJI camera source change failed: $error")
             },
         )
+    }
+
+    fun setFocusTarget(
+        x: Double,
+        y: Double,
+        onSuccess: () -> Unit,
+        onFailure: (String) -> Unit,
+    ) {
+        if (!started.get()) {
+            onFailure("DJI inspection camera is not initialized.")
+            return
+        }
+        if (!x.isFinite() || !y.isFinite() || x !in 0.0..1.0 || y !in 0.0..1.0) {
+            onFailure("Focus target coordinates must be normalized values between 0 and 1.")
+            return
+        }
+
+        RxUtil.setValue(
+            createCameraKey(
+                CameraKey.KeyCameraFocusMode,
+                cameraIndex,
+                CameraLensType.CAMERA_LENS_ZOOM,
+            ),
+            CameraFocusMode.AF,
+        )
+            .andThen(
+                RxUtil.setValue(
+                    createCameraKey(
+                        CameraKey.KeyCameraFocusTarget,
+                        cameraIndex,
+                        CameraLensType.CAMERA_LENS_ZOOM,
+                    ),
+                    DoublePoint2D(x, y),
+                ),
+            )
+            .subscribe(
+                {
+                    currentFocusTargetX = x
+                    currentFocusTargetY = y
+                    onSuccess()
+                },
+                { throwable -> onFailure(throwable.message ?: throwable.toString()) },
+            )
+    }
+
+    fun setAELock(
+        enabled: Boolean,
+        onSuccess: () -> Unit,
+        onFailure: (String) -> Unit,
+    ) {
+        if (!started.get()) {
+            onFailure("DJI inspection camera is not initialized.")
+            return
+        }
+
+        val lockKey = createCameraKey(
+            CameraKey.KeyAELockEnabled,
+            cameraIndex,
+            CameraLensType.CAMERA_LENS_ZOOM,
+        )
+        if (!enabled) {
+            RxUtil.setValue(lockKey, false).subscribe(
+                {
+                    currentAELocked = false
+                    onSuccess()
+                },
+                { throwable -> onFailure(throwable.message ?: throwable.toString()) },
+            )
+            return
+        }
+
+        RxUtil.setValue(
+            createCameraKey(
+                CameraKey.KeyExposureMode,
+                cameraIndex,
+                CameraLensType.CAMERA_LENS_ZOOM,
+            ),
+            CameraExposureMode.PROGRAM,
+        )
+            .andThen(RxUtil.setValue(lockKey, true))
+            .subscribe(
+                {
+                    currentAELocked = true
+                    onSuccess()
+                },
+                { throwable -> onFailure(throwable.message ?: throwable.toString()) },
+            )
     }
 
     fun setZoomRatio(
@@ -137,7 +240,10 @@ class DjiInspectionCameraController(
             key,
             ratio,
             object : CommonCallbacks.CompletionCallback {
-                override fun onSuccess() = onSuccess()
+                override fun onSuccess() {
+                    currentZoomRatio = ratio
+                    onSuccess()
+                }
                 override fun onFailure(error: IDJIError) =
                     onFailure("DJI zoom command failed: $error")
             },
@@ -318,6 +424,11 @@ class DjiInspectionCameraController(
                             relativeAltitudeFt = (snapshot.altitudeM ?: 0.0) * feetPerMeter,
                             headingDeg = snapshot.headingDeg ?: 0.0,
                             gimbalPitchDeg = 0.0,
+                            cameraSource = currentCameraSource,
+                            zoomRatio = currentZoomRatio,
+                            focusTargetX = currentFocusTargetX,
+                            focusTargetY = currentFocusTargetY,
+                            aeLocked = currentAELocked,
                         ),
                     )
                 }

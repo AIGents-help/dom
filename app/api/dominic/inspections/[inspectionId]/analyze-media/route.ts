@@ -326,10 +326,19 @@ export async function POST(
         candidate.region !== null &&
         rangefinderTargetMatchesRegion(storedRangefinderTarget, candidate.region);
       const targetLocation = laserCorrelated ? storedRangefinderTarget : null;
+      const rawComparisonState = candidate.comparison_state;
+      const comparisonState = effectiveComparisonState(
+        rawComparisonState,
+        comparisonComparability,
+      );
+      const comparisonNote =
+        comparisonState !== rawComparisonState
+          ? `${candidate.comparison_note} DOMINIC marked this comparison uncertain because capture geometry is poorly matched.`.trim()
+          : candidate.comparison_note;
       const followUpCapture = buildFollowUpCapturePrescription({
         region: candidate.region,
         confidence: candidate.confidence,
-        comparisonState: candidate.comparison_state,
+        comparisonState,
         targetLocation: targetLocation
           ? {
               latitude: targetLocation.latitude,
@@ -379,10 +388,13 @@ export async function POST(
           candidate: true,
           recommendedAction: candidate.recommended_action,
           trackingKey: candidate.tracking_key || null,
-          comparisonState: candidate.comparison_state,
-          comparisonNote: candidate.comparison_note,
+          comparisonState,
+          rawComparisonState,
+          comparisonNote,
+          comparisonComparability,
           baselineFindingId,
           baselineEvidenceId,
+          baselineSourceMediaId,
           screeningSummary: screening.summary,
           limitations: screening.limitations,
           followUpCapture,
@@ -429,6 +441,8 @@ export async function POST(
             baselineCompared: Boolean(baselineSignedUrl),
             baselineFindingId,
             baselineEvidenceId,
+            baselineSourceMediaId,
+            comparisonComparability,
             analyzedAt: new Date().toISOString(),
           },
         })
@@ -450,6 +464,8 @@ export async function POST(
             baselineCompared: Boolean(baselineSignedUrl),
             baselineFindingId,
             baselineEvidenceId,
+            baselineSourceMediaId,
+            comparisonComparability,
             analyzedAt: new Date().toISOString(),
           },
         })
@@ -473,6 +489,7 @@ export async function POST(
       candidateCount: screening.candidates.length,
       baselineCompared: Boolean(baselineSignedUrl),
       baselineFindingId,
+      comparisonComparability,
       findings: findings ?? [],
     }, {
       headers: { "Cache-Control": "no-store" },

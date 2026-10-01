@@ -50,6 +50,10 @@ export type UniversalMediaCapture = {
   headingDeg: number;
   gimbalPitchDeg: number;
   gimbalYawDeg?: number;
+  cameraSource?: "wide" | "zoom";
+  zoomRatio?: number;
+  focusTarget?: { x: number; y: number };
+  aeLocked?: boolean;
 };
 
 export type UniversalAircraftCommand =

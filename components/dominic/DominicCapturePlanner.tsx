@@ -1639,7 +1639,7 @@ export default function DominicCapturePlanner({
   const watchReadiness = inspectionWatchReadiness({
     enabled: inspectionWatchEnabled,
     hasInspectionContext: Boolean(inspectionContext),
-    equipmentReady: inspectionEquipmentReady,
+    equipmentReady: !inspectionContext || inspectionContext.equipment?.ready === true,
     bridgeConnected: bridgeStatus === "connected",
     photoCaptureSupported: Boolean(bridgeInfo?.capabilities.photoCapture),
     capturePending: inspectionWatchCapturePendingRef.current,
@@ -1653,7 +1653,7 @@ export default function DominicCapturePlanner({
       const readiness = inspectionWatchReadiness({
         enabled: true,
         hasInspectionContext: Boolean(inspectionContext),
-        equipmentReady: inspectionEquipmentReady,
+        equipmentReady: !inspectionContext || inspectionContext.equipment?.ready === true,
         bridgeConnected: bridgeStatus === "connected",
         photoCaptureSupported: Boolean(bridgeInfo?.capabilities.photoCapture),
         capturePending: inspectionWatchCapturePendingRef.current,

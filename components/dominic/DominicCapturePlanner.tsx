@@ -49,6 +49,7 @@ import {
   realtimeScreeningReasonLabel,
 } from "@/lib/dominicRealtimeScreening";
 import { buildDominicInspectionCameraPreset } from "@/lib/dominicCameraPreset";
+import { decideInspectionQualityRecapture } from "@/lib/dominicInspectionRecapture";
 import CapturePlanningMap from "@/components/dominic/CapturePlanningMap";
 import { resolveCaptureCameraProfile } from "@/lib/captureCameraProfiles";
 import {
@@ -375,6 +376,7 @@ export default function DominicCapturePlanner({
     activePayloadId?: string;
   } | null>(null);
   const bridgeAdapterRef = useRef<DominicAircraftAdapter | null>(null);
+  const qualityRecaptureAttemptsRef = useRef<Record<string, number>>({});
   const autonomousEngineRef = useRef<DominicMissionEngine | null>(null);
   const [missionControlMessage, setMissionControlMessage] = useState<string | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
@@ -410,6 +412,10 @@ export default function DominicCapturePlanner({
       bridgeInfo.payloads[0]
     );
   }, [bridgeInfo]);
+
+  useEffect(() => {
+    qualityRecaptureAttemptsRef.current = {};
+  }, [inspectionContext?.inspectionId, inspectionContext?.followUpCapture?.findingId]);
 
   useEffect(() => {
     if (bridgeStatus !== "connected" || !activeConnectedPayload) return;
@@ -1419,6 +1425,72 @@ export default function DominicCapturePlanner({
               ? ` · saved to ${inspectionContext.assetName} inspection evidence`
               : ""
           }.`,
+        );
+      }
+
+      const retryKey =
+        inspectionContext?.followUpCapture?.findingId ??
+        capture.checkpointId ??
+        inspectionContext?.inspectionId ??
+        capture.aircraftId;
+      const attempts = qualityRecaptureAttemptsRef.current[retryKey] ?? 0;
+      const recaptureDecision = decideInspectionQualityRecapture({
+        quality,
+        attempts,
+      });
+
+      if (
+        recaptureDecision.retry &&
+        inspectionContext?.followUpCapture &&
+        bridgeStatus === "connected" &&
+        bridgeInfo?.capabilities.photoCapture
+      ) {
+        const adapter = bridgeAdapterRef.current;
+        if (!adapter) return;
+
+        qualityRecaptureAttemptsRef.current[retryKey] = attempts + 1;
+        setAutomaticMediaStatus(
+          `${recaptureDecision.message} Automatic retry ${attempts + 1}/1.`,
+        );
+
+        if (recaptureDecision.refocus && bridgeInfo.capabilities.focusControl) {
+          const focusTarget = inspectionContext.followUpCapture.focusTarget ?? { x: 0.5, y: 0.5 };
+          const focusResult = await adapter.send({
+            type: "setFocusTarget",
+            x: Math.min(1, Math.max(0, focusTarget.x)),
+            y: Math.min(1, Math.max(0, focusTarget.y)),
+          });
+          if (!focusResult.accepted) {
+            setAutomaticMediaStatus(
+              focusResult.message ?? "Automatic quality retry could not refocus the camera.",
+            );
+            return;
+          }
+        }
+
+        if (recaptureDecision.unlockExposure && bridgeInfo.capabilities.aeLockControl) {
+          const exposureResult = await adapter.send({ type: "setAELock", enabled: false });
+          if (!exposureResult.accepted) {
+            setAutomaticMediaStatus(
+              exposureResult.message ?? "Automatic quality retry could not reset exposure.",
+            );
+            return;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 350));
+        }
+
+        const retryResult = await adapter.send({
+          type: "capturePhoto",
+          checkpointId: capture.checkpointId,
+        });
+        setAutomaticMediaStatus(
+          retryResult.accepted
+            ? `Automatic quality retry ${attempts + 1}/1 shutter accepted.`
+            : retryResult.message ?? "Automatic quality retry was rejected by the aircraft.",
+        );
+      } else if (!quality.usable && !recaptureDecision.retry) {
+        setAutomaticMediaStatus(
+          `${capture.filename ?? capture.id} was saved, but DOMINIC will not retry again automatically. ${recaptureDecision.message}`,
         );
       }
     } catch (error) {

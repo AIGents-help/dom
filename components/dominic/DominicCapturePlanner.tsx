@@ -432,9 +432,6 @@ export default function DominicCapturePlanner({
     qualityRecaptureAttemptsRef.current = {};
     inspectionWatchCapturePendingRef.current = false;
     inspectionWatchLastRequestedAtRef.current = 0;
-    setInspectionWatchEnabled(false);
-    setInspectionWatchCapturePending(false);
-    setInspectionWatchCaptureCount(0);
   }, [inspectionContext?.inspectionId, inspectionContext?.followUpCapture?.findingId]);
 
   useEffect(() => {

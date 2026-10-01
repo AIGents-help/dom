@@ -8,6 +8,11 @@ import {
 } from "@/lib/aircraft/rangefinderTarget";
 import { resolveDominicInspectionProfile } from "@/lib/dominicInspectionProfiles";
 import {
+  effectiveComparisonState,
+  evaluateComparisonComparability,
+  type ComparisonCaptureGeometry,
+} from "@/lib/dominicComparisonComparability";
+import {
   buildDominicVisionPrompt,
   DOMINIC_VISION_SCHEMA,
   extractResponsesApiText,
@@ -18,6 +23,31 @@ export const runtime = "nodejs";
 
 function fingerprint(input: string) {
   return createHash("sha256").update(input).digest("hex").slice(0, 40);
+}
+
+function captureGeometryFromMedia(input: {
+  relative_altitude_ft?: number | null;
+  metadata?: unknown;
+}): ComparisonCaptureGeometry {
+  const metadata =
+    input.metadata && typeof input.metadata === "object"
+      ? (input.metadata as Record<string, unknown>)
+      : {};
+  const cameraSource =
+    metadata.cameraSource === "wide" || metadata.cameraSource === "zoom"
+      ? metadata.cameraSource
+      : null;
+  const zoomRatio = Number(metadata.zoomRatio);
+  const headingDeg = Number(metadata.headingDeg);
+  const gimbalPitchDeg = Number(metadata.gimbalPitchDeg);
+  const relativeAltitudeFt = Number(input.relative_altitude_ft);
+  return {
+    relativeAltitudeFt: Number.isFinite(relativeAltitudeFt) ? relativeAltitudeFt : null,
+    headingDeg: Number.isFinite(headingDeg) ? headingDeg : null,
+    gimbalPitchDeg: Number.isFinite(gimbalPitchDeg) ? gimbalPitchDeg : null,
+    cameraSource,
+    zoomRatio: Number.isFinite(zoomRatio) ? zoomRatio : null,
+  };
 }
 
 function safeProviderError(payload: unknown) {
@@ -144,6 +174,8 @@ export async function POST(
   let baselineSignedUrl: string | null = null;
   let baselineFindingId: string | null = null;
   let baselineEvidenceId: string | null = null;
+  let baselineSourceMediaId: string | null = null;
+  let baselineMediaGeometry: ComparisonCaptureGeometry | null = null;
 
   if (issueId) {
     const { data: issue } = await admin
@@ -158,7 +190,7 @@ export async function POST(
       baselineFindingId = issue.current_finding_id;
       const { data: evidence } = await admin
         .from("dominic_finding_evidence")
-        .select("id,storage_path,mime_type")
+        .select("id,storage_path,mime_type,source_id")
         .eq("user_id", user.id)
         .eq("finding_id", issue.current_finding_id)
         .not("storage_path", "is", null)
@@ -173,10 +205,32 @@ export async function POST(
         if (baselineSigned?.signedUrl) {
           baselineSignedUrl = baselineSigned.signedUrl;
           baselineEvidenceId = evidence.id;
+          baselineSourceMediaId =
+            typeof evidence.source_id === "string" ? evidence.source_id : null;
         }
       }
     }
   }
+
+  if (baselineSourceMediaId) {
+    const { data: baselineMedia } = await admin
+      .from("dominic_inspection_media")
+      .select("id,user_id,asset_id,relative_altitude_ft,metadata")
+      .eq("id", baselineSourceMediaId)
+      .eq("user_id", user.id)
+      .eq("asset_id", asset.id)
+      .maybeSingle();
+    if (baselineMedia) {
+      baselineMediaGeometry = captureGeometryFromMedia(baselineMedia);
+    }
+  }
+
+  const comparisonComparability = baselineSignedUrl
+    ? evaluateComparisonComparability({
+        baseline: baselineMediaGeometry ?? {},
+        current: captureGeometryFromMedia(media),
+      })
+    : null;
 
   const model =
     process.env.DOMINIC_VISION_MODEL?.trim() ||
@@ -192,6 +246,7 @@ export async function POST(
     objective: inspection.objective,
     sensorMode: media.sensor_mode,
     baselineAvailable: Boolean(baselineSignedUrl),
+    comparisonComparability,
   });
 
   await Promise.all([

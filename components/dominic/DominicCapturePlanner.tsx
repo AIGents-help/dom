@@ -381,8 +381,8 @@ export default function DominicCapturePlanner({
     sequenceId: string;
     findingId: string;
     checkpointId?: string;
-    startedAtMs: number;
   } | null>(null);
+  const followUpEvidenceSequenceRef = useRef(0);
   const autonomousEngineRef = useRef<DominicMissionEngine | null>(null);
   const [missionControlMessage, setMissionControlMessage] = useState<string | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
@@ -1670,11 +1670,10 @@ export default function DominicCapturePlanner({
     }
 
     const activePair = followUpEvidencePairRef.current;
-    if (activePair && Date.now() - activePair.startedAtMs < 30_000) {
+    if (activePair) {
       setAutomaticMediaStatus("A context + detail evidence pair is already in progress.");
       return;
     }
-    if (activePair) followUpEvidencePairRef.current = null;
 
     const followUp = inspectionContext?.followUpCapture ?? null;
     const cameraPreset =
@@ -1694,7 +1693,9 @@ export default function DominicCapturePlanner({
       bridgeInfo.capabilities.cameraSourceControl
     ) {
       const checkpointId = selectedWaypointId ?? current?.id;
-      const sequenceId = `followup-${followUp.findingId}-${Date.now()}`;
+      followUpEvidenceSequenceRef.current += 1;
+      const sequenceId =
+        `followup-${followUp.findingId}-${followUpEvidenceSequenceRef.current}`;
       const sourceResult = await adapter.send({
         type: "setCameraSource",
         source: "wide",
@@ -1719,8 +1720,15 @@ export default function DominicCapturePlanner({
         sequenceId,
         findingId: followUp.findingId,
         checkpointId,
-        startedAtMs: Date.now(),
       };
+      window.setTimeout(() => {
+        if (followUpEvidencePairRef.current?.sequenceId === sequenceId) {
+          followUpEvidencePairRef.current = null;
+          setAutomaticMediaStatus(
+            "Context + detail capture timed out. The pair can be started again.",
+          );
+        }
+      }, 30_000);
       setAutomaticMediaStatus("Capturing wide context evidence before the detail frame…");
       const contextResult = await adapter.send({
         type: "capturePhoto",

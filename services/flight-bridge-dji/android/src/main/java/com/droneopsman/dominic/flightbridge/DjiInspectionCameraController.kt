@@ -130,6 +130,7 @@ class DjiInspectionCameraController(
             object : CommonCallbacks.CompletionCallback {
                 override fun onSuccess() {
                     currentCameraSource = source.lowercase()
+                    if (currentCameraSource == "wide") currentZoomRatio = 1.0
                     onSuccess()
                 }
                 override fun onFailure(error: IDJIError) =

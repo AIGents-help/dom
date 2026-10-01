@@ -95,6 +95,12 @@ class DjiInspectionCameraController(
         scheduler.shutdownNow()
     }
 
+    private fun activeLensType(): CameraLensType =
+        when (currentCameraSource) {
+            "wide" -> CameraLensType.CAMERA_LENS_WIDE
+            else -> CameraLensType.CAMERA_LENS_ZOOM
+        }
+
     fun setCameraSource(
         source: String,
         onSuccess: () -> Unit,
@@ -149,7 +155,7 @@ class DjiInspectionCameraController(
             createCameraKey(
                 CameraKey.KeyCameraFocusMode,
                 cameraIndex,
-                CameraLensType.CAMERA_LENS_ZOOM,
+                activeLensType(),
             ),
             CameraFocusMode.AF,
         )
@@ -158,7 +164,7 @@ class DjiInspectionCameraController(
                     createCameraKey(
                         CameraKey.KeyCameraFocusTarget,
                         cameraIndex,
-                        CameraLensType.CAMERA_LENS_ZOOM,
+                        activeLensType(),
                     ),
                     DoublePoint2D(x, y),
                 ),
@@ -186,7 +192,7 @@ class DjiInspectionCameraController(
         val lockKey = createCameraKey(
             CameraKey.KeyAELockEnabled,
             cameraIndex,
-            CameraLensType.CAMERA_LENS_ZOOM,
+            activeLensType(),
         )
         if (!enabled) {
             RxUtil.setValue(lockKey, false).subscribe(
@@ -203,7 +209,7 @@ class DjiInspectionCameraController(
             createCameraKey(
                 CameraKey.KeyExposureMode,
                 cameraIndex,
-                CameraLensType.CAMERA_LENS_ZOOM,
+                activeLensType(),
             ),
             CameraExposureMode.PROGRAM,
         )

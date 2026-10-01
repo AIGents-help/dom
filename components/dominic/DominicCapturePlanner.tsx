@@ -48,6 +48,7 @@ import {
   decideRealtimeInspectionScreening,
   realtimeScreeningReasonLabel,
 } from "@/lib/dominicRealtimeScreening";
+import { buildDominicInspectionCameraPreset } from "@/lib/dominicCameraPreset";
 import CapturePlanningMap from "@/components/dominic/CapturePlanningMap";
 import { resolveCaptureCameraProfile } from "@/lib/captureCameraProfiles";
 import {
@@ -1128,6 +1129,14 @@ export default function DominicCapturePlanner({
       bridgeAdapterRef.current?.getState().rangefinderTarget,
       capture.capturedAtMs,
     );
+    const cameraPreset = inspectionContext.followUpCapture
+      ? buildDominicInspectionCameraPreset({
+          inspectionType: inspectionContext.inspectionType,
+          targetDistanceM: inspectionContext.targetLocation?.distanceM ?? null,
+          recommendedZoom: inspectionContext.followUpCapture.estimatedOpticalZoomMultiplier,
+          hasFocusTarget: Boolean(inspectionContext.followUpCapture.focusTarget),
+        })
+      : null;
 
     const { data: insertedMedia, error: rowError } = await sb
       .from("dominic_inspection_media")
@@ -1172,6 +1181,7 @@ export default function DominicCapturePlanner({
           zoomRatio: capture.zoomRatio ?? null,
           focusTarget: capture.focusTarget ?? null,
           aeLocked: capture.aeLocked ?? null,
+          cameraPreset,
           rangefinderTarget: rangefinderTarget
             ? {
                 ...rangefinderTarget,
@@ -1433,35 +1443,63 @@ export default function DominicCapturePlanner({
     }
 
     const followUp = inspectionContext?.followUpCapture ?? null;
+    const cameraPreset =
+      followUp && inspectionContext
+        ? buildDominicInspectionCameraPreset({
+            inspectionType: inspectionContext.inspectionType,
+            targetDistanceM: inspectionContext.targetLocation?.distanceM ?? null,
+            recommendedZoom: followUp.estimatedOpticalZoomMultiplier,
+            hasFocusTarget: Boolean(followUp.focusTarget),
+          })
+        : null;
     let appliedZoom: number | null = null;
-    if (followUp && bridgeInfo.capabilities.zoomControl) {
+
+    if (followUp && cameraPreset) {
       if (bridgeInfo.capabilities.cameraSourceControl) {
-        setAutomaticMediaStatus("Switching to the DJI zoom camera…");
-        const sourceResult = await adapter.send({ type: "setCameraSource", source: "zoom" });
+        setAutomaticMediaStatus(
+          `Applying ${cameraPreset.name} preset · switching to ${cameraPreset.cameraSource} camera…`,
+        );
+        const sourceResult = await adapter.send({
+          type: "setCameraSource",
+          source: cameraPreset.cameraSource,
+        });
         if (!sourceResult.accepted) {
           setAutomaticMediaStatus(
-            sourceResult.message ?? "Aircraft rejected the zoom-camera source selection.",
+            sourceResult.message ?? "Aircraft rejected the camera-source selection.",
           );
           return;
         }
       }
-      const minZoom = activeConnectedPayload?.minZoom ?? 1;
-      const maxZoom = activeConnectedPayload?.maxZoom ?? 8;
-      const requestedZoom = followUp.estimatedOpticalZoomMultiplier;
-      const zoomRatio = Math.min(maxZoom, Math.max(minZoom, requestedZoom));
-      setAutomaticMediaStatus(`Applying ${zoomRatio.toFixed(1)}x follow-up zoom…`);
-      const zoomResult = await adapter.send({ type: "setZoom", ratio: zoomRatio });
-      if (!zoomResult.accepted) {
+
+      if (cameraPreset.cameraSource === "zoom" && bridgeInfo.capabilities.zoomControl) {
+        const minZoom = activeConnectedPayload?.minZoom ?? 1;
+        const maxZoom = activeConnectedPayload?.maxZoom ?? 8;
+        const zoomRatio = Math.min(maxZoom, Math.max(minZoom, cameraPreset.zoomRatio));
         setAutomaticMediaStatus(
-          zoomResult.message ?? "Aircraft rejected the recommended follow-up zoom.",
+          `Applying ${cameraPreset.name} preset · ${zoomRatio.toFixed(1)}x framing…`,
         );
-        return;
+        const zoomResult = await adapter.send({ type: "setZoom", ratio: zoomRatio });
+        if (!zoomResult.accepted) {
+          setAutomaticMediaStatus(
+            zoomResult.message ?? "Aircraft rejected the recommended follow-up zoom.",
+          );
+          return;
+        }
+        appliedZoom = zoomRatio;
+      } else if (cameraPreset.cameraSource === "wide") {
+        appliedZoom = 1;
       }
-      appliedZoom = zoomRatio;
 
       if (bridgeInfo.capabilities.focusControl) {
-        const focusTarget = followUp.focusTarget ?? { x: 0.5, y: 0.5 };
-        setAutomaticMediaStatus("Focusing on the anomaly region…");
+        const focusTarget =
+          cameraPreset.focusStrategy === "anomaly" && followUp.focusTarget
+            ? followUp.focusTarget
+            : { x: 0.5, y: 0.5 };
+        setAutomaticMediaStatus(
+          cameraPreset.focusStrategy === "anomaly"
+            ? "Focusing on the anomaly region…"
+            : "Focusing on the frame center…",
+        );
         const focusResult = await adapter.send({
           type: "setFocusTarget",
           x: Math.min(1, Math.max(0, focusTarget.x)),
@@ -1475,7 +1513,7 @@ export default function DominicCapturePlanner({
         }
       }
 
-      if (bridgeInfo.capabilities.aeLockControl) {
+      if (cameraPreset.aeLock && bridgeInfo.capabilities.aeLockControl) {
         setAutomaticMediaStatus("Locking exposure for repeatable evidence…");
         const aeResult = await adapter.send({ type: "setAELock", enabled: true });
         if (!aeResult.accepted) {
@@ -1488,11 +1526,11 @@ export default function DominicCapturePlanner({
     }
 
     setAutomaticMediaStatus(
-      followUp
-        ? appliedZoom !== null
-          ? `Follow-up framing set to ${appliedZoom.toFixed(1)}x · requesting inspection photo…`
-          : `Follow-up capture ready · set about ${followUp.estimatedOpticalZoomMultiplier.toFixed(1)}x framing manually if needed · requesting photo…`
-        : "Requesting inspection photo from the connected aircraft…",
+      followUp && cameraPreset
+        ? `${cameraPreset.name} preset ready · ${cameraPreset.cameraSource}${appliedZoom !== null ? ` · ${appliedZoom.toFixed(1)}x` : ""} · requesting inspection photo…`
+        : followUp
+          ? `Follow-up capture ready · set about ${followUp.estimatedOpticalZoomMultiplier.toFixed(1)}x framing manually if needed · requesting photo…`
+          : "Requesting inspection photo from the connected aircraft…",
     );
     const result = await adapter.send({
       type: "capturePhoto",

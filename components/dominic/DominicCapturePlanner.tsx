@@ -1431,6 +1431,16 @@ export default function DominicCapturePlanner({
     const followUp = inspectionContext?.followUpCapture ?? null;
     let appliedZoom: number | null = null;
     if (followUp && bridgeInfo.capabilities.zoomControl) {
+      if (bridgeInfo.capabilities.cameraSourceControl) {
+        setAutomaticMediaStatus("Switching to the DJI zoom camera…");
+        const sourceResult = await adapter.send({ type: "setCameraSource", source: "zoom" });
+        if (!sourceResult.accepted) {
+          setAutomaticMediaStatus(
+            sourceResult.message ?? "Aircraft rejected the zoom-camera source selection.",
+          );
+          return;
+        }
+      }
       const minZoom = activeConnectedPayload?.minZoom ?? 1;
       const maxZoom = activeConnectedPayload?.maxZoom ?? 8;
       const requestedZoom = followUp.estimatedOpticalZoomMultiplier;

@@ -21,10 +21,16 @@ class DjiInspectionBridgeRuntime(
         telemetryProvider = telemetryProvider,
         mediaServer = mediaServer,
     )
+    private val liveFrameSampler = DjiLiveInspectionFrameSampler(
+        context = context,
+        telemetryProvider = telemetryProvider,
+        mediaServer = mediaServer,
+    )
     private val service = DominicInspectionBridgeService(
         bridgeId = bridgeId,
         telemetryProvider = telemetryProvider,
         cameraController = cameraController,
+        liveFrameSampler = liveFrameSampler,
     )
     private val socketServer = InspectionLoopbackWebSocketServer(service, websocketPort)
 
@@ -37,6 +43,7 @@ class DjiInspectionBridgeRuntime(
     fun stop() {
         runCatching { socketServer.stop(1_000) }
         service.stop()
+        liveFrameSampler.shutdown()
         mediaServer.stop()
     }
 }

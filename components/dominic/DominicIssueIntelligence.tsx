@@ -46,6 +46,7 @@ type FindingRow = {
   confidence: number | null;
   sensor_mode: string | null;
   spatial_anchor: Record<string, unknown>;
+  detector: Record<string, unknown>;
   observed_at: string;
 };
 
@@ -122,7 +123,7 @@ export default function DominicIssueIntelligence({
         findingIds.length
           ? sb
               .from("dominic_findings")
-              .select("id,inspection_id,title,description,severity,confidence,sensor_mode,spatial_anchor,observed_at")
+              .select("id,inspection_id,title,description,severity,confidence,sensor_mode,spatial_anchor,detector,observed_at")
               .in("id", findingIds)
               .order("observed_at", { ascending: true })
           : Promise.resolve({ data: [], error: null }),
@@ -291,6 +292,14 @@ export default function DominicIssueIntelligence({
             const hasTarget =
               Number.isFinite(targetLatitude) &&
               Number.isFinite(targetLongitude);
+            const comparisonState =
+              typeof finding.detector?.comparisonState === "string"
+                ? finding.detector.comparisonState
+                : null;
+            const comparisonNote =
+              typeof finding.detector?.comparisonNote === "string"
+                ? finding.detector.comparisonNote
+                : null;
             return (
               <div key={finding.id} style={{ border: `1px solid ${LINE}`, borderRadius: 9, background: PANEL_2, overflow: "hidden" }}>
                 <div style={{ padding: 9, display: "grid", gridTemplateColumns: "24px minmax(0,1fr) auto", gap: 8, alignItems: "start" }}>
@@ -304,6 +313,33 @@ export default function DominicIssueIntelligence({
                     </div>
                     {finding.description ? (
                       <div style={{ color: "#C9D2D9", fontSize: 8, lineHeight: 1.4, marginTop: 5 }}>{finding.description}</div>
+                    ) : null}
+                    {comparisonState ? (
+                      <div
+                        style={{
+                          color:
+                            comparisonState === "worsening"
+                              ? RED
+                              : comparisonState === "improving"
+                                ? GREEN
+                                : comparisonState === "unchanged"
+                                  ? "#8FC7FF"
+                                  : AMBER,
+                          fontSize: 7,
+                          fontWeight: 900,
+                          marginTop: 5,
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {comparisonState === "new"
+                          ? "First observed"
+                          : `Compared with prior evidence: ${comparisonState}`}
+                        {comparisonNote ? (
+                          <div style={{ color: MUTED, fontWeight: 500, textTransform: "none", lineHeight: 1.4, marginTop: 2 }}>
+                            {comparisonNote}
+                          </div>
+                        ) : null}
+                      </div>
                     ) : null}
                     {hasTarget ? (
                       <div style={{ color: GREEN, fontSize: 7, lineHeight: 1.4, marginTop: 5 }}>

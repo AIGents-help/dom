@@ -310,7 +310,20 @@ class DominicInspectionBridgeService(
                     .put("longitude", capture.longitude)
                     .put("relativeAltitudeFt", capture.relativeAltitudeFt)
                     .put("headingDeg", capture.headingDeg)
-                    .put("gimbalPitchDeg", capture.gimbalPitchDeg),
+                    .put("gimbalPitchDeg", capture.gimbalPitchDeg)
+                    .apply { capture.cameraSource?.let { put("cameraSource", it) } }
+                    .apply { capture.zoomRatio?.let { put("zoomRatio", it) } }
+                    .apply {
+                        if (capture.focusTargetX != null && capture.focusTargetY != null) {
+                            put(
+                                "focusTarget",
+                                JSONObject()
+                                    .put("x", capture.focusTargetX)
+                                    .put("y", capture.focusTargetY),
+                            )
+                        }
+                    }
+                    .apply { capture.aeLocked?.let { put("aeLocked", it) } },
             )
             .toString()
 

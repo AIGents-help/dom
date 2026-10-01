@@ -1,3 +1,5 @@
+import { buildInspectionProfilePrompt, resolveDominicInspectionProfile } from "@/lib/dominicInspectionProfiles";
+
 export type DominicVisionSeverity = "info" | "low" | "medium" | "high";
 
 export type DominicVisionRegion = {
@@ -232,16 +234,21 @@ export function buildDominicVisionPrompt(input: {
   sensorMode: string;
   baselineAvailable?: boolean;
 }) {
+  const profile = resolveDominicInspectionProfile({
+    assetType: input.assetType,
+    inspectionType: input.inspectionType,
+  });
+
   return [
     "You are the visual-screening stage of DOMINIC, an industrial drone inspection system.",
     "Review this single inspection image and identify only visible candidate anomalies that merit human review.",
-    "Do not claim a hidden condition, root cause, leak, temperature, structural integrity, code compliance, or safety state that cannot be established from visible pixels.",
+    "Do not claim a hidden condition, root cause, leak, temperature, structural integrity, code compliance, or safety state that cannot be established from the supplied evidence.",
     "A candidate is not a diagnosis. Prefer zero candidates over inventing a defect.",
-    "For corrosion-like discoloration, coating damage, staining, deformation, debris, vegetation, cracks, missing components, loose-looking components, or other visible irregularities, describe what is actually visible.",
     "Severity is triage priority only, not engineering severity. Never output critical from image-only screening.",
     "Return only the fields required by the DOMINIC screening schema.",
     "Region values are normalized 0..1 relative to the full image. Use null for region if localization is uncertain.",
-    "tracking_key should describe the same visible condition consistently across repeat inspections when possible. Use visible feature + approximate location, not a diagnosis or root cause.",
+    "tracking_key should describe the same visible condition consistently across repeat inspections when possible. Use physical feature + approximate asset location, not a diagnosis or root cause.",
+    buildInspectionProfilePrompt(profile),
     input.baselineAvailable
       ? "Two images are provided. The FIRST image is prior confirmed evidence for the tracked issue. The SECOND image is the current reinspection evidence. Compare only like-for-like visible features. Set comparison_state to unchanged, improving, worsening, or uncertain. Use new only for a clearly separate visible condition not present in the baseline."
       : "Only current evidence is provided. Set comparison_state to new for a visible candidate first observed in this screening, or uncertain if that cannot be established. Do not claim improvement/worsening without baseline evidence.",

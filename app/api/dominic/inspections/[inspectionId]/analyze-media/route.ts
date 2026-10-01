@@ -232,6 +232,8 @@ export async function POST(
       })
     : null;
 
+  const comparisonLimitations = comparisonComparability?.limitations ?? [];
+
   const model =
     process.env.DOMINIC_VISION_MODEL?.trim() ||
     (provider === "vercel-ai-gateway" ? "openai/gpt-5.6-terra" : "gpt-5.6-terra");
@@ -396,7 +398,7 @@ export async function POST(
           baselineEvidenceId,
           baselineSourceMediaId,
           screeningSummary: screening.summary,
-          limitations: screening.limitations,
+          limitations: [...screening.limitations, ...comparisonLimitations],
           followUpCapture,
         },
         observed_at: media.captured_at ?? new Date().toISOString(),
@@ -437,7 +439,7 @@ export async function POST(
             inspectionProfileLabel: inspectionProfile.label,
             summary: screening.summary,
             candidateCount: screening.candidates.length,
-            limitations: screening.limitations,
+            limitations: [...screening.limitations, ...comparisonLimitations],
             baselineCompared: Boolean(baselineSignedUrl),
             baselineFindingId,
             baselineEvidenceId,
@@ -460,7 +462,7 @@ export async function POST(
             inspectionProfileLabel: inspectionProfile.label,
             summary: screening.summary,
             candidateCount: screening.candidates.length,
-            limitations: screening.limitations,
+            limitations: [...screening.limitations, ...comparisonLimitations],
             baselineCompared: Boolean(baselineSignedUrl),
             baselineFindingId,
             baselineEvidenceId,
@@ -485,7 +487,7 @@ export async function POST(
       configured: true,
       mediaId: media.id,
       summary: screening.summary,
-      limitations: screening.limitations,
+      limitations: [...screening.limitations, ...comparisonLimitations],
       candidateCount: screening.candidates.length,
       baselineCompared: Boolean(baselineSignedUrl),
       baselineFindingId,

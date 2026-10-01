@@ -49,6 +49,7 @@ import {
   realtimeScreeningReasonLabel,
 } from "@/lib/dominicRealtimeScreening";
 import { buildDominicInspectionCameraPreset } from "@/lib/dominicCameraPreset";
+import { decideInspectionQualityRecapture } from "@/lib/dominicInspectionRecapture";
 import CapturePlanningMap from "@/components/dominic/CapturePlanningMap";
 import { resolveCaptureCameraProfile } from "@/lib/captureCameraProfiles";
 import {
@@ -375,6 +376,7 @@ export default function DominicCapturePlanner({
     activePayloadId?: string;
   } | null>(null);
   const bridgeAdapterRef = useRef<DominicAircraftAdapter | null>(null);
+  const qualityRecaptureAttemptsRef = useRef<Record<string, number>>({});
   const autonomousEngineRef = useRef<DominicMissionEngine | null>(null);
   const [missionControlMessage, setMissionControlMessage] = useState<string | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);

@@ -23,6 +23,17 @@ export type DominicInspectionPlanningContext = {
     distanceM?: number;
     source: string;
   } | null;
+  repeatCapturePreset?: {
+    sourceMediaId: string;
+    sourceCapturedAt: string | null;
+    cameraSource?: "wide" | "zoom" | null;
+    zoomRatio?: number | null;
+    focusTarget?: { x: number; y: number } | null;
+    aeLocked?: boolean | null;
+    relativeAltitudeFt?: number | null;
+    headingDeg?: number | null;
+    gimbalPitchDeg?: number | null;
+  } | null;
   followUpCapture?: {
     findingId: string;
     findingTitle: string;

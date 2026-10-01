@@ -76,6 +76,8 @@ describe("DOMINIC Flight Bridge", () => {
         mimeType: "image/jpeg",
         mediaUrl: "http://127.0.0.1:8787/media/photo-1.jpg",
         checkpointId: "mid-4",
+        evidenceRole: "detail",
+        evidenceSequenceId: "followup-finding-1-1",
         latitude: 39.95,
         longitude: -75.16,
         relativeAltitudeFt: 30,
@@ -86,5 +88,7 @@ describe("DOMINIC Flight Bridge", () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(media).toHaveLength(1);
     expect(media[0].checkpointId).toBe("mid-4");
+    expect(media[0].evidenceRole).toBe("detail");
+    expect(media[0].evidenceSequenceId).toBe("followup-finding-1-1");
   });
 });

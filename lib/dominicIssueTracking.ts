@@ -15,6 +15,31 @@ function slug(value: string, max = 80) {
     .slice(0, max);
 }
 
+
+function targetLocationBucket(anchor?: Record<string, unknown> | null) {
+  const target = anchor?.targetLocation;
+  if (!target || typeof target !== "object") return null;
+
+  const record = target as Record<string, unknown>;
+  const latitude = Number(record.latitude);
+  const longitude = Number(record.longitude);
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return null;
+  }
+
+  // Five decimal places is roughly meter-scale in latitude and gives a stable
+  // issue identity across repeat laser-localized inspections without storing
+  // full raw coordinates in the key.
+  return `geo_${latitude.toFixed(5).replace("-", "m").replace(".", "_")}_${longitude.toFixed(5).replace("-", "m").replace(".", "_")}`;
+}
+
 function regionBucket(anchor?: Record<string, unknown> | null) {
   const region = anchor?.imageRegion;
   if (!region || typeof region !== "object") return null;
@@ -35,12 +60,23 @@ function regionBucket(anchor?: Record<string, unknown> | null) {
 }
 
 export function deriveIssueTrackingKey(input: TrackableFinding) {
+  const type = slug(input.findingType || "visual_anomaly", 60) || "visual_anomaly";
+  const targetLocation = targetLocationBucket(input.spatialAnchor);
   const detectorTrackingKey = input.detector?.trackingKey;
-  if (typeof detectorTrackingKey === "string" && detectorTrackingKey.trim()) {
-    return slug(detectorTrackingKey, 120);
+  const detectorKey =
+    typeof detectorTrackingKey === "string" && detectorTrackingKey.trim()
+      ? slug(detectorTrackingKey, 90)
+      : null;
+
+  if (targetLocation) {
+    return [type, targetLocation, detectorKey]
+      .filter(Boolean)
+      .join(":")
+      .slice(0, 180);
   }
 
-  const type = slug(input.findingType || "visual_anomaly", 60) || "visual_anomaly";
+  if (detectorKey) return detectorKey;
+
   const location = regionBucket(input.spatialAnchor);
   const title = slug(input.title, 60);
 

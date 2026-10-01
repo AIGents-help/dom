@@ -1610,7 +1610,10 @@ export default function DominicCapturePlanner({
         );
 
         if (recaptureDecision.refocus && bridgeInfo.capabilities.focusControl) {
-          const focusTarget = inspectionContext.followUpCapture.focusTarget ?? { x: 0.5, y: 0.5 };
+          const focusTarget =
+            capture.evidenceRole === "context"
+              ? { x: 0.5, y: 0.5 }
+              : inspectionContext.followUpCapture.focusTarget ?? { x: 0.5, y: 0.5 };
           const focusResult = await adapter.send({
             type: "setFocusTarget",
             x: Math.min(1, Math.max(0, focusTarget.x)),

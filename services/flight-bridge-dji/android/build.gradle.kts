@@ -12,6 +12,15 @@ android {
         manifestPlaceholders["DOMINIC_DJI_API_KEY"] =
             providers.gradleProperty("DOMINIC_DJI_API_KEY").orElse("__MISSING_DJI_API_KEY__").get()
     }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+}
+
+kotlin {
+    jvmToolchain(17)
 }
 
 dependencies {

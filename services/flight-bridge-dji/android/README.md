@@ -162,3 +162,46 @@ This class intentionally exposes **no mission-start API**. Staging a KMZ does no
 take off, start a waypoint mission, move the aircraft, operate the payload, or invoke RTH.
 Those controls remain outside this validation layer until simulator, bench and controlled
 field validation are complete.
+
+
+## Matrice 4E inspection-camera mode
+
+For inspection evidence capture, use `DjiMsdkInspectionHost` instead of the telemetry-only host.
+
+This mode intentionally exposes a narrow capability set:
+
+- DJI MSDK telemetry
+- still-photo capture through `CameraKey.KeyStartShootPhoto`
+- original media retrieval through `MediaDataCenter`
+- a loopback-only media endpoint at `http://127.0.0.1:8788`
+- DOMINIC `media_capture` events that contain the local media URL and capture telemetry
+
+The WebSocket endpoint remains `ws://127.0.0.1:8787`.
+
+Example application host:
+
+```kotlin
+val host = DjiMsdkInspectionHost(
+    context = applicationContext,
+    onStatus = { status ->
+        Log.i("DOMINIC", "DJI inspection bridge: $status")
+    },
+)
+
+host.start()
+```
+
+The inspection bridge does **not** expose aircraft movement authority. It rejects arm,
+takeoff, go-to, velocity, yaw-flight-control, RTH, landing, pause/resume, and other
+movement commands. Still-photo capture is deliberately separated from the autonomous
+flight-validation ladder so inspection evidence can be validated with the Matrice 4E
+before connected flight execution is enabled.
+
+Captured media is downloaded to the controller application's cache and is published only
+on the controller loopback interface with a random media token. DOMINIC can then fetch
+the original file and persist it to the active Asset Intelligence inspection.
+
+The current first validation target is Matrice 4E with its integrated RGB camera system.
+This is not yet a claim of field validation: the Android camera/media path must still be
+compiled in the controller application and verified against real 4E hardware before it
+is treated as production-ready.

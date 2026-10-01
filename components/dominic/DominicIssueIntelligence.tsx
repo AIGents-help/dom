@@ -19,6 +19,7 @@ const RED = "#FF7474";
 
 type Issue = {
   id: string;
+  asset_id: string;
   title: string;
   issue_type: string;
   severity: "info" | "low" | "medium" | "high" | "critical";
@@ -26,6 +27,7 @@ type Issue = {
   recommended_action: string | null;
   first_seen_at: string;
   last_seen_at: string;
+  metadata: Record<string, unknown>;
 };
 
 type LinkRow = {

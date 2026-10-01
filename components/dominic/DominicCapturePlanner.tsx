@@ -1365,6 +1365,105 @@ export default function DominicCapturePlanner({
     }
   };
 
+  const captureFollowUpEvidenceDetail = async (sequence: {
+    sequenceId: string;
+    findingId: string;
+    checkpointId?: string;
+  }) => {
+    const adapter = bridgeAdapterRef.current;
+    const followUp = inspectionContext?.followUpCapture ?? null;
+    if (
+      !adapter ||
+      bridgeStatus !== "connected" ||
+      !bridgeInfo?.capabilities.photoCapture ||
+      !inspectionContext ||
+      !followUp ||
+      followUp.findingId !== sequence.findingId
+    ) {
+      followUpEvidencePairRef.current = null;
+      return;
+    }
+
+    const detailPreset = buildDominicInspectionCameraPreset({
+      inspectionType: inspectionContext.inspectionType,
+      targetDistanceM: inspectionContext.targetLocation?.distanceM ?? null,
+      recommendedZoom: Math.max(1.8, followUp.estimatedOpticalZoomMultiplier),
+      hasFocusTarget: true,
+    });
+
+    if (bridgeInfo.capabilities.cameraSourceControl) {
+      setAutomaticMediaStatus("Context frame saved · switching to detail camera…");
+      const sourceResult = await adapter.send({
+        type: "setCameraSource",
+        source: detailPreset.cameraSource,
+      });
+      if (!sourceResult.accepted) {
+        followUpEvidencePairRef.current = null;
+        setAutomaticMediaStatus(
+          sourceResult.message ?? "DOMINIC could not switch to the detail camera.",
+        );
+        return;
+      }
+    }
+
+    if (detailPreset.cameraSource === "zoom" && bridgeInfo.capabilities.zoomControl) {
+      const minZoom = activeConnectedPayload?.minZoom ?? 1;
+      const maxZoom = activeConnectedPayload?.maxZoom ?? 8;
+      const zoomRatio = Math.min(maxZoom, Math.max(minZoom, detailPreset.zoomRatio));
+      setAutomaticMediaStatus(`Context frame saved · applying ${zoomRatio.toFixed(1)}x detail framing…`);
+      const zoomResult = await adapter.send({ type: "setZoom", ratio: zoomRatio });
+      if (!zoomResult.accepted) {
+        followUpEvidencePairRef.current = null;
+        setAutomaticMediaStatus(
+          zoomResult.message ?? "DOMINIC could not apply the detail zoom.",
+        );
+        return;
+      }
+    }
+
+    if (bridgeInfo.capabilities.focusControl) {
+      const focusTarget = followUp.focusTarget ?? { x: 0.5, y: 0.5 };
+      const focusResult = await adapter.send({
+        type: "setFocusTarget",
+        x: Math.min(1, Math.max(0, focusTarget.x)),
+        y: Math.min(1, Math.max(0, focusTarget.y)),
+      });
+      if (!focusResult.accepted) {
+        followUpEvidencePairRef.current = null;
+        setAutomaticMediaStatus(
+          focusResult.message ?? "DOMINIC could not focus the detail frame.",
+        );
+        return;
+      }
+    }
+
+    if (detailPreset.aeLock && bridgeInfo.capabilities.aeLockControl) {
+      const aeResult = await adapter.send({ type: "setAELock", enabled: true });
+      if (!aeResult.accepted) {
+        followUpEvidencePairRef.current = null;
+        setAutomaticMediaStatus(
+          aeResult.message ?? "DOMINIC could not lock exposure for the detail frame.",
+        );
+        return;
+      }
+    }
+
+    const detailResult = await adapter.send({
+      type: "capturePhoto",
+      checkpointId: sequence.checkpointId,
+      evidenceRole: "detail",
+      evidenceSequenceId: sequence.sequenceId,
+    });
+    if (!detailResult.accepted) {
+      followUpEvidencePairRef.current = null;
+      setAutomaticMediaStatus(
+        detailResult.message ?? "DOMINIC detail evidence capture was rejected.",
+      );
+      return;
+    }
+    setAutomaticMediaStatus("Detail shutter accepted · waiting for the linked evidence frame…");
+  };
+
   const ingestBridgeMediaCapture = async (capture: UniversalMediaCapture) => {
     setAutomaticMediaStatus(`Received ${capture.filename ?? capture.id} from aircraft.`);
     if (!capture.mediaUrl) {

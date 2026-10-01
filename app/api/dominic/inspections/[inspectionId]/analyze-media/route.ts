@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { buildFollowUpCapturePrescription } from "@/lib/dominicFollowUpCapture";
 import {
   rangefinderTargetMatchesRegion,
   readStoredRangefinderTarget,
@@ -265,6 +266,18 @@ export async function POST(
         candidate.region !== null &&
         rangefinderTargetMatchesRegion(storedRangefinderTarget, candidate.region);
       const targetLocation = laserCorrelated ? storedRangefinderTarget : null;
+      const followUpCapture = buildFollowUpCapturePrescription({
+        region: candidate.region,
+        confidence: candidate.confidence,
+        comparisonState: candidate.comparison_state,
+        targetLocation: targetLocation
+          ? {
+              latitude: targetLocation.latitude,
+              longitude: targetLocation.longitude,
+              distanceM: targetLocation.distanceM,
+            }
+          : null,
+      });
 
       return {
         user_id: user.id,
@@ -310,6 +323,7 @@ export async function POST(
           baselineEvidenceId,
           screeningSummary: screening.summary,
           limitations: screening.limitations,
+          followUpCapture,
         },
         observed_at: media.captured_at ?? new Date().toISOString(),
       };

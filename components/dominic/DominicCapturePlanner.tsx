@@ -3476,6 +3476,64 @@ export default function DominicCapturePlanner({
             </div>
           </div>
 
+          {inspectionContext.repeatCapturePreset ? (
+            <div
+              style={{
+                marginTop: 10,
+                border: `1px solid rgba(112,214,160,.34)`,
+                borderRadius: 9,
+                background: "rgba(112,214,160,.065)",
+                padding: 10,
+              }}
+            >
+              <div style={{ color: V.green, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em" }}>
+                Repeat baseline capture
+              </div>
+              <div style={{ color: V.text, fontSize: 11, fontWeight: 900, marginTop: 3 }}>
+                Reproduce the prior evidence camera setup
+              </div>
+              <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.5, marginTop: 5 }}>
+                DOMINIC restores supported camera settings automatically. Altitude, heading, and gimbal remain pilot-guided reference targets.
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
+                {inspectionContext.repeatCapturePreset.cameraSource ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    Lens · {inspectionContext.repeatCapturePreset.cameraSource}
+                  </span>
+                ) : null}
+                {typeof inspectionContext.repeatCapturePreset.zoomRatio === "number" ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    Zoom · {inspectionContext.repeatCapturePreset.zoomRatio.toFixed(1)}x
+                  </span>
+                ) : null}
+                {typeof inspectionContext.repeatCapturePreset.relativeAltitudeFt === "number" ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    Altitude ref · {inspectionContext.repeatCapturePreset.relativeAltitudeFt.toFixed(1)} ft
+                  </span>
+                ) : null}
+                {typeof inspectionContext.repeatCapturePreset.headingDeg === "number" ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    Heading ref · {inspectionContext.repeatCapturePreset.headingDeg.toFixed(1)}°
+                  </span>
+                ) : null}
+                {typeof inspectionContext.repeatCapturePreset.gimbalPitchDeg === "number" ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    Gimbal ref · {inspectionContext.repeatCapturePreset.gimbalPitchDeg.toFixed(1)}°
+                  </span>
+                ) : null}
+                {inspectionContext.repeatCapturePreset.focusTarget ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    Focus · {(inspectionContext.repeatCapturePreset.focusTarget.x * 100).toFixed(0)}%, {(inspectionContext.repeatCapturePreset.focusTarget.y * 100).toFixed(0)}%
+                  </span>
+                ) : null}
+                {typeof inspectionContext.repeatCapturePreset.aeLocked === "boolean" ? (
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                    AE · {inspectionContext.repeatCapturePreset.aeLocked ? "locked" : "unlocked"}
+                  </span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
           {inspectionContext.followUpCapture ? (
             <div
               style={{

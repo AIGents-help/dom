@@ -424,6 +424,9 @@ export default function DominicCapturePlanner({
     );
   }, [bridgeInfo]);
 
+  const inspectionEquipmentReady =
+    !inspectionContext || inspectionContext.equipment?.ready === true;
+
   useEffect(() => {
     qualityRecaptureAttemptsRef.current = {};
     inspectionWatchCapturePendingRef.current = false;
@@ -2930,8 +2933,6 @@ export default function DominicCapturePlanner({
   };
 
   const activeProfile = missionProfiles[missionType];
-  const inspectionEquipmentReady =
-    !inspectionContext || inspectionContext.equipment?.ready === true;
 
   const activeSimpleCheckpoints =
     missionType === "object" ? geographicCheckpoints : effectiveSecondaryGeographicCheckpoints;

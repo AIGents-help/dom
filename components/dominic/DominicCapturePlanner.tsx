@@ -381,6 +381,7 @@ export default function DominicCapturePlanner({
     sequenceId: string;
     findingId: string;
     checkpointId?: string;
+    startedAtMs: number;
   } | null>(null);
   const autonomousEngineRef = useRef<DominicMissionEngine | null>(null);
   const [missionControlMessage, setMissionControlMessage] = useState<string | null>(null);
@@ -1668,6 +1669,13 @@ export default function DominicCapturePlanner({
       return;
     }
 
+    const activePair = followUpEvidencePairRef.current;
+    if (activePair && Date.now() - activePair.startedAtMs < 30_000) {
+      setAutomaticMediaStatus("A context + detail evidence pair is already in progress.");
+      return;
+    }
+    if (activePair) followUpEvidencePairRef.current = null;
+
     const followUp = inspectionContext?.followUpCapture ?? null;
     const cameraPreset =
       followUp && inspectionContext
@@ -1711,6 +1719,7 @@ export default function DominicCapturePlanner({
         sequenceId,
         findingId: followUp.findingId,
         checkpointId,
+        startedAtMs: Date.now(),
       };
       setAutomaticMediaStatus("Capturing wide context evidence before the detail frame…");
       const contextResult = await adapter.send({
@@ -1903,6 +1912,7 @@ export default function DominicCapturePlanner({
   };
 
   const disconnectAircraftBridge = async () => {
+    followUpEvidencePairRef.current = null;
     bridgeUnsubscribeRef.current?.();
     bridgeUnsubscribeRef.current = null;
     bridgeMediaUnsubscribeRef.current?.();

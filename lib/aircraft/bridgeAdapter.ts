@@ -6,6 +6,7 @@ import type {
   DominicAircraftAdapter,
   UniversalAircraftCommand,
   UniversalAircraftState,
+  UniversalInspectionFrame,
   UniversalMediaCapture,
 } from "@/lib/aircraft/contract";
 import {
@@ -28,6 +29,7 @@ export class FlightBridgeAircraftAdapter implements DominicAircraftAdapter {
   private state: UniversalAircraftState;
   private listeners = new Set<(state: UniversalAircraftState) => void>();
   private mediaListeners = new Set<(capture: UniversalMediaCapture) => void>();
+  private inspectionFrameListeners = new Set<(frame: UniversalInspectionFrame) => void>();
   private pending = new Map<string, PendingCommand>();
   private unsubscribeTransport?: () => void;
   private requestSequence = 0;
@@ -64,6 +66,11 @@ export class FlightBridgeAircraftAdapter implements DominicAircraftAdapter {
   subscribeMedia(listener: (capture: UniversalMediaCapture) => void) {
     this.mediaListeners.add(listener);
     return () => this.mediaListeners.delete(listener);
+  }
+
+  subscribeInspectionFrames(listener: (frame: UniversalInspectionFrame) => void) {
+    this.inspectionFrameListeners.add(listener);
+    return () => this.inspectionFrameListeners.delete(listener);
   }
 
   async disconnect() {
@@ -129,6 +136,10 @@ export class FlightBridgeAircraftAdapter implements DominicAircraftAdapter {
     }
     if (message.type === "media_capture") {
       for (const listener of this.mediaListeners) listener({ ...message.capture });
+      return;
+    }
+    if (message.type === "inspection_frame") {
+      for (const listener of this.inspectionFrameListeners) listener({ ...message.frame });
       return;
     }
     if (message.type === "command_result") {

@@ -75,7 +75,7 @@ class DjiKeyManagerTelemetryProvider : MsdkTelemetryProvider {
         val heading = manager.getValue(headingKey, 0.0)
         val satellites = manager.getValue(satelliteKey, 0)
         val battery = manager.getValue(batteryPercentKey, 0)
-        val laser = manager.getValue(laserMeasureInformationKey, null)
+        val laser = manager.getValue(laserMeasureInformationKey)
 
         snapshot = snapshot.copy(
             aircraftId = serial.takeIf { it.isNotBlank() } ?: "dji-unidentified",

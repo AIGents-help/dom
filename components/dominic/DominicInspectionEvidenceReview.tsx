@@ -122,6 +122,40 @@ function comparisonFromFinding(finding: FindingRow) {
   return { state, note };
 }
 
+function followUpFromFinding(finding: FindingRow) {
+  const raw = finding.detector?.followUpCapture;
+  if (!raw || typeof raw !== "object") return null;
+  const record = raw as Record<string, unknown>;
+  const needed = record.needed === true;
+  const zoom = Number(record.estimatedOpticalZoomMultiplier);
+  const reasons = Array.isArray(record.reason)
+    ? record.reason.filter((item): item is string => typeof item === "string")
+    : [];
+  const guidance = Array.isArray(record.guidance)
+    ? record.guidance.filter((item): item is string => typeof item === "string")
+    : [];
+  const target = record.targetLocation && typeof record.targetLocation === "object"
+    ? (record.targetLocation as Record<string, unknown>)
+    : null;
+  const latitude = Number(target?.latitude);
+  const longitude = Number(target?.longitude);
+  const distanceM = Number(target?.distanceM);
+  return {
+    needed,
+    zoom: Number.isFinite(zoom) ? zoom : 1,
+    reasons,
+    guidance,
+    target:
+      Number.isFinite(latitude) && Number.isFinite(longitude)
+        ? {
+            latitude,
+            longitude,
+            distanceM: Number.isFinite(distanceM) ? distanceM : null,
+          }
+        : null,
+  };
+}
+
 function imageRegionFromFinding(finding: FindingRow) {
   const region = finding.spatial_anchor?.imageRegion;
   if (!region || typeof region !== "object") return null;
@@ -796,6 +830,7 @@ export default function DominicInspectionEvidenceReview({
                     <div style={{ display: "grid", gap: 7, marginTop: 9 }}>
                       {itemFindings.map((finding) => {
                         const comparison = comparisonFromFinding(finding);
+                        const followUp = followUpFromFinding(finding);
                         return (
                         <div
                           key={finding.id}
@@ -871,6 +906,46 @@ export default function DominicInspectionEvidenceReview({
                               {comparison.note ? (
                                 <div style={{ color: MUTED, fontSize: 7, lineHeight: 1.4, marginTop: 3 }}>
                                   {comparison.note}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+                          {followUp?.needed ? (
+                            <div
+                              style={{
+                                marginTop: 6,
+                                border: `1px solid rgba(244,90,30,.35)`,
+                                borderRadius: 7,
+                                background: "rgba(244,90,30,.07)",
+                                padding: "7px 8px",
+                              }}
+                            >
+                              <div style={{ color: "#FFD3C0", fontSize: 8, fontWeight: 900 }}>
+                                Follow-up capture recommended
+                              </div>
+                              {followUp.target ? (
+                                <div style={{ color: GREEN, fontSize: 7, marginTop: 3 }}>
+                                  Laser target {followUp.target.latitude.toFixed(6)}, {followUp.target.longitude.toFixed(6)}
+                                  {followUp.target.distanceM !== null
+                                    ? ` · ${followUp.target.distanceM.toFixed(1)} m`
+                                    : ""}
+                                </div>
+                              ) : null}
+                              <div style={{ color: TEXT, fontSize: 7, marginTop: 4 }}>
+                                Suggested framing: about {followUp.zoom.toFixed(1)}x tighter
+                              </div>
+                              {followUp.reasons.length ? (
+                                <div style={{ color: MUTED, fontSize: 7, lineHeight: 1.4, marginTop: 4 }}>
+                                  {followUp.reasons.join(" ")}
+                                </div>
+                              ) : null}
+                              {followUp.guidance.length ? (
+                                <div style={{ display: "grid", gap: 2, marginTop: 5 }}>
+                                  {followUp.guidance.map((line, index) => (
+                                    <div key={index} style={{ color: MUTED, fontSize: 7, lineHeight: 1.4 }}>
+                                      {index + 1}. {line}
+                                    </div>
+                                  ))}
                                 </div>
                               ) : null}
                             </div>

@@ -383,6 +383,12 @@ export default function DominicCapturePlanner({
   } | null>(null);
   const bridgeAdapterRef = useRef<DominicAircraftAdapter | null>(null);
   const qualityRecaptureAttemptsRef = useRef<Record<string, number>>({});
+  const followUpEvidencePairRef = useRef<{
+    sequenceId: string;
+    findingId: string;
+    checkpointId?: string;
+  } | null>(null);
+  const followUpEvidenceSequenceRef = useRef(0);
   const autonomousEngineRef = useRef<DominicMissionEngine | null>(null);
   const [missionControlMessage, setMissionControlMessage] = useState<string | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
@@ -430,6 +436,7 @@ export default function DominicCapturePlanner({
 
   useEffect(() => {
     qualityRecaptureAttemptsRef.current = {};
+    followUpEvidencePairRef.current = null;
     inspectionWatchCapturePendingRef.current = false;
     inspectionWatchLastRequestedAtRef.current = 0;
   }, [inspectionContext?.inspectionId, inspectionContext?.followUpCapture?.findingId]);
@@ -1152,7 +1159,7 @@ export default function DominicCapturePlanner({
       bridgeAdapterRef.current?.getState().rangefinderTarget,
       capture.capturedAtMs,
     );
-    const cameraPreset = inspectionContext.followUpCapture
+    const baseCameraPreset = inspectionContext.followUpCapture
       ? buildDominicInspectionCameraPreset({
           inspectionType: inspectionContext.inspectionType,
           targetDistanceM: inspectionContext.targetLocation?.distanceM ?? null,
@@ -1160,6 +1167,29 @@ export default function DominicCapturePlanner({
           hasFocusTarget: Boolean(inspectionContext.followUpCapture.focusTarget),
         })
       : null;
+    const cameraPreset =
+      capture.evidenceRole === "context" && baseCameraPreset
+        ? {
+            ...baseCameraPreset,
+            name: `${baseCameraPreset.name}-context`,
+            cameraSource: "wide" as const,
+            zoomRatio: 1,
+            rationale: [
+              ...baseCameraPreset.rationale,
+              "Linked evidence-pair context frame forces the wide camera.",
+            ],
+          }
+        : capture.evidenceRole === "detail" && inspectionContext.followUpCapture
+          ? buildDominicInspectionCameraPreset({
+              inspectionType: inspectionContext.inspectionType,
+              targetDistanceM: inspectionContext.targetLocation?.distanceM ?? null,
+              recommendedZoom: Math.max(
+                1.8,
+                inspectionContext.followUpCapture.estimatedOpticalZoomMultiplier,
+              ),
+              hasFocusTarget: true,
+            })
+          : baseCameraPreset;
 
     const { data: insertedMedia, error: rowError } = await sb
       .from("dominic_inspection_media")
@@ -1204,6 +1234,8 @@ export default function DominicCapturePlanner({
           zoomRatio: capture.zoomRatio ?? null,
           focusTarget: capture.focusTarget ?? null,
           aeLocked: capture.aeLocked ?? null,
+          evidenceRole: capture.evidenceRole ?? null,
+          evidenceSequenceId: capture.evidenceSequenceId ?? null,
           cameraPreset,
           rangefinderTarget: rangefinderTarget
             ? {
@@ -1374,6 +1406,109 @@ export default function DominicCapturePlanner({
     }
   };
 
+  const captureFollowUpEvidenceDetail = async (sequence: {
+    sequenceId: string;
+    findingId: string;
+    checkpointId?: string;
+  }) => {
+    const adapter = bridgeAdapterRef.current;
+    const followUp = inspectionContext?.followUpCapture ?? null;
+    if (
+      !adapter ||
+      bridgeStatus !== "connected" ||
+      !bridgeInfo?.capabilities.photoCapture ||
+      !inspectionContext ||
+      !followUp ||
+      followUp.findingId !== sequence.findingId
+    ) {
+      followUpEvidencePairRef.current = null;
+      return;
+    }
+
+    const detailPreset = buildDominicInspectionCameraPreset({
+      inspectionType: inspectionContext.inspectionType,
+      targetDistanceM: inspectionContext.targetLocation?.distanceM ?? null,
+      recommendedZoom: Math.max(1.8, followUp.estimatedOpticalZoomMultiplier),
+      hasFocusTarget: true,
+    });
+
+    if (bridgeInfo.capabilities.cameraSourceControl) {
+      setAutomaticMediaStatus("Context frame saved · switching to detail camera…");
+      const sourceResult = await adapter.send({
+        type: "setCameraSource",
+        source: detailPreset.cameraSource,
+      });
+      if (!sourceResult.accepted) {
+        followUpEvidencePairRef.current = null;
+        setAutomaticMediaStatus(
+          sourceResult.message ?? "DOMINIC could not switch to the detail camera.",
+        );
+        return;
+      }
+    }
+
+    if (detailPreset.cameraSource === "zoom" && bridgeInfo.capabilities.zoomControl) {
+      const minZoom = activeConnectedPayload?.minZoom ?? 1;
+      const maxZoom = activeConnectedPayload?.maxZoom ?? 8;
+      const zoomRatio = Math.min(maxZoom, Math.max(minZoom, detailPreset.zoomRatio));
+      setAutomaticMediaStatus(
+        `Context frame saved · applying ${zoomRatio.toFixed(1)}x detail framing…`,
+      );
+      const zoomResult = await adapter.send({ type: "setZoom", ratio: zoomRatio });
+      if (!zoomResult.accepted) {
+        followUpEvidencePairRef.current = null;
+        setAutomaticMediaStatus(
+          zoomResult.message ?? "DOMINIC could not apply the detail zoom.",
+        );
+        return;
+      }
+    }
+
+    if (bridgeInfo.capabilities.focusControl) {
+      const focusTarget = followUp.focusTarget ?? { x: 0.5, y: 0.5 };
+      const focusResult = await adapter.send({
+        type: "setFocusTarget",
+        x: Math.min(1, Math.max(0, focusTarget.x)),
+        y: Math.min(1, Math.max(0, focusTarget.y)),
+      });
+      if (!focusResult.accepted) {
+        followUpEvidencePairRef.current = null;
+        setAutomaticMediaStatus(
+          focusResult.message ?? "DOMINIC could not focus the detail frame.",
+        );
+        return;
+      }
+    }
+
+    if (detailPreset.aeLock && bridgeInfo.capabilities.aeLockControl) {
+      const aeResult = await adapter.send({ type: "setAELock", enabled: true });
+      if (!aeResult.accepted) {
+        followUpEvidencePairRef.current = null;
+        setAutomaticMediaStatus(
+          aeResult.message ?? "DOMINIC could not lock exposure for the detail frame.",
+        );
+        return;
+      }
+    }
+
+    const detailResult = await adapter.send({
+      type: "capturePhoto",
+      checkpointId: sequence.checkpointId,
+      evidenceRole: "detail",
+      evidenceSequenceId: sequence.sequenceId,
+    });
+    if (!detailResult.accepted) {
+      followUpEvidencePairRef.current = null;
+      setAutomaticMediaStatus(
+        detailResult.message ?? "DOMINIC detail evidence capture was rejected.",
+      );
+      return;
+    }
+    setAutomaticMediaStatus(
+      "Detail shutter accepted · waiting for the linked evidence frame…",
+    );
+  };
+
   const ingestBridgeMediaCapture = async (capture: UniversalMediaCapture) => {
     inspectionWatchCapturePendingRef.current = false;
     setInspectionWatchCapturePending(false);
@@ -1426,6 +1561,7 @@ export default function DominicCapturePlanner({
       setAutomaticMediaCount((count) => count + 1);
 
       if (
+        capture.evidenceRole !== "context" &&
         persistence.persisted &&
         persistence.created &&
         persistence.mediaId &&
@@ -1447,11 +1583,12 @@ export default function DominicCapturePlanner({
         );
       }
 
-      const retryKey =
+      const retryBaseKey =
         inspectionContext?.followUpCapture?.findingId ??
         capture.checkpointId ??
         inspectionContext?.inspectionId ??
         capture.aircraftId;
+      const retryKey = `${retryBaseKey}:${capture.evidenceRole ?? "single"}`;
       const attempts = qualityRecaptureAttemptsRef.current[retryKey] ?? 0;
       const recaptureDecision = decideInspectionQualityRecapture({
         quality,
@@ -1473,7 +1610,10 @@ export default function DominicCapturePlanner({
         );
 
         if (recaptureDecision.refocus && bridgeInfo.capabilities.focusControl) {
-          const focusTarget = inspectionContext.followUpCapture.focusTarget ?? { x: 0.5, y: 0.5 };
+          const focusTarget =
+            capture.evidenceRole === "context"
+              ? { x: 0.5, y: 0.5 }
+              : inspectionContext.followUpCapture.focusTarget ?? { x: 0.5, y: 0.5 };
           const focusResult = await adapter.send({
             type: "setFocusTarget",
             x: Math.min(1, Math.max(0, focusTarget.x)),
@@ -1501,16 +1641,35 @@ export default function DominicCapturePlanner({
         const retryResult = await adapter.send({
           type: "capturePhoto",
           checkpointId: capture.checkpointId,
+          evidenceRole: capture.evidenceRole ?? "quality_retry",
+          evidenceSequenceId: capture.evidenceSequenceId,
         });
         setAutomaticMediaStatus(
           retryResult.accepted
             ? `Automatic quality retry ${attempts + 1}/1 shutter accepted.`
             : retryResult.message ?? "Automatic quality retry was rejected by the aircraft.",
         );
+        if (retryResult.accepted) return;
       } else if (!quality.usable && !recaptureDecision.retry) {
         setAutomaticMediaStatus(
           `${capture.filename ?? capture.id} was saved, but DOMINIC will not retry again automatically. ${recaptureDecision.message}`,
         );
+      }
+
+      const pendingPair = followUpEvidencePairRef.current;
+      if (pendingPair && capture.evidenceSequenceId === pendingPair.sequenceId) {
+        if (capture.evidenceRole === "context") {
+          await captureFollowUpEvidenceDetail(pendingPair);
+          return;
+        }
+        if (capture.evidenceRole === "detail") {
+          followUpEvidencePairRef.current = null;
+          setAutomaticMediaStatus(
+            quality.usable
+              ? "Context + detail evidence pair complete and saved."
+              : "Context + detail evidence pair complete; detail remains below the preferred quality threshold after retry.",
+          );
+        }
       }
     } catch (error) {
       setImageAnalysisStatus("error");
@@ -1533,6 +1692,17 @@ export default function DominicCapturePlanner({
       return;
     }
 
+    const activePair = followUpEvidencePairRef.current;
+    if (activePair) {
+      if (origin === "watch") {
+        inspectionWatchCapturePendingRef.current = false;
+        setInspectionWatchCapturePending(false);
+        return;
+      }
+      setAutomaticMediaStatus("A context + detail evidence pair is already in progress.");
+      return;
+    }
+
     const followUp = inspectionContext?.followUpCapture ?? null;
     const cameraPreset =
       followUp && inspectionContext
@@ -1544,6 +1714,72 @@ export default function DominicCapturePlanner({
           })
         : null;
     let appliedZoom: number | null = null;
+
+    if (
+      origin === "manual" &&
+      followUp &&
+      cameraPreset &&
+      bridgeInfo.capabilities.cameraSourceControl
+    ) {
+      const checkpointId = selectedWaypointId ?? current?.id;
+      followUpEvidenceSequenceRef.current += 1;
+      const sequenceId =
+        `followup-${followUp.findingId}-${followUpEvidenceSequenceRef.current}`;
+      const sourceResult = await adapter.send({
+        type: "setCameraSource",
+        source: "wide",
+      });
+      if (!sourceResult.accepted) {
+        setAutomaticMediaStatus(
+          sourceResult.message ?? "DOMINIC could not switch to the wide context camera.",
+        );
+        return;
+      }
+
+      if (bridgeInfo.capabilities.aeLockControl) {
+        const aeResult = await adapter.send({ type: "setAELock", enabled: true });
+        if (!aeResult.accepted) {
+          setAutomaticMediaStatus(
+            "Wide context exposure lock was unavailable; capturing context with automatic exposure.",
+          );
+        }
+      }
+
+      followUpEvidencePairRef.current = {
+        sequenceId,
+        findingId: followUp.findingId,
+        checkpointId,
+      };
+      window.setTimeout(() => {
+        if (followUpEvidencePairRef.current?.sequenceId === sequenceId) {
+          followUpEvidencePairRef.current = null;
+          setAutomaticMediaStatus(
+            "Context + detail capture timed out. The pair can be started again.",
+          );
+        }
+      }, 30_000);
+
+      setAutomaticMediaStatus(
+        "Capturing wide context evidence before the detail frame…",
+      );
+      const contextResult = await adapter.send({
+        type: "capturePhoto",
+        checkpointId,
+        evidenceRole: "context",
+        evidenceSequenceId: sequenceId,
+      });
+      if (!contextResult.accepted) {
+        followUpEvidencePairRef.current = null;
+        setAutomaticMediaStatus(
+          contextResult.message ?? "DOMINIC context evidence capture was rejected.",
+        );
+        return;
+      }
+      setAutomaticMediaStatus(
+        "Context shutter accepted · waiting for the linked evidence frame…",
+      );
+      return;
+    }
 
     if (followUp && cameraPreset) {
       if (bridgeInfo.capabilities.cameraSourceControl) {
@@ -1776,6 +2012,7 @@ export default function DominicCapturePlanner({
   };
 
   const disconnectAircraftBridge = async () => {
+    followUpEvidencePairRef.current = null;
     bridgeUnsubscribeRef.current?.();
     bridgeUnsubscribeRef.current = null;
     bridgeMediaUnsubscribeRef.current?.();
@@ -3640,7 +3877,7 @@ export default function DominicCapturePlanner({
                       onClick={() => void captureConnectedInspectionPhoto()}
                       style={{ border: `1px solid rgba(112,214,160,.38)`, background: "rgba(112,214,160,.10)", color: V.green, borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
                     >
-                      {inspectionContext?.followUpCapture ? "Capture Follow-Up Photo" : "Capture Inspection Photo"}
+                      {inspectionContext?.followUpCapture ? "Capture Context + Detail Pair" : "Capture Inspection Photo"}
                     </button>
                     <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45 }}>
                       Camera-only inspection capture is available without enabling aircraft movement.

@@ -14,6 +14,14 @@ data class TelemetrySnapshot(
     val batteryPercent: Int? = null,
     val satelliteCount: Int? = null,
     val flightMode: String? = null,
+    val laserTargetLatitude: Double? = null,
+    val laserTargetLongitude: Double? = null,
+    val laserTargetAltitudeM: Double? = null,
+    val laserDistanceM: Double? = null,
+    val laserScreenX: Double? = null,
+    val laserScreenY: Double? = null,
+    val laserMeasureState: String? = null,
+    val laserUpdatedAtMs: Long? = null,
     val timestampMs: Long = System.currentTimeMillis(),
 )
 

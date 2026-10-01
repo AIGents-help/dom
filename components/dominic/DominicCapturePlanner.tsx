@@ -479,11 +479,14 @@ export default function DominicCapturePlanner({
       }
     }
 
-    const target = inspectionContext.targetLocation;
-    const hasTarget =
-      target &&
-      Number.isFinite(target.latitude) &&
-      Number.isFinite(target.longitude);
+    const rawTarget = inspectionContext.targetLocation;
+    const target =
+      rawTarget &&
+      Number.isFinite(rawTarget.latitude) &&
+      Number.isFinite(rawTarget.longitude)
+        ? rawTarget
+        : null;
+    const hasTarget = Boolean(target);
     const hasAssetLocation =
       typeof inspectionContext.latitude === "number" &&
       typeof inspectionContext.longitude === "number";

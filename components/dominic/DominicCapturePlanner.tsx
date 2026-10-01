@@ -1445,17 +1445,49 @@ export default function DominicCapturePlanner({
         bridgeStatus === "connected" &&
         bridgeInfo?.capabilities.photoCapture
       ) {
+        const adapter = bridgeAdapterRef.current;
+        if (!adapter) return;
+
         qualityRecaptureAttemptsRef.current[retryKey] = attempts + 1;
         setAutomaticMediaStatus(
           `${recaptureDecision.message} Automatic retry ${attempts + 1}/1.`,
         );
-        await captureConnectedInspectionPhoto({
-          qualityRetry: {
-            refocus: recaptureDecision.refocus,
-            unlockExposure: recaptureDecision.unlockExposure,
-            message: recaptureDecision.message,
-          },
+
+        if (recaptureDecision.refocus && bridgeInfo.capabilities.focusControl) {
+          const focusTarget = inspectionContext.followUpCapture.focusTarget ?? { x: 0.5, y: 0.5 };
+          const focusResult = await adapter.send({
+            type: "setFocusTarget",
+            x: Math.min(1, Math.max(0, focusTarget.x)),
+            y: Math.min(1, Math.max(0, focusTarget.y)),
+          });
+          if (!focusResult.accepted) {
+            setAutomaticMediaStatus(
+              focusResult.message ?? "Automatic quality retry could not refocus the camera.",
+            );
+            return;
+          }
+        }
+
+        if (recaptureDecision.unlockExposure && bridgeInfo.capabilities.aeLockControl) {
+          const exposureResult = await adapter.send({ type: "setAELock", enabled: false });
+          if (!exposureResult.accepted) {
+            setAutomaticMediaStatus(
+              exposureResult.message ?? "Automatic quality retry could not reset exposure.",
+            );
+            return;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 350));
+        }
+
+        const retryResult = await adapter.send({
+          type: "capturePhoto",
+          checkpointId: capture.checkpointId,
         });
+        setAutomaticMediaStatus(
+          retryResult.accepted
+            ? `Automatic quality retry ${attempts + 1}/1 shutter accepted.`
+            : retryResult.message ?? "Automatic quality retry was rejected by the aircraft.",
+        );
       } else if (!quality.usable && !recaptureDecision.retry) {
         setAutomaticMediaStatus(
           `${capture.filename ?? capture.id} was saved, but DOMINIC will not retry again automatically. ${recaptureDecision.message}`,

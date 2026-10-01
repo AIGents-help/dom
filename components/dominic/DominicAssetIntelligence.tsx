@@ -23,6 +23,12 @@ import {
   type InspectionType,
 } from "@/lib/aircraft/inspectionCapabilities";
 import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
+import {
+  deriveMaintenanceReviewPriority,
+  maintenanceReviewPriorityLabel,
+  maintenanceReviewPriorityRank,
+  type DominicMaintenanceReviewPriority,
+} from "@/lib/dominicMaintenanceReview";
 import DominicInspectionEvidenceReview from "@/components/dominic/DominicInspectionEvidenceReview";
 import DominicIssueIntelligence from "@/components/dominic/DominicIssueIntelligence";
 
@@ -141,6 +147,13 @@ function conditionColor(condition: AssetRow["condition_state"]) {
   if (condition === "critical") return RED;
   if (condition === "degraded" || condition === "watch") return AMBER;
   if (condition === "normal") return GREEN;
+  return MUTED;
+}
+
+function maintenancePriorityColor(priority: DominicMaintenanceReviewPriority) {
+  if (priority === "attention_now") return RED;
+  if (priority === "elevated") return AMBER;
+  if (priority === "routine") return "#8FC7FF";
   return MUTED;
 }
 
@@ -328,11 +341,48 @@ export default function DominicAssetIntelligence({
     [selectedIssues, selectedIssueId],
   );
 
+  const issueAssessments = useMemo(
+    () =>
+      new Map(
+        issues.map((issue) => [
+          issue.id,
+          deriveMaintenanceReviewPriority({
+            severity: issue.severity,
+            status: issue.status,
+            firstSeenAt: issue.first_seen_at,
+            lastSeenAt: issue.last_seen_at,
+            metadata: issue.metadata,
+          }),
+        ]),
+      ),
+    [issues],
+  );
   const openIssues = issues.filter((issue) =>
     ["open", "monitoring", "in_progress"].includes(issue.status),
   );
   const criticalIssues = openIssues.filter((issue) =>
     ["critical", "high"].includes(issue.severity),
+  );
+  const escalatedIssues = openIssues.filter((issue) => {
+    const priority = issueAssessments.get(issue.id)?.priority;
+    return priority === "attention_now" || priority === "elevated";
+  });
+  const selectedOpenIssues = useMemo(
+    () =>
+      selectedIssues
+        .filter((issue) => ["open", "monitoring", "in_progress"].includes(issue.status))
+        .sort((a, b) => {
+          const aAssessment = issueAssessments.get(a.id);
+          const bAssessment = issueAssessments.get(b.id);
+          const rankDelta =
+            maintenanceReviewPriorityRank(bAssessment?.priority ?? "monitor") -
+            maintenanceReviewPriorityRank(aAssessment?.priority ?? "monitor");
+          if (rankDelta !== 0) return rankDelta;
+          const scoreDelta = (bAssessment?.score ?? 0) - (aAssessment?.score ?? 0);
+          if (scoreDelta !== 0) return scoreDelta;
+          return new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime();
+        }),
+    [selectedIssues, issueAssessments],
   );
 
 
@@ -793,6 +843,7 @@ export default function DominicAssetIntelligence({
           { label: "Assets", value: assets.length, icon: Factory, color: ORANGE },
           { label: "Open issues", value: openIssues.length, icon: AlertTriangle, color: AMBER },
           { label: "High / critical", value: criticalIssues.length, icon: ShieldAlert, color: RED },
+          { label: "Escalated", value: escalatedIssues.length, icon: Wrench, color: AMBER },
           { label: "Inspections", value: inspections.length, icon: ClipboardCheck, color: GREEN },
         ].map(({ label, value, icon: Icon, color }) => (
           <Card key={label} style={{ padding: 12 }}>
@@ -922,10 +973,11 @@ export default function DominicAssetIntelligence({
                   </div>
                 </div>
 
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 7, marginTop: 12 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 7, marginTop: 12 }}>
                   {[
                     ["Last inspected", formatWhen(selectedAsset.last_inspected_at)],
-                    ["Open issues", String(selectedIssues.filter((issue) => ["open","monitoring","in_progress"].includes(issue.status)).length)],
+                    ["Open issues", String(selectedOpenIssues.length)],
+                    ["Escalated", String(selectedOpenIssues.filter((issue) => ["attention_now", "elevated"].includes(issueAssessments.get(issue.id)?.priority ?? "monitor")).length)],
                     ["Findings", String(selectedFindings.length)],
                   ].map(([label, value]) => (
                     <div key={label} style={{ border: `1px solid ${LINE}`, borderRadius: 8, background: PANEL_2, padding: 9 }}>
@@ -1066,47 +1118,62 @@ export default function DominicAssetIntelligence({
             </div>
             {!selectedAsset ? (
               <div style={{ padding: 14, color: MUTED, fontSize: 9 }}>Select an asset.</div>
-            ) : selectedIssues.filter((issue) => ["open","monitoring","in_progress"].includes(issue.status)).length === 0 ? (
+            ) : selectedOpenIssues.length === 0 ? (
               <div style={{ padding: 14, color: MUTED, fontSize: 9, display: "flex", gap: 7, alignItems: "center" }}><CheckCircle2 size={14} color={GREEN} /> No open issues recorded.</div>
             ) : (
-              selectedIssues
-                .filter((issue) => ["open","monitoring","in_progress"].includes(issue.status))
+              selectedOpenIssues
                 .slice(0, 8)
-                .map((issue) => (
-                  <button
-                    key={issue.id}
-                    type="button"
-                    onClick={() => setSelectedIssueId((current) => current === issue.id ? null : issue.id)}
-                    style={{
-                      width: "100%",
-                      border: 0,
-                      borderBottom: `1px solid ${LINE}`,
-                      background: selectedIssueId === issue.id ? "rgba(244,90,30,.08)" : "transparent",
-                      color: TEXT,
-                      textAlign: "left",
-                      padding: "10px 12px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-                      <strong style={{ fontSize: 10 }}>{issue.title}</strong>
-                      <span style={{ color: severityColor(issue.severity), fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>{issue.severity}</span>
-                    </div>
-                    <div style={{ color: MUTED, fontSize: 8, marginTop: 3 }}>
-                      {issue.issue_type.replaceAll("_", " ")} · {issue.status.replaceAll("_", " ")}
-                    </div>
-                    <div style={{ color: "#B9C3CC", fontSize: 8, marginTop: 3 }}>
-                      First seen {formatWhen(issue.first_seen_at)} · Last seen {formatWhen(issue.last_seen_at)}
-                      {typeof issue.metadata?.recurrenceCount === "number" && issue.metadata.recurrenceCount > 0
-                        ? ` · observed again ${issue.metadata.recurrenceCount}×`
-                        : ""}
-                    </div>
-                    {issue.recommended_action ? <div style={{ color: "#CBD3DA", fontSize: 8, marginTop: 5 }}><Wrench size={11} style={{ display: "inline", marginRight: 4 }} />{issue.recommended_action}</div> : null}
-                    <div style={{ color: selectedIssueId === issue.id ? ORANGE : MUTED, fontSize: 7, fontWeight: 900, marginTop: 6, textTransform: "uppercase" }}>
-                      {selectedIssueId === issue.id ? "Hide history" : "View issue history"}
-                    </div>
-                  </button>
-                ))
+                .map((issue) => {
+                  const review = issueAssessments.get(issue.id);
+                  return (
+                    <button
+                      key={issue.id}
+                      type="button"
+                      onClick={() => setSelectedIssueId((current) => current === issue.id ? null : issue.id)}
+                      style={{
+                        width: "100%",
+                        border: 0,
+                        borderBottom: `1px solid ${LINE}`,
+                        background: selectedIssueId === issue.id ? "rgba(244,90,30,.08)" : "transparent",
+                        color: TEXT,
+                        textAlign: "left",
+                        padding: "10px 12px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                        <strong style={{ fontSize: 10 }}>{issue.title}</strong>
+                        <div style={{ display: "grid", justifyItems: "end", gap: 3 }}>
+                          <span style={{ color: severityColor(issue.severity), fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>{issue.severity}</span>
+                          {review ? (
+                            <span style={{ color: maintenancePriorityColor(review.priority), fontSize: 7, fontWeight: 900, textTransform: "uppercase" }}>
+                              {maintenanceReviewPriorityLabel(review.priority)}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div style={{ color: MUTED, fontSize: 8, marginTop: 3 }}>
+                        {issue.issue_type.replaceAll("_", " ")} · {issue.status.replaceAll("_", " ")}
+                      </div>
+                      <div style={{ color: "#B9C3CC", fontSize: 8, marginTop: 3 }}>
+                        First seen {formatWhen(issue.first_seen_at)} · Last seen {formatWhen(issue.last_seen_at)}
+                        {typeof issue.metadata?.recurrenceCount === "number" && issue.metadata.recurrenceCount > 0
+                          ? ` · observed again ${issue.metadata.recurrenceCount}×`
+                          : ""}
+                      </div>
+                      {review?.reasons[0] ? (
+                        <div style={{ color: maintenancePriorityColor(review.priority), fontSize: 8, marginTop: 5, lineHeight: 1.4 }}>
+                          <ShieldAlert size={11} style={{ display: "inline", marginRight: 4 }} />
+                          {review.reasons[0]}
+                        </div>
+                      ) : null}
+                      {issue.recommended_action ? <div style={{ color: "#CBD3DA", fontSize: 8, marginTop: 5 }}><Wrench size={11} style={{ display: "inline", marginRight: 4 }} />{issue.recommended_action}</div> : null}
+                      <div style={{ color: selectedIssueId === issue.id ? ORANGE : MUTED, fontSize: 7, fontWeight: 900, marginTop: 6, textTransform: "uppercase" }}>
+                        {selectedIssueId === issue.id ? "Hide history" : "View issue history"}
+                      </div>
+                    </button>
+                  );
+                })
             )}
           </Card>
 

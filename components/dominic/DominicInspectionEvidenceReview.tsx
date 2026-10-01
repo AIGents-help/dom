@@ -110,6 +110,18 @@ function mediaIdFromFinding(finding: FindingRow) {
   return typeof anchorMediaId === "string" ? anchorMediaId : null;
 }
 
+function comparisonFromFinding(finding: FindingRow) {
+  const state =
+    typeof finding.detector?.comparisonState === "string"
+      ? finding.detector.comparisonState
+      : null;
+  const note =
+    typeof finding.detector?.comparisonNote === "string"
+      ? finding.detector.comparisonNote
+      : null;
+  return { state, note };
+}
+
 function imageRegionFromFinding(finding: FindingRow) {
   const region = finding.spatial_anchor?.imageRegion;
   if (!region || typeof region !== "object") return null;
@@ -344,10 +356,15 @@ export default function DominicInspectionEvidenceReview({
       await load();
       await onChanged?.();
       const count = Number(body?.candidateCount ?? 0);
+      const baselineCompared = Boolean(body?.baselineCompared);
       setMessage(
         count
-          ? `DOMINIC flagged ${count} candidate finding${count === 1 ? "" : "s"} for human review.`
-          : "DOMINIC did not flag a visible anomaly in this image. Human review is still required for inspection completion.",
+          ? baselineCompared
+            ? `DOMINIC compared this evidence with the prior confirmed issue evidence and flagged ${count} candidate finding${count === 1 ? "" : "s"} for human review.`
+            : `DOMINIC flagged ${count} candidate finding${count === 1 ? "" : "s"} for human review.`
+          : baselineCompared
+            ? "DOMINIC compared this evidence with the prior confirmed issue evidence and did not flag a visible anomaly. Human review is still required."
+            : "DOMINIC did not flag a visible anomaly in this image. Human review is still required for inspection completion.",
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "AI screening failed.");
@@ -777,7 +794,9 @@ export default function DominicInspectionEvidenceReview({
 
                   {itemFindings.length ? (
                     <div style={{ display: "grid", gap: 7, marginTop: 9 }}>
-                      {itemFindings.map((finding) => (
+                      {itemFindings.map((finding) => {
+                        const comparison = comparisonFromFinding(finding);
+                        return (
                         <div
                           key={finding.id}
                           style={{
@@ -820,6 +839,42 @@ export default function DominicInspectionEvidenceReview({
                               : ""}
                             {finding.review_status.replaceAll("_", " ")}
                           </div>
+                          {comparison.state ? (
+                            <div
+                              style={{
+                                marginTop: 6,
+                                border: `1px solid ${LINE}`,
+                                borderRadius: 7,
+                                background: PANEL_2,
+                                padding: "6px 7px",
+                              }}
+                            >
+                              <div
+                                style={{
+                                  color:
+                                    comparison.state === "worsening"
+                                      ? RED
+                                      : comparison.state === "improving"
+                                        ? GREEN
+                                        : comparison.state === "unchanged"
+                                          ? "#8FC7FF"
+                                          : AMBER,
+                                  fontSize: 7,
+                                  fontWeight: 900,
+                                  textTransform: "uppercase",
+                                }}
+                              >
+                                {comparison.state === "new"
+                                  ? "First observed"
+                                  : `Compared with prior evidence: ${comparison.state}`}
+                              </div>
+                              {comparison.note ? (
+                                <div style={{ color: MUTED, fontSize: 7, lineHeight: 1.4, marginTop: 3 }}>
+                                  {comparison.note}
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
                           {finding.review_status === "needs_review" ? (
                             <div style={{ display: "flex", gap: 6, marginTop: 7 }}>
                               <button
@@ -869,7 +924,8 @@ export default function DominicInspectionEvidenceReview({
                             </div>
                           ) : null}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div style={{ color: MUTED, fontSize: 8, marginTop: 8 }}>

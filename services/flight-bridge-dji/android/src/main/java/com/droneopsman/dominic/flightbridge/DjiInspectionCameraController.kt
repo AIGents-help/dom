@@ -4,7 +4,7 @@ import android.content.Context
 import dji.sdk.keyvalue.key.CameraKey
 import dji.sdk.keyvalue.key.KeyTools.createKey
 import dji.sdk.keyvalue.key.KeyTools.createCameraKey
-import dji.sdk.keyvalue.value.camera.CameraLensType
+import dji.sdk.keyvalue.value.common.CameraLensType
 import dji.sdk.keyvalue.value.camera.CameraMode
 import dji.sdk.keyvalue.value.common.ComponentIndexType
 import dji.v5.common.callback.CommonCallbacks

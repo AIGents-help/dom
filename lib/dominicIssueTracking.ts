@@ -69,8 +69,10 @@ export function deriveIssueTrackingKey(input: TrackableFinding) {
       : null;
 
   if (targetLocation) {
-    return [type, targetLocation, detectorKey]
-      .filter(Boolean)
+    // A laser-localized target is stronger identity evidence than model wording
+    // or image position. Keep the key stable when a later screening describes
+    // the same physical condition differently.
+    return [type, targetLocation]
       .join(":")
       .slice(0, 180);
   }

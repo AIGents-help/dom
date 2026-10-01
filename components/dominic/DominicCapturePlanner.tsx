@@ -394,6 +394,7 @@ export default function DominicCapturePlanner({
   const [inspectionWatchEnabled, setInspectionWatchEnabled] = useState(false);
   const [inspectionWatchIntervalSec, setInspectionWatchIntervalSec] = useState(DEFAULT_INSPECTION_WATCH_INTERVAL_SEC);
   const [inspectionWatchCaptureCount, setInspectionWatchCaptureCount] = useState(0);
+  const [inspectionWatchCapturePending, setInspectionWatchCapturePending] = useState(false);
   const inspectionWatchCapturePendingRef = useRef(false);
   const inspectionWatchLastRequestedAtRef = useRef(0);
   const [liveInspectionFindings, setLiveInspectionFindings] = useState<LiveInspectionFinding[]>([]);
@@ -432,6 +433,7 @@ export default function DominicCapturePlanner({
     inspectionWatchCapturePendingRef.current = false;
     inspectionWatchLastRequestedAtRef.current = 0;
     setInspectionWatchEnabled(false);
+    setInspectionWatchCapturePending(false);
     setInspectionWatchCaptureCount(0);
   }, [inspectionContext?.inspectionId, inspectionContext?.followUpCapture?.findingId]);
 
@@ -1377,6 +1379,7 @@ export default function DominicCapturePlanner({
 
   const ingestBridgeMediaCapture = async (capture: UniversalMediaCapture) => {
     inspectionWatchCapturePendingRef.current = false;
+    setInspectionWatchCapturePending(false);
     setAutomaticMediaStatus(`Received ${capture.filename ?? capture.id} from aircraft.`);
     if (!capture.mediaUrl) {
       setAutomaticMediaStatus("Aircraft reported a photo, but no media URL was provided for quality analysis.");
@@ -1629,6 +1632,7 @@ export default function DominicCapturePlanner({
     });
     if (origin === "watch") {
       inspectionWatchCapturePendingRef.current = result.accepted;
+      setInspectionWatchCapturePending(result.accepted);
       inspectionWatchLastRequestedAtRef.current = Date.now();
       if (result.accepted) setInspectionWatchCaptureCount((count) => count + 1);
     }
@@ -1645,7 +1649,7 @@ export default function DominicCapturePlanner({
     equipmentReady: !inspectionContext || inspectionContext.equipment?.ready === true,
     bridgeConnected: bridgeStatus === "connected",
     photoCaptureSupported: Boolean(bridgeInfo?.capabilities.photoCapture),
-    capturePending: inspectionWatchCapturePendingRef.current,
+    capturePending: inspectionWatchCapturePending,
   });
 
   useEffect(() => {
@@ -1669,6 +1673,7 @@ export default function DominicCapturePlanner({
       inspectionWatchLastRequestedAtRef.current = Date.now();
       void captureConnectedInspectionPhoto("watch").catch((error) => {
         inspectionWatchCapturePendingRef.current = false;
+        setInspectionWatchCapturePending(false);
         setAutomaticMediaStatus(
           error instanceof Error
             ? `Inspection Watch capture failed: ${error.message}`
@@ -1678,6 +1683,9 @@ export default function DominicCapturePlanner({
     }, 1000);
 
     return () => window.clearInterval(timer);
+  // captureConnectedInspectionPhoto intentionally uses the latest render values;
+  // the interval is gated by the explicit dependencies below.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     inspectionWatchEnabled,
     inspectionWatchIntervalSec,
@@ -1780,6 +1788,7 @@ export default function DominicCapturePlanner({
     if (adapter) await adapter.disconnect();
     setInspectionWatchEnabled(false);
     inspectionWatchCapturePendingRef.current = false;
+    setInspectionWatchCapturePending(false);
     setBridgeInfo(null);
     setBridgeStatus("disconnected");
     setBridgeError(null);
@@ -3118,11 +3127,13 @@ export default function DominicCapturePlanner({
                     if (inspectionWatchEnabled) {
                       setInspectionWatchEnabled(false);
                       inspectionWatchCapturePendingRef.current = false;
+                      setInspectionWatchCapturePending(false);
                       setAutomaticMediaStatus("Inspection Watch stopped.");
                       return;
                     }
                     inspectionWatchLastRequestedAtRef.current = 0;
                     inspectionWatchCapturePendingRef.current = false;
+                    setInspectionWatchCapturePending(false);
                     setInspectionWatchCaptureCount(0);
                     setInspectionWatchEnabled(true);
                     setAutomaticMediaStatus(

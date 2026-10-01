@@ -83,8 +83,12 @@ function formatDate(value: string | null) {
 
 export default function DominicIssueIntelligence({
   issue,
+  busy = false,
+  onReinspect,
 }: {
   issue: Issue;
+  busy?: boolean;
+  onReinspect?: (issue: Issue) => void;
 }) {
   const [links, setLinks] = useState<LinkRow[]>([]);
   const [findings, setFindings] = useState<FindingRow[]>([]);
@@ -195,20 +199,41 @@ export default function DominicIssueIntelligence({
         <div style={{ color: ORANGE, fontSize: 8, fontWeight: 900, letterSpacing: ".09em", textTransform: "uppercase" }}>
           Issue Intelligence
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start", marginTop: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start", marginTop: 4, flexWrap: "wrap" }}>
           <div>
             <div style={{ color: TEXT, fontSize: 13, fontWeight: 900 }}>{issue.title}</div>
             <div style={{ color: MUTED, fontSize: 8, marginTop: 3 }}>
               {issue.issue_type.replaceAll("_", " ")} · {issue.status.replaceAll("_", " ")}
             </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <div style={{ color: severityColor(issue.severity), fontSize: 9, fontWeight: 900, textTransform: "uppercase" }}>
-              {issue.severity}
-            </div>
-            <div style={{ color: trendColor, fontSize: 8, fontWeight: 900, marginTop: 3, textTransform: "uppercase", display: "flex", gap: 4, alignItems: "center", justifyContent: "flex-end" }}>
-              {trend.trend === "worsening" ? <TrendingUp size={11} /> : trend.trend === "improving" ? <TrendingDown size={11} /> : <Activity size={11} />}
-              {issueTrendLabel(trend.trend)}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {onReinspect && ["open", "monitoring", "in_progress"].includes(issue.status) ? (
+              <button
+                type="button"
+                onClick={() => onReinspect(issue)}
+                disabled={busy}
+                style={{
+                  border: "1px solid rgba(244,90,30,.42)",
+                  background: "rgba(244,90,30,.10)",
+                  color: "#FFD3C0",
+                  borderRadius: 7,
+                  padding: "6px 8px",
+                  fontSize: 8,
+                  fontWeight: 900,
+                  cursor: busy ? "wait" : "pointer",
+                }}
+              >
+                {busy ? "Creating…" : "Reinspect Issue"}
+              </button>
+            ) : null}
+            <div style={{ textAlign: "right" }}>
+              <div style={{ color: severityColor(issue.severity), fontSize: 9, fontWeight: 900, textTransform: "uppercase" }}>
+                {issue.severity}
+              </div>
+              <div style={{ color: trendColor, fontSize: 8, fontWeight: 900, marginTop: 3, textTransform: "uppercase", display: "flex", gap: 4, alignItems: "center", justifyContent: "flex-end" }}>
+                {trend.trend === "worsening" ? <TrendingUp size={11} /> : trend.trend === "improving" ? <TrendingDown size={11} /> : <Activity size={11} />}
+                {issueTrendLabel(trend.trend)}
+              </div>
             </div>
           </div>
         </div>

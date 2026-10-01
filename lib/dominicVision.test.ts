@@ -93,6 +93,23 @@ describe("DOMINIC vision screening safeguards", () => {
     expect(prompt).toContain("A candidate is not a diagnosis");
     expect(prompt).toContain("Never output critical");
     expect(prompt).toContain("Only current evidence is provided");
+    expect(prompt).toContain("Industrial tank visual inspection");
+    expect(prompt).toContain("corrosion_like_discoloration");
+    expect(prompt).toContain("Do not diagnose a leak solely from staining");
+  });
+
+  it("uses different screening guidance for roof assets", () => {
+    const prompt = buildDominicVisionPrompt({
+      assetName: "Warehouse Roof A",
+      assetType: "roof",
+      inspectionType: "roof",
+      objective: "Find visible roof defects",
+      sensorMode: "rgb",
+    });
+    expect(prompt).toContain("Roof visual inspection");
+    expect(prompt).toContain("flashing_irregularity");
+    expect(prompt).toContain("Do not diagnose moisture below the roof assembly");
+    expect(prompt).not.toContain("wall thickness");
   });
 
   it("instructs the model to compare baseline and current reinspection evidence", () => {

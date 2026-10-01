@@ -6,6 +6,7 @@ import {
   rangefinderTargetMatchesRegion,
   readStoredRangefinderTarget,
 } from "@/lib/aircraft/rangefinderTarget";
+import { resolveDominicInspectionProfile } from "@/lib/dominicInspectionProfiles";
 import {
   buildDominicVisionPrompt,
   DOMINIC_VISION_SCHEMA,
@@ -180,6 +181,10 @@ export async function POST(
   const model =
     process.env.DOMINIC_VISION_MODEL?.trim() ||
     (provider === "vercel-ai-gateway" ? "openai/gpt-5.6-terra" : "gpt-5.6-terra");
+  const inspectionProfile = resolveDominicInspectionProfile({
+    assetType: asset.asset_type,
+    inspectionType: inspection.inspection_type,
+  });
   const prompt = buildDominicVisionPrompt({
     assetName: asset.name,
     assetType: asset.asset_type,
@@ -313,6 +318,8 @@ export async function POST(
         detector: {
           provider,
           model,
+          inspectionProfileId: inspectionProfile.id,
+          inspectionProfileLabel: inspectionProfile.label,
           mediaId: media.id,
           candidate: true,
           recommendedAction: candidate.recommended_action,
@@ -359,6 +366,8 @@ export async function POST(
           analysis_summary: {
             provider,
             model,
+            inspectionProfileId: inspectionProfile.id,
+            inspectionProfileLabel: inspectionProfile.label,
             summary: screening.summary,
             candidateCount: screening.candidates.length,
             limitations: screening.limitations,
@@ -378,6 +387,8 @@ export async function POST(
             latestMediaId: media.id,
             provider,
             model,
+            inspectionProfileId: inspectionProfile.id,
+            inspectionProfileLabel: inspectionProfile.label,
             summary: screening.summary,
             candidateCount: screening.candidates.length,
             limitations: screening.limitations,

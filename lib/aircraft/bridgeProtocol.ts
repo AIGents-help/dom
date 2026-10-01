@@ -5,6 +5,7 @@ import type {
   CommandResult,
   UniversalAircraftCommand,
   UniversalAircraftState,
+  UniversalInspectionFrame,
   UniversalMediaCapture,
 } from "@/lib/aircraft/contract";
 
@@ -28,6 +29,13 @@ export type BridgeTelemetry = {
   protocol: typeof DOMINIC_BRIDGE_PROTOCOL;
   sequence: number;
   state: UniversalAircraftState;
+};
+
+export type BridgeInspectionFrame = {
+  type: "inspection_frame";
+  protocol: typeof DOMINIC_BRIDGE_PROTOCOL;
+  sequence: number;
+  frame: UniversalInspectionFrame;
 };
 
 export type BridgeMediaCapture = {
@@ -69,6 +77,7 @@ export type FlightBridgeMessage =
   | BridgeHello
   | BridgeTelemetry
   | BridgeMediaCapture
+  | BridgeInspectionFrame
   | BridgeCommand
   | BridgeCommandResult
   | BridgeHeartbeat
@@ -78,7 +87,7 @@ export function isFlightBridgeMessage(value: unknown): value is FlightBridgeMess
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<FlightBridgeMessage> & { protocol?: string; type?: string };
   if (candidate.protocol !== DOMINIC_BRIDGE_PROTOCOL) return false;
-  return ["hello", "telemetry", "media_capture", "command", "command_result", "heartbeat", "error"].includes(
+  return ["hello", "telemetry", "media_capture", "inspection_frame", "command", "command_result", "heartbeat", "error"].includes(
     String(candidate.type),
   );
 }

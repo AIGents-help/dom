@@ -1416,6 +1416,7 @@ export default function DominicCapturePlanner({
         "live_frame_bridge",
       );
       setAutomaticMediaCount((count) => count + 1);
+      setInspectionWatchCaptureCount((count) => count + 1);
       setLastImageQuality(quality);
 
       if (
@@ -1714,12 +1715,15 @@ export default function DominicCapturePlanner({
     hasInspectionContext: Boolean(inspectionContext),
     equipmentReady: !inspectionContext || inspectionContext.equipment?.ready === true,
     bridgeConnected: bridgeStatus === "connected",
-    photoCaptureSupported: Boolean(bridgeInfo?.capabilities.photoCapture),
+    photoCaptureSupported: Boolean(
+      bridgeInfo?.capabilities.liveFrameInspection ||
+      bridgeInfo?.capabilities.photoCapture,
+    ),
     capturePending: inspectionWatchCapturePending,
   });
 
   useEffect(() => {
-    if (!inspectionWatchEnabled) return;
+    if (!inspectionWatchEnabled || bridgeInfo?.capabilities.liveFrameInspection) return;
 
     const intervalMs = normalizeInspectionWatchInterval(inspectionWatchIntervalSec) * 1000;
     const timer = window.setInterval(() => {
@@ -1759,7 +1763,72 @@ export default function DominicCapturePlanner({
     inspectionEquipmentReady,
     bridgeStatus,
     bridgeInfo?.capabilities.photoCapture,
+    bridgeInfo?.capabilities.liveFrameInspection,
   ]);
+
+  const toggleInspectionWatch = async () => {
+    const adapter = bridgeAdapterRef.current;
+    if (!adapter || bridgeStatus !== "connected" || !inspectionContext) {
+      setAutomaticMediaStatus("Connect the inspection camera bridge before starting Inspection Watch.");
+      return;
+    }
+
+    const useLiveFrames = Boolean(bridgeInfo?.capabilities.liveFrameInspection);
+
+    if (inspectionWatchEnabled) {
+      if (useLiveFrames) {
+        const result = await adapter.send({ type: "stopInspectionFrames" });
+        if (!result.accepted) {
+          setAutomaticMediaStatus(
+            result.message ?? "The aircraft bridge could not stop live inspection frames.",
+          );
+          return;
+        }
+      }
+      setInspectionWatchEnabled(false);
+      inspectionWatchCapturePendingRef.current = false;
+      setInspectionWatchCapturePending(false);
+      setAutomaticMediaStatus("Inspection Watch stopped.");
+      return;
+    }
+
+    setInspectionWatchCaptureCount(0);
+    inspectionWatchLastRequestedAtRef.current = 0;
+    inspectionWatchCapturePendingRef.current = false;
+    setInspectionWatchCapturePending(false);
+
+    if (useLiveFrames) {
+      const intervalMs = Math.min(
+        10_000,
+        Math.max(500, Math.round(inspectionWatchIntervalSec * 1000)),
+      );
+      const result = await adapter.send({
+        type: "startInspectionFrames",
+        intervalMs,
+      });
+      if (!result.accepted) {
+        setAutomaticMediaStatus(
+          result.message ?? "The aircraft bridge could not start decoded live inspection frames.",
+        );
+        return;
+      }
+      setInspectionWatchEnabled(true);
+      setAutomaticMediaStatus(
+        `Live Frame AI started · decoded camera frames sampled every ${(intervalMs / 1000).toFixed(intervalMs < 1000 ? 1 : 0)} seconds without triggering the shutter.`,
+      );
+      return;
+    }
+
+    if (!bridgeInfo?.capabilities.photoCapture) {
+      setAutomaticMediaStatus("The connected aircraft bridge cannot provide inspection frames or still captures.");
+      return;
+    }
+
+    setInspectionWatchEnabled(true);
+    setAutomaticMediaStatus(
+      `Inspection Watch started · full-resolution evidence every ${normalizeInspectionWatchInterval(inspectionWatchIntervalSec)} seconds while the camera bridge remains connected.`,
+    );
+  };
 
   const connectAircraftBridge = async () => {
     if (bridgeStatus === "connecting" || bridgeStatus === "connected") return;
@@ -1857,6 +1926,13 @@ export default function DominicCapturePlanner({
     bridgeInspectionFrameUnsubscribeRef.current?.();
     bridgeInspectionFrameUnsubscribeRef.current = null;
     const adapter = bridgeAdapterRef.current;
+    if (
+      adapter &&
+      inspectionWatchEnabled &&
+      bridgeInfo?.capabilities.liveFrameInspection
+    ) {
+      await adapter.send({ type: "stopInspectionFrames" }).catch(() => undefined);
+    }
     bridgeAdapterRef.current = null;
     if (adapter) await adapter.disconnect();
     setInspectionWatchEnabled(false);
@@ -3171,7 +3247,9 @@ export default function DominicCapturePlanner({
                   Inspection Watch
                 </div>
                 <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 3, maxWidth: 720 }}>
-                  While you fly manually, DOMINIC can periodically capture full-resolution still evidence, save it to this asset inspection, screen it, and surface candidate anomalies. This is sampled live inspection, not continuous video-frame inference.
+                  {bridgeInfo?.capabilities.liveFrameInspection
+                    ? "Live Frame AI reads decoded camera frames without triggering the shutter, saves selected frames to this asset inspection, screens them, and surfaces candidate anomalies while you fly."
+                    : "While you fly manually, DOMINIC periodically captures full-resolution still evidence, saves it to this asset inspection, screens it, and surfaces candidate anomalies."}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
@@ -3179,13 +3257,30 @@ export default function DominicCapturePlanner({
                   aria-label="Inspection Watch sampling interval"
                   value={inspectionWatchIntervalSec}
                   disabled={inspectionWatchEnabled}
-                  onChange={(event) => setInspectionWatchIntervalSec(normalizeInspectionWatchInterval(Number(event.target.value)))}
+                  onChange={(event) =>
+                    setInspectionWatchIntervalSec(
+                      bridgeInfo?.capabilities.liveFrameInspection
+                        ? Number(event.target.value)
+                        : normalizeInspectionWatchInterval(Number(event.target.value)),
+                    )
+                  }
                   style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8 }}
                 >
-                  <option value={10}>Every 10 sec</option>
-                  <option value={15}>Every 15 sec</option>
-                  <option value={30}>Every 30 sec</option>
-                  <option value={60}>Every 60 sec</option>
+                  {bridgeInfo?.capabilities.liveFrameInspection ? (
+                    <>
+                      <option value={2}>Every 2 sec</option>
+                      <option value={5}>Every 5 sec</option>
+                      <option value={10}>Every 10 sec</option>
+                      <option value={15}>Every 15 sec</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value={10}>Every 10 sec</option>
+                      <option value={15}>Every 15 sec</option>
+                      <option value={30}>Every 30 sec</option>
+                      <option value={60}>Every 60 sec</option>
+                    </>
+                  )}
                 </select>
                 <button
                   type="button"
@@ -3194,25 +3289,10 @@ export default function DominicCapturePlanner({
                     (!inspectionContext ||
                       !inspectionEquipmentReady ||
                       bridgeStatus !== "connected" ||
-                      !bridgeInfo?.capabilities.photoCapture)
+                      !bridgeInfo?.capabilities.photoCapture &&
+                      !bridgeInfo?.capabilities.liveFrameInspection)
                   }
-                  onClick={() => {
-                    if (inspectionWatchEnabled) {
-                      setInspectionWatchEnabled(false);
-                      inspectionWatchCapturePendingRef.current = false;
-                      setInspectionWatchCapturePending(false);
-                      setAutomaticMediaStatus("Inspection Watch stopped.");
-                      return;
-                    }
-                    inspectionWatchLastRequestedAtRef.current = 0;
-                    inspectionWatchCapturePendingRef.current = false;
-                    setInspectionWatchCapturePending(false);
-                    setInspectionWatchCaptureCount(0);
-                    setInspectionWatchEnabled(true);
-                    setAutomaticMediaStatus(
-                      `Inspection Watch started · sampling every ${normalizeInspectionWatchInterval(inspectionWatchIntervalSec)} seconds while the camera bridge remains connected.`,
-                    );
-                  }}
+                  onClick={() => void toggleInspectionWatch()}
                   style={{
                     border: `1px solid ${inspectionWatchEnabled ? "rgba(255,184,107,.42)" : "rgba(112,214,160,.38)"}`,
                     background: inspectionWatchEnabled ? "rgba(255,184,107,.09)" : "rgba(112,214,160,.09)",
@@ -3224,13 +3304,19 @@ export default function DominicCapturePlanner({
                     cursor: "pointer",
                   }}
                 >
-                  {inspectionWatchEnabled ? "Stop Watch" : "Start Watch"}
+                  {inspectionWatchEnabled
+                    ? "Stop Watch"
+                    : bridgeInfo?.capabilities.liveFrameInspection
+                      ? "Start Live AI"
+                      : "Start Watch"}
                 </button>
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 7, color: V.muted, fontSize: 8 }}>
               <span>{inspectionWatchEnabled ? "ACTIVE" : "STOPPED"}</span>
-              <span>Samples requested: {inspectionWatchCaptureCount}</span>
+              <span>
+                {bridgeInfo?.capabilities.liveFrameInspection ? "Frames received" : "Samples requested"}: {inspectionWatchCaptureCount}
+              </span>
               <span>{inspectionWatchReasonLabel(watchReadiness.reason)}</span>
             </div>
           </div>

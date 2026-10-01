@@ -1168,6 +1168,10 @@ export default function DominicCapturePlanner({
           vendor: bridgeInfo?.vendor ?? null,
           model: bridgeInfo?.model ?? null,
           payloadId: bridgeInfo?.activePayloadId ?? null,
+          cameraSource: capture.cameraSource ?? null,
+          zoomRatio: capture.zoomRatio ?? null,
+          focusTarget: capture.focusTarget ?? null,
+          aeLocked: capture.aeLocked ?? null,
           rangefinderTarget: rangefinderTarget
             ? {
                 ...rangefinderTarget,

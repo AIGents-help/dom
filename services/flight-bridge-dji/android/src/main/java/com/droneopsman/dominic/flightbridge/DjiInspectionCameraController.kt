@@ -95,7 +95,7 @@ class DjiInspectionCameraController(
             return
         }
 
-        val key = createCameraKey<Double>(
+        val key = createCameraKey(
             CameraKey.KeyCameraZoomRatios,
             cameraIndex,
             CameraLensType.CAMERA_LENS_ZOOM,

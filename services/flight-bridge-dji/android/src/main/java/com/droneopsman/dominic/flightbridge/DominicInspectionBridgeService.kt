@@ -207,11 +207,18 @@ class DominicInspectionBridgeService(
         }
 
         val checkpointId = command?.optString("checkpointId")?.takeIf { it.isNotBlank() }
+        val evidenceRole = command?.optString("evidenceRole")?.takeIf {
+            it in setOf("context", "detail", "quality_retry")
+        }
+        val evidenceSequenceId =
+            command?.optString("evidenceSequenceId")?.takeIf { it.isNotBlank() }
         val captureId = "dji-${UUID.randomUUID()}"
 
         cameraController.capturePhoto(
             captureId = captureId,
             checkpointId = checkpointId,
+            evidenceRole = evidenceRole,
+            evidenceSequenceId = evidenceSequenceId,
             onAccepted = {
                 client.send(
                     commandResult(
@@ -306,6 +313,8 @@ class DominicInspectionBridgeService(
                     .put("mediaUrl", capture.mediaUrl)
                     .put("filename", capture.filename)
                     .apply { capture.checkpointId?.let { put("checkpointId", it) } }
+                    .apply { capture.evidenceRole?.let { put("evidenceRole", it) } }
+                    .apply { capture.evidenceSequenceId?.let { put("evidenceSequenceId", it) } }
                     .put("latitude", capture.latitude)
                     .put("longitude", capture.longitude)
                     .put("relativeAltitudeFt", capture.relativeAltitudeFt)

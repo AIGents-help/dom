@@ -9,6 +9,17 @@ export type AircraftCapabilities = {
   returnHome: boolean; land: boolean; obstacleSensing: boolean; rtk: boolean;
 };
 
+export type RangefinderTarget = {
+  latitude: number;
+  longitude: number;
+  altitudeM?: number;
+  distanceM?: number;
+  screenX?: number;
+  screenY?: number;
+  status?: string;
+  updatedAtMs: number;
+};
+
 export type UniversalAircraftState = {
   aircraftId: string; vendor: AircraftVendor; model?: string; connected: boolean;
   latitude: number; longitude: number; relativeAltitudeFt: number; headingDeg: number;
@@ -17,7 +28,7 @@ export type UniversalAircraftState = {
   rtkState?: "unsupported"|"off"|"float"|"fixed"; gimbalPitchDeg: number;
   gimbalYawDeg?: number; cameraMode?: "unknown"|"photo"|"video";
   obstacleAlert?: boolean; flightMode?: string; homeLatitude?: number;
-  homeLongitude?: number; failsafe?: string|null; timestampMs: number;
+  homeLongitude?: number; failsafe?: string|null; rangefinderTarget?: RangefinderTarget; timestampMs: number;
 };
 
 export type UniversalMediaCapture = {

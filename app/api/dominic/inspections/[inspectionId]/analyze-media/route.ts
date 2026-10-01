@@ -212,6 +212,7 @@ export async function POST(
       ].join("|"))}`;
       const laserCorrelated =
         storedRangefinderTarget !== null &&
+        candidate.region !== null &&
         rangefinderTargetMatchesRegion(storedRangefinderTarget, candidate.region);
       const targetLocation = laserCorrelated ? storedRangefinderTarget : null;
 

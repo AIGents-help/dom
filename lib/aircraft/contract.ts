@@ -1,6 +1,7 @@
 import type { CameraPayloadProfile } from "@/lib/aircraft/payload";
 
 export type AircraftVendor = "simulator" | "dji" | "autel" | "mavlink" | "other";
+export type InspectionEvidenceRole = "context" | "detail" | "quality_retry";
 
 export type AircraftCapabilities = {
   telemetry: boolean; arm: boolean; takeoff: boolean; goTo: boolean;
@@ -54,6 +55,8 @@ export type UniversalMediaCapture = {
   zoomRatio?: number;
   focusTarget?: { x: number; y: number };
   aeLocked?: boolean;
+  evidenceRole?: InspectionEvidenceRole;
+  evidenceSequenceId?: string;
 };
 
 export type UniversalAircraftCommand =
@@ -65,7 +68,7 @@ export type UniversalAircraftCommand =
   | { type:"setFocusTarget"; x:number; y:number }
   | { type:"setAELock"; enabled:boolean }
   | { type:"setZoom"; ratio:number }
-  | { type:"capturePhoto"; checkpointId?:string } | { type:"startVideo" } | { type:"stopVideo" }
+  | { type:"capturePhoto"; checkpointId?:string; evidenceRole?:InspectionEvidenceRole; evidenceSequenceId?:string } | { type:"startVideo" } | { type:"stopVideo" }
   | { type:"pause" } | { type:"resume" } | { type:"returnHome" } | { type:"land" }
   | { type:"abort"; reason:string };
 

@@ -11,6 +11,7 @@ export type AircraftCapabilities = {
   cameraSourceControl?: boolean;
   focusControl?: boolean;
   aeLockControl?: boolean;
+  liveFrameInspection?: boolean;
 };
 
 export type RangefinderTarget = {
@@ -33,6 +34,24 @@ export type UniversalAircraftState = {
   gimbalYawDeg?: number; cameraMode?: "unknown"|"photo"|"video";
   obstacleAlert?: boolean; flightMode?: string; homeLatitude?: number;
   homeLongitude?: number; failsafe?: string|null; rangefinderTarget?: RangefinderTarget; timestampMs: number;
+};
+
+export type UniversalInspectionFrame = {
+  id: string;
+  aircraftId: string;
+  observedAtMs: number;
+  mimeType: string;
+  frameUrl?: string;
+  width: number;
+  height: number;
+  latitude: number;
+  longitude: number;
+  relativeAltitudeFt: number;
+  headingDeg: number;
+  gimbalPitchDeg: number;
+  gimbalYawDeg?: number;
+  cameraSource?: "wide" | "zoom";
+  zoomRatio?: number;
 };
 
 export type UniversalMediaCapture = {
@@ -65,6 +84,7 @@ export type UniversalAircraftCommand =
   | { type:"setFocusTarget"; x:number; y:number }
   | { type:"setAELock"; enabled:boolean }
   | { type:"setZoom"; ratio:number }
+  | { type:"startInspectionFrames"; intervalMs?:number } | { type:"stopInspectionFrames" }
   | { type:"capturePhoto"; checkpointId?:string } | { type:"startVideo" } | { type:"stopVideo" }
   | { type:"pause" } | { type:"resume" } | { type:"returnHome" } | { type:"land" }
   | { type:"abort"; reason:string };
@@ -79,13 +99,14 @@ export interface DominicAircraftAdapter {
   send(command:UniversalAircraftCommand):Promise<CommandResult>;
   subscribe(listener:(state:UniversalAircraftState)=>void):()=>void;
   subscribeMedia?(listener:(capture:UniversalMediaCapture)=>void):()=>void;
+  subscribeInspectionFrames?(listener:(frame:UniversalInspectionFrame)=>void):()=>void;
 }
 
 export function commandCapability(command:UniversalAircraftCommand["type"]):keyof AircraftCapabilities|null {
   switch(command){
     case "arm":return "arm"; case "takeoff":return "takeoff"; case "goTo":return "goTo";
     case "setVelocity":return "velocityControl"; case "setYaw":return "yawControl";
-    case "setGimbal":return "gimbalControl"; case "setCameraSource":return "cameraSourceControl"; case "setFocusTarget":return "focusControl"; case "setAELock":return "aeLockControl"; case "setZoom":return "zoomControl"; case "capturePhoto":return "photoCapture";
+    case "setGimbal":return "gimbalControl"; case "setCameraSource":return "cameraSourceControl"; case "setFocusTarget":return "focusControl"; case "setAELock":return "aeLockControl"; case "setZoom":return "zoomControl"; case "startInspectionFrames":case "stopInspectionFrames":return "liveFrameInspection"; case "capturePhoto":return "photoCapture";
     case "startVideo":case "stopVideo":return "videoCapture";
     case "pause":case "resume":return "pauseResume"; case "returnHome":return "returnHome";
     case "land":return "land"; case "abort":return null;

@@ -108,13 +108,55 @@ class DominicInspectionBridgeService(
             return
         }
 
+        if (commandType == "setCameraSource") {
+            val source = command?.optString("source").orEmpty()
+            cameraController.setCameraSource(
+                source = source,
+                onSuccess = {
+                    client.send(
+                        commandResult(
+                            requestId,
+                            "setCameraSource",
+                            accepted = true,
+                            message = "DJI camera source set to $source.",
+                        ),
+                    )
+                },
+                onFailure = { message ->
+                    client.send(error("camera_source_failed", message, requestId))
+                },
+            )
+            return
+        }
+
+        if (commandType == "setZoom") {
+            val ratio = command?.optDouble("ratio", Double.NaN) ?: Double.NaN
+            cameraController.setZoomRatio(
+                ratio = ratio,
+                onSuccess = {
+                    client.send(
+                        commandResult(
+                            requestId,
+                            "setZoom",
+                            accepted = true,
+                            message = "DJI camera zoom set to ${"%.1f".format(ratio)}x.",
+                        ),
+                    )
+                },
+                onFailure = { message ->
+                    client.send(error("camera_zoom_failed", message, requestId))
+                },
+            )
+            return
+        }
+
         if (commandType != "capturePhoto") {
             client.send(
                 commandResult(
                     requestId,
                     commandType,
                     accepted = false,
-                    message = "DJI inspection bridge allows camera capture only; aircraft movement remains disabled.",
+                    message = "DJI inspection bridge allows camera-only commands; aircraft movement remains disabled.",
                 ),
             )
             return
@@ -165,7 +207,9 @@ class DominicInspectionBridgeService(
                 .put("supportsVideo", false)
                 .put("supportsGimbalPitch", false)
                 .put("supportsGimbalYaw", false)
-                .put("supportsZoom", true),
+                .put("supportsZoom", true)
+                .put("minZoom", 1.0)
+                .put("maxZoom", 8.0),
         )
 
         return JSONObject()
@@ -187,6 +231,8 @@ class DominicInspectionBridgeService(
                     .put("yawControl", false)
                     .put("gimbalControl", false)
                     .put("photoCapture", true)
+                    .put("cameraSourceControl", true)
+                    .put("zoomControl", true)
                     .put("videoCapture", false)
                     .put("pauseResume", false)
                     .put("returnHome", false)

@@ -27,6 +27,7 @@ class DominicInspectionBridgeService(
     private val bridgeId: String,
     private val telemetryProvider: MsdkTelemetryProvider,
     private val cameraController: DjiInspectionCameraController,
+    private val liveFrameSampler: DjiLiveInspectionFrameSampler,
 ) {
     interface Client {
         val open: Boolean
@@ -37,6 +38,7 @@ class DominicInspectionBridgeService(
     private val clients = CopyOnWriteArraySet<Client>()
     private val telemetrySequence = AtomicLong(0)
     private val mediaSequence = AtomicLong(0)
+    private val inspectionFrameSequence = AtomicLong(0)
     private var heartbeatExecutor: ScheduledExecutorService? = null
 
     fun start() {
@@ -64,6 +66,7 @@ class DominicInspectionBridgeService(
     fun stop() {
         heartbeatExecutor?.shutdownNow()
         heartbeatExecutor = null
+        liveFrameSampler.stop()
         cameraController.stop()
         telemetryProvider.stop()
         clients.toList().forEach { it.close() }
@@ -113,6 +116,7 @@ class DominicInspectionBridgeService(
             cameraController.setCameraSource(
                 source = source,
                 onSuccess = {
+                    liveFrameSampler.cameraSource = source.lowercase()
                     client.send(
                         commandResult(
                             requestId,
@@ -178,6 +182,7 @@ class DominicInspectionBridgeService(
             cameraController.setZoomRatio(
                 ratio = ratio,
                 onSuccess = {
+                    liveFrameSampler.zoomRatio = ratio
                     client.send(
                         commandResult(
                             requestId,
@@ -190,6 +195,37 @@ class DominicInspectionBridgeService(
                 onFailure = { message ->
                     client.send(error("camera_zoom_failed", message, requestId))
                 },
+            )
+            return
+        }
+
+        if (commandType == "startInspectionFrames") {
+            val requestedIntervalMs =
+                command?.optLong("intervalMs", 1_000L)?.coerceIn(500L, 10_000L)
+                    ?: 1_000L
+            liveFrameSampler.start(requestedIntervalMs) { frame ->
+                broadcast(inspectionFrame(frame))
+            }
+            client.send(
+                commandResult(
+                    requestId,
+                    "startInspectionFrames",
+                    accepted = true,
+                    message = "DJI decoded live inspection frames enabled every $requestedIntervalMs ms.",
+                ),
+            )
+            return
+        }
+
+        if (commandType == "stopInspectionFrames") {
+            liveFrameSampler.stop()
+            client.send(
+                commandResult(
+                    requestId,
+                    "stopInspectionFrames",
+                    accepted = true,
+                    message = "DJI decoded live inspection frames stopped.",
+                ),
             )
             return
         }
@@ -279,6 +315,7 @@ class DominicInspectionBridgeService(
                     .put("focusControl", true)
                     .put("aeLockControl", true)
                     .put("zoomControl", true)
+                    .put("liveFrameInspection", true)
                     .put("videoCapture", false)
                     .put("pauseResume", false)
                     .put("returnHome", false)
@@ -290,6 +327,31 @@ class DominicInspectionBridgeService(
             .put("activePayloadId", "dji-main-rgb")
             .toString()
     }
+
+    private fun inspectionFrame(frame: DjiLiveInspectionFrame): String =
+        JSONObject()
+            .put("type", "inspection_frame")
+            .put("protocol", ReadOnlyProtocol.PROTOCOL)
+            .put("sequence", inspectionFrameSequence.incrementAndGet())
+            .put(
+                "frame",
+                JSONObject()
+                    .put("id", frame.id)
+                    .put("aircraftId", frame.aircraftId)
+                    .put("observedAtMs", frame.observedAtMs)
+                    .put("mimeType", frame.mimeType)
+                    .put("frameUrl", frame.frameUrl)
+                    .put("width", frame.width)
+                    .put("height", frame.height)
+                    .put("latitude", frame.latitude)
+                    .put("longitude", frame.longitude)
+                    .put("relativeAltitudeFt", frame.relativeAltitudeFt)
+                    .put("headingDeg", frame.headingDeg)
+                    .put("gimbalPitchDeg", frame.gimbalPitchDeg)
+                    .apply { frame.cameraSource?.let { put("cameraSource", it) } }
+                    .apply { frame.zoomRatio?.let { put("zoomRatio", it) } },
+            )
+            .toString()
 
     private fun mediaCapture(capture: DjiInspectionMediaCapture): String =
         JSONObject()

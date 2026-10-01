@@ -233,6 +233,11 @@ export function buildDominicVisionPrompt(input: {
   objective: string | null;
   sensorMode: string;
   baselineAvailable?: boolean;
+  comparisonComparability?: {
+    level: "high" | "moderate" | "low" | "unknown";
+    score: number | null;
+    limitations: string[];
+  } | null;
 }) {
   const profile = resolveDominicInspectionProfile({
     assetType: input.assetType,
@@ -252,6 +257,12 @@ export function buildDominicVisionPrompt(input: {
     input.baselineAvailable
       ? "Two images are provided. The FIRST image is prior confirmed evidence for the tracked issue. The SECOND image is the current reinspection evidence. Compare only like-for-like visible features. Set comparison_state to unchanged, improving, worsening, or uncertain. Use new only for a clearly separate visible condition not present in the baseline."
       : "Only current evidence is provided. Set comparison_state to new for a visible candidate first observed in this screening, or uncertain if that cannot be established. Do not claim improvement/worsening without baseline evidence.",
+    input.baselineAvailable && input.comparisonComparability
+      ? `DOMINIC capture comparability: ${input.comparisonComparability.level}${input.comparisonComparability.score === null ? "" : ` (${input.comparisonComparability.score}/100)`}. ${input.comparisonComparability.limitations.join(" ")}`
+      : "",
+    input.baselineAvailable && input.comparisonComparability?.level === "low"
+      ? "The capture geometry is poorly matched. Use comparison_state uncertain for apparent improvement, worsening, or unchanged condition unless the visible change is unmistakable and robust to viewpoint, scale, and lens differences."
+      : "",
     "comparison_note must briefly state the visible basis for the comparison. If comparison is uncertain, explain why (viewpoint, lighting, scale, occlusion, or insufficient evidence).",
     `Asset: ${input.assetName} (${input.assetType})`,
     `Inspection: ${input.inspectionType}`,

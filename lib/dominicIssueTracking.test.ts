@@ -12,6 +12,45 @@ describe("DOMINIC issue tracking", () => {
     ).toBe("tank_shell_northeast_stain");
   });
 
+  it("uses laser-localized target coordinates before image position", () => {
+    const key = deriveIssueTrackingKey({
+      findingType: "coating_damage",
+      title: "Coating loss",
+      spatialAnchor: {
+        targetLocation: {
+          latitude: 39.8512342,
+          longitude: -75.4512389,
+          source: "laser_rangefinder",
+        },
+        imageRegion: { x: 0.1, y: 0.1, width: 0.2, height: 0.2 },
+      },
+      detector: { trackingKey: "northeast_shell_coating" },
+    });
+
+    expect(key).toBe(
+      "coating_damage:geo_39_85123_m75_45124:northeast_shell_coating",
+    );
+  });
+
+  it("keeps small coordinate jitter on the same meter-scale issue key", () => {
+    const first = deriveIssueTrackingKey({
+      findingType: "staining_or_residue",
+      title: "Vertical stain",
+      spatialAnchor: {
+        targetLocation: { latitude: 39.8512342, longitude: -75.4512389 },
+      },
+    });
+    const repeat = deriveIssueTrackingKey({
+      findingType: "staining_or_residue",
+      title: "Dark vertical streak",
+      spatialAnchor: {
+        targetLocation: { latitude: 39.8512344, longitude: -75.4512391 },
+      },
+    });
+
+    expect(repeat).toBe(first);
+  });
+
   it("falls back to finding type, image region bucket and title", () => {
     const key = deriveIssueTrackingKey({
       findingType: "coating_damage",

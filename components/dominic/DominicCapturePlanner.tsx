@@ -72,6 +72,7 @@ import { connectFlightBridgeAdapter } from "@/lib/aircraft/bridgeConnect";
 import type {
   DominicAircraftAdapter,
   AircraftCapabilities,
+  UniversalInspectionFrame,
   UniversalMediaCapture,
 } from "@/lib/aircraft/contract";
 import { analyzeImageFile, type ImageQualityAssessment } from "@/lib/imageQuality";
@@ -387,6 +388,7 @@ export default function DominicCapturePlanner({
   const [missionControlMessage, setMissionControlMessage] = useState<string | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
   const bridgeMediaUnsubscribeRef = useRef<(() => void) | null>(null);
+  const bridgeInspectionFrameUnsubscribeRef = useRef<(() => void) | null>(null);
   const realtimeScreeningQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [automaticMediaCount, setAutomaticMediaCount] = useState(0);
   const [automaticScreeningCount, setAutomaticScreeningCount] = useState(0);
@@ -1094,6 +1096,7 @@ export default function DominicCapturePlanner({
     capture: UniversalMediaCapture,
     file: File,
     quality: ImageQualityAssessment,
+    sourceKind: "flight_bridge" | "live_frame_bridge" = "flight_bridge",
   ): Promise<{
     persisted: boolean;
     created: boolean;
@@ -1191,7 +1194,7 @@ export default function DominicCapturePlanner({
           },
         },
         metadata: {
-          source: "flight_bridge",
+          source: sourceKind,
           checkpointId: capture.checkpointId ?? null,
           headingDeg: capture.headingDeg,
           gimbalPitchDeg: capture.gimbalPitchDeg,
@@ -1371,6 +1374,72 @@ export default function DominicCapturePlanner({
       );
     } finally {
       setLiveFindingReviewBusyId(null);
+    }
+  };
+
+  const ingestBridgeInspectionFrame = async (frame: UniversalInspectionFrame) => {
+    if (!inspectionContext || !frame.frameUrl) return;
+
+    try {
+      const response = await fetch(frame.frameUrl);
+      if (!response.ok) {
+        throw new Error(`Unable to load live inspection frame (${response.status}).`);
+      }
+      const blob = await response.blob();
+      const file = new File(
+        [blob],
+        `${frame.id}.jpg`,
+        { type: blob.type || frame.mimeType || "image/jpeg" },
+      );
+      const quality = await analyzeImageFile(file);
+      const capture: UniversalMediaCapture = {
+        id: frame.id,
+        aircraftId: frame.aircraftId,
+        capturedAtMs: frame.observedAtMs,
+        mimeType: frame.mimeType,
+        mediaUrl: frame.frameUrl,
+        filename: `${frame.id}.jpg`,
+        latitude: frame.latitude,
+        longitude: frame.longitude,
+        relativeAltitudeFt: frame.relativeAltitudeFt,
+        headingDeg: frame.headingDeg,
+        gimbalPitchDeg: frame.gimbalPitchDeg,
+        gimbalYawDeg: frame.gimbalYawDeg,
+        cameraSource: frame.cameraSource,
+        zoomRatio: frame.zoomRatio,
+      };
+
+      const persistence = await persistInspectionBridgeMedia(
+        capture,
+        file,
+        quality,
+        "live_frame_bridge",
+      );
+      setAutomaticMediaCount((count) => count + 1);
+      setLastImageQuality(quality);
+
+      if (
+        persistence.persisted &&
+        persistence.created &&
+        persistence.mediaId &&
+        persistence.sensorMode
+      ) {
+        queueRealtimeInspectionScreening(
+          persistence.mediaId,
+          persistence.sensorMode,
+          quality,
+        );
+      } else {
+        setAutomaticMediaStatus(
+          `Live frame received from ${frame.cameraSource ?? "camera"} · ${frame.width}×${frame.height}.`,
+        );
+      }
+    } catch (error) {
+      setAutomaticMediaStatus(
+        error instanceof Error
+          ? `Live inspection frame failed: ${error.message}`
+          : "Live inspection frame failed.",
+      );
     }
   };
 
@@ -1716,6 +1785,11 @@ export default function DominicCapturePlanner({
             void ingestBridgeMediaCapture(capture);
           })
         : null;
+      bridgeInspectionFrameUnsubscribeRef.current = adapter.subscribeInspectionFrames
+        ? adapter.subscribeInspectionFrames((frame) => {
+            void ingestBridgeInspectionFrame(frame);
+          })
+        : null;
       setBridgeInfo({
         bridgeId: hello.bridgeId,
         vendor: hello.vendor,
@@ -1780,6 +1854,8 @@ export default function DominicCapturePlanner({
     bridgeUnsubscribeRef.current = null;
     bridgeMediaUnsubscribeRef.current?.();
     bridgeMediaUnsubscribeRef.current = null;
+    bridgeInspectionFrameUnsubscribeRef.current?.();
+    bridgeInspectionFrameUnsubscribeRef.current = null;
     const adapter = bridgeAdapterRef.current;
     bridgeAdapterRef.current = null;
     if (adapter) await adapter.disconnect();

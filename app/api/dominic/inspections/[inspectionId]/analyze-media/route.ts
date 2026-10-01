@@ -82,7 +82,7 @@ export async function POST(
     await Promise.all([
       admin
         .from("dominic_inspections")
-        .select("id,user_id,asset_id,inspection_type,objective,status,sensor_modes")
+        .select("id,user_id,asset_id,inspection_type,objective,status,sensor_modes,baseline_inspection_id,ai_summary")
         .eq("id", inspectionId)
         .eq("user_id", user.id)
         .maybeSingle(),
@@ -130,6 +130,52 @@ export async function POST(
     return NextResponse.json({ error: "Inspection evidence could not be opened for analysis." }, { status: 502 });
   }
 
+  const aiSummary =
+    inspection.ai_summary && typeof inspection.ai_summary === "object"
+      ? (inspection.ai_summary as Record<string, unknown>)
+      : {};
+  const issueId =
+    typeof aiSummary.issueId === "string" && aiSummary.issueId.trim()
+      ? aiSummary.issueId
+      : null;
+
+  let baselineSignedUrl: string | null = null;
+  let baselineFindingId: string | null = null;
+  let baselineEvidenceId: string | null = null;
+
+  if (issueId) {
+    const { data: issue } = await admin
+      .from("dominic_issues")
+      .select("id,current_finding_id")
+      .eq("id", issueId)
+      .eq("user_id", user.id)
+      .eq("asset_id", asset.id)
+      .maybeSingle();
+
+    if (issue?.current_finding_id) {
+      baselineFindingId = issue.current_finding_id;
+      const { data: evidence } = await admin
+        .from("dominic_finding_evidence")
+        .select("id,storage_path,mime_type")
+        .eq("user_id", user.id)
+        .eq("finding_id", issue.current_finding_id)
+        .not("storage_path", "is", null)
+        .order("captured_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (evidence?.storage_path && evidence.mime_type?.startsWith("image/")) {
+        const { data: baselineSigned } = await admin.storage
+          .from("pilot-media")
+          .createSignedUrl(evidence.storage_path, 300);
+        if (baselineSigned?.signedUrl) {
+          baselineSignedUrl = baselineSigned.signedUrl;
+          baselineEvidenceId = evidence.id;
+        }
+      }
+    }
+  }
+
   const model =
     process.env.DOMINIC_VISION_MODEL?.trim() ||
     (provider === "vercel-ai-gateway" ? "openai/gpt-5.6-terra" : "gpt-5.6-terra");
@@ -139,6 +185,7 @@ export async function POST(
     inspectionType: inspection.inspection_type,
     objective: inspection.objective,
     sensorMode: media.sensor_mode,
+    baselineAvailable: Boolean(baselineSignedUrl),
   });
 
   await Promise.all([
@@ -170,6 +217,9 @@ export async function POST(
             role: "user",
             content: [
               { type: "input_text", text: prompt },
+              ...(baselineSignedUrl
+                ? [{ type: "input_image" as const, image_url: baselineSignedUrl, detail: "high" as const }]
+                : []),
               { type: "input_image", image_url: signed.signedUrl, detail: "high" },
             ],
           },
@@ -254,6 +304,10 @@ export async function POST(
           candidate: true,
           recommendedAction: candidate.recommended_action,
           trackingKey: candidate.tracking_key || null,
+          comparisonState: candidate.comparison_state,
+          comparisonNote: candidate.comparison_note,
+          baselineFindingId,
+          baselineEvidenceId,
           screeningSummary: screening.summary,
           limitations: screening.limitations,
         },
@@ -294,6 +348,9 @@ export async function POST(
             summary: screening.summary,
             candidateCount: screening.candidates.length,
             limitations: screening.limitations,
+            baselineCompared: Boolean(baselineSignedUrl),
+            baselineFindingId,
+            baselineEvidenceId,
             analyzedAt: new Date().toISOString(),
           },
         })
@@ -310,6 +367,9 @@ export async function POST(
             summary: screening.summary,
             candidateCount: screening.candidates.length,
             limitations: screening.limitations,
+            baselineCompared: Boolean(baselineSignedUrl),
+            baselineFindingId,
+            baselineEvidenceId,
             analyzedAt: new Date().toISOString(),
           },
         })
@@ -331,6 +391,8 @@ export async function POST(
       summary: screening.summary,
       limitations: screening.limitations,
       candidateCount: screening.candidates.length,
+      baselineCompared: Boolean(baselineSignedUrl),
+      baselineFindingId,
       findings: findings ?? [],
     }, {
       headers: { "Cache-Control": "no-store" },

@@ -7,6 +7,13 @@ export type DominicVisionRegion = {
   height: number;
 };
 
+export type DominicVisionComparisonState =
+  | "new"
+  | "unchanged"
+  | "improving"
+  | "worsening"
+  | "uncertain";
+
 export type DominicVisionCandidate = {
   finding_type: string;
   tracking_key: string;
@@ -16,6 +23,8 @@ export type DominicVisionCandidate = {
   confidence: number;
   region: DominicVisionRegion | null;
   recommended_action: string;
+  comparison_state: DominicVisionComparisonState;
+  comparison_note: string;
 };
 
 export type DominicVisionScreening = {
@@ -60,6 +69,11 @@ export const DOMINIC_VISION_SCHEMA = {
             ],
           },
           recommended_action: { type: "string" },
+          comparison_state: {
+            type: "string",
+            enum: ["new", "unchanged", "improving", "worsening", "uncertain"],
+          },
+          comparison_note: { type: "string" },
         },
         required: [
           "finding_type",
@@ -70,6 +84,8 @@ export const DOMINIC_VISION_SCHEMA = {
           "confidence",
           "region",
           "recommended_action",
+          "comparison_state",
+          "comparison_note",
         ],
       },
     },
@@ -83,6 +99,13 @@ export const DOMINIC_VISION_SCHEMA = {
 } as const;
 
 const severities = new Set<DominicVisionSeverity>(["info", "low", "medium", "high"]);
+const comparisonStates = new Set<DominicVisionComparisonState>([
+  "new",
+  "unchanged",
+  "improving",
+  "worsening",
+  "uncertain",
+]);
 
 function round6(value: number) {
   return Math.round(value * 1_000_000) / 1_000_000;
@@ -156,6 +179,12 @@ export function parseDominicVisionScreening(text: string): DominicVisionScreenin
       confidence: clamp01(item.confidence),
       region: cleanRegion(item.region),
       recommended_action: cleanString(item.recommended_action, 500),
+      comparison_state: comparisonStates.has(
+        cleanString(item.comparison_state, 20).toLowerCase() as DominicVisionComparisonState,
+      )
+        ? (cleanString(item.comparison_state, 20).toLowerCase() as DominicVisionComparisonState)
+        : "uncertain",
+      comparison_note: cleanString(item.comparison_note, 700),
     });
   }
 
@@ -201,6 +230,7 @@ export function buildDominicVisionPrompt(input: {
   inspectionType: string;
   objective: string | null;
   sensorMode: string;
+  baselineAvailable?: boolean;
 }) {
   return [
     "You are the visual-screening stage of DOMINIC, an industrial drone inspection system.",
@@ -212,6 +242,10 @@ export function buildDominicVisionPrompt(input: {
     "Return only the fields required by the DOMINIC screening schema.",
     "Region values are normalized 0..1 relative to the full image. Use null for region if localization is uncertain.",
     "tracking_key should describe the same visible condition consistently across repeat inspections when possible. Use visible feature + approximate location, not a diagnosis or root cause.",
+    input.baselineAvailable
+      ? "Two images are provided. The FIRST image is prior confirmed evidence for the tracked issue. The SECOND image is the current reinspection evidence. Compare only like-for-like visible features. Set comparison_state to unchanged, improving, worsening, or uncertain. Use new only for a clearly separate visible condition not present in the baseline."
+      : "Only current evidence is provided. Set comparison_state to new for a visible candidate first observed in this screening, or uncertain if that cannot be established. Do not claim improvement/worsening without baseline evidence.",
+    "comparison_note must briefly state the visible basis for the comparison. If comparison is uncertain, explain why (viewpoint, lighting, scale, occlusion, or insufficient evidence).",
     `Asset: ${input.assetName} (${input.assetType})`,
     `Inspection: ${input.inspectionType}`,
     `Objective: ${input.objective ?? "General visual condition screening"}`,

@@ -111,6 +111,14 @@ export async function POST(
     typeof detector.recommendedAction === "string"
       ? detector.recommendedAction.slice(0, 1000)
       : null;
+  const comparisonState =
+    typeof detector.comparisonState === "string"
+      ? detector.comparisonState
+      : null;
+  const comparisonNote =
+    typeof detector.comparisonNote === "string"
+      ? detector.comparisonNote.slice(0, 700)
+      : null;
   const mediaId = typeof detector.mediaId === "string" ? detector.mediaId : null;
   const issueKey = deriveIssueTrackingKey({
     findingType: finding.finding_type,
@@ -172,6 +180,8 @@ export async function POST(
             typeof previousMetadata.recurrenceCount === "number"
               ? previousMetadata.recurrenceCount + 1
               : 1,
+          latestComparisonState: comparisonState,
+          latestComparisonNote: comparisonNote,
         },
       })
       .eq("id", issueId)
@@ -208,6 +218,8 @@ export async function POST(
           spatialAnchor,
           latestSpatialAnchor: spatialAnchor,
           recurrenceCount: 0,
+          latestComparisonState: comparisonState,
+          latestComparisonNote: comparisonNote,
         },
       })
       .select("id")
@@ -252,6 +264,8 @@ export async function POST(
           confidence: finding.confidence,
           sensorMode: finding.sensor_mode,
           recurrence: reusedIssue,
+          comparisonState,
+          comparisonNote,
         },
       }),
   ];

@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element -- signed private inspection evidence is rendered directly */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, Clock3, Eye, TrendingDown, TrendingUp } from "lucide-react";
+import { Activity, AlertTriangle, Clock3, Eye, FileText, TrendingDown, TrendingUp } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { deriveIssueTrend, issueTrendLabel } from "@/lib/dominicIssueTrend";
 import {
@@ -235,7 +235,28 @@ export default function DominicIssueIntelligence({
               {issue.issue_type.replaceAll("_", " ")} · {issue.status.replaceAll("_", " ")}
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <a
+              href={`/dominic/issues/${issue.id}/maintenance-package`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                border: `1px solid ${LINE}`,
+                background: PANEL_2,
+                color: TEXT,
+                borderRadius: 7,
+                padding: "6px 8px",
+                fontSize: 8,
+                fontWeight: 900,
+                textDecoration: "none",
+                display: "inline-flex",
+                gap: 5,
+                alignItems: "center",
+              }}
+            >
+              <FileText size={11} />
+              Maintenance Package
+            </a>
             {onReinspect && ["open", "monitoring", "in_progress"].includes(issue.status) ? (
               <button
                 type="button"

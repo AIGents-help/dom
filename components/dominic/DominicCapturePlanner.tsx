@@ -1428,14 +1428,38 @@ export default function DominicCapturePlanner({
       return;
     }
 
-    setAutomaticMediaStatus("Requesting inspection photo from the connected aircraft…");
+    const followUp = inspectionContext?.followUpCapture ?? null;
+    let appliedZoom: number | null = null;
+    if (followUp && bridgeInfo.capabilities.zoomControl) {
+      const minZoom = activeConnectedPayload?.minZoom ?? 1;
+      const maxZoom = activeConnectedPayload?.maxZoom ?? 8;
+      const requestedZoom = followUp.estimatedOpticalZoomMultiplier;
+      const zoomRatio = Math.min(maxZoom, Math.max(minZoom, requestedZoom));
+      setAutomaticMediaStatus(`Applying ${zoomRatio.toFixed(1)}x follow-up zoom…`);
+      const zoomResult = await adapter.send({ type: "setZoom", ratio: zoomRatio });
+      if (!zoomResult.accepted) {
+        setAutomaticMediaStatus(
+          zoomResult.message ?? "Aircraft rejected the recommended follow-up zoom.",
+        );
+        return;
+      }
+      appliedZoom = zoomRatio;
+    }
+
+    setAutomaticMediaStatus(
+      followUp
+        ? appliedZoom !== null
+          ? `Follow-up framing set to ${appliedZoom.toFixed(1)}x · requesting inspection photo…`
+          : `Follow-up capture ready · set about ${followUp.estimatedOpticalZoomMultiplier.toFixed(1)}x framing manually if needed · requesting photo…`
+        : "Requesting inspection photo from the connected aircraft…",
+    );
     const result = await adapter.send({
       type: "capturePhoto",
       checkpointId: selectedWaypointId ?? current?.id,
     });
     setAutomaticMediaStatus(
       result.accepted
-        ? "Shutter accepted. Waiting for the aircraft media file…"
+        ? `${appliedZoom !== null ? `Zoom ${appliedZoom.toFixed(1)}x · ` : ""}shutter accepted. Waiting for the aircraft media file…`
         : result.message ?? "Aircraft rejected the photo capture request.",
     );
   };
@@ -3308,7 +3332,7 @@ export default function DominicCapturePlanner({
                       onClick={() => void captureConnectedInspectionPhoto()}
                       style={{ border: `1px solid rgba(112,214,160,.38)`, background: "rgba(112,214,160,.10)", color: V.green, borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
                     >
-                      Capture Inspection Photo
+                      {inspectionContext?.followUpCapture ? "Capture Follow-Up Photo" : "Capture Inspection Photo"}
                     </button>
                     <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45 }}>
                       Camera-only inspection capture is available without enabling aircraft movement.

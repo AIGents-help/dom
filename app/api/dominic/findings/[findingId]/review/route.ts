@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deriveIssueTrackingKey, severityRank } from "@/lib/dominicIssueTracking";
+import {
+  nextProgressionMetadata,
+  normalizeComparisonState,
+  progressionEventType,
+  progressionSummary,
+} from "@/lib/dominicIssueProgression";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -111,10 +117,7 @@ export async function POST(
     typeof detector.recommendedAction === "string"
       ? detector.recommendedAction.slice(0, 1000)
       : null;
-  const comparisonState =
-    typeof detector.comparisonState === "string"
-      ? detector.comparisonState
-      : null;
+  const comparisonState = normalizeComparisonState(detector.comparisonState);
   const comparisonNote =
     typeof detector.comparisonNote === "string"
       ? detector.comparisonNote.slice(0, 700)
@@ -170,7 +173,7 @@ export async function POST(
         recommended_action: recommendedAction ?? previousIssue.recommended_action,
         last_seen_at: finding.observed_at,
         metadata: {
-          ...previousMetadata,
+          ...nextProgressionMetadata(previousMetadata, comparisonState),
           latestInspectionId: finding.inspection_id,
           latestSensorMode: finding.sensor_mode,
           latestLatitude: finding.latitude,
@@ -254,9 +257,9 @@ export async function POST(
         issue_id: issueId,
         inspection_id: finding.inspection_id,
         finding_id: finding.id,
-        event_type: reusedIssue ? "observed_again" : "confirmed",
+        event_type: reusedIssue ? progressionEventType(comparisonState) : "confirmed",
         summary: reusedIssue
-          ? `Issue observed again during inspection: ${finding.title}`
+          ? progressionSummary({ title: finding.title, comparisonState })
           : `Finding confirmed by operator: ${finding.title}`,
         details: {
           issueKey,
@@ -349,6 +352,8 @@ export async function POST(
     issueKey,
     alreadyLinked: false,
     reusedIssue,
+    comparisonState,
+    progressionEvent: reusedIssue ? progressionEventType(comparisonState) : "confirmed",
   }, {
     headers: { "Cache-Control": "no-store" },
   });

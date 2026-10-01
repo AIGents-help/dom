@@ -377,6 +377,11 @@ export default function DominicCapturePlanner({
   } | null>(null);
   const bridgeAdapterRef = useRef<DominicAircraftAdapter | null>(null);
   const qualityRecaptureAttemptsRef = useRef<Record<string, number>>({});
+  const followUpEvidencePairRef = useRef<{
+    sequenceId: string;
+    findingId: string;
+    checkpointId?: string;
+  } | null>(null);
   const autonomousEngineRef = useRef<DominicMissionEngine | null>(null);
   const [missionControlMessage, setMissionControlMessage] = useState<string | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
@@ -415,6 +420,7 @@ export default function DominicCapturePlanner({
 
   useEffect(() => {
     qualityRecaptureAttemptsRef.current = {};
+    followUpEvidencePairRef.current = null;
   }, [inspectionContext?.inspectionId, inspectionContext?.followUpCapture?.findingId]);
 
   useEffect(() => {
@@ -1187,6 +1193,8 @@ export default function DominicCapturePlanner({
           zoomRatio: capture.zoomRatio ?? null,
           focusTarget: capture.focusTarget ?? null,
           aeLocked: capture.aeLocked ?? null,
+          evidenceRole: capture.evidenceRole ?? null,
+          evidenceSequenceId: capture.evidenceSequenceId ?? null,
           cameraPreset,
           rangefinderTarget: rangefinderTarget
             ? {

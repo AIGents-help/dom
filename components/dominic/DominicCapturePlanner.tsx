@@ -1657,6 +1657,56 @@ export default function DominicCapturePlanner({
         : null;
     let appliedZoom: number | null = null;
 
+    if (
+      followUp &&
+      cameraPreset &&
+      bridgeInfo.capabilities.cameraSourceControl
+    ) {
+      const checkpointId = selectedWaypointId ?? current?.id;
+      const sequenceId = `followup-${followUp.findingId}-${Date.now()}`;
+      const sourceResult = await adapter.send({
+        type: "setCameraSource",
+        source: "wide",
+      });
+      if (!sourceResult.accepted) {
+        setAutomaticMediaStatus(
+          sourceResult.message ?? "DOMINIC could not switch to the wide context camera.",
+        );
+        return;
+      }
+
+      if (bridgeInfo.capabilities.aeLockControl) {
+        const aeResult = await adapter.send({ type: "setAELock", enabled: true });
+        if (!aeResult.accepted) {
+          setAutomaticMediaStatus(
+            "Wide context exposure lock was unavailable; capturing context with automatic exposure.",
+          );
+        }
+      }
+
+      followUpEvidencePairRef.current = {
+        sequenceId,
+        findingId: followUp.findingId,
+        checkpointId,
+      };
+      setAutomaticMediaStatus("Capturing wide context evidence before the detail frame…");
+      const contextResult = await adapter.send({
+        type: "capturePhoto",
+        checkpointId,
+        evidenceRole: "context",
+        evidenceSequenceId: sequenceId,
+      });
+      if (!contextResult.accepted) {
+        followUpEvidencePairRef.current = null;
+        setAutomaticMediaStatus(
+          contextResult.message ?? "DOMINIC context evidence capture was rejected.",
+        );
+        return;
+      }
+      setAutomaticMediaStatus("Context shutter accepted · waiting for the linked evidence frame…");
+      return;
+    }
+
     if (followUp && cameraPreset) {
       if (bridgeInfo.capabilities.cameraSourceControl) {
         setAutomaticMediaStatus(

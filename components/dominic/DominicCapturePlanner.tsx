@@ -67,6 +67,7 @@ import type {
   UniversalMediaCapture,
 } from "@/lib/aircraft/contract";
 import { analyzeImageFile, type ImageQualityAssessment } from "@/lib/imageQuality";
+import { matchRangefinderTargetToCapture } from "@/lib/aircraft/rangefinderTarget";
 import {
   runBenchReadiness,
   type BenchReadinessReport,
@@ -1098,6 +1099,10 @@ export default function DominicCapturePlanner({
       payloadKind && payloadKind !== "other"
         ? payloadKind
         : inspectionContext.sensorModes[0] ?? "rgb";
+    const rangefinderTarget = matchRangefinderTargetToCapture(
+      bridgeAdapterRef.current?.getState().rangefinderTarget,
+      capture.capturedAtMs,
+    );
 
     const { data: insertedMedia, error: rowError } = await sb
       .from("dominic_inspection_media")
@@ -1138,6 +1143,12 @@ export default function DominicCapturePlanner({
           vendor: bridgeInfo?.vendor ?? null,
           model: bridgeInfo?.model ?? null,
           payloadId: bridgeInfo?.activePayloadId ?? null,
+          rangefinderTarget: rangefinderTarget
+            ? {
+                ...rangefinderTarget,
+                source: "connected_aircraft_laser",
+              }
+            : null,
           assetName: inspectionContext.assetName,
           inspectionType: inspectionContext.inspectionType,
         },

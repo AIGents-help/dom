@@ -206,6 +206,7 @@ export async function POST(
           latitude: finding.latitude,
           longitude: finding.longitude,
           spatialAnchor,
+          latestSpatialAnchor: spatialAnchor,
           recurrenceCount: 0,
         },
       })

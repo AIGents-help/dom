@@ -16,6 +16,13 @@ export type DominicInspectionPlanningContext = {
   locationLabel: string | null;
   latitude: number | null;
   longitude: number | null;
+  targetLocation?: {
+    latitude: number;
+    longitude: number;
+    altitudeM?: number;
+    distanceM?: number;
+    source: string;
+  } | null;
   inspectionType: string;
   objective: string | null;
   sensorModes: string[];

@@ -1,6 +1,7 @@
 package com.droneopsman.dominic.flightbridge
 
 import dji.sdk.keyvalue.key.BatteryKey
+import dji.sdk.keyvalue.key.CameraKey
 import dji.sdk.keyvalue.key.FlightControllerKey
 import dji.sdk.keyvalue.key.KeyTools
 import dji.sdk.keyvalue.key.ProductKey
@@ -38,6 +39,10 @@ class DjiKeyManagerTelemetryProvider : MsdkTelemetryProvider {
     private val velocityKey = KeyTools.createKey(FlightControllerKey.KeyAircraftVelocity)
     private val satelliteKey = KeyTools.createKey(FlightControllerKey.KeyGPSSatelliteCount)
     private val flightModeKey = KeyTools.createKey(FlightControllerKey.KeyFlightMode)
+    private val laserMeasureInformationKey = KeyTools.createKey(
+        CameraKey.KeyLaserMeasureInformation,
+        ComponentIndexType.LEFT_OR_MAIN,
+    )
     private val batteryPercentKey = KeyTools.createKey(
         BatteryKey.KeyChargeRemainingInPercent,
         ComponentIndexType.AGGREGATION,
@@ -70,6 +75,7 @@ class DjiKeyManagerTelemetryProvider : MsdkTelemetryProvider {
         val heading = manager.getValue(headingKey, 0.0)
         val satellites = manager.getValue(satelliteKey, 0)
         val battery = manager.getValue(batteryPercentKey, 0)
+        val laser = manager.getValue(laserMeasureInformationKey)
 
         snapshot = snapshot.copy(
             aircraftId = serial.takeIf { it.isNotBlank() } ?: "dji-unidentified",
@@ -81,6 +87,14 @@ class DjiKeyManagerTelemetryProvider : MsdkTelemetryProvider {
             headingDeg = heading,
             batteryPercent = battery,
             satelliteCount = satellites,
+            laserTargetLatitude = laser?.location3D?.latitude,
+            laserTargetLongitude = laser?.location3D?.longitude,
+            laserTargetAltitudeM = laser?.location3D?.altitude,
+            laserDistanceM = laser?.distance,
+            laserScreenX = laser?.targetPoint?.x,
+            laserScreenY = laser?.targetPoint?.y,
+            laserMeasureState = laser?.laserMeasureState?.toString(),
+            laserUpdatedAtMs = laser?.let { System.currentTimeMillis() },
             timestampMs = System.currentTimeMillis(),
         )
     }
@@ -128,6 +142,37 @@ class DjiKeyManagerTelemetryProvider : MsdkTelemetryProvider {
         }
         manager.listen(batteryPercentKey, this) { _, value ->
             value?.let { battery -> update { it.copy(batteryPercent = battery) } }
+        }
+        manager.listen(laserMeasureInformationKey, this) { _, value ->
+            if (value == null) {
+                update {
+                    it.copy(
+                        laserTargetLatitude = null,
+                        laserTargetLongitude = null,
+                        laserTargetAltitudeM = null,
+                        laserDistanceM = null,
+                        laserScreenX = null,
+                        laserScreenY = null,
+                        laserMeasureState = null,
+                        laserUpdatedAtMs = null,
+                    )
+                }
+            } else {
+                val location = value.location3D
+                val screen = value.targetPoint
+                update {
+                    it.copy(
+                        laserTargetLatitude = location.latitude,
+                        laserTargetLongitude = location.longitude,
+                        laserTargetAltitudeM = location.altitude,
+                        laserDistanceM = value.distance,
+                        laserScreenX = screen.x,
+                        laserScreenY = screen.y,
+                        laserMeasureState = value.laserMeasureState.toString(),
+                        laserUpdatedAtMs = System.currentTimeMillis(),
+                    )
+                }
+            }
         }
     }
 

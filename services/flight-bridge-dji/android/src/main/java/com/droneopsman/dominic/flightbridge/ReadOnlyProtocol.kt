@@ -63,6 +63,24 @@ object ReadOnlyProtocol {
         state.put("rtkState", "unsupported")
         snapshot.flightMode?.let { state.put("flightMode", it) }
 
+        if (
+            snapshot.laserTargetLatitude != null &&
+            snapshot.laserTargetLongitude != null &&
+            snapshot.laserUpdatedAtMs != null
+        ) {
+            val rangefinderTarget = JSONObject()
+                .put("latitude", snapshot.laserTargetLatitude)
+                .put("longitude", snapshot.laserTargetLongitude)
+                .put("updatedAtMs", snapshot.laserUpdatedAtMs)
+
+            snapshot.laserTargetAltitudeM?.let { rangefinderTarget.put("altitudeM", it) }
+            snapshot.laserDistanceM?.let { rangefinderTarget.put("distanceM", it) }
+            snapshot.laserScreenX?.let { rangefinderTarget.put("screenX", it) }
+            snapshot.laserScreenY?.let { rangefinderTarget.put("screenY", it) }
+            snapshot.laserMeasureState?.let { rangefinderTarget.put("status", it) }
+            state.put("rangefinderTarget", rangefinderTarget)
+        }
+
         return JSONObject()
             .put("type", "telemetry")
             .put("protocol", PROTOCOL)

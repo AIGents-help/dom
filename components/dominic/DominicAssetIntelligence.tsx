@@ -487,6 +487,42 @@ export default function DominicAssetIntelligence({
           : typeof issue.metadata?.inspectionId === "string"
             ? issue.metadata.inspectionId
             : null;
+      const spatialAnchorCandidate =
+        issue.metadata?.latestSpatialAnchor ?? issue.metadata?.spatialAnchor;
+      const latestSpatialAnchor =
+        spatialAnchorCandidate && typeof spatialAnchorCandidate === "object"
+          ? (spatialAnchorCandidate as Record<string, unknown>)
+          : null;
+      const rawTargetLocation =
+        latestSpatialAnchor?.targetLocation &&
+        typeof latestSpatialAnchor.targetLocation === "object"
+          ? (latestSpatialAnchor.targetLocation as Record<string, unknown>)
+          : null;
+      const targetLatitude = Number(rawTargetLocation?.latitude);
+      const targetLongitude = Number(rawTargetLocation?.longitude);
+      const hasPreciseTarget =
+        Number.isFinite(targetLatitude) &&
+        Number.isFinite(targetLongitude) &&
+        targetLatitude >= -90 &&
+        targetLatitude <= 90 &&
+        targetLongitude >= -180 &&
+        targetLongitude <= 180;
+      const targetLocation = hasPreciseTarget
+        ? {
+            latitude: targetLatitude,
+            longitude: targetLongitude,
+            altitudeM: Number.isFinite(Number(rawTargetLocation?.altitudeM))
+              ? Number(rawTargetLocation?.altitudeM)
+              : undefined,
+            distanceM: Number.isFinite(Number(rawTargetLocation?.distanceM))
+              ? Number(rawTargetLocation?.distanceM)
+              : undefined,
+            source:
+              typeof rawTargetLocation?.source === "string"
+                ? rawTargetLocation.source
+                : "laser_rangefinder",
+          }
+        : null;
 
       const capabilitySnapshot = {
         ready: readiness.ready,
@@ -526,6 +562,7 @@ export default function DominicAssetIntelligence({
             purpose: "issue_reinspection",
             previousSeverity: issue.severity,
             previousLastSeenAt: issue.last_seen_at,
+            targetLocation,
           },
         })
         .select("id,inspection_type,objective,sensor_modes,required_capabilities,optional_capabilities")
@@ -555,8 +592,9 @@ export default function DominicAssetIntelligence({
           assetName: selectedAsset.name,
           assetType: selectedAsset.asset_type,
           locationLabel: selectedAsset.location_label,
-          latitude: selectedAsset.latitude,
-          longitude: selectedAsset.longitude,
+          latitude: targetLocation?.latitude ?? selectedAsset.latitude,
+          longitude: targetLocation?.longitude ?? selectedAsset.longitude,
+          targetLocation,
           inspectionType: inspection.inspection_type,
           objective: inspection.objective,
           sensorModes: inspection.sensor_modes,

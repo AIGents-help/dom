@@ -2,6 +2,10 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import {
+  rangefinderTargetMatchesRegion,
+  readStoredRangefinderTarget,
+} from "@/lib/aircraft/rangefinderTarget";
+import {
   buildDominicVisionPrompt,
   DOMINIC_VISION_SCHEMA,
   extractResponsesApiText,
@@ -55,7 +59,7 @@ export async function POST(
 
   const { data: media, error: mediaError } = await admin
     .from("dominic_inspection_media")
-    .select("id,user_id,inspection_id,asset_id,sensor_mode,media_type,storage_path,original_filename,mime_type,captured_at,latitude,longitude,relative_altitude_ft,analysis_status")
+    .select("id,user_id,inspection_id,asset_id,sensor_mode,media_type,storage_path,original_filename,mime_type,captured_at,latitude,longitude,relative_altitude_ft,analysis_status,metadata")
     .eq("id", body.mediaId)
     .eq("inspection_id", inspectionId)
     .eq("user_id", user.id)
@@ -198,6 +202,7 @@ export async function POST(
     }
 
     const screening = parseDominicVisionScreening(extractResponsesApiText(providerPayload));
+    const storedRangefinderTarget = readStoredRangefinderTarget(media.metadata);
     const candidateRows = screening.candidates.map((candidate) => {
       const candidateFingerprint = `vision:${media.id}:${fingerprint([
         candidate.finding_type,
@@ -205,6 +210,11 @@ export async function POST(
         candidate.title.toLowerCase(),
         candidate.description.toLowerCase(),
       ].join("|"))}`;
+      const laserCorrelated =
+        storedRangefinderTarget !== null &&
+        candidate.region !== null &&
+        rangefinderTargetMatchesRegion(storedRangefinderTarget, candidate.region);
+      const targetLocation = laserCorrelated ? storedRangefinderTarget : null;
 
       return {
         user_id: user.id,
@@ -218,11 +228,24 @@ export async function POST(
         confidence: candidate.confidence,
         sensor_mode: media.sensor_mode,
         fingerprint: candidateFingerprint,
-        latitude: media.latitude,
-        longitude: media.longitude,
+        latitude: targetLocation?.latitude ?? media.latitude,
+        longitude: targetLocation?.longitude ?? media.longitude,
         spatial_anchor: {
           mediaId: media.id,
           imageRegion: candidate.region,
+          captureLocation: {
+            latitude: media.latitude,
+            longitude: media.longitude,
+            relativeAltitudeFt: media.relative_altitude_ft,
+          },
+          rangefinderTarget: storedRangefinderTarget,
+          targetLocation: targetLocation
+            ? {
+                ...targetLocation,
+                source: "laser_rangefinder",
+              }
+            : null,
+          targetLocationSource: targetLocation ? "laser_rangefinder" : "capture_position",
         },
         detector: {
           provider,

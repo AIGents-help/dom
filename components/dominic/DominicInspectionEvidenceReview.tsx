@@ -14,6 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { readStoredRangefinderTarget } from "@/lib/aircraft/rangefinderTarget";
 
 const ORANGE = "#F45A1E";
 const PANEL = "#10171E";
@@ -50,6 +51,7 @@ type MediaRow = {
   captured_at: string | null;
   analysis_status: "pending" | "analyzing" | "review" | "complete" | "failed";
   analysis_summary: Record<string, unknown>;
+  metadata: Record<string, unknown>;
   created_at: string;
 };
 
@@ -152,7 +154,7 @@ export default function DominicInspectionEvidenceReview({
     const [mediaResult, findingResult] = await Promise.all([
       sb
         .from("dominic_inspection_media")
-        .select("id,sensor_mode,media_type,storage_path,original_filename,mime_type,captured_at,analysis_status,analysis_summary,created_at")
+        .select("id,sensor_mode,media_type,storage_path,original_filename,mime_type,captured_at,analysis_status,analysis_summary,metadata,created_at")
         .eq("inspection_id", inspection.id)
         .eq("asset_id", asset.id)
         .order("created_at", { ascending: false }),
@@ -630,6 +632,7 @@ export default function DominicInspectionEvidenceReview({
             const itemFindings = findings.filter(
               (finding) => mediaIdFromFinding(finding) === item.id,
             );
+            const rangefinderTarget = readStoredRangefinderTarget(item.metadata);
             return (
               <div
                 key={item.id}
@@ -660,6 +663,27 @@ export default function DominicInspectionEvidenceReview({
                         objectFit: "contain",
                       }}
                     />
+                    {rangefinderTarget?.screenX !== undefined &&
+                    rangefinderTarget?.screenY !== undefined ? (
+                      <div
+                        title="Aircraft laser rangefinder target"
+                        style={{
+                          position: "absolute",
+                          left: `${rangefinderTarget.screenX}%`,
+                          top: `${rangefinderTarget.screenY}%`,
+                          width: 18,
+                          height: 18,
+                          transform: "translate(-50%,-50%)",
+                          border: "2px solid #70D6A0",
+                          borderRadius: "50%",
+                          boxShadow: "0 0 0 2px rgba(0,0,0,.55)",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        <div style={{ position: "absolute", left: 7, top: -5, width: 2, height: 24, background: "#70D6A0" }} />
+                        <div style={{ position: "absolute", left: -5, top: 7, width: 24, height: 2, background: "#70D6A0" }} />
+                      </div>
+                    ) : null}
                     {itemFindings
                       .filter((finding) => finding.review_status !== "dismissed")
                       .map((finding) => {
@@ -718,6 +742,14 @@ export default function DominicInspectionEvidenceReview({
                       <div style={{ color: MUTED, fontSize: 8, marginTop: 3 }}>
                         {item.sensor_mode.toUpperCase()} · {item.analysis_status.replaceAll("_", " ")}
                       </div>
+                      {rangefinderTarget ? (
+                        <div style={{ color: GREEN, fontSize: 8, marginTop: 4, lineHeight: 1.4 }}>
+                          Laser target · {rangefinderTarget.latitude.toFixed(6)}, {rangefinderTarget.longitude.toFixed(6)}
+                          {rangefinderTarget.distanceM !== undefined
+                            ? ` · ${rangefinderTarget.distanceM.toFixed(1)} m`
+                            : ""}
+                        </div>
+                      ) : null}
                     </div>
                     <button
                       type="button"

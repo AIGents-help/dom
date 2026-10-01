@@ -328,11 +328,6 @@ export default function DominicAssetIntelligence({
     [selectedIssues, selectedIssueId],
   );
 
-  useEffect(() => {
-    setSelectedInspectionId(null);
-    setSelectedIssueId(null);
-  }, [selectedAssetId]);
-
   const openIssues = issues.filter((issue) =>
     ["open", "monitoring", "in_progress"].includes(issue.status),
   );

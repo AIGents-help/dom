@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deriveIssueTrackingKey, severityRank } from "@/lib/dominicIssueTracking";
+import { deriveMaintenanceReviewPriority } from "@/lib/dominicMaintenanceReview";
 import {
   nextProgressionMetadata,
   normalizeComparisonState,
@@ -133,7 +134,7 @@ export async function POST(
 
   const { data: previousIssue } = await admin
     .from("dominic_issues")
-    .select("id,severity,status,confidence,recommended_action,metadata,last_seen_at")
+    .select("id,severity,status,confidence,recommended_action,metadata,first_seen_at,last_seen_at")
     .eq("user_id", user.id)
     .eq("asset_id", finding.asset_id)
     .eq("issue_key", issueKey)
@@ -144,6 +145,7 @@ export async function POST(
 
   let issueId: string;
   let reusedIssue = false;
+  let maintenanceReview: ReturnType<typeof deriveMaintenanceReviewPriority>;
 
   if (previousIssue) {
     issueId = previousIssue.id;
@@ -163,6 +165,30 @@ export async function POST(
       previousIssue.metadata && typeof previousIssue.metadata === "object"
         ? previousIssue.metadata as Record<string, unknown>
         : {};
+    const progressionMetadata = {
+      ...nextProgressionMetadata(previousMetadata, comparisonState),
+      latestInspectionId: finding.inspection_id,
+      latestSensorMode: finding.sensor_mode,
+      latestLatitude: finding.latitude,
+      latestLongitude: finding.longitude,
+      latestSpatialAnchor: spatialAnchor,
+      recurrenceCount:
+        typeof previousMetadata.recurrenceCount === "number"
+          ? previousMetadata.recurrenceCount + 1
+          : 1,
+      latestComparisonState: comparisonState,
+      latestComparisonNote: comparisonNote,
+    };
+    maintenanceReview = deriveMaintenanceReviewPriority(
+      {
+        severity,
+        status: previousIssue.status,
+        firstSeenAt: previousIssue.first_seen_at,
+        lastSeenAt: finding.observed_at,
+        metadata: progressionMetadata,
+      },
+      new Date(linkedAt),
+    );
 
     const { error: updateIssueError } = await admin
       .from("dominic_issues")
@@ -173,18 +199,11 @@ export async function POST(
         recommended_action: recommendedAction ?? previousIssue.recommended_action,
         last_seen_at: finding.observed_at,
         metadata: {
-          ...nextProgressionMetadata(previousMetadata, comparisonState),
-          latestInspectionId: finding.inspection_id,
-          latestSensorMode: finding.sensor_mode,
-          latestLatitude: finding.latitude,
-          latestLongitude: finding.longitude,
-          latestSpatialAnchor: spatialAnchor,
-          recurrenceCount:
-            typeof previousMetadata.recurrenceCount === "number"
-              ? previousMetadata.recurrenceCount + 1
-              : 1,
-          latestComparisonState: comparisonState,
-          latestComparisonNote: comparisonNote,
+          ...progressionMetadata,
+          maintenanceReviewPriority: maintenanceReview.priority,
+          maintenanceReviewScore: maintenanceReview.score,
+          maintenanceReviewReasons: maintenanceReview.reasons,
+          maintenanceReviewEvaluatedAt: linkedAt,
         },
       })
       .eq("id", issueId)
@@ -194,6 +213,30 @@ export async function POST(
       return NextResponse.json({ error: "Existing issue could not be updated." }, { status: 500 });
     }
   } else {
+    const initialMetadata = {
+      source: "confirmed_finding",
+      inspectionId: finding.inspection_id,
+      latestInspectionId: finding.inspection_id,
+      sensorMode: finding.sensor_mode,
+      latitude: finding.latitude,
+      longitude: finding.longitude,
+      spatialAnchor,
+      latestSpatialAnchor: spatialAnchor,
+      recurrenceCount: 0,
+      latestComparisonState: comparisonState,
+      latestComparisonNote: comparisonNote,
+    };
+    maintenanceReview = deriveMaintenanceReviewPriority(
+      {
+        severity: finding.severity,
+        status: "open",
+        firstSeenAt: finding.observed_at,
+        lastSeenAt: finding.observed_at,
+        metadata: initialMetadata,
+      },
+      new Date(linkedAt),
+    );
+
     const { data: issue, error: issueError } = await admin
       .from("dominic_issues")
       .insert({
@@ -212,17 +255,11 @@ export async function POST(
         first_seen_at: finding.observed_at,
         last_seen_at: finding.observed_at,
         metadata: {
-          source: "confirmed_finding",
-          inspectionId: finding.inspection_id,
-          latestInspectionId: finding.inspection_id,
-          sensorMode: finding.sensor_mode,
-          latitude: finding.latitude,
-          longitude: finding.longitude,
-          spatialAnchor,
-          latestSpatialAnchor: spatialAnchor,
-          recurrenceCount: 0,
-          latestComparisonState: comparisonState,
-          latestComparisonNote: comparisonNote,
+          ...initialMetadata,
+          maintenanceReviewPriority: maintenanceReview.priority,
+          maintenanceReviewScore: maintenanceReview.score,
+          maintenanceReviewReasons: maintenanceReview.reasons,
+          maintenanceReviewEvaluatedAt: linkedAt,
         },
       })
       .select("id")
@@ -269,6 +306,8 @@ export async function POST(
           recurrence: reusedIssue,
           comparisonState,
           comparisonNote,
+          maintenanceReviewPriority: maintenanceReview.priority,
+          maintenanceReviewScore: maintenanceReview.score,
         },
       }),
   ];
@@ -354,6 +393,7 @@ export async function POST(
     reusedIssue,
     comparisonState,
     progressionEvent: reusedIssue ? progressionEventType(comparisonState) : "confirmed",
+    maintenanceReview,
   }, {
     headers: { "Cache-Control": "no-store" },
   });

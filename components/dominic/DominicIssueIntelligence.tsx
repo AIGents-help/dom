@@ -6,6 +6,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, Clock3, Eye, TrendingDown, TrendingUp } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { deriveIssueTrend, issueTrendLabel } from "@/lib/dominicIssueTrend";
+import {
+  deriveMaintenanceReviewPriority,
+  maintenanceReviewPriorityLabel,
+  type DominicMaintenanceReviewPriority,
+} from "@/lib/dominicMaintenanceReview";
 
 const ORANGE = "#F45A1E";
 const PANEL = "#10171E";
@@ -70,6 +75,13 @@ function severityColor(severity: Issue["severity"]) {
   if (severity === "critical" || severity === "high") return RED;
   if (severity === "medium") return AMBER;
   if (severity === "low") return "#8FC7FF";
+  return MUTED;
+}
+
+function maintenancePriorityColor(priority: DominicMaintenanceReviewPriority) {
+  if (priority === "attention_now") return RED;
+  if (priority === "elevated") return AMBER;
+  if (priority === "routine") return "#8FC7FF";
   return MUTED;
 }
 
@@ -198,6 +210,17 @@ export default function DominicIssueIntelligence({
         : trend.trend === "persistent"
           ? AMBER
           : MUTED;
+  const maintenanceReview = useMemo(
+    () =>
+      deriveMaintenanceReviewPriority({
+        severity: issue.severity,
+        status: issue.status,
+        firstSeenAt: issue.first_seen_at,
+        lastSeenAt: issue.last_seen_at,
+        metadata: issue.metadata,
+      }),
+    [issue.severity, issue.status, issue.first_seen_at, issue.last_seen_at, issue.metadata],
+  );
 
   return (
     <div style={{ border: `1px solid ${LINE}`, borderRadius: 10, background: PANEL, overflow: "hidden" }}>
@@ -236,6 +259,9 @@ export default function DominicIssueIntelligence({
               <div style={{ color: severityColor(issue.severity), fontSize: 9, fontWeight: 900, textTransform: "uppercase" }}>
                 {issue.severity}
               </div>
+              <div style={{ color: maintenancePriorityColor(maintenanceReview.priority), fontSize: 8, fontWeight: 900, marginTop: 3, textTransform: "uppercase" }}>
+                Maintenance review · {maintenanceReviewPriorityLabel(maintenanceReview.priority)}
+              </div>
               <div style={{ color: trendColor, fontSize: 8, fontWeight: 900, marginTop: 3, textTransform: "uppercase", display: "flex", gap: 4, alignItems: "center", justifyContent: "flex-end" }}>
                 {trend.trend === "worsening" ? <TrendingUp size={11} /> : trend.trend === "improving" ? <TrendingDown size={11} /> : <Activity size={11} />}
                 {issueTrendLabel(trend.trend)}
@@ -256,6 +282,20 @@ export default function DominicIssueIntelligence({
             <div style={{ color: TEXT, fontSize: 10, fontWeight: 900, marginTop: 3 }}>{value}</div>
           </div>
         ))}
+      </div>
+
+      <div style={{ padding: "9px 11px", borderBottom: `1px solid ${LINE}`, background: "rgba(255,181,101,.035)" }}>
+        <div style={{ color: maintenancePriorityColor(maintenanceReview.priority), fontSize: 7, textTransform: "uppercase", fontWeight: 900 }}>
+          Maintenance review priority · {maintenanceReviewPriorityLabel(maintenanceReview.priority)}
+        </div>
+        <div style={{ color: MUTED, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>
+          {maintenanceReview.reasons.length
+            ? maintenanceReview.reasons.slice(0, 3).join(" ")
+            : "No escalation signal beyond the current confirmed issue state."}
+        </div>
+        <div style={{ color: MUTED, fontSize: 7, lineHeight: 1.4, marginTop: 4 }}>
+          This is an operator triage aid derived from confirmed DOMINIC evidence history, not an engineering or safety determination.
+        </div>
       </div>
 
       {issue.recommended_action ? (
@@ -376,7 +416,7 @@ export default function DominicIssueIntelligence({
 
       <div style={{ padding: "8px 10px", borderTop: `1px solid ${LINE}`, color: MUTED, fontSize: 7, display: "flex", gap: 5, alignItems: "center" }}>
         {trend.trend === "worsening" ? <AlertTriangle size={11} color={RED} /> : <Clock3 size={11} color={MUTED} />}
-        Trend is derived from confirmed observation severity over time; it is not an engineering diagnosis.
+        Trend and maintenance review priority are derived from confirmed observation history; neither is an engineering diagnosis.
       </div>
     </div>
   );

@@ -1454,6 +1454,33 @@ export default function DominicCapturePlanner({
         return;
       }
       appliedZoom = zoomRatio;
+
+      if (bridgeInfo.capabilities.focusControl) {
+        const focusTarget = followUp.focusTarget ?? { x: 0.5, y: 0.5 };
+        setAutomaticMediaStatus("Focusing on the anomaly region…");
+        const focusResult = await adapter.send({
+          type: "setFocusTarget",
+          x: Math.min(1, Math.max(0, focusTarget.x)),
+          y: Math.min(1, Math.max(0, focusTarget.y)),
+        });
+        if (!focusResult.accepted) {
+          setAutomaticMediaStatus(
+            focusResult.message ?? "Aircraft rejected the autofocus target.",
+          );
+          return;
+        }
+      }
+
+      if (bridgeInfo.capabilities.aeLockControl) {
+        setAutomaticMediaStatus("Locking exposure for repeatable evidence…");
+        const aeResult = await adapter.send({ type: "setAELock", enabled: true });
+        if (!aeResult.accepted) {
+          setAutomaticMediaStatus(
+            aeResult.message ?? "Aircraft rejected automatic-exposure lock.",
+          );
+          return;
+        }
+      }
     }
 
     setAutomaticMediaStatus(

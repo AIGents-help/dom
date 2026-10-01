@@ -1433,58 +1433,94 @@ export default function DominicCapturePlanner({
     }
 
     const followUp = inspectionContext?.followUpCapture ?? null;
+    const repeatPreset = inspectionContext?.repeatCapturePreset ?? null;
+    const requestedSource = followUp ? "zoom" : repeatPreset?.cameraSource ?? null;
+    const requestedZoom = followUp
+      ? followUp.estimatedOpticalZoomMultiplier
+      : repeatPreset?.zoomRatio ?? null;
+    const requestedFocusTarget = followUp
+      ? followUp.focusTarget ?? { x: 0.5, y: 0.5 }
+      : repeatPreset?.focusTarget ?? null;
+    const requestedAELock = followUp
+      ? true
+      : typeof repeatPreset?.aeLocked === "boolean"
+        ? repeatPreset.aeLocked
+        : null;
+
     let appliedZoom: number | null = null;
-    if (followUp && bridgeInfo.capabilities.zoomControl) {
-      if (bridgeInfo.capabilities.cameraSourceControl) {
-        setAutomaticMediaStatus("Switching to the DJI zoom camera…");
-        const sourceResult = await adapter.send({ type: "setCameraSource", source: "zoom" });
-        if (!sourceResult.accepted) {
-          setAutomaticMediaStatus(
-            sourceResult.message ?? "Aircraft rejected the zoom-camera source selection.",
-          );
-          return;
-        }
+    let appliedPreset = false;
+
+    if (requestedSource && bridgeInfo.capabilities.cameraSourceControl) {
+      setAutomaticMediaStatus(
+        followUp
+          ? "Switching to the DJI zoom camera…"
+          : `Restoring baseline ${requestedSource} camera source…`,
+      );
+      const sourceResult = await adapter.send({
+        type: "setCameraSource",
+        source: requestedSource,
+      });
+      if (!sourceResult.accepted) {
+        setAutomaticMediaStatus(
+          sourceResult.message ?? "Aircraft rejected the requested camera source.",
+        );
+        return;
       }
+      appliedPreset = true;
+    }
+
+    if (requestedZoom !== null && bridgeInfo.capabilities.zoomControl) {
       const minZoom = activeConnectedPayload?.minZoom ?? 1;
       const maxZoom = activeConnectedPayload?.maxZoom ?? 8;
-      const requestedZoom = followUp.estimatedOpticalZoomMultiplier;
       const zoomRatio = Math.min(maxZoom, Math.max(minZoom, requestedZoom));
-      setAutomaticMediaStatus(`Applying ${zoomRatio.toFixed(1)}x follow-up zoom…`);
+      setAutomaticMediaStatus(
+        followUp
+          ? `Applying ${zoomRatio.toFixed(1)}x follow-up zoom…`
+          : `Restoring baseline ${zoomRatio.toFixed(1)}x zoom…`,
+      );
       const zoomResult = await adapter.send({ type: "setZoom", ratio: zoomRatio });
       if (!zoomResult.accepted) {
         setAutomaticMediaStatus(
-          zoomResult.message ?? "Aircraft rejected the recommended follow-up zoom.",
+          zoomResult.message ?? "Aircraft rejected the requested zoom setting.",
         );
         return;
       }
       appliedZoom = zoomRatio;
+      appliedPreset = true;
+    }
 
-      if (bridgeInfo.capabilities.focusControl) {
-        const focusTarget = followUp.focusTarget ?? { x: 0.5, y: 0.5 };
-        setAutomaticMediaStatus("Focusing on the anomaly region…");
-        const focusResult = await adapter.send({
-          type: "setFocusTarget",
-          x: Math.min(1, Math.max(0, focusTarget.x)),
-          y: Math.min(1, Math.max(0, focusTarget.y)),
-        });
-        if (!focusResult.accepted) {
-          setAutomaticMediaStatus(
-            focusResult.message ?? "Aircraft rejected the autofocus target.",
-          );
-          return;
-        }
+    if (requestedFocusTarget && bridgeInfo.capabilities.focusControl) {
+      setAutomaticMediaStatus(
+        followUp ? "Focusing on the anomaly region…" : "Restoring baseline autofocus target…",
+      );
+      const focusResult = await adapter.send({
+        type: "setFocusTarget",
+        x: Math.min(1, Math.max(0, requestedFocusTarget.x)),
+        y: Math.min(1, Math.max(0, requestedFocusTarget.y)),
+      });
+      if (!focusResult.accepted) {
+        setAutomaticMediaStatus(
+          focusResult.message ?? "Aircraft rejected the autofocus target.",
+        );
+        return;
       }
+      appliedPreset = true;
+    }
 
-      if (bridgeInfo.capabilities.aeLockControl) {
-        setAutomaticMediaStatus("Locking exposure for repeatable evidence…");
-        const aeResult = await adapter.send({ type: "setAELock", enabled: true });
-        if (!aeResult.accepted) {
-          setAutomaticMediaStatus(
-            aeResult.message ?? "Aircraft rejected automatic-exposure lock.",
-          );
-          return;
-        }
+    if (requestedAELock !== null && bridgeInfo.capabilities.aeLockControl) {
+      setAutomaticMediaStatus(
+        requestedAELock
+          ? "Locking exposure for repeatable evidence…"
+          : "Restoring unlocked baseline exposure…",
+      );
+      const aeResult = await adapter.send({ type: "setAELock", enabled: requestedAELock });
+      if (!aeResult.accepted) {
+        setAutomaticMediaStatus(
+          aeResult.message ?? "Aircraft rejected the requested exposure-lock state.",
+        );
+        return;
       }
+      appliedPreset = true;
     }
 
     setAutomaticMediaStatus(
@@ -1492,7 +1528,11 @@ export default function DominicCapturePlanner({
         ? appliedZoom !== null
           ? `Follow-up framing set to ${appliedZoom.toFixed(1)}x · requesting inspection photo…`
           : `Follow-up capture ready · set about ${followUp.estimatedOpticalZoomMultiplier.toFixed(1)}x framing manually if needed · requesting photo…`
-        : "Requesting inspection photo from the connected aircraft…",
+        : repeatPreset
+          ? appliedPreset
+            ? "Baseline camera settings restored · requesting repeat inspection photo…"
+            : "Baseline preset is available, but this bridge cannot restore those camera controls automatically · requesting photo…"
+          : "Requesting inspection photo from the connected aircraft…",
     );
     const result = await adapter.send({
       type: "capturePhoto",

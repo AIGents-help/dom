@@ -99,7 +99,7 @@ class DjiInspectionCameraController(
                 return
             }
         }
-        val key = createKey<CameraVideoStreamSourceType>(
+        val key = createKey(
             CameraKey.KeyCameraVideoStreamSource,
             cameraIndex,
         )

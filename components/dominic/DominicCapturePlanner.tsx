@@ -50,6 +50,7 @@ import {
 } from "@/lib/dominicRealtimeScreening";
 import { buildDominicInspectionCameraPreset } from "@/lib/dominicCameraPreset";
 import { decideInspectionQualityRecapture } from "@/lib/dominicInspectionRecapture";
+import { evaluateRepeatabilityAlignment } from "@/lib/dominicRepeatability";
 import {
   DEFAULT_INSPECTION_WATCH_INTERVAL_SEC,
   inspectionWatchReadiness,
@@ -3289,6 +3290,21 @@ export default function DominicCapturePlanner({
     setPlanPersistenceStatus("DJI handoff package exported. The DOMINIC Android host can convert it to a DJI KMZ.");
   };
 
+  const repeatabilityAlignment = inspectionContext?.repeatCapturePreset
+    ? evaluateRepeatabilityAlignment({
+        baseline: {
+          relativeAltitudeFt: inspectionContext.repeatCapturePreset.relativeAltitudeFt,
+          headingDeg: inspectionContext.repeatCapturePreset.headingDeg,
+          gimbalPitchDeg: inspectionContext.repeatCapturePreset.gimbalPitchDeg,
+        },
+        current: {
+          relativeAltitudeFt: aircraftTelemetry?.relativeAltitudeFt,
+          headingDeg: aircraftTelemetry?.headingDeg,
+          gimbalPitchDeg: aircraftTelemetry?.gimbalPitchDeg,
+        },
+      })
+    : null;
+
   return (
     <div style={{ minHeight: 650, background: V.bg, color: V.text }}>
       <div style={{ padding: "18px 18px 12px", borderBottom: `1px solid ${V.line}`, display: showAdvancedPlanner ? "flex" : "none", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
@@ -3495,6 +3511,48 @@ export default function DominicCapturePlanner({
               <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.5, marginTop: 5 }}>
                 DOMINIC restores supported camera settings automatically. Altitude, heading, and gimbal remain pilot-guided reference targets.
               </div>
+              {repeatabilityAlignment ? (
+                <div
+                  style={{
+                    marginTop: 8,
+                    border: `1px solid ${repeatabilityAlignment.ready ? "rgba(112,214,160,.34)" : "rgba(255,184,107,.34)"}`,
+                    borderRadius: 8,
+                    background: repeatabilityAlignment.ready
+                      ? "rgba(112,214,160,.06)"
+                      : "rgba(255,184,107,.055)",
+                    padding: 8,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <div style={{ color: repeatabilityAlignment.ready ? V.green : V.amber, fontSize: 9, fontWeight: 900 }}>
+                      Live viewpoint match · {repeatabilityAlignment.score}%
+                    </div>
+                    <div style={{ color: V.muted, fontSize: 8 }}>
+                      {repeatabilityAlignment.ready ? "Within repeat-capture tolerance" : "Pilot alignment needed"}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginTop: 5, color: V.muted, fontSize: 8 }}>
+                    {repeatabilityAlignment.altitudeDeltaFt !== null ? (
+                      <span>Δ altitude {repeatabilityAlignment.altitudeDeltaFt.toFixed(1)} ft</span>
+                    ) : null}
+                    {repeatabilityAlignment.headingDeltaDeg !== null ? (
+                      <span>Δ heading {repeatabilityAlignment.headingDeltaDeg.toFixed(1)}°</span>
+                    ) : null}
+                    {repeatabilityAlignment.gimbalDeltaDeg !== null ? (
+                      <span>Δ gimbal {repeatabilityAlignment.gimbalDeltaDeg.toFixed(1)}°</span>
+                    ) : null}
+                  </div>
+                  {repeatabilityAlignment.guidance.length ? (
+                    <div style={{ display: "grid", gap: 2, marginTop: 5 }}>
+                      {repeatabilityAlignment.guidance.map((line, index) => (
+                        <div key={index} style={{ color: V.muted, fontSize: 8, lineHeight: 1.4 }}>
+                          {line}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
                 {inspectionContext.repeatCapturePreset.cameraSource ? (
                   <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>

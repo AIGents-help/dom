@@ -1,0 +1,28 @@
+name: Verify DJI Android Bridge
+
+on:
+  pull_request:
+    paths:
+      - "services/flight-bridge-dji/android/**"
+      - ".github/workflows/verify-dji-android-bridge.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "services/flight-bridge-dji/android/**"
+      - ".github/workflows/verify-dji-android-bridge.yml"
+
+jobs:
+  compile-dji-android-bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Compile DJI Android bridge
+        run: gradle -p services/flight-bridge-dji/android compileDebugKotlin --stacktrace

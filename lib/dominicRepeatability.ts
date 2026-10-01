@@ -25,8 +25,8 @@ function finite(value: number | null | undefined): value is number {
 }
 
 function angularDelta(a: number, b: number) {
-  const raw = Math.abs(((a - b + 180) % 360) - 180);
-  return raw;
+  const normalized = (((a - b + 180) % 360) + 360) % 360;
+  return Math.abs(normalized - 180);
 }
 
 function axisScore(delta: number, ideal: number, max: number) {

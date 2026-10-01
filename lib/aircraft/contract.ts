@@ -7,6 +7,7 @@ export type AircraftCapabilities = {
   velocityControl: boolean; yawControl: boolean; gimbalControl: boolean;
   photoCapture: boolean; videoCapture: boolean; pauseResume: boolean;
   returnHome: boolean; land: boolean; obstacleSensing: boolean; rtk: boolean;
+  zoomControl?: boolean;
 };
 
 export type RangefinderTarget = {
@@ -53,6 +54,7 @@ export type UniversalAircraftCommand =
   | { type:"goTo"; latitude:number; longitude:number; relativeAltitudeFt:number; speedFps?:number }
   | { type:"setVelocity"; northFps:number; eastFps:number; downFps:number }
   | { type:"setYaw"; headingDeg:number } | { type:"setGimbal"; pitchDeg:number; yawDeg?:number }
+  | { type:"setZoom"; ratio:number }
   | { type:"capturePhoto"; checkpointId?:string } | { type:"startVideo" } | { type:"stopVideo" }
   | { type:"pause" } | { type:"resume" } | { type:"returnHome" } | { type:"land" }
   | { type:"abort"; reason:string };
@@ -73,14 +75,14 @@ export function commandCapability(command:UniversalAircraftCommand["type"]):keyo
   switch(command){
     case "arm":return "arm"; case "takeoff":return "takeoff"; case "goTo":return "goTo";
     case "setVelocity":return "velocityControl"; case "setYaw":return "yawControl";
-    case "setGimbal":return "gimbalControl"; case "capturePhoto":return "photoCapture";
+    case "setGimbal":return "gimbalControl"; case "setZoom":return "zoomControl"; case "capturePhoto":return "photoCapture";
     case "startVideo":case "stopVideo":return "videoCapture";
     case "pause":case "resume":return "pauseResume"; case "returnHome":return "returnHome";
     case "land":return "land"; case "abort":return null;
   }
 }
 export function supportsCommand(c:AircraftCapabilities,command:UniversalAircraftCommand["type"]){
-  const key=commandCapability(command); return key===null||c[key];
+  const key=commandCapability(command); return key===null||Boolean(c[key]);
 }
 export function validateCommand(c:AircraftCapabilities,command:UniversalAircraftCommand):CommandResult{
   return supportsCommand(c,command.type)

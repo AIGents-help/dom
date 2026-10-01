@@ -108,6 +108,27 @@ class DominicInspectionBridgeService(
             return
         }
 
+        if (commandType == "setCameraSource") {
+            val source = command?.optString("source").orEmpty()
+            cameraController.setCameraSource(
+                source = source,
+                onSuccess = {
+                    client.send(
+                        commandResult(
+                            requestId,
+                            "setCameraSource",
+                            accepted = true,
+                            message = "DJI camera source set to $source.",
+                        ),
+                    )
+                },
+                onFailure = { message ->
+                    client.send(error("camera_source_failed", message, requestId))
+                },
+            )
+            return
+        }
+
         if (commandType == "setZoom") {
             val ratio = command?.optDouble("ratio", Double.NaN) ?: Double.NaN
             cameraController.setZoomRatio(
@@ -210,6 +231,7 @@ class DominicInspectionBridgeService(
                     .put("yawControl", false)
                     .put("gimbalControl", false)
                     .put("photoCapture", true)
+                    .put("cameraSourceControl", true)
                     .put("zoomControl", true)
                     .put("videoCapture", false)
                     .put("pauseResume", false)

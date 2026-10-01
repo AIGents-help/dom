@@ -24,6 +24,7 @@ import {
 } from "@/lib/aircraft/inspectionCapabilities";
 import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
 import DominicInspectionEvidenceReview from "@/components/dominic/DominicInspectionEvidenceReview";
+import DominicIssueIntelligence from "@/components/dominic/DominicIssueIntelligence";
 
 const ORANGE = "#F45A1E";
 const BG = "#0B1117";
@@ -190,6 +191,7 @@ export default function DominicAssetIntelligence({
   const [selectedPilotAssetId, setSelectedPilotAssetId] = useState<string>("");
   const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null);
   const [selectedInspectionId, setSelectedInspectionId] = useState<string | null>(null);
+  const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -321,6 +323,10 @@ export default function DominicAssetIntelligence({
     () => selectedInspections.find((inspection) => inspection.id === selectedInspectionId) ?? null,
     [selectedInspections, selectedInspectionId],
   );
+  const selectedIssue = useMemo(
+    () => selectedIssues.find((issue) => issue.id === selectedIssueId) ?? null,
+    [selectedIssues, selectedIssueId],
+  );
 
   const openIssues = issues.filter((issue) =>
     ["open", "monitoring", "in_progress"].includes(issue.status),
@@ -437,6 +443,148 @@ export default function DominicAssetIntelligence({
       setMessage("Asset created. DOMINIC can now build inspection history around it.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Asset could not be created.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const createIssueReinspection = async (issue: IssueRow) => {
+    if (!selectedAsset) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const sb = getSupabaseBrowser();
+      const { data: sessionData } = await sb.auth.getSession();
+      const userId = sessionData.session?.user.id;
+      if (!userId) throw new Error("Your DOMINIC session expired.");
+
+      const latestSensor =
+        typeof issue.metadata?.latestSensorMode === "string"
+          ? issue.metadata.latestSensorMode.toLowerCase()
+          : typeof issue.metadata?.sensorMode === "string"
+            ? issue.metadata.sensorMode.toLowerCase()
+            : "rgb";
+      const reinspectionType: InspectionType =
+        latestSensor === "thermal"
+          ? "thermal"
+          : latestSensor === "gas"
+            ? "ldar"
+            : "visual";
+      const requirements = inspectionRequirements[reinspectionType];
+      const readiness = evaluateInspectionReadiness({
+        inspectionType: reinspectionType,
+        capabilities: selectedAircraftCapabilities,
+      });
+      const sensorModes =
+        reinspectionType === "thermal"
+          ? ["rgb", "thermal"]
+          : reinspectionType === "ldar"
+            ? ["rgb", "gas"]
+            : ["rgb"];
+      const baselineInspectionId =
+        typeof issue.metadata?.latestInspectionId === "string"
+          ? issue.metadata.latestInspectionId
+          : typeof issue.metadata?.inspectionId === "string"
+            ? issue.metadata.inspectionId
+            : null;
+
+      const capabilitySnapshot = {
+        ready: readiness.ready,
+        available: readiness.available,
+        missingRequired: readiness.missingRequired,
+        availableOptional: readiness.availableOptional,
+        evidence: readiness.evidence,
+        reason: "issue_reinspection",
+        issueId: issue.id,
+        aircraft: selectedPilotAsset
+          ? {
+              id: selectedPilotAsset.id,
+              manufacturer: selectedPilotAsset.manufacturer,
+              model: selectedPilotAsset.model,
+              displayName: selectedPilotAsset.display_name,
+              capabilitiesVerified: selectedPilotAsset.capabilities_verified,
+            }
+          : null,
+      };
+
+      const { data: inspection, error } = await sb
+        .from("dominic_inspections")
+        .insert({
+          user_id: userId,
+          asset_id: selectedAsset.id,
+          baseline_inspection_id: baselineInspectionId,
+          inspection_type: reinspectionType,
+          objective: `Reinspect tracked issue: ${issue.title}`,
+          status: "planned",
+          capture_source: "manual",
+          sensor_modes: sensorModes,
+          required_capabilities: requirements.required,
+          optional_capabilities: requirements.optional,
+          capability_snapshot: capabilitySnapshot,
+          ai_summary: {
+            issueId: issue.id,
+            purpose: "issue_reinspection",
+            previousSeverity: issue.severity,
+            previousLastSeenAt: issue.last_seen_at,
+          },
+        })
+        .select("id,inspection_type,objective,sensor_modes,required_capabilities,optional_capabilities")
+        .single();
+      if (error || !inspection) throw error ?? new Error("Reinspection could not be created.");
+
+      if (selectedPilotAsset) {
+        const { error: equipmentError } = await sb
+          .from("dominic_inspection_equipment")
+          .insert({
+            user_id: userId,
+            inspection_id: inspection.id,
+            pilot_asset_id: selectedPilotAsset.id,
+            role: "aircraft",
+            capabilities_snapshot: capabilitySnapshot,
+          });
+        if (equipmentError) throw equipmentError;
+      }
+
+      setSelectedInspectionId(inspection.id);
+      await refresh();
+
+      if (onPlanInspection) {
+        onPlanInspection({
+          inspectionId: inspection.id,
+          assetId: selectedAsset.id,
+          assetName: selectedAsset.name,
+          assetType: selectedAsset.asset_type,
+          locationLabel: selectedAsset.location_label,
+          latitude: selectedAsset.latitude,
+          longitude: selectedAsset.longitude,
+          inspectionType: inspection.inspection_type,
+          objective: inspection.objective,
+          sensorModes: inspection.sensor_modes,
+          requiredCapabilities: inspection.required_capabilities,
+          optionalCapabilities: inspection.optional_capabilities,
+          equipment: selectedPilotAsset
+            ? {
+                pilotAssetId: selectedPilotAsset.id,
+                manufacturer: selectedPilotAsset.manufacturer,
+                model: selectedPilotAsset.model,
+                displayName: selectedPilotAsset.display_name,
+                capabilities: readiness.available,
+                ready: readiness.ready,
+                missingRequired: readiness.missingRequired,
+              }
+            : null,
+        });
+      }
+
+      setMessage(
+        readiness.ready
+          ? "Reinspection created from the tracked issue and opened in Capture Planner."
+          : selectedPilotAsset
+            ? `Reinspection created, but the selected aircraft is missing: ${readiness.missingRequired.map(inspectionCapabilityLabel).join(", ")}.`
+            : "Reinspection created. Assign compatible equipment before execution.",
+      );
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Reinspection could not be created.");
     } finally {
       setBusy(false);
     }
@@ -852,7 +1000,21 @@ export default function DominicAssetIntelligence({
                 .filter((issue) => ["open","monitoring","in_progress"].includes(issue.status))
                 .slice(0, 8)
                 .map((issue) => (
-                  <div key={issue.id} style={{ padding: "10px 12px", borderBottom: `1px solid ${LINE}` }}>
+                  <button
+                    key={issue.id}
+                    type="button"
+                    onClick={() => setSelectedIssueId((current) => current === issue.id ? null : issue.id)}
+                    style={{
+                      width: "100%",
+                      border: 0,
+                      borderBottom: `1px solid ${LINE}`,
+                      background: selectedIssueId === issue.id ? "rgba(244,90,30,.08)" : "transparent",
+                      color: TEXT,
+                      textAlign: "left",
+                      padding: "10px 12px",
+                      cursor: "pointer",
+                    }}
+                  >
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                       <strong style={{ fontSize: 10 }}>{issue.title}</strong>
                       <span style={{ color: severityColor(issue.severity), fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>{issue.severity}</span>
@@ -867,10 +1029,21 @@ export default function DominicAssetIntelligence({
                         : ""}
                     </div>
                     {issue.recommended_action ? <div style={{ color: "#CBD3DA", fontSize: 8, marginTop: 5 }}><Wrench size={11} style={{ display: "inline", marginRight: 4 }} />{issue.recommended_action}</div> : null}
-                  </div>
+                    <div style={{ color: selectedIssueId === issue.id ? ORANGE : MUTED, fontSize: 7, fontWeight: 900, marginTop: 6, textTransform: "uppercase" }}>
+                      {selectedIssueId === issue.id ? "Hide history" : "View issue history"}
+                    </div>
+                  </button>
                 ))
             )}
           </Card>
+
+          {selectedIssue ? (
+            <DominicIssueIntelligence
+              issue={selectedIssue}
+              busy={busy}
+              onReinspect={(issue) => void createIssueReinspection(issue)}
+            />
+          ) : null}
 
           <Card style={{ overflow: "hidden" }}>
             <div style={{ padding: "10px 12px", borderBottom: `1px solid ${LINE}`, display: "flex", alignItems: "center", gap: 7 }}>

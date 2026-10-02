@@ -154,7 +154,7 @@ export async function POST(
       ? sourceInspectionSummary.issueId
       : null;
 
-  let previousIssue: {
+  type PreviousIssueRow = {
     id: string;
     severity: "info" | "low" | "medium" | "high" | "critical";
     status: "open" | "monitoring" | "in_progress" | "resolved" | "verified" | "dismissed";
@@ -163,7 +163,8 @@ export async function POST(
     metadata: Record<string, unknown> | null;
     first_seen_at: string;
     last_seen_at: string;
-  } | null = null;
+  };
+  let previousIssue: PreviousIssueRow | null = null;
 
   if (targetedIssueId) {
     const { data: targetedIssue } = await admin
@@ -174,7 +175,7 @@ export async function POST(
       .eq("asset_id", finding.asset_id)
       .in("status", ["open", "monitoring", "in_progress", "resolved"])
       .maybeSingle();
-    previousIssue = targetedIssue as typeof previousIssue;
+    previousIssue = targetedIssue as PreviousIssueRow | null;
   }
 
   if (!previousIssue) {
@@ -188,7 +189,7 @@ export async function POST(
       .order("last_seen_at", { ascending: false })
       .limit(1)
       .maybeSingle();
-    previousIssue = trackedIssue as typeof previousIssue;
+    previousIssue = trackedIssue as PreviousIssueRow | null;
   }
 
   let issueId: string;

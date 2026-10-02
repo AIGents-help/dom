@@ -22,6 +22,7 @@ export type CameraPayloadProfile = {
   supportsGimbalPitch: boolean;
   supportsGimbalYaw?: boolean;
   supportsZoom?: boolean;
+  supportsRadiometricTemperature?: boolean;
   minZoom?: number;
   maxZoom?: number;
 };

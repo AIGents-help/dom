@@ -6,6 +6,8 @@ export type ComparisonCaptureGeometry = {
   gimbalPitchDeg?: number | null;
   cameraSource?: "wide" | "zoom" | null;
   zoomRatio?: number | null;
+  focusTarget?: { x: number; y: number } | null;
+  aeLocked?: boolean | null;
 };
 
 export type ComparisonComparability = {
@@ -14,6 +16,8 @@ export type ComparisonComparability = {
   viewpointScore: number | null;
   cameraSourceMatch: boolean | null;
   zoomRatioDelta: number | null;
+  focusTargetDistance: number | null;
+  aeLockMatch: boolean | null;
   comparableDimensions: number;
   limitations: string[];
 };
@@ -88,6 +92,43 @@ export function evaluateComparisonComparability(input: {
     }
   }
 
+  const focusTargetDistance =
+    input.baseline.focusTarget &&
+    input.current.focusTarget &&
+    finite(input.baseline.focusTarget.x) &&
+    finite(input.baseline.focusTarget.y) &&
+    finite(input.current.focusTarget.x) &&
+    finite(input.current.focusTarget.y)
+      ? Math.hypot(
+          input.current.focusTarget.x - input.baseline.focusTarget.x,
+          input.current.focusTarget.y - input.baseline.focusTarget.y,
+        )
+      : null;
+  if (focusTargetDistance !== null) {
+    const focusScore =
+      focusTargetDistance <= 0.05
+        ? 100
+        : focusTargetDistance >= 0.3
+          ? 0
+          : Math.round(100 * (1 - (focusTargetDistance - 0.05) / 0.25));
+    components.push(focusScore);
+    if (focusTargetDistance > 0.12) {
+      limitations.push("Autofocus target differs materially from the baseline anomaly region.");
+    }
+  }
+
+  const aeLockMatch =
+    typeof input.baseline.aeLocked === "boolean" &&
+    typeof input.current.aeLocked === "boolean"
+      ? input.baseline.aeLocked === input.current.aeLocked
+      : null;
+  if (aeLockMatch !== null) {
+    components.push(aeLockMatch ? 100 : 60);
+    if (!aeLockMatch) {
+      limitations.push("Exposure-lock state differs from the baseline capture.");
+    }
+  }
+
   if (!components.length) {
     return {
       score: null,
@@ -95,6 +136,8 @@ export function evaluateComparisonComparability(input: {
       viewpointScore: hasViewpoint ? alignment.score : null,
       cameraSourceMatch,
       zoomRatioDelta,
+      focusTargetDistance,
+      aeLockMatch,
       comparableDimensions: 0,
       limitations: [
         "Capture geometry is insufficient to verify before/after comparability.",
@@ -119,6 +162,8 @@ export function evaluateComparisonComparability(input: {
     viewpointScore: hasViewpoint ? alignment.score : null,
     cameraSourceMatch,
     zoomRatioDelta,
+    focusTargetDistance,
+    aeLockMatch,
     comparableDimensions: components.length,
     limitations,
   };

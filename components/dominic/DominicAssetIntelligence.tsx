@@ -23,6 +23,7 @@ import {
   type InspectionType,
 } from "@/lib/aircraft/inspectionCapabilities";
 import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
+import { issueLifecycleLabel } from "@/lib/dominicIssueLifecycle";
 import {
   deriveMaintenanceReviewPriority,
   maintenanceReviewPriorityLabel,
@@ -158,6 +159,16 @@ function maintenancePriorityColor(priority: DominicMaintenanceReviewPriority) {
   if (priority === "elevated") return AMBER;
   if (priority === "routine") return "#8FC7FF";
   return MUTED;
+}
+
+function isIssueActionable(issue: IssueRow) {
+  return (
+    ["open", "monitoring", "in_progress"].includes(issue.status) ||
+    (issue.status === "resolved" &&
+      (issue.metadata?.verificationRequired === true ||
+        issue.metadata?.verificationStatus === "required" ||
+        issue.metadata?.verificationStatus === "in_progress"))
+  );
 }
 
 function formatWhen(value: string | null) {
@@ -360,13 +371,7 @@ export default function DominicAssetIntelligence({
       ),
     [issues],
   );
-  const isActionableIssue = (issue: IssueRow) =>
-    ["open", "monitoring", "in_progress"].includes(issue.status) ||
-    (issue.status === "resolved" &&
-      (issue.metadata?.verificationRequired === true ||
-        issue.metadata?.verificationStatus === "required" ||
-        issue.metadata?.verificationStatus === "in_progress"));
-  const openIssues = issues.filter(isActionableIssue);
+  const openIssues = issues.filter(isIssueActionable);
   const criticalIssues = openIssues.filter((issue) =>
     ["critical", "high"].includes(issue.severity),
   );
@@ -377,7 +382,7 @@ export default function DominicAssetIntelligence({
   const selectedOpenIssues = useMemo(
     () =>
       selectedIssues
-        .filter(isActionableIssue)
+        .filter(isIssueActionable)
         .sort((a, b) => {
           const aAssessment = issueAssessments.get(a.id);
           const bAssessment = issueAssessments.get(b.id);
@@ -390,6 +395,13 @@ export default function DominicAssetIntelligence({
           return new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime();
         }),
     [selectedIssues, issueAssessments],
+  );
+  const selectedClosedIssues = useMemo(
+    () =>
+      selectedIssues
+        .filter((issue) => !isIssueActionable(issue))
+        .sort((a, b) => new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime()),
+    [selectedIssues],
   );
 
 
@@ -512,8 +524,7 @@ export default function DominicAssetIntelligence({
       const sb = getSupabaseBrowser();
       const { data: sessionData } = await sb.auth.getSession();
       const userId = sessionData.session?.user.id;
-      const token = sessionData.session?.access_token;
-      if (!userId || !token) throw new Error("Your DOMINIC session expired.");
+      if (!userId) throw new Error("Your DOMINIC session expired.");
 
       const { data, error } = await sb
         .from("dominic_assets")
@@ -959,7 +970,7 @@ export default function DominicAssetIntelligence({
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 8, marginBottom: 12 }}>
         {[
           { label: "Assets", value: assets.length, icon: Factory, color: ORANGE },
-          { label: "Open issues", value: openIssues.length, icon: AlertTriangle, color: AMBER },
+          { label: "Active / verify", value: openIssues.length, icon: AlertTriangle, color: AMBER },
           { label: "High / critical", value: criticalIssues.length, icon: ShieldAlert, color: RED },
           { label: "Escalated", value: escalatedIssues.length, icon: Wrench, color: AMBER },
           { label: "Inspections", value: inspections.length, icon: ClipboardCheck, color: GREEN },
@@ -1271,7 +1282,7 @@ export default function DominicAssetIntelligence({
                         </div>
                       </div>
                       <div style={{ color: MUTED, fontSize: 8, marginTop: 3 }}>
-                        {issue.issue_type.replaceAll("_", " ")} · {issue.status.replaceAll("_", " ")}
+                        {issue.issue_type.replaceAll("_", " ")} · {issueLifecycleLabel(issue)}
                       </div>
                       <div style={{ color: "#B9C3CC", fontSize: 8, marginTop: 3 }}>
                         First seen {formatWhen(issue.first_seen_at)} · Last seen {formatWhen(issue.last_seen_at)}
@@ -1305,6 +1316,42 @@ export default function DominicAssetIntelligence({
               }
               onChanged={() => refresh()}
             />
+          ) : null}
+
+          {selectedAsset && selectedClosedIssues.length > 0 ? (
+            <Card style={{ overflow: "hidden" }}>
+              <div style={{ padding: "10px 12px", borderBottom: `1px solid ${LINE}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <strong style={{ fontSize: 13 }}>Issue history</strong>
+                <span style={{ color: MUTED, fontSize: 8 }}>{selectedClosedIssues.length} closed</span>
+              </div>
+              {selectedClosedIssues.slice(0, 6).map((issue) => (
+                <button
+                  key={issue.id}
+                  type="button"
+                  onClick={() => setSelectedIssueId((current) => current === issue.id ? null : issue.id)}
+                  style={{
+                    width: "100%",
+                    border: 0,
+                    borderBottom: `1px solid ${LINE}`,
+                    background: selectedIssueId === issue.id ? "rgba(112,214,160,.06)" : "transparent",
+                    color: TEXT,
+                    textAlign: "left",
+                    padding: "9px 12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                    <strong style={{ fontSize: 9 }}>{issue.title}</strong>
+                    <span style={{ color: issue.status === "verified" ? GREEN : MUTED, fontSize: 7, fontWeight: 900, textTransform: "uppercase" }}>
+                      {issueLifecycleLabel(issue)}
+                    </span>
+                  </div>
+                  <div style={{ color: MUTED, fontSize: 7, marginTop: 3 }}>
+                    Last observed {formatWhen(issue.last_seen_at)}
+                  </div>
+                </button>
+              ))}
+            </Card>
           ) : null}
 
           <Card style={{ overflow: "hidden" }}>

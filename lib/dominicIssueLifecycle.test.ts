@@ -20,6 +20,7 @@ describe("DOMINIC issue maintenance lifecycle", () => {
         inspectionStatus: "review",
         baselineCompared: true,
         candidateCount: 0,
+        comparabilityLevel: "high",
         pendingReviewCount: 0,
       }),
     ).toMatchObject({ status: "cleared", canVerify: true, shouldReopen: false });
@@ -31,10 +32,23 @@ describe("DOMINIC issue maintenance lifecycle", () => {
         inspectionStatus: "review",
         baselineCompared: true,
         candidateCount: 1,
+        comparabilityLevel: "high",
         pendingReviewCount: 0,
         comparisonStates: ["improving"],
       }),
     ).toMatchObject({ status: "improved", canVerify: true });
+  });
+
+  it("blocks closure when capture geometry is a poor baseline match", () => {
+    expect(
+      deriveVerificationAssessment({
+        inspectionStatus: "review",
+        baselineCompared: true,
+        candidateCount: 0,
+        comparabilityLevel: "low",
+        pendingReviewCount: 0,
+      }),
+    ).toMatchObject({ status: "insufficient", canVerify: false });
   });
 
   it("treats fully dismissed verification candidates as cleared", () => {
@@ -43,6 +57,7 @@ describe("DOMINIC issue maintenance lifecycle", () => {
         inspectionStatus: "review",
         baselineCompared: true,
         candidateCount: 2,
+        comparabilityLevel: "high",
         pendingReviewCount: 0,
         confirmedCount: 0,
         dismissedCount: 2,
@@ -56,6 +71,7 @@ describe("DOMINIC issue maintenance lifecycle", () => {
         inspectionStatus: "review",
         baselineCompared: true,
         candidateCount: 1,
+        comparabilityLevel: "high",
         pendingReviewCount: 0,
         comparisonStates: ["unchanged"],
       }),
@@ -68,6 +84,7 @@ describe("DOMINIC issue maintenance lifecycle", () => {
         inspectionStatus: "review",
         baselineCompared: true,
         candidateCount: 2,
+        comparabilityLevel: "high",
         pendingReviewCount: 1,
         comparisonStates: ["improving"],
       }),

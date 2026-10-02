@@ -206,9 +206,10 @@ function severityColor(severity: string) {
 }
 
 function comparisonColor(state: string | null) {
-  if (state === "worsening") return "#B3261E";
-  if (state === "improving") return "#1F7A52";
+  if (state === "worsening" || state === "failed") return "#B3261E";
+  if (state === "improving" || state === "improved" || state === "cleared") return "#1F7A52";
   if (state === "unchanged") return "#245A8D";
+  if (state === "needs_review" || state === "capturing") return "#A15C00";
   return "#65717E";
 }
 
@@ -737,6 +738,11 @@ export default function DominicMaintenancePackage({ issueId }: { issueId: string
                   <div style={{ fontSize: 11, color: "#3D4955", lineHeight: 1.6, marginTop: 5 }}>
                     {data.issue.resolution_notes}
                   </div>
+                  {typeof data.issue.metadata?.maintenanceWorkOrder === "string" && data.issue.metadata.maintenanceWorkOrder ? (
+                    <div style={{ fontSize: 9, color: "#65717E", marginTop: 6 }}>
+                      Work order / reference: {String(data.issue.metadata.maintenanceWorkOrder)}
+                    </div>
+                  ) : null}
                   {data.issue.resolved_at ? (
                     <div style={{ fontSize: 9, color: "#65717E", marginTop: 6 }}>
                       Recorded complete {formatDateTime(data.issue.resolved_at)}
@@ -778,11 +784,20 @@ export default function DominicMaintenancePackage({ issueId }: { issueId: string
                       <div style={{ marginTop: 8, fontSize: 9, color: "#65717E" }}>
                         Verification review: {data.verification.findings.filter((finding) => finding.review_status === "confirmed").length} confirmed · {data.verification.findings.filter((finding) => finding.review_status === "dismissed").length} dismissed · {data.verification.findings.filter((finding) => finding.review_status === "needs_review").length} pending
                       </div>
-                    ) : (
+                    ) : data.verification.assessment.status === "cleared" ? (
                       <div style={{ marginTop: 8, fontSize: 9, color: "#1F7A52" }}>
                         No remaining candidate anomaly was recorded in the verification inspection.
                       </div>
+                    ) : (
+                      <div style={{ marginTop: 8, fontSize: 9, color: "#65717E" }}>
+                        No verification findings have been recorded yet.
+                      </div>
                     )}
+                    {typeof data.issue.metadata?.verificationNotes === "string" && data.issue.metadata.verificationNotes ? (
+                      <div style={{ marginTop: 8, fontSize: 9, color: "#3D4955", lineHeight: 1.5 }}>
+                        Operator verification note: {String(data.issue.metadata.verificationNotes)}
+                      </div>
+                    ) : null}
 
                     {data.verification.evidence.length > 0 ? (
                       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 9, marginTop: 12 }}>

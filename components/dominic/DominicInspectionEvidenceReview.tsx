@@ -134,6 +134,38 @@ function comparisonFromFinding(finding: FindingRow) {
   return { state, note };
 }
 
+function thermalFromFinding(finding: FindingRow) {
+  const kind =
+    typeof finding.detector?.thermalEvidenceKind === "string"
+      ? finding.detector.thermalEvidenceKind
+      : null;
+  const raw =
+    finding.detector?.radiometric && typeof finding.detector.radiometric === "object"
+      ? (finding.detector.radiometric as Record<string, unknown>)
+      : null;
+  if (!raw) return kind ? { kind, measured: null } : null;
+  const minTempC = Number(raw.minTempC);
+  const maxTempC = Number(raw.maxTempC);
+  const meanTempC = Number(raw.meanTempC);
+  const hotspot =
+    raw.hotspot && typeof raw.hotspot === "object"
+      ? (raw.hotspot as Record<string, unknown>)
+      : null;
+  const hotspotTempC = Number(hotspot?.tempC);
+  return {
+    kind: kind ?? "radiometric",
+    measured:
+      [minTempC, maxTempC, meanTempC].every(Number.isFinite)
+        ? {
+            minTempC,
+            maxTempC,
+            meanTempC,
+            hotspotTempC: Number.isFinite(hotspotTempC) ? hotspotTempC : null,
+          }
+        : null,
+  };
+}
+
 function followUpFromFinding(finding: FindingRow) {
   const raw = finding.detector?.followUpCapture;
   if (!raw || typeof raw !== "object") return null;
@@ -879,6 +911,7 @@ export default function DominicInspectionEvidenceReview({
                     <div style={{ display: "grid", gap: 7, marginTop: 9 }}>
                       {itemFindings.map((finding) => {
                         const comparison = comparisonFromFinding(finding);
+                        const thermal = thermalFromFinding(finding);
                         const followUp = followUpFromFinding(finding);
                         return (
                         <div
@@ -923,6 +956,33 @@ export default function DominicInspectionEvidenceReview({
                               : ""}
                             {finding.review_status.replaceAll("_", " ")}
                           </div>
+                          {thermal ? (
+                            <div
+                              style={{
+                                marginTop: 6,
+                                border: `1px solid ${thermal.measured ? "rgba(255,170,70,.38)" : LINE}`,
+                                borderRadius: 7,
+                                background: thermal.measured ? "rgba(255,170,70,.07)" : PANEL_2,
+                                padding: "6px 7px",
+                              }}
+                            >
+                              <div style={{ color: thermal.measured ? "#FFD0A0" : AMBER, fontSize: 7, fontWeight: 900, textTransform: "uppercase" }}>
+                                {thermal.measured ? "Radiometric thermal evidence" : "Thermal image · no radiometric temperatures"}
+                              </div>
+                              {thermal.measured ? (
+                                <div style={{ color: MUTED, fontSize: 7, lineHeight: 1.4, marginTop: 3 }}>
+                                  Min {thermal.measured.minTempC.toFixed(1)}°C · Mean {thermal.measured.meanTempC.toFixed(1)}°C · Max {thermal.measured.maxTempC.toFixed(1)}°C
+                                  {thermal.measured.hotspotTempC !== null
+                                    ? ` · Hotspot ${thermal.measured.hotspotTempC.toFixed(1)}°C`
+                                    : ""}
+                                </div>
+                              ) : (
+                                <div style={{ color: MUTED, fontSize: 7, lineHeight: 1.4, marginTop: 3 }}>
+                                  Exact temperatures are unavailable. Treat palette colors as relative thermal imagery only.
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
                           {comparison.state ? (
                             <div
                               style={{

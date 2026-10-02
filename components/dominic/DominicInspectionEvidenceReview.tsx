@@ -131,7 +131,37 @@ function comparisonFromFinding(finding: FindingRow) {
     typeof finding.detector?.comparisonNote === "string"
       ? finding.detector.comparisonNote
       : null;
-  return { state, note };
+  const raw =
+    finding.detector?.comparisonComparability &&
+    typeof finding.detector.comparisonComparability === "object"
+      ? (finding.detector.comparisonComparability as Record<string, unknown>)
+      : null;
+  const rawScore = raw?.score;
+  const score =
+    typeof rawScore === "number"
+      ? rawScore
+      : typeof rawScore === "string" && rawScore.trim()
+        ? Number(rawScore)
+        : Number.NaN;
+  const level =
+    raw?.level === "high" || raw?.level === "moderate" || raw?.level === "low" || raw?.level === "unknown"
+      ? raw.level
+      : null;
+  const limitations = Array.isArray(raw?.limitations)
+    ? raw.limitations.filter((item): item is string => typeof item === "string")
+    : [];
+  return {
+    state,
+    note,
+    comparability:
+      level
+        ? {
+            level,
+            score: Number.isFinite(score) ? score : null,
+            limitations,
+          }
+        : null,
+  };
 }
 
 function followUpFromFinding(finding: FindingRow) {
@@ -955,6 +985,29 @@ export default function DominicInspectionEvidenceReview({
                               {comparison.note ? (
                                 <div style={{ color: MUTED, fontSize: 7, lineHeight: 1.4, marginTop: 3 }}>
                                   {comparison.note}
+                                </div>
+                              ) : null}
+                              {comparison.comparability ? (
+                                <div
+                                  style={{
+                                    marginTop: 5,
+                                    color:
+                                      comparison.comparability.level === "high"
+                                        ? GREEN
+                                        : comparison.comparability.level === "moderate"
+                                          ? "#8FC7FF"
+                                          : AMBER,
+                                    fontSize: 7,
+                                    lineHeight: 1.4,
+                                  }}
+                                >
+                                  Evidence comparability: {comparison.comparability.level}
+                                  {comparison.comparability.score !== null
+                                    ? ` · ${Math.round(comparison.comparability.score)}%`
+                                    : ""}
+                                  {comparison.comparability.limitations.length
+                                    ? ` · ${comparison.comparability.limitations.join(" ")}`
+                                    : ""}
                                 </div>
                               ) : null}
                             </div>

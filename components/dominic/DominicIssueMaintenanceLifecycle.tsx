@@ -190,6 +190,10 @@ export default function DominicIssueMaintenanceLifecycle({
 
       {loading ? (
         <div style={{ padding: 11, color: MUTED, fontSize: 8 }}>Loading maintenance lifecycle…</div>
+      ) : currentIssue.status === "dismissed" ? (
+        <div style={{ padding: 11, color: MUTED, fontSize: 8, lineHeight: 1.45 }}>
+          This issue is dismissed. Maintenance closure actions are disabled for dismissed issues.
+        </div>
       ) : currentIssue.status === "verified" ? (
         <div style={{ padding: 11, display: "flex", gap: 8, alignItems: "flex-start" }}>
           <ShieldCheck size={17} color={GREEN} />

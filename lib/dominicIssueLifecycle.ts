@@ -43,6 +43,8 @@ export function deriveVerificationAssessment(input: {
   baselineCompared?: boolean | null;
   candidateCount?: number | null;
   pendingReviewCount?: number | null;
+  confirmedCount?: number | null;
+  dismissedCount?: number | null;
   comparisonStates?: Array<string | null | undefined>;
 }): DominicVerificationAssessment {
   if (!input.inspectionStatus) {
@@ -93,6 +95,17 @@ export function deriveVerificationAssessment(input: {
       canVerify: true,
       shouldReopen: false,
       reasons: ["DOMINIC compared the post-maintenance evidence with the baseline and did not detect a remaining candidate anomaly."],
+    };
+  }
+
+  const confirmed = Number(input.confirmedCount ?? states.length);
+  const dismissed = Number(input.dismissedCount ?? 0);
+  if (confirmed === 0 && dismissed >= candidates) {
+    return {
+      status: "cleared",
+      canVerify: true,
+      shouldReopen: false,
+      reasons: ["DOMINIC flagged comparison candidates, but human review dismissed all of them as non-issues."],
     };
   }
 

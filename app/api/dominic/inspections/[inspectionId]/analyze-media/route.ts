@@ -263,7 +263,14 @@ export async function POST(
             content: [
               { type: "input_text", text: prompt },
               ...(baselineSignedUrl
-                ? [{ type: "input_image" as const, image_url: baselineSignedUrl, detail: "high" as const }]
+                ? [{
+                    type: "input_text" as const,
+                    text:
+                      captureRepeatability.score === null
+                        ? "Baseline capture repeatability: unknown. Treat apparent visual change cautiously because matching camera provenance is unavailable."
+                        : `Baseline capture repeatability: ${captureRepeatability.score}%. ${captureRepeatability.comparable ? "The capture setups are sufficiently comparable." : `The capture setups differ materially. Treat apparent change cautiously. ${captureRepeatability.warnings.join(" ")}`}`,
+                  },
+                  { type: "input_image" as const, image_url: baselineSignedUrl, detail: "high" as const }]
                 : []),
               { type: "input_image", image_url: signed.signedUrl, detail: "high" },
             ],

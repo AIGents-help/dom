@@ -353,6 +353,15 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
     : null;
   const verificationSummary = verificationInspection?.ai_summary ?? {};
   const verificationCandidateCount = Number(verificationSummary.candidateCount);
+  const verificationComparability =
+    verificationSummary.comparisonComparability &&
+    typeof verificationSummary.comparisonComparability === "object"
+      ? (verificationSummary.comparisonComparability as JsonRecord)
+      : {};
+  const verificationComparabilityLevel =
+    typeof verificationComparability.level === "string"
+      ? verificationComparability.level
+      : null;
   const verificationConfirmed = verificationFindings.filter(
     (finding) => finding.review_status === "confirmed",
   );
@@ -363,6 +372,7 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
         candidateCount: Number.isFinite(verificationCandidateCount)
           ? verificationCandidateCount
           : null,
+        comparabilityLevel: verificationComparabilityLevel,
         pendingReviewCount: verificationFindings.filter(
           (finding) => finding.review_status === "needs_review",
         ).length,

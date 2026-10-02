@@ -37,6 +37,19 @@ describe("DOMINIC issue maintenance lifecycle", () => {
     ).toMatchObject({ status: "improved", canVerify: true });
   });
 
+  it("treats fully dismissed verification candidates as cleared", () => {
+    expect(
+      deriveVerificationAssessment({
+        inspectionStatus: "review",
+        baselineCompared: true,
+        candidateCount: 2,
+        pendingReviewCount: 0,
+        confirmedCount: 0,
+        dismissedCount: 2,
+      }),
+    ).toMatchObject({ status: "cleared", canVerify: true });
+  });
+
   it("reopens when confirmed evidence is unchanged or worsening", () => {
     expect(
       deriveVerificationAssessment({

@@ -132,16 +132,64 @@ export async function POST(
   });
   const linkedAt = new Date().toISOString();
 
-  const { data: previousIssue } = await admin
-    .from("dominic_issues")
-    .select("id,severity,status,confidence,recommended_action,metadata,first_seen_at,last_seen_at")
+  const { data: sourceInspection } = await admin
+    .from("dominic_inspections")
+    .select("ai_summary")
+    .eq("id", finding.inspection_id)
     .eq("user_id", user.id)
     .eq("asset_id", finding.asset_id)
-    .eq("issue_key", issueKey)
-    .in("status", ["open", "monitoring", "in_progress"])
-    .order("last_seen_at", { ascending: false })
-    .limit(1)
     .maybeSingle();
+  const sourceInspectionSummary =
+    sourceInspection?.ai_summary && typeof sourceInspection.ai_summary === "object"
+      ? (sourceInspection.ai_summary as Record<string, unknown>)
+      : {};
+  const sourcePurpose =
+    typeof sourceInspectionSummary.purpose === "string"
+      ? sourceInspectionSummary.purpose
+      : null;
+  const targetedIssueId =
+    (sourcePurpose === "issue_reinspection" ||
+      sourcePurpose === "maintenance_verification") &&
+    typeof sourceInspectionSummary.issueId === "string"
+      ? sourceInspectionSummary.issueId
+      : null;
+
+  let previousIssue: {
+    id: string;
+    severity: "info" | "low" | "medium" | "high" | "critical";
+    status: "open" | "monitoring" | "in_progress" | "resolved" | "verified" | "dismissed";
+    confidence: number | null;
+    recommended_action: string | null;
+    metadata: Record<string, unknown> | null;
+    first_seen_at: string;
+    last_seen_at: string;
+  } | null = null;
+
+  if (targetedIssueId) {
+    const { data: targetedIssue } = await admin
+      .from("dominic_issues")
+      .select("id,severity,status,confidence,recommended_action,metadata,first_seen_at,last_seen_at")
+      .eq("id", targetedIssueId)
+      .eq("user_id", user.id)
+      .eq("asset_id", finding.asset_id)
+      .in("status", ["open", "monitoring", "in_progress", "resolved"])
+      .maybeSingle();
+    previousIssue = targetedIssue as typeof previousIssue;
+  }
+
+  if (!previousIssue) {
+    const { data: trackedIssue } = await admin
+      .from("dominic_issues")
+      .select("id,severity,status,confidence,recommended_action,metadata,first_seen_at,last_seen_at")
+      .eq("user_id", user.id)
+      .eq("asset_id", finding.asset_id)
+      .eq("issue_key", issueKey)
+      .in("status", ["open", "monitoring", "in_progress"])
+      .order("last_seen_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    previousIssue = trackedIssue as typeof previousIssue;
+  }
 
   let issueId: string;
   let reusedIssue = false;

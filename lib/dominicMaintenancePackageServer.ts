@@ -9,6 +9,7 @@ import {
   maintenanceEvidenceSequenceId,
   selectMaintenancePackageMedia,
 } from "@/lib/dominicMaintenancePackage";
+import { deriveVerificationAssessment } from "@/lib/dominicIssueLifecycle";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -79,11 +80,27 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
   if (!asset) return null;
 
   const links = linkRows ?? [];
+  const issueMetadata = record(issue.metadata);
+  const verificationInspectionId =
+    typeof issueMetadata.verificationInspectionId === "string"
+      ? issueMetadata.verificationInspectionId
+      : null;
   const findingIds = links.map((item) => item.finding_id);
-  const inspectionIds = Array.from(new Set(links.map((item) => item.inspection_id)));
+  const inspectionIds = Array.from(
+    new Set([
+      ...links.map((item) => item.inspection_id),
+      ...(verificationInspectionId ? [verificationInspectionId] : []),
+    ]),
+  );
 
-  const [findingResult, inspectionResult, evidenceResult, mediaResult, eventResult] =
-    await Promise.all([
+  const [
+    findingResult,
+    inspectionResult,
+    evidenceResult,
+    mediaResult,
+    eventResult,
+    verificationFindingResult,
+  ] = await Promise.all([
       findingIds.length
         ? admin
             .from("dominic_findings")
@@ -98,7 +115,7 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
         ? admin
             .from("dominic_inspections")
             .select(
-              "id,inspection_type,objective,status,capture_source,sensor_modes,started_at,completed_at,summary,environmental_context,created_at",
+              "id,inspection_type,objective,status,capture_source,sensor_modes,started_at,completed_at,summary,ai_summary,environmental_context,created_at",
             )
             .eq("user_id", userId)
             .in("id", inspectionIds)
@@ -129,6 +146,15 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
         .eq("issue_id", issue.id)
         .eq("user_id", userId)
         .order("created_at", { ascending: true }),
+      verificationInspectionId
+        ? admin
+            .from("dominic_findings")
+            .select("id,title,severity,review_status,detector,observed_at")
+            .eq("user_id", userId)
+            .eq("asset_id", issue.asset_id)
+            .eq("inspection_id", verificationInspectionId)
+            .order("observed_at", { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
   if (findingResult.error) throw findingResult.error;
@@ -136,6 +162,7 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
   if (evidenceResult.error) throw evidenceResult.error;
   if (mediaResult.error) throw mediaResult.error;
   if (eventResult.error) throw eventResult.error;
+  if (verificationFindingResult.error) throw verificationFindingResult.error;
 
   const findings = (findingResult.data ?? []).map((finding) => ({
     ...finding,
@@ -143,7 +170,10 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
     measurement: record(finding.measurement),
     detector: record(finding.detector),
   }));
-  const inspections = inspectionResult.data ?? [];
+  const inspections = (inspectionResult.data ?? []).map((inspection) => ({
+    ...inspection,
+    ai_summary: record(inspection.ai_summary),
+  }));
   const findingEvidence = (evidenceResult.data ?? []).map((item) => ({
     ...item,
     metadata: record(item.metadata),
@@ -156,6 +186,10 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
   const events = (eventResult.data ?? []).map((item) => ({
     ...item,
     details: record(item.details),
+  }));
+  const verificationFindings = (verificationFindingResult.data ?? []).map((finding) => ({
+    ...finding,
+    detector: record(finding.detector),
   }));
 
   const selectedMediaByFinding = new Map(
@@ -192,6 +226,17 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
   for (const item of findingEvidence) {
     if (item.storage_path && item.mime_type?.startsWith("image/")) {
       storagePaths.add(item.storage_path);
+    }
+  }
+  if (verificationInspectionId) {
+    for (const item of inspectionMedia) {
+      if (
+        item.inspection_id === verificationInspectionId &&
+        item.storage_path &&
+        item.mime_type?.startsWith("image/")
+      ) {
+        storagePaths.add(item.storage_path);
+      }
     }
   }
 
@@ -301,6 +346,61 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
     };
   });
 
+  const verificationInspection = verificationInspectionId
+    ? inspections.find((item) => item.id === verificationInspectionId) ?? null
+    : null;
+  const verificationSummary = verificationInspection?.ai_summary ?? {};
+  const verificationCandidateCount = Number(verificationSummary.candidateCount);
+  const verificationConfirmed = verificationFindings.filter(
+    (finding) => finding.review_status === "confirmed",
+  );
+  const verificationAssessment = verificationInspection
+    ? deriveVerificationAssessment({
+        inspectionStatus: verificationInspection.status,
+        baselineCompared: verificationSummary.baselineCompared === true,
+        candidateCount: Number.isFinite(verificationCandidateCount)
+          ? verificationCandidateCount
+          : null,
+        pendingReviewCount: verificationFindings.filter(
+          (finding) => finding.review_status === "needs_review",
+        ).length,
+        confirmedCount: verificationConfirmed.length,
+        dismissedCount: verificationFindings.filter(
+          (finding) => finding.review_status === "dismissed",
+        ).length,
+        comparisonStates: verificationConfirmed.map((finding) =>
+          typeof finding.detector.comparisonState === "string"
+            ? finding.detector.comparisonState
+            : null,
+        ),
+      })
+    : null;
+  const verificationEvidence = verificationInspectionId
+    ? inspectionMedia
+        .filter(
+          (item) =>
+            item.inspection_id === verificationInspectionId &&
+            item.media_type === "image",
+        )
+        .map((item) => ({
+          id: item.id,
+          source: "inspection_media" as const,
+          role: maintenanceEvidenceRole(item.metadata),
+          sequenceId: maintenanceEvidenceSequenceId(item.metadata),
+          storagePath: item.storage_path,
+          signedUrl: item.storage_path ? signedUrls.get(item.storage_path) ?? null : null,
+          originalFilename: item.original_filename,
+          mimeType: item.mime_type,
+          sensorMode: item.sensor_mode,
+          capturedAt: item.captured_at,
+          latitude: item.latitude,
+          longitude: item.longitude,
+          relativeAltitudeFt: item.relative_altitude_ft,
+          sourceAircraftId: item.source_aircraft_id,
+          analysisStatus: item.analysis_status,
+        }))
+    : [];
+
   return {
     generatedAt: new Date().toISOString(),
     asset,
@@ -317,6 +417,14 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
       label: issueTrendLabel(trend.trend),
     },
     observations,
+    verification: verificationInspection && verificationAssessment
+      ? {
+          inspection: verificationInspection,
+          assessment: verificationAssessment,
+          findings: verificationFindings,
+          evidence: verificationEvidence,
+        }
+      : null,
     events,
   };
 }

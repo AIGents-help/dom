@@ -7,6 +7,7 @@ import {
   readStoredRangefinderTarget,
 } from "@/lib/aircraft/rangefinderTarget";
 import { resolveDominicInspectionProfile } from "@/lib/dominicInspectionProfiles";
+import { describeRadiometricCapture, normalizeRadiometricCapture } from "@/lib/dominicThermal";
 import {
   effectiveComparisonState,
   evaluateComparisonComparability,
@@ -252,6 +253,20 @@ export async function POST(
 
   const comparisonLimitations = comparisonComparability?.limitations ?? [];
 
+  const mediaMetadata =
+    media.metadata && typeof media.metadata === "object"
+      ? (media.metadata as Record<string, unknown>)
+      : {};
+  const radiometric = normalizeRadiometricCapture(mediaMetadata.radiometric);
+  const thermalEvidenceKind =
+    media.sensor_mode === "thermal"
+      ? radiometric
+        ? "radiometric"
+        : "thermal_image_only"
+      : radiometric
+        ? "radiometric"
+        : null;
+
   const model =
     process.env.DOMINIC_VISION_MODEL?.trim() ||
     (provider === "vercel-ai-gateway" ? "openai/gpt-5.6-terra" : "gpt-5.6-terra");
@@ -298,6 +313,9 @@ export async function POST(
             role: "user",
             content: [
               { type: "input_text", text: prompt },
+              ...((media.sensor_mode === "thermal" || radiometric)
+                ? [{ type: "input_text" as const, text: describeRadiometricCapture(radiometric) }]
+                : []),
               ...(baselineSignedUrl
                 ? [{ type: "input_image" as const, image_url: baselineSignedUrl, detail: "high" as const }]
                 : []),
@@ -417,6 +435,8 @@ export async function POST(
           baselineSourceMediaId,
           screeningSummary: screening.summary,
           limitations: [...screening.limitations, ...comparisonLimitations],
+          thermalEvidenceKind,
+          radiometric,
           followUpCapture,
         },
         observed_at: media.captured_at ?? new Date().toISOString(),
@@ -458,6 +478,8 @@ export async function POST(
             summary: screening.summary,
             candidateCount: screening.candidates.length,
             limitations: [...screening.limitations, ...comparisonLimitations],
+            thermalEvidenceKind,
+            radiometric,
             baselineCompared: Boolean(baselineSignedUrl),
             baselineFindingId,
             baselineEvidenceId,
@@ -481,6 +503,8 @@ export async function POST(
             summary: screening.summary,
             candidateCount: screening.candidates.length,
             limitations: [...screening.limitations, ...comparisonLimitations],
+            thermalEvidenceKind,
+            radiometric,
             baselineCompared: Boolean(baselineSignedUrl),
             baselineFindingId,
             baselineEvidenceId,
@@ -506,6 +530,8 @@ export async function POST(
       mediaId: media.id,
       summary: screening.summary,
       limitations: [...screening.limitations, ...comparisonLimitations],
+      thermalEvidenceKind,
+      radiometric,
       candidateCount: screening.candidates.length,
       baselineCompared: Boolean(baselineSignedUrl),
       baselineFindingId,

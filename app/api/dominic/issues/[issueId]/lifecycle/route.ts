@@ -103,6 +103,15 @@ async function loadIssueLifecycle(
   const aiSummary = verificationInspection?.ai_summary ?? {};
   const candidateCount = Number(aiSummary.candidateCount);
   const baselineCompared = aiSummary.baselineCompared === true;
+  const comparisonComparability =
+    aiSummary.comparisonComparability &&
+    typeof aiSummary.comparisonComparability === "object"
+      ? (aiSummary.comparisonComparability as Record<string, unknown>)
+      : {};
+  const comparabilityLevel =
+    typeof comparisonComparability.level === "string"
+      ? comparisonComparability.level
+      : null;
   const pendingReviewCount = verificationFindings.filter(
     (finding) => finding.review_status === "needs_review",
   ).length;
@@ -122,6 +131,7 @@ async function loadIssueLifecycle(
     inspectionStatus: verificationInspection?.status ?? null,
     baselineCompared,
     candidateCount: Number.isFinite(candidateCount) ? candidateCount : null,
+    comparabilityLevel,
     pendingReviewCount,
     confirmedCount: confirmed.length,
     dismissedCount,

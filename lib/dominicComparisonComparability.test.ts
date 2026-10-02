@@ -13,6 +13,8 @@ describe("DOMINIC comparison comparability", () => {
         gimbalPitchDeg: -35,
         cameraSource: "zoom",
         zoomRatio: 3,
+        focusTarget: { x: 0.5, y: 0.5 },
+        aeLocked: true,
       },
       current: {
         relativeAltitudeFt: 102,
@@ -20,10 +22,14 @@ describe("DOMINIC comparison comparability", () => {
         gimbalPitchDeg: -37,
         cameraSource: "zoom",
         zoomRatio: 3.1,
+        focusTarget: { x: 0.54, y: 0.48 },
+        aeLocked: true,
       },
     });
     expect(result.level).toBe("high");
     expect(result.score).toBeGreaterThanOrEqual(80);
+    expect(result.focusTargetDistance).not.toBeNull();
+    expect(result.aeLockMatch).toBe(true);
   });
 
   it("rates materially different evidence low and downgrades change claims", () => {
@@ -34,6 +40,8 @@ describe("DOMINIC comparison comparability", () => {
         gimbalPitchDeg: -45,
         cameraSource: "wide",
         zoomRatio: 1,
+        focusTarget: { x: 0.2, y: 0.2 },
+        aeLocked: true,
       },
       current: {
         relativeAltitudeFt: 105,
@@ -41,9 +49,13 @@ describe("DOMINIC comparison comparability", () => {
         gimbalPitchDeg: -15,
         cameraSource: "zoom",
         zoomRatio: 4,
+        focusTarget: { x: 0.8, y: 0.8 },
+        aeLocked: false,
       },
     });
     expect(result.level).toBe("low");
+    expect(result.focusTargetDistance).toBeGreaterThan(0.12);
+    expect(result.aeLockMatch).toBe(false);
     expect(effectiveComparisonState("worsening", result)).toBe("uncertain");
   });
 

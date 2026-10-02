@@ -551,7 +551,8 @@ export default function DominicAssetIntelligence({
       const sb = getSupabaseBrowser();
       const { data: sessionData } = await sb.auth.getSession();
       const userId = sessionData.session?.user.id;
-      if (!userId) throw new Error("Your DOMINIC session expired.");
+      const token = sessionData.session?.access_token;
+      if (!userId || !token) throw new Error("Your DOMINIC session expired.");
 
       const latestSensor =
         typeof issue.metadata?.latestSensorMode === "string"
@@ -619,6 +620,76 @@ export default function DominicAssetIntelligence({
           }
         : null;
 
+      let repeatCapturePreset: DominicInspectionPlanningContext["repeatCapturePreset"] = null;
+      if (baselineInspectionId) {
+        const { data: baselineMedia, error: baselineMediaError } = await sb
+          .from("dominic_inspection_media")
+          .select("id,sensor_mode,captured_at,relative_altitude_ft,metadata")
+          .eq("user_id", userId)
+          .eq("inspection_id", baselineInspectionId)
+          .eq("media_type", "image")
+          .order("captured_at", { ascending: false, nullsFirst: false })
+          .limit(24);
+        if (baselineMediaError) throw baselineMediaError;
+
+        const preferredSensorMode = latestSensor === "thermal" ? "thermal" : "rgb";
+        const hasProvenance = (item: { metadata: unknown }) => {
+          const metadata =
+            item.metadata && typeof item.metadata === "object"
+              ? (item.metadata as Record<string, unknown>)
+              : {};
+          return (
+            typeof metadata.cameraSource === "string" ||
+            Number.isFinite(Number(metadata.zoomRatio)) ||
+            (metadata.focusTarget && typeof metadata.focusTarget === "object")
+          );
+        };
+        const baselineCapture =
+          (baselineMedia ?? []).find(
+            (item) => item.sensor_mode === preferredSensorMode && hasProvenance(item),
+          ) ??
+          (baselineMedia ?? []).find(hasProvenance) ??
+          null;
+
+        if (baselineCapture) {
+          const metadata =
+            baselineCapture.metadata && typeof baselineCapture.metadata === "object"
+              ? (baselineCapture.metadata as Record<string, unknown>)
+              : {};
+          const rawFocusTarget =
+            metadata.focusTarget && typeof metadata.focusTarget === "object"
+              ? (metadata.focusTarget as Record<string, unknown>)
+              : null;
+          const focusX = Number(rawFocusTarget?.x);
+          const focusY = Number(rawFocusTarget?.y);
+          const zoomRatio = Number(metadata.zoomRatio);
+          const headingDeg = Number(metadata.headingDeg);
+          const gimbalPitchDeg = Number(metadata.gimbalPitchDeg);
+          const relativeAltitudeFt = Number(baselineCapture.relative_altitude_ft);
+          const rawCameraSource =
+            metadata.cameraSource === "wide" || metadata.cameraSource === "zoom"
+              ? metadata.cameraSource
+              : null;
+
+          repeatCapturePreset = {
+            sourceMediaId: baselineCapture.id,
+            sourceCapturedAt: baselineCapture.captured_at,
+            cameraSource: rawCameraSource,
+            zoomRatio: Number.isFinite(zoomRatio) ? zoomRatio : null,
+            focusTarget:
+              Number.isFinite(focusX) && Number.isFinite(focusY)
+                ? { x: focusX, y: focusY }
+                : null,
+            aeLocked: typeof metadata.aeLocked === "boolean" ? metadata.aeLocked : null,
+            relativeAltitudeFt: Number.isFinite(relativeAltitudeFt)
+              ? relativeAltitudeFt
+              : null,
+            headingDeg: Number.isFinite(headingDeg) ? headingDeg : null,
+            gimbalPitchDeg: Number.isFinite(gimbalPitchDeg) ? gimbalPitchDeg : null,
+          };
+        }
+      }
+
       const capabilitySnapshot = {
         ready: readiness.ready,
         available: readiness.available,
@@ -662,6 +733,7 @@ export default function DominicAssetIntelligence({
             previousSeverity: issue.severity,
             previousLastSeenAt: issue.last_seen_at,
             targetLocation,
+            repeatCapturePreset,
           },
         })
         .select("id,inspection_type,objective,sensor_modes,required_capabilities,optional_capabilities")
@@ -718,6 +790,7 @@ export default function DominicAssetIntelligence({
           latitude: targetLocation?.latitude ?? selectedAsset.latitude,
           longitude: targetLocation?.longitude ?? selectedAsset.longitude,
           targetLocation,
+          repeatCapturePreset,
           inspectionType: inspection.inspection_type,
           objective: inspection.objective,
           sensorModes: inspection.sensor_modes,

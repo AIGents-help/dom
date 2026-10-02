@@ -1,4 +1,5 @@
 import type { CameraPayloadProfile } from "@/lib/aircraft/payload";
+import type { RadiometricCaptureSummary } from "@/lib/dominicThermal";
 
 export type AircraftVendor = "simulator" | "dji" | "autel" | "mavlink" | "other";
 export type InspectionEvidenceRole = "context" | "detail" | "quality_retry";
@@ -57,6 +58,7 @@ export type UniversalMediaCapture = {
   aeLocked?: boolean;
   evidenceRole?: InspectionEvidenceRole;
   evidenceSequenceId?: string;
+  radiometric?: RadiometricCaptureSummary;
 };
 
 export type UniversalAircraftCommand =

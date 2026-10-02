@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { buildFollowUpCapturePrescription } from "@/lib/dominicFollowUpCapture";
+import { assessCaptureRepeatability } from "@/lib/dominicCaptureRepeatability";
 import {
   rangefinderTargetMatchesRegion,
   readStoredRangefinderTarget,
@@ -143,6 +144,8 @@ export async function POST(
   let baselineSignedUrl: string | null = null;
   let baselineFindingId: string | null = null;
   let baselineEvidenceId: string | null = null;
+  let baselineCaptureMediaId: string | null = null;
+  let baselineCaptureMetadata: Record<string, unknown> | null = null;
 
   if (issueId) {
     const { data: issue } = await admin
@@ -176,6 +179,47 @@ export async function POST(
       }
     }
   }
+
+  if (inspection.baseline_inspection_id) {
+    const { data: baselineMedia } = await admin
+      .from("dominic_inspection_media")
+      .select("id,storage_path,mime_type,metadata")
+      .eq("user_id", user.id)
+      .eq("inspection_id", inspection.baseline_inspection_id)
+      .eq("asset_id", asset.id)
+      .eq("sensor_mode", media.sensor_mode)
+      .eq("media_type", "image")
+      .not("storage_path", "is", null)
+      .order("captured_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (baselineMedia) {
+      baselineCaptureMediaId = baselineMedia.id;
+      baselineCaptureMetadata =
+        baselineMedia.metadata && typeof baselineMedia.metadata === "object"
+          ? (baselineMedia.metadata as Record<string, unknown>)
+          : null;
+
+      if (!baselineSignedUrl && baselineMedia.storage_path && baselineMedia.mime_type?.startsWith("image/")) {
+        const { data: baselineSigned } = await admin.storage
+          .from("pilot-media")
+          .createSignedUrl(baselineMedia.storage_path, 300);
+        if (baselineSigned?.signedUrl) {
+          baselineSignedUrl = baselineSigned.signedUrl;
+        }
+      }
+    }
+  }
+
+  const currentCaptureMetadata =
+    media.metadata && typeof media.metadata === "object"
+      ? (media.metadata as Record<string, unknown>)
+      : null;
+  const captureRepeatability = assessCaptureRepeatability({
+    current: currentCaptureMetadata,
+    baseline: baselineCaptureMetadata,
+  });
 
   const model =
     process.env.DOMINIC_VISION_MODEL?.trim() ||
@@ -321,6 +365,8 @@ export async function POST(
           comparisonNote: candidate.comparison_note,
           baselineFindingId,
           baselineEvidenceId,
+          baselineCaptureMediaId,
+          captureRepeatability,
           screeningSummary: screening.summary,
           limitations: screening.limitations,
           followUpCapture,
@@ -365,6 +411,8 @@ export async function POST(
             baselineCompared: Boolean(baselineSignedUrl),
             baselineFindingId,
             baselineEvidenceId,
+            baselineCaptureMediaId,
+            captureRepeatability,
             analyzedAt: new Date().toISOString(),
           },
         })
@@ -384,6 +432,8 @@ export async function POST(
             baselineCompared: Boolean(baselineSignedUrl),
             baselineFindingId,
             baselineEvidenceId,
+            baselineCaptureMediaId,
+            captureRepeatability,
             analyzedAt: new Date().toISOString(),
           },
         })
@@ -407,6 +457,8 @@ export async function POST(
       candidateCount: screening.candidates.length,
       baselineCompared: Boolean(baselineSignedUrl),
       baselineFindingId,
+      baselineCaptureMediaId,
+      captureRepeatability,
       findings: findings ?? [],
     }, {
       headers: { "Cache-Control": "no-store" },

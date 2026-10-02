@@ -74,6 +74,15 @@ export function deriveVerificationAssessment(input: {
     };
   }
 
+  if (input.candidateCount === null || input.candidateCount === undefined) {
+    return {
+      status: "insufficient",
+      canVerify: false,
+      shouldReopen: false,
+      reasons: ["The verification inspection does not yet contain a completed candidate-count result."],
+    };
+  }
+
   const pending = Number(input.pendingReviewCount ?? 0);
   if (pending > 0) {
     return {

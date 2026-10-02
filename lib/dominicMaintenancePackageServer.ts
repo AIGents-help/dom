@@ -84,7 +84,9 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
   const verificationInspectionId =
     typeof issueMetadata.verificationInspectionId === "string"
       ? issueMetadata.verificationInspectionId
-      : null;
+      : typeof issueMetadata.lastVerificationInspectionId === "string"
+        ? issueMetadata.lastVerificationInspectionId
+        : null;
   const findingIds = links.map((item) => item.finding_id);
   const inspectionIds = Array.from(
     new Set([

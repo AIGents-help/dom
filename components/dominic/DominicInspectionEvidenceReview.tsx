@@ -124,7 +124,13 @@ function comparisonFromFinding(finding: FindingRow) {
     typeof finding.detector.captureRepeatability === "object"
       ? (finding.detector.captureRepeatability as Record<string, unknown>)
       : null;
-  const repeatabilityScore = Number(rawRepeatability?.score);
+  const rawRepeatabilityScore = rawRepeatability?.score;
+  const repeatabilityScore =
+    typeof rawRepeatabilityScore === "number"
+      ? rawRepeatabilityScore
+      : typeof rawRepeatabilityScore === "string" && rawRepeatabilityScore.trim()
+        ? Number(rawRepeatabilityScore)
+        : Number.NaN;
   const repeatabilityComparable = rawRepeatability?.comparable === true;
   const repeatabilityWarnings = Array.isArray(rawRepeatability?.warnings)
     ? rawRepeatability.warnings.filter((item): item is string => typeof item === "string")

@@ -25,6 +25,12 @@ function fingerprint(input: string) {
   return createHash("sha256").update(input).digest("hex").slice(0, 40);
 }
 
+function optionalFiniteNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
 function captureGeometryFromMedia(input: {
   relative_altitude_ft?: number | null;
   metadata?: unknown;
@@ -37,25 +43,25 @@ function captureGeometryFromMedia(input: {
     metadata.cameraSource === "wide" || metadata.cameraSource === "zoom"
       ? metadata.cameraSource
       : null;
-  const zoomRatio = Number(metadata.zoomRatio);
+  const zoomRatio = optionalFiniteNumber(metadata.zoomRatio);
   const focusTarget =
     metadata.focusTarget && typeof metadata.focusTarget === "object"
       ? (metadata.focusTarget as Record<string, unknown>)
       : null;
-  const focusX = Number(focusTarget?.x);
-  const focusY = Number(focusTarget?.y);
+  const focusX = optionalFiniteNumber(focusTarget?.x);
+  const focusY = optionalFiniteNumber(focusTarget?.y);
   const aeLocked = typeof metadata.aeLocked === "boolean" ? metadata.aeLocked : null;
-  const headingDeg = Number(metadata.headingDeg);
-  const gimbalPitchDeg = Number(metadata.gimbalPitchDeg);
-  const relativeAltitudeFt = Number(input.relative_altitude_ft);
+  const headingDeg = optionalFiniteNumber(metadata.headingDeg);
+  const gimbalPitchDeg = optionalFiniteNumber(metadata.gimbalPitchDeg);
+  const relativeAltitudeFt = optionalFiniteNumber(input.relative_altitude_ft);
   return {
-    relativeAltitudeFt: Number.isFinite(relativeAltitudeFt) ? relativeAltitudeFt : null,
-    headingDeg: Number.isFinite(headingDeg) ? headingDeg : null,
-    gimbalPitchDeg: Number.isFinite(gimbalPitchDeg) ? gimbalPitchDeg : null,
+    relativeAltitudeFt,
+    headingDeg,
+    gimbalPitchDeg,
     cameraSource,
-    zoomRatio: Number.isFinite(zoomRatio) ? zoomRatio : null,
+    zoomRatio,
     focusTarget:
-      Number.isFinite(focusX) && Number.isFinite(focusY)
+      focusX !== null && focusY !== null
         ? { x: focusX, y: focusY }
         : null,
     aeLocked,

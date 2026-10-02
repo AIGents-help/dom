@@ -118,6 +118,9 @@ type IssueRow = {
   severity: "info" | "low" | "medium" | "high" | "critical";
   status: "open" | "monitoring" | "in_progress" | "resolved" | "verified" | "dismissed";
   recommended_action: string | null;
+  resolution_notes: string | null;
+  resolved_at: string | null;
+  verified_at: string | null;
   first_seen_at: string;
   last_seen_at: string;
   metadata: Record<string, unknown>;
@@ -247,7 +250,7 @@ export default function DominicAssetIntelligence({
           .limit(100),
         sb
           .from("dominic_issues")
-          .select("id,asset_id,issue_type,title,severity,status,recommended_action,first_seen_at,last_seen_at,metadata")
+          .select("id,asset_id,issue_type,title,severity,status,recommended_action,resolution_notes,resolved_at,verified_at,first_seen_at,last_seen_at,metadata")
           .order("last_seen_at", { ascending: false })
           .limit(100),
         sb
@@ -357,9 +360,13 @@ export default function DominicAssetIntelligence({
       ),
     [issues],
   );
-  const openIssues = issues.filter((issue) =>
-    ["open", "monitoring", "in_progress"].includes(issue.status),
-  );
+  const isActionableIssue = (issue: IssueRow) =>
+    ["open", "monitoring", "in_progress"].includes(issue.status) ||
+    (issue.status === "resolved" &&
+      (issue.metadata?.verificationRequired === true ||
+        issue.metadata?.verificationStatus === "required" ||
+        issue.metadata?.verificationStatus === "in_progress"));
+  const openIssues = issues.filter(isActionableIssue);
   const criticalIssues = openIssues.filter((issue) =>
     ["critical", "high"].includes(issue.severity),
   );
@@ -370,7 +377,7 @@ export default function DominicAssetIntelligence({
   const selectedOpenIssues = useMemo(
     () =>
       selectedIssues
-        .filter((issue) => ["open", "monitoring", "in_progress"].includes(issue.status))
+        .filter(isActionableIssue)
         .sort((a, b) => {
           const aAssessment = issueAssessments.get(a.id);
           const bAssessment = issueAssessments.get(b.id);
@@ -505,7 +512,8 @@ export default function DominicAssetIntelligence({
       const sb = getSupabaseBrowser();
       const { data: sessionData } = await sb.auth.getSession();
       const userId = sessionData.session?.user.id;
-      if (!userId) throw new Error("Your DOMINIC session expired.");
+      const token = sessionData.session?.access_token;
+      if (!userId || !token) throw new Error("Your DOMINIC session expired.");
 
       const { data, error } = await sb
         .from("dominic_assets")
@@ -532,7 +540,10 @@ export default function DominicAssetIntelligence({
     }
   };
 
-  const createIssueReinspection = async (issue: IssueRow) => {
+  const createIssueReinspection = async (
+    issue: IssueRow,
+    mode: "reinspection" | "maintenance_verification" = "reinspection",
+  ) => {
     if (!selectedAsset) return;
     setBusy(true);
     setMessage(null);
@@ -614,7 +625,7 @@ export default function DominicAssetIntelligence({
         missingRequired: readiness.missingRequired,
         availableOptional: readiness.availableOptional,
         evidence: readiness.evidence,
-        reason: "issue_reinspection",
+        reason: mode,
         issueId: issue.id,
         aircraft: selectedPilotAsset
           ? {
@@ -634,7 +645,10 @@ export default function DominicAssetIntelligence({
           asset_id: selectedAsset.id,
           baseline_inspection_id: baselineInspectionId,
           inspection_type: reinspectionType,
-          objective: `Reinspect tracked issue: ${issue.title}`,
+          objective:
+            mode === "maintenance_verification"
+              ? `Verify post-maintenance condition: ${issue.title}`
+              : `Reinspect tracked issue: ${issue.title}`,
           status: "planned",
           capture_source: "manual",
           sensor_modes: sensorModes,
@@ -643,7 +657,8 @@ export default function DominicAssetIntelligence({
           capability_snapshot: capabilitySnapshot,
           ai_summary: {
             issueId: issue.id,
-            purpose: "issue_reinspection",
+            purpose: mode,
+            verificationOfIssueId: mode === "maintenance_verification" ? issue.id : null,
             previousSeverity: issue.severity,
             previousLastSeenAt: issue.last_seen_at,
             targetLocation,
@@ -667,6 +682,30 @@ export default function DominicAssetIntelligence({
       }
 
       setSelectedInspectionId(inspection.id);
+
+      if (mode === "maintenance_verification") {
+        const lifecycleResponse = await fetch(
+          `/api/dominic/issues/${issue.id}/lifecycle`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              action: "verification_started",
+              inspectionId: inspection.id,
+            }),
+          },
+        );
+        const lifecycleBody = await lifecycleResponse.json().catch(() => ({}));
+        if (!lifecycleResponse.ok) {
+          throw new Error(
+            lifecycleBody?.error ?? "Verification lifecycle could not be started.",
+          );
+        }
+      }
+
       await refresh();
 
       if (onPlanInspection) {
@@ -699,11 +738,17 @@ export default function DominicAssetIntelligence({
       }
 
       setMessage(
-        readiness.ready
-          ? "Reinspection created from the tracked issue and opened in Capture Planner."
-          : selectedPilotAsset
-            ? `Reinspection created, but the selected aircraft is missing: ${readiness.missingRequired.map(inspectionCapabilityLabel).join(", ")}.`
-            : "Reinspection created. Assign compatible equipment before execution.",
+        mode === "maintenance_verification"
+          ? readiness.ready
+            ? "Post-maintenance verification inspection created and opened in Capture Planner."
+            : selectedPilotAsset
+              ? `Verification inspection created, but the selected aircraft is missing: ${readiness.missingRequired.map(inspectionCapabilityLabel).join(", ")}.`
+              : "Verification inspection created. Assign compatible equipment before execution."
+          : readiness.ready
+            ? "Reinspection created from the tracked issue and opened in Capture Planner."
+            : selectedPilotAsset
+              ? `Reinspection created, but the selected aircraft is missing: ${readiness.missingRequired.map(inspectionCapabilityLabel).join(", ")}.`
+              : "Reinspection created. Assign compatible equipment before execution.",
       );
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Reinspection could not be created.");
@@ -1114,12 +1159,12 @@ export default function DominicAssetIntelligence({
           <Card style={{ overflow: "hidden" }}>
             <div style={{ padding: "10px 12px", borderBottom: `1px solid ${LINE}`, display: "flex", alignItems: "center", gap: 7 }}>
               <AlertTriangle size={15} color={AMBER} />
-              <strong style={{ fontSize: 13 }}>Open issues</strong>
+              <strong style={{ fontSize: 13 }}>Actionable issues</strong>
             </div>
             {!selectedAsset ? (
               <div style={{ padding: 14, color: MUTED, fontSize: 9 }}>Select an asset.</div>
             ) : selectedOpenIssues.length === 0 ? (
-              <div style={{ padding: 14, color: MUTED, fontSize: 9, display: "flex", gap: 7, alignItems: "center" }}><CheckCircle2 size={14} color={GREEN} /> No open issues recorded.</div>
+              <div style={{ padding: 14, color: MUTED, fontSize: 9, display: "flex", gap: 7, alignItems: "center" }}><CheckCircle2 size={14} color={GREEN} /> No issues currently require maintenance or verification.</div>
             ) : (
               selectedOpenIssues
                 .slice(0, 8)
@@ -1182,6 +1227,10 @@ export default function DominicAssetIntelligence({
               issue={selectedIssue}
               busy={busy}
               onReinspect={(issue) => void createIssueReinspection(issue)}
+              onPlanVerification={(issue) =>
+                void createIssueReinspection(issue, "maintenance_verification")
+              }
+              onChanged={() => refresh()}
             />
           ) : null}
 

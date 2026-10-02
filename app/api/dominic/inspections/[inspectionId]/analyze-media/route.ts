@@ -384,6 +384,7 @@ export async function POST(
         .update({
           status: "review",
           ai_summary: {
+            ...aiSummary,
             latestMediaId: media.id,
             provider,
             model,

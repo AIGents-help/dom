@@ -38,6 +38,13 @@ function captureGeometryFromMedia(input: {
       ? metadata.cameraSource
       : null;
   const zoomRatio = Number(metadata.zoomRatio);
+  const focusTarget =
+    metadata.focusTarget && typeof metadata.focusTarget === "object"
+      ? (metadata.focusTarget as Record<string, unknown>)
+      : null;
+  const focusX = Number(focusTarget?.x);
+  const focusY = Number(focusTarget?.y);
+  const aeLocked = typeof metadata.aeLocked === "boolean" ? metadata.aeLocked : null;
   const headingDeg = Number(metadata.headingDeg);
   const gimbalPitchDeg = Number(metadata.gimbalPitchDeg);
   const relativeAltitudeFt = Number(input.relative_altitude_ft);
@@ -47,6 +54,11 @@ function captureGeometryFromMedia(input: {
     gimbalPitchDeg: Number.isFinite(gimbalPitchDeg) ? gimbalPitchDeg : null,
     cameraSource,
     zoomRatio: Number.isFinite(zoomRatio) ? zoomRatio : null,
+    focusTarget:
+      Number.isFinite(focusX) && Number.isFinite(focusY)
+        ? { x: focusX, y: focusY }
+        : null,
+    aeLocked,
   };
 }
 

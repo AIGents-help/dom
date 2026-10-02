@@ -31,9 +31,9 @@ type Issue = {
   severity: "info" | "low" | "medium" | "high" | "critical";
   status: "open" | "monitoring" | "in_progress" | "resolved" | "verified" | "dismissed";
   recommended_action: string | null;
-  resolution_notes?: string | null;
-  resolved_at?: string | null;
-  verified_at?: string | null;
+  resolution_notes: string | null;
+  resolved_at: string | null;
+  verified_at: string | null;
   first_seen_at: string;
   last_seen_at: string;
   metadata: Record<string, unknown>;

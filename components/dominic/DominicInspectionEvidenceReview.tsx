@@ -119,7 +119,28 @@ function comparisonFromFinding(finding: FindingRow) {
     typeof finding.detector?.comparisonNote === "string"
       ? finding.detector.comparisonNote
       : null;
-  return { state, note };
+  const rawRepeatability =
+    finding.detector?.captureRepeatability &&
+    typeof finding.detector.captureRepeatability === "object"
+      ? (finding.detector.captureRepeatability as Record<string, unknown>)
+      : null;
+  const repeatabilityScore = Number(rawRepeatability?.score);
+  const repeatabilityComparable = rawRepeatability?.comparable === true;
+  const repeatabilityWarnings = Array.isArray(rawRepeatability?.warnings)
+    ? rawRepeatability.warnings.filter((item): item is string => typeof item === "string")
+    : [];
+  return {
+    state,
+    note,
+    repeatability:
+      Number.isFinite(repeatabilityScore)
+        ? {
+            score: repeatabilityScore,
+            comparable: repeatabilityComparable,
+            warnings: repeatabilityWarnings,
+          }
+        : null,
+  };
 }
 
 function followUpFromFinding(finding: FindingRow) {
@@ -925,6 +946,17 @@ export default function DominicInspectionEvidenceReview({
                               {comparison.note ? (
                                 <div style={{ color: MUTED, fontSize: 7, lineHeight: 1.4, marginTop: 3 }}>
                                   {comparison.note}
+                                </div>
+                              ) : null}
+                              {comparison.repeatability ? (
+                                <div style={{ marginTop: 5, color: comparison.repeatability.comparable ? GREEN : AMBER, fontSize: 7, lineHeight: 1.4 }}>
+                                  Capture repeatability {Math.round(comparison.repeatability.score)}%
+                                  {comparison.repeatability.comparable
+                                    ? " · comparable setup"
+                                    : " · camera setup differs from baseline"}
+                                  {!comparison.repeatability.comparable && comparison.repeatability.warnings.length
+                                    ? ` · ${comparison.repeatability.warnings.join(" ")}`
+                                    : ""}
                                 </div>
                               ) : null}
                             </div>

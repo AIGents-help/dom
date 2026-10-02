@@ -1237,6 +1237,7 @@ export default function DominicCapturePlanner({
           aeLocked: capture.aeLocked ?? null,
           evidenceRole: capture.evidenceRole ?? null,
           evidenceSequenceId: capture.evidenceSequenceId ?? null,
+          radiometric: capture.radiometric ?? null,
           cameraPreset,
           rangefinderTarget: rangefinderTarget
             ? {

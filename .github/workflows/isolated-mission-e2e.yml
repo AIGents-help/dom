@@ -30,7 +30,22 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Start disposable Supabase stack
         run: |
-          supabase start
+          started=false
+          for attempt in 1 2 3 4; do
+            if supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor; then
+              started=true
+              break
+            fi
+            if [ "$attempt" -lt 4 ]; then
+              delay=$((attempt * 45))
+              echo "Supabase image pull/start failed (attempt $attempt/4). Retrying in ${delay}s..."
+              sleep "$delay"
+            fi
+          done
+          if [ "$started" != "true" ]; then
+            echo "Supabase failed to start after four attempts."
+            exit 1
+          fi
           supabase status -o env > /tmp/supabase.env
           source /tmp/supabase.env
           echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"

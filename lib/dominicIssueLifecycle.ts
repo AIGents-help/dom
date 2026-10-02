@@ -42,6 +42,7 @@ export function deriveVerificationAssessment(input: {
   inspectionStatus?: string | null;
   baselineCompared?: boolean | null;
   candidateCount?: number | null;
+  comparabilityLevel?: string | null;
   pendingReviewCount?: number | null;
   confirmedCount?: number | null;
   dismissedCount?: number | null;
@@ -71,6 +72,19 @@ export function deriveVerificationAssessment(input: {
       canVerify: false,
       shouldReopen: false,
       reasons: ["The post-maintenance evidence has not been validly compared with the pre-maintenance baseline."],
+    };
+  }
+
+  if (
+    !input.comparabilityLevel ||
+    input.comparabilityLevel === "low" ||
+    input.comparabilityLevel === "unknown"
+  ) {
+    return {
+      status: "insufficient",
+      canVerify: false,
+      shouldReopen: false,
+      reasons: ["The post-maintenance capture is not comparable enough to the baseline for reliable closure. Recapture from the baseline viewpoint and camera geometry."],
     };
   }
 

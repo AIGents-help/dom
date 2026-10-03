@@ -5,31 +5,38 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-production-dominic
+  cancel-in-progress: true
+
 jobs:
   verify-production:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - name: Wait for production to expose merged DOMINIC homepage
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Wait for the merged commit to be live
+        run: node scripts/wait-for-production.mjs
+        env:
+          PRODUCTION_EXPECTED_SHA: ${{ github.sha }}
+
+      - name: Verify approved homepage content
         shell: bash
         run: |
           set -euo pipefail
-          url="https://droneopsman.com"
-          for attempt in $(seq 1 30); do
-            body="$(curl -fsSL --max-time 20 "$url" || true)"
-            if printf '%s' "$body" | grep -qi "Uniquely Sophisticated." \
-              && printf '%s' "$body" | grep -qi "Intelligent Mapping by DOM" \
-              && printf '%s' "$body" | grep -qi "Safety-First Operations" \
-              && printf '%s' "$body" | grep -qi "Same Perspective. Higher Purpose." \
-              && printf '%s' "$body" | grep -qi "Map. Measure. Analyze. Deliver."; then
-              echo "Updated DOM homepage and DOMINIC layout are live on production."
-              exit 0
-            fi
-            echo "Attempt $attempt/30: production has not exposed the upgraded DOM homepage markers yet."
-            sleep 20
-          done
-          echo "Production did not expose the upgraded DOM homepage within 10 minutes."
-          exit 1
+          curl -fsSL --max-time 20 https://droneopsman.com -o /tmp/dom-homepage.html
+          grep -qi "Uniquely Sophisticated." /tmp/dom-homepage.html
+          grep -qi "Intelligent Mapping by DOM" /tmp/dom-homepage.html
+          grep -qi "Safety-First Operations" /tmp/dom-homepage.html
+          grep -qi "Same Perspective. Higher Purpose." /tmp/dom-homepage.html
+          grep -qi "Map. Measure. Analyze. Deliver." /tmp/dom-homepage.html
 
       - name: Verify approved DOMINIC mascot asset
         shell: bash

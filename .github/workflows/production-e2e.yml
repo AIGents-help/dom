@@ -16,8 +16,9 @@ concurrency:
 
 jobs:
   smoke:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -26,22 +27,11 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: Wait for production to be reachable
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Waiting for droneopsman.com to respond before browser smoke tests"
-          for attempt in $(seq 1 36); do
-            HTTP_CODE=$(curl -L -sS -o /tmp/dom-production.html -w '%{http_code}' --connect-timeout 5 --max-time 10 -H 'Cache-Control: no-cache' "https://droneopsman.com/?canary=$GITHUB_SHA&attempt=$attempt" || true)
-            echo "attempt=$attempt http=$HTTP_CODE"
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "Production is reachable; browser smoke tests will verify the live application."
-              exit 0
-            fi
-            sleep 10
-          done
-          echo "Production did not become reachable within the verification window."
-          exit 1
+      - name: Wait for the merged commit to be live
+        run: node scripts/wait-for-production.mjs
+        env:
+          PRODUCTION_EXPECTED_SHA: ${{ github.sha }}
       - run: npm run test:e2e
         env:
           E2E_BASE_URL: https://droneopsman.com
+          E2E_EXPECTED_BUILD_SHA: ${{ github.sha }}

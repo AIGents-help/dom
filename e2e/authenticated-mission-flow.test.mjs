@@ -4711,6 +4711,29 @@ test("DOMINIC entitlement endpoint and Mapping API enforce trial and paid tiers"
     assert.equal(mappingAfterTrial.status(), 403, JSON.stringify(mappingAfterBody));
     assert.match(mappingAfterBody.error ?? "", /Operator, Team, or Organization license/i);
 
+    // User-editable claims must not grant the paid pilot benefit.
+    assert.ifError((await auth.auth.updateUser({ data: { subscription_active: true, dominic_premium: true } })).error);
+    const spoofedSession = await auth.auth.refreshSession();
+    assert.ifError(spoofedSession.error);
+    headers.Authorization = `Bearer ${spoofedSession.data.session.access_token}`;
+    const spoofedBody = await (await api.get("/api/dominic/access", { headers })).json();
+    assert.equal(spoofedBody.access.premiumIncluded, false);
+    assert.equal(spoofedBody.features.mapping, false);
+
+    assert.ifError((await admin.from("contractors").update({ subscription_active: true }).eq("id", contractor.id)).error);
+    const includedBody = await (await api.get("/api/dominic/access", { headers })).json();
+    assert.equal(includedBody.access.plan, "free");
+    assert.equal(includedBody.access.premiumIncluded, true);
+    assert.equal(includedBody.features.mapping, true);
+    assert.equal(includedBody.features.hub, true);
+    assert.equal((await api.get("/api/pilot/mapping/jobs-eligible", { headers })).status(), 200);
+
+    assert.ifError((await admin.from("contractors").update({ subscription_active: false }).eq("id", contractor.id)).error);
+    const canceledBody = await (await api.get("/api/dominic/access", { headers })).json();
+    assert.equal(canceledBody.access.premiumIncluded, false);
+    assert.equal(canceledBody.features.mapping, false);
+    assert.equal((await api.get("/api/pilot/mapping/jobs-eligible", { headers })).status(), 403);
+
     const { error: upgradeError } = await admin.from("dominic_profiles")
       .update({ plan: "organization" })
       .eq("user_id", user.id);
@@ -6114,7 +6137,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
   const { data: created, error: userError } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
   assert.ifError(userError);
   const user = created.user;
-  let contractor, mission, job, project, browser;
+  let contractor, mission, job, project, browser, intruder;
   try {
     const seed = async (table, row) => {
       const { data, error } = await admin.from(table).insert(row).select("*").single();
@@ -6151,6 +6174,51 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.getByRole("button", { name: "Capture plans", exact: true }).click();
     await page.getByRole("textbox", { name: "Capture plan name" }).waitFor();
     await page.screenshot({ path: "/tmp/dom-navigation-desktop.png" });
+    assert.equal(await page.getByRole("combobox", { name: "Capture plan project", exact: true }).inputValue(), project.id);
+    await page.getByRole("textbox", { name: "Capture plan name" }).fill("Workflow capture plan");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByText("Capture plan saved.", { exact: true }).waitFor();
+    const planResult = await admin.from("dominic_capture_plans").select("*").eq("user_id", user.id).eq("name", "Workflow capture plan").single();
+    assert.ifError(planResult.error);
+    const savedPlan = planResult.data;
+    assert.equal(savedPlan.plan_state.mappingProjectId, project.id);
+    const inspectedAsset = await seed("dominic_assets", { user_id: user.id, name: "Workflow tank", asset_type: "tank" });
+    const inspection = await seed("dominic_inspections", { user_id: user.id, asset_id: inspectedAsset.id, mapping_project_id: project.id, capture_plan_id: null, inspection_type: "visual", status: "review", objective: "Verify coating condition" });
+    await seed("dominic_findings", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, finding_type: "corrosion", title: "Workflow coating wear", severity: "medium", review_status: "needs_review" });
+    const outsider = await admin.auth.admin.createUser({ email: `records-outsider-${stamp}@e2e.dom.invalid`, password, email_confirm: true });
+    assert.ifError(outsider.error);
+    intruder = outsider.data.user;
+    await seed("dominic_capture_plans", { user_id: intruder.id, name: "Private outsider plan", mission_type: "roof", plan_state: { mappingProjectId: project.id } });
+    const outsiderAsset = await seed("dominic_assets", { user_id: intruder.id, name: "Private outsider tank", asset_type: "tank" });
+    const outsiderInspection = await seed("dominic_inspections", { user_id: intruder.id, asset_id: outsiderAsset.id, mapping_project_id: project.id, capture_plan_id: savedPlan.id, inspection_type: "visual" });
+    await seed("dominic_findings", { user_id: intruder.id, asset_id: outsiderAsset.id, inspection_id: outsiderInspection.id, finding_type: "corrosion", title: "Private outsider finding" });
+    const ownedRecords = await context.request.get(`${baseURL}/api/pilot/mapping/projects/${project.id}`, { headers: { Authorization: `Bearer ${login.session.access_token}` } });
+    assert.equal(ownedRecords.status(), 200);
+    const ownedBody = await ownedRecords.json();
+    assert.deepEqual(ownedBody.capturePlans.map((item) => item.id), [savedPlan.id]);
+    assert.deepEqual(ownedBody.inspections.map((item) => item.id), [inspection.id]);
+    assert.equal(ownedBody.findings.length, 1);
+    assert.equal(JSON.stringify(ownedBody).includes("Private outsider"), false);
+    assert.ifError((await admin.from("dominic_inspections").update({ capture_plan_id: savedPlan.id }).eq("id", inspection.id)).error);
+    assert.ifError((await admin.from("dominic_capture_plans").update({ plan_state: { ...savedPlan.plan_state, inspectionId: inspection.id, assetId: inspectedAsset.id, assetName: inspectedAsset.name, inspectionType: "visual" } }).eq("id", savedPlan.id)).error);
+    await page.getByRole("button", { name: "Return to current project", exact: true }).click();
+    await page.getByRole("button", { name: "Plans & inspections", exact: true }).click();
+    const records = page.getByRole("region", { name: "Project plans and inspections", exact: true });
+    await records.getByText("Workflow capture plan", { exact: true }).waitFor();
+    await records.getByText("Workflow coating wear", { exact: false }).waitFor();
+    await page.screenshot({ path: "/tmp/dom-navigation-project-records.png" });
+    await records.getByRole("button", { name: "Open capture plan Workflow capture plan", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="Capture plan name"]')?.value === "Workflow capture plan");
+    await page.getByRole("button", { name: "Update", exact: true }).click();
+    await page.getByText("Capture plan saved.", { exact: true }).waitFor();
+    const reloadedPlan = await admin.from("dominic_capture_plans").select("plan_state").eq("id", savedPlan.id).single();
+    assert.ifError(reloadedPlan.error);
+    assert.equal(reloadedPlan.data.plan_state.inspectionId, inspection.id);
+    assert.equal(reloadedPlan.data.plan_state.mappingProjectId, project.id);
+    await page.getByRole("button", { name: "Return to current project", exact: true }).click();
+    await page.getByRole("button", { name: "Plans & inspections", exact: true }).click();
+    await records.getByRole("button", { name: "Review inspection of Workflow tank", exact: true }).click();
+    await page.getByRole("button", { name: "Review Evidence", exact: true, pressed: true }).waitFor();
     await page.getByRole("button", { name: "Return to current project", exact: true }).click();
     await page.getByText("Working reconstruction", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Processing", exact: true }).click();
@@ -6214,6 +6282,17 @@ test("DOMINIC keeps the working project across planning and inspection and opens
   } finally {
     await browser?.close();
     if (job) await admin.from("deliverables").delete().eq("job_id", job.id);
+    if (intruder) {
+      await admin.from("dominic_findings").delete().eq("user_id", intruder.id);
+      await admin.from("dominic_inspections").delete().eq("user_id", intruder.id);
+      await admin.from("dominic_assets").delete().eq("user_id", intruder.id);
+      await admin.from("dominic_capture_plans").delete().eq("user_id", intruder.id);
+      await admin.auth.admin.deleteUser(intruder.id);
+    }
+    await admin.from("dominic_findings").delete().eq("user_id", user.id);
+    await admin.from("dominic_inspections").delete().eq("user_id", user.id);
+    await admin.from("dominic_assets").delete().eq("user_id", user.id);
+    await admin.from("dominic_capture_plans").delete().eq("user_id", user.id);
     if (project) await admin.from("mapping_projects").delete().eq("id", project.id);
     if (job) await admin.from("jobs").delete().eq("id", job.id);
     if (mission) await admin.from("mission_requests").delete().eq("id", mission.id);
@@ -6221,4 +6300,42 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     if (contractor) await admin.from("contractors").delete().eq("id", contractor.id);
     await admin.auth.admin.deleteUser(user.id);
   }
+});
+
+
+test("public DOMINIC sample uses photorealistic imagery and never mutates account data", { skip: !isolated }, async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    await context.addInitScript(() => localStorage.setItem("dom-cookie-consent", "essential"));
+    const page = await context.newPage();
+    const mutations = [];
+    const accountRequests = [];
+    const errors = [];
+    page.on("request", (req) => {
+      if (["POST", "PATCH", "PUT", "DELETE"].includes(req.method()) && /\/api\/|\/rest\/v1|\/storage\/v1/.test(req.url())) mutations.push(req.url());
+      if (/\/api\/(dominic|pilot)|\/rest\/v1/.test(req.url())) accountRequests.push(req.url());
+    });
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(baseURL, { waitUntil: "networkidle" });
+    assert.equal(await page.getByRole("link", { name: "Explore DOMINIC", exact: true }).getAttribute("href"), "/dominic/demo");
+    await page.goto(`${baseURL}/dominic/demo`, { waitUntil: "networkidle" });
+    await page.getByRole("heading", { name: "Demo refinery inspection", exact: true }).waitFor();
+    const photograph = page.getByRole("img", { name: "Photorealistic generated sample aerial image of a refinery tank, transfer pipes and industrial building", exact: true });
+    await photograph.waitFor();
+    await page.waitForFunction(() => [...document.images].some((img) => img.alt.startsWith("Photorealistic") && img.complete && img.naturalWidth > 0));
+    await page.getByRole("button", { name: "Open sample project", exact: true }).click();
+    await page.getByRole("button", { name: "B-07", exact: true }).click();
+    await page.getByRole("heading", { name: "Missing north-face coverage", exact: true }).waitFor();
+    await page.screenshot({ path: "/tmp/dom-navigation-public-demo-desktop.png" });
+    await page.getByRole("button", { name: "Live Flight simulation", exact: true }).click();
+    await page.getByRole("button", { name: "Next sample frame", exact: true }).click();
+    await page.getByText("Tank 17 pass complete. Transfer line is next.", { exact: true }).waitFor();
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "public demo must fit a phone");
+    await page.screenshot({ path: "/tmp/dom-navigation-public-demo-mobile.png" });
+    assert.deepEqual(mutations, []);
+    assert.deepEqual(accountRequests, []);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
 });

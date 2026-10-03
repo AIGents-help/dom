@@ -108,7 +108,7 @@ export default function HomePage() {
             </div>
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <Link href="/dominic" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-md bg-[#F45A1E] px-5 py-3 text-[11px] font-black text-black transition hover:bg-[#ff7338]">
+              <Link href="/dominic/demo" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-md bg-[#F45A1E] px-5 py-3 text-[11px] font-black text-black transition hover:bg-[#ff7338]">
                 Explore DOMINIC <ArrowRight className="h-3.5 w-3.5" />
               </Link>
               <Link href="/pilot/login" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-md border border-white/20 px-5 py-3 text-[11px] font-black text-white hover:border-[#F45A1E]">

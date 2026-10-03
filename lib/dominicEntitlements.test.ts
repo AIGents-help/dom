@@ -54,4 +54,21 @@ describe("DOMINIC entitlements", () => {
     expect(dominicRequiredPlan("mapping")).toBe("operator");
     expect(dominicRequiredPlan("hub")).toBe("organization");
   });
+
+  it("includes every premium tool for an active DOM pilot subscription without changing the stored software plan", () => {
+    const access = resolveDominicAccess({ plan: "free", status: "active", trial_ends_at: null }, now, true);
+    expect(access.plan).toBe("free");
+    expect(access.premiumIncluded).toBe(true);
+    expect(access.effectivePlan).toBe("organization");
+    expect(canUseDominicFeature(access, "mapping")).toBe(true);
+    expect(canUseDominicFeature(access, "hub")).toBe(true);
+    const revoked = resolveDominicAccess({ plan: "free", status: "active", trial_ends_at: null }, now, false);
+    expect(canUseDominicFeature(revoked, "mapping")).toBe(false);
+  });
+
+  it("does not let an included subscription override software suspension", () => {
+    const access = resolveDominicAccess({ plan: "free", status: "suspended" }, now, true);
+    expect(access.premiumIncluded).toBe(false);
+    expect(canUseDominicFeature(access, "home")).toBe(false);
+  });
 });

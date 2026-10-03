@@ -13,6 +13,7 @@ export interface DominicAccess {
   status: string;
   trialActive: boolean;
   trialEndsAt: string | null;
+  premiumIncluded: boolean;
 }
 
 const PLAN_RANK: Record<DominicPlan, number> = {
@@ -37,6 +38,7 @@ export function normalizeDominicPlan(value: unknown): DominicPlan {
 export function resolveDominicAccess(
   profile: DominicProfileEntitlement | null | undefined,
   nowMs: number = Date.now(),
+  pilotSubscriptionActive = false,
 ): DominicAccess {
   const plan = normalizeDominicPlan(profile?.plan);
   const status = profile?.status ?? "missing";
@@ -48,12 +50,14 @@ export function resolveDominicAccess(
     && Number.isFinite(trialEndMs)
     && trialEndMs > nowMs;
 
+  const premiumIncluded = status === "active" && pilotSubscriptionActive;
   return {
     plan,
-    effectivePlan: trialActive ? "operator" : plan,
+    effectivePlan: premiumIncluded ? "organization" : trialActive ? "operator" : plan,
     status,
     trialActive,
     trialEndsAt,
+    premiumIncluded,
   };
 }
 

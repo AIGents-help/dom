@@ -2,7 +2,7 @@
 
 import { V as workspaceTheme } from "@/components/mapper/theme";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -113,6 +113,7 @@ import {
 } from "@/lib/aircraft/missionEngine";
 
 type PersistedCapturePlanState = {
+  mappingProjectId?: string | null;
   objectDiameterFt: number;
   objectHeightFt: number;
   standoffFt: number;
@@ -294,9 +295,17 @@ function sectorPath(startBearingDeg: number, endBearingDeg: number, radius = 46)
 
 export default function DominicCapturePlanner({
   inspectionContext = null,
+  projectId = null,
+  initialSavedPlanId = null,
 }: {
+  projectId?: string | null;
+  initialSavedPlanId?: string | null;
   inspectionContext?: DominicInspectionPlanningContext | null;
 }) {
+  const [linkedProjectId, setLinkedProjectId] = useState<string | null>(projectId);
+  const [projectOptions, setProjectOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [projectOptionsError, setProjectOptionsError] = useState<string | null>(null);
+  const [savedInspectionLink, setSavedInspectionLink] = useState<Pick<PersistedCapturePlanState, "inspectionId" | "assetId" | "assetName" | "inspectionType">>({});
   const [missionType, setMissionType] = useState<CaptureMissionType>("roof");
   const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">("map");
   const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
@@ -564,26 +573,9 @@ export default function DominicCapturePlanner({
     }
   }, [inspectionContext]);
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const sb = getSupabaseBrowser();
-      const { data, error } = await sb
-        .from("dominic_capture_plans")
-        .select("id,name,mission_type,schema_version,plan_state,updated_at")
-        .order("updated_at", { ascending: false })
-        .limit(50);
-      if (!active) return;
-      if (error) {
-        setPlanPersistenceStatus("Saved plans could not be loaded.");
-        return;
-      }
-      setSavedPlans((data ?? []) as SavedCapturePlan[]);
-    })();
-    return () => { active = false; };
-  }, []);
 
   const persistedPlanState = (): PersistedCapturePlanState => ({
+    mappingProjectId: linkedProjectId,
     objectDiameterFt,
     objectHeightFt,
     standoffFt,
@@ -611,10 +603,10 @@ export default function DominicCapturePlanner({
     mapAreaPoints,
     mapLocationLabel,
     planningSource,
-    inspectionId: inspectionContext?.inspectionId,
-    assetId: inspectionContext?.assetId,
-    assetName: inspectionContext?.assetName,
-    inspectionType: inspectionContext?.inspectionType,
+    inspectionId: inspectionContext?.inspectionId ?? savedInspectionLink.inspectionId,
+    assetId: inspectionContext?.assetId ?? savedInspectionLink.assetId,
+    assetName: inspectionContext?.assetName ?? savedInspectionLink.assetName,
+    inspectionType: inspectionContext?.inspectionType ?? savedInspectionLink.inspectionType,
   });
 
   const refreshSavedPlans = async () => {
@@ -642,6 +634,12 @@ export default function DominicCapturePlanner({
       const userId = sessionData.session?.user.id;
       if (!userId) throw new Error("Your DOMINIC session expired.");
 
+      if (linkedProjectId) {
+        const { data: linkedProject, error: projectError } = await sb
+          .from("mapping_projects").select("id").eq("id", linkedProjectId).maybeSingle();
+        if (projectError) throw projectError;
+        if (!linkedProject) throw new Error("This project is no longer available. Choose another project or keep the plan standalone.");
+      }
       const payload = {
         name: cleanName.slice(0, 120),
         mission_type: missionType,
@@ -674,7 +672,8 @@ export default function DominicCapturePlanner({
         setPlanName(data.name);
       }
 
-      if (inspectionContext && savedPlanId) {
+      const linkedInspectionId = inspectionContext?.inspectionId ?? savedInspectionLink.inspectionId;
+      if (linkedInspectionId && savedPlanId) {
         const captureSource =
           planningSource === "live"
             ? "live_drone"
@@ -685,9 +684,10 @@ export default function DominicCapturePlanner({
           .from("dominic_inspections")
           .update({
             capture_plan_id: savedPlanId,
+            mapping_project_id: linkedProjectId,
             capture_source: captureSource,
           })
-          .eq("id", inspectionContext.inspectionId)
+          .eq("id", linkedInspectionId)
           .eq("user_id", userId);
         if (inspectionError) throw inspectionError;
       }
@@ -705,12 +705,14 @@ export default function DominicCapturePlanner({
     }
   };
 
-  const openCapturePlan = (saved: SavedCapturePlan) => {
+  const openCapturePlan = useCallback((saved: SavedCapturePlan) => {
     if (saved.schema_version !== 1) {
       setPlanPersistenceStatus("This saved plan uses an unsupported planner version.");
       return;
     }
     const state = saved.plan_state;
+    setLinkedProjectId(state.mappingProjectId ?? null);
+    setSavedInspectionLink({ inspectionId: state.inspectionId, assetId: state.assetId, assetName: state.assetName, inspectionType: state.inspectionType });
     setMissionType(saved.mission_type);
     setObjectDiameterFt(state.objectDiameterFt);
     setObjectHeightFt(state.objectHeightFt);
@@ -765,8 +767,51 @@ export default function DominicCapturePlanner({
     setReviewPreflightRan(false);
     setReviewFlightConfirmed(false);
     setPlannerView("review");
-  };
+  }, []);
 
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      const sb = getSupabaseBrowser();
+      const { data, error } = await sb
+        .from("dominic_capture_plans")
+        .select("id,name,mission_type,schema_version,plan_state,updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(50);
+      if (!active) return;
+      if (error) {
+        setPlanPersistenceStatus("Saved plans could not be loaded.");
+        return;
+      }
+      const plans = (data ?? []) as SavedCapturePlan[];
+      setSavedPlans(plans);
+      if (initialSavedPlanId) {
+        let requested = plans.find((plan) => plan.id === initialSavedPlanId);
+        if (!requested) {
+          const result = await sb.from("dominic_capture_plans").select("id,name,mission_type,schema_version,plan_state,updated_at").eq("id", initialSavedPlanId).maybeSingle();
+          if (!active) return;
+          if (result.error || !result.data) {
+            setPlanPersistenceStatus("This saved plan is no longer available.");
+            return;
+          }
+          requested = result.data as SavedCapturePlan;
+        }
+        openCapturePlan(requested);
+      }
+    })();
+    return () => { active = false; };
+  }, [initialSavedPlanId, openCapturePlan]);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const { data, error } = await getSupabaseBrowser().from("mapping_projects").select("id,name").order("updated_at", { ascending: false });
+      if (!active) return;
+      if (error) setProjectOptionsError("Projects could not be loaded. Retry opening the planner.");
+      else setProjectOptions((data ?? []) as Array<{ id: string; name: string }>);
+    })();
+    return () => { active = false; };
+  }, []);
 
   const applyAircraftCamera = (assetId: string) => {
     setSelectedAircraftId(assetId);
@@ -3330,6 +3375,8 @@ export default function DominicCapturePlanner({
               type="button"
               onClick={() => {
                 setActiveSavedPlanId(null);
+                setLinkedProjectId(projectId);
+                setSavedInspectionLink({});
                 setPlanName("Untitled Capture Plan");
                 setMapAreaPoints([]);
                 setMapAreaDefined(false);
@@ -3346,6 +3393,16 @@ export default function DominicCapturePlanner({
               New
             </button>
           </div>
+          <label style={{ display: "grid", gap: 5, marginTop: 9, color: V.muted, fontSize: 11 }}>
+            Project
+            <select aria-label="Capture plan project" value={linkedProjectId ?? ""} onChange={(event) => setLinkedProjectId(event.target.value || null)}
+              style={{ minWidth: 0, width: "100%", border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 11 }}>
+              <option value="">Standalone plan</option>
+              {linkedProjectId && !projectOptions.some((project) => project.id === linkedProjectId) ? <option value={linkedProjectId}>Linked project · loading or unavailable</option> : null}
+              {projectOptions.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+            </select>
+          </label>
+          {projectOptionsError ? <p role="alert" style={{ color: V.amber, fontSize: 11 }}>{projectOptionsError}</p> : null}
           {savedPlans.length ? (
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 6, marginTop: 6 }}>
               <select

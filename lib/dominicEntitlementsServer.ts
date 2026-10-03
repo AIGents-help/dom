@@ -48,5 +48,15 @@ export async function getOrCreateDominicAccess({
     profile = created;
   }
 
-  return resolveDominicAccess(profile);
+  // Read the protected billing field from the database on every access
+  // check. Never accept a subscription claim from user-editable metadata.
+  const { data: contractor, error: contractorError } = await admin
+    .from("contractors")
+    .select("subscription_active,status")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (contractorError) throw new Error("DOM pilot subscription could not be verified.");
+  const included = contractor?.subscription_active === true
+    && !["inactive", "suspended"].includes(contractor.status);
+  return resolveDominicAccess(profile, Date.now(), included);
 }

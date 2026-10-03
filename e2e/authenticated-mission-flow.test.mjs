@@ -6321,6 +6321,16 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.equal(previewCommands.filter((message) => message.type === "command").length, 0, "preview inspection must not issue shutter or aircraft commands");
     await page.screenshot({ path: "/tmp/dom-navigation-live-inspection-preview.png" });
     await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).check();
+    const sampleDeadline = Date.now() + 38_000;
+    let sampledRows = previewRows.data;
+    while (sampledRows.length < 2 && Date.now() < sampleDeadline) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const sampleQuery = await admin.from("dominic_inspection_media").select("*").eq("inspection_id", inspection.id).like("source_capture_id", `browser-preview-${stamp}-%`);
+      assert.ifError(sampleQuery.error);
+      sampledRows = sampleQuery.data;
+    }
+    assert.equal(sampledRows.length, 2, "opt-in sampling must save a subsequent current camera frame");
+    inspectionStoragePaths.push(...sampledRows.filter((row) => row.id !== savedPreview.id).map((row) => row.storage_path));
     sendingPreview = false;
     await page.getByText("Preview paused — frame inspection unavailable", { exact: true }).waitFor({ timeout: 8000 });
     assert.equal(await page.getByRole("button", { name: "Inspect this frame", exact: true }).isDisabled(), true);

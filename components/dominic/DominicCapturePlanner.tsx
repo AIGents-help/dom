@@ -4031,6 +4031,7 @@ export default function DominicCapturePlanner({
           </div>
         ) : planningSource === "live" ? (
           <DominicLiveInspectionPreview
+            key={`${inspectionContext?.inspectionId ?? "unlinked"}-${bridgeStatus}`}
             preview={cameraPreview}
             connected={bridgeStatus === "connected"}
             supported={Boolean(bridgeInfo?.capabilities.cameraPreview)}

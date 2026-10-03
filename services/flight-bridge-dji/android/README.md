@@ -211,6 +211,10 @@ is treated as production-ready.
 The inspection host now emits `camera_preview` messages over its existing loopback
 WebSocket. DJI's decoded RGBA callback is sampled at up to 2 frames/second, resized
 to at most 960 pixels on either side, and encoded as bounded JPEG payloads.
+Browser camera access is limited to the production DOM origins and localhost
+development origins; foreign website handshakes are rejected. Native loopback
+clients may omit the browser Origin header. Vercel preview domains are not
+permitted to connect to the physical controller by default.
 Frames are dropped while encoding is busy or a socket has buffered data. Only
 wide/zoom camera sources are accepted; infrared preview is not labelled RGB.
 No preview is written to disk by the controller and no shutter, recording, or

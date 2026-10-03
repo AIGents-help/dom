@@ -6061,7 +6061,7 @@ test("DOMINIC maintenance queue includes older urgent work and stays user-owned"
       if (req.url().includes("/rest/v1/dominic_issues?")) issueQueries.push(new URL(req.url()));
     });
     await page.goto(`${baseURL}/dominic`, { waitUntil: "networkidle", timeout: 45_000 });
-    await page.getByRole("button", { name: "Asset Intelligence", exact: true }).click();
+    await page.getByRole("button", { name: "Assets & inspections", exact: true }).click();
     const queue = page.getByRole("region", { name: "Maintenance work queue" });
     await queue.getByText("Showing 1–10 of 200 issues", { exact: true }).waitFor();
     assert.ok(issueQueries.some((url) => url.searchParams.get("offset") === "200"), "queue must fetch past the first 200 issues");
@@ -6101,5 +6101,124 @@ test("DOMINIC maintenance queue includes older urgent work and stays user-owned"
       await admin.from("dominic_assets").delete().eq("user_id", user.id);
       await admin.auth.admin.deleteUser(user.id);
     }
+  }
+});
+
+test("DOMINIC keeps the working project across planning and inspection and opens the requested output", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey);
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const email = `continuity-${stamp}@e2e.dom.invalid`;
+  const password = `Dom-Continuity-${stamp}!Aa1`;
+  const { data: created, error: userError } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+  assert.ifError(userError);
+  const user = created.user;
+  let contractor, mission, job, project, browser;
+  try {
+    const seed = async (table, row) => {
+      const { data, error } = await admin.from(table).insert(row).select("*").single();
+      assert.ifError(error);
+      return data;
+    };
+    contractor = await seed("contractors", { user_id: user.id, full_name: "Workflow operator", email, status: "active" });
+    await seed("dominic_profiles", { user_id: user.id, plan: "operator", status: "active" });
+    mission = await seed("mission_requests", { requester_name: "Workflow client", requester_email: email, service_type: "aerial_images", location: "Workflow site", status: "approved" });
+    job = await seed("jobs", { mission_request_id: mission.id, title: "Workflow mission", service_type: "aerial_images", location: "Workflow site", status: "scheduled" });
+    project = await seed("mapping_projects", { job_id: job.id, contractor_id: contractor.id, name: "Working reconstruction", status: "uploaded", image_count: 20 });
+    const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const { data: login, error: loginError } = await auth.auth.signInWithPassword({ email, password });
+    assert.ifError(loginError);
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    await context.addInitScript(({ key, session }) => {
+      localStorage.setItem(key, JSON.stringify(session));
+      localStorage.setItem("dom-cookie-consent", "essential");
+    }, { key: `sb-${new URL(supabaseURL).hostname.split(".")[0]}-auth-token`, session: login.session });
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`${baseURL}/dominic`, { waitUntil: "networkidle", timeout: 45_000 });
+    await page.getByRole("button", { name: "Projects", exact: true }).click();
+    await page.getByRole("button").filter({ hasText: "Working reconstruction" }).click();
+    await page.getByText("Working reconstruction", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Processing", exact: true }).click();
+    await page.getByRole("button", { name: "3D Object", exact: true }).click();
+    assert.equal(await page.locator("#mapper-processing-profile").inputValue(), "object_3d");
+    // Leaving a project used to unmount it and reset this processing choice.
+    await page.getByRole("button", { name: "Assets & inspections", exact: true }).click();
+    await page.getByRole("region", { name: "Maintenance work queue" }).waitFor();
+    await page.getByRole("button", { name: "Capture plans", exact: true }).click();
+    await page.getByRole("textbox", { name: "Capture plan name" }).waitFor();
+    await page.screenshot({ path: "/tmp/dom-navigation-desktop.png" });
+    await page.getByRole("button", { name: "Return to current project", exact: true }).click();
+    await page.getByText("Working reconstruction", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Processing", exact: true }).click();
+    assert.equal(await page.locator("#mapper-processing-profile").inputValue(), "object_3d");
+
+    // Persisted output records exercise navigation, without claiming that this
+    // UI regression test runs NodeODM or flies an aircraft.
+    const { error: outputError } = await admin.from("deliverables").insert([
+      { job_id: job.id, name: "Workflow orthomosaic", type: "orthomosaic" },
+      { job_id: job.id, name: "Workflow 3D model", type: "3d_model" },
+    ]);
+    assert.ifError(outputError);
+    const { error: completedError } = await admin.from("mapping_projects").update({ status: "completed" }).eq("id", project.id);
+    assert.ifError(completedError);
+    await page.getByRole("button", { name: "Refresh DOMINIC project data" }).click();
+    await page.getByRole("button", { name: "Map & 3D", exact: true }).click();
+    await page.getByRole("button", { name: "3D View", exact: true }).click();
+    await page.getByRole("button", { name: "3D View", exact: true, pressed: true }).waitFor();
+    await page.getByRole("button", { name: "3D Model", exact: true, pressed: true }).waitFor();
+    await page.getByRole("button", { name: "Map View", exact: true }).click();
+    await page.getByRole("button", { name: "Map View", exact: true, pressed: true }).waitFor();
+    await page.getByRole("button", { name: "Orthomosaic", exact: true, pressed: true }).waitFor();
+    await page.getByRole("button", { name: "3D Model", exact: true, pressed: false }).click();
+    await page.getByRole("button", { name: "3D Model", exact: true, pressed: true }).waitFor();
+    await page.getByRole("button", { name: "Reports & exports", exact: true }).click();
+    await page.waitForFunction(() => {
+      const top = document.getElementById("dominic-deliverables")?.getBoundingClientRect().top;
+      return top != null && top >= 0 && top < window.innerHeight;
+    });
+    assert.equal(await page.getByRole("button", { name: "Auto Markup", exact: true }).count(), 0);
+    await page.getByRole("button", { name: "Live Flight simulation", exact: true }).click();
+    await page.getByRole("heading", { name: "Demo refinery inspection", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Next sample frame", exact: true }).click();
+    await page.getByText("Tank 17 pass complete. Transfer line is next.", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Reset replay", exact: true }).click();
+    await page.getByText("Sample aircraft at the launch point.", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "AR View", exact: true }).click();
+    await page.getByRole("button", { name: "B-07", exact: true }).click();
+    await page.getByText("Sample finding: the north face lacks oblique imagery.", { exact: true }).waitFor();
+    await page.getByRole("checkbox", { name: "Show prior findings", exact: true }).uncheck();
+    await page.getByText("Prior findings hidden. Select an asset to highlight its location.", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "AI Copilot", exact: true }).click();
+    await page.getByRole("button", { name: "Add to sample checklist", exact: true }).click();
+    await page.getByRole("heading", { name: "Review the Tank 17 rim", exact: true }).waitFor();
+    await page.screenshot({ path: "/tmp/dom-navigation-simulation-desktop.png" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("navigation", { name: "DOMINIC field navigation", exact: true }).waitFor({ state: "visible" });
+    await page.getByRole("button", { name: "Photos", exact: true }).click();
+    await page.locator("#dominic-source-imagery").waitFor({ state: "visible" });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "project UI must fit the mobile viewport");
+    await page.screenshot({ path: "/tmp/dom-navigation-mobile.png" });
+    await page.getByRole("button", { name: "Capture plans", exact: true }).click();
+    await page.getByRole("textbox", { name: "Capture plan name" }).waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "planner UI must fit the mobile viewport");
+    await page.screenshot({ path: "/tmp/dom-navigation-mobile-planner.png" });
+    await page.getByRole("button", { name: "Simulations", exact: true }).click();
+    await page.getByRole("heading", { name: "Demo refinery inspection", exact: true }).waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "simulation UI must fit the mobile viewport");
+    await page.screenshot({ path: "/tmp/dom-navigation-simulation-mobile.png" });
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser?.close();
+    if (job) await admin.from("deliverables").delete().eq("job_id", job.id);
+    if (project) await admin.from("mapping_projects").delete().eq("id", project.id);
+    if (job) await admin.from("jobs").delete().eq("id", job.id);
+    if (mission) await admin.from("mission_requests").delete().eq("id", mission.id);
+    await admin.from("dominic_profiles").delete().eq("user_id", user.id);
+    if (contractor) await admin.from("contractors").delete().eq("id", contractor.id);
+    await admin.auth.admin.deleteUser(user.id);
   }
 });

@@ -13,11 +13,8 @@ import {
   MousePointer2,
   Pentagon,
   Ruler,
-  Sparkles,
   Square,
   Type,
-  Download,
-  FileText,
   Mountain,
   Columns3,
 } from "lucide-react";
@@ -50,10 +47,14 @@ export default function DominicWorkbench({
   deliverables,
   accessToken,
   projectId,
+  focusModule,
+  showDeliverables = true,
 }: {
   deliverables: MappingDeliverable[];
   accessToken: string;
   projectId: string;
+  focusModule?: string | null;
+  showDeliverables?: boolean;
 }) {
   const [activeTool, setActiveTool] = useState<DominicWorkbenchTool>("select");
   const [toolSet, setToolSet] = useState("General");
@@ -74,6 +75,20 @@ export default function DominicWorkbench({
     const types = new Set(deliverables.map((d) => d.type).filter(Boolean));
     return layerTypes.map((layer) => ({ ...layer, ready: layer.types.some((type) => types.has(type)) }));
   }, [deliverables]);
+
+  const modelLayer = available.find((layer) => layer.label === "3D Model" && layer.ready)
+    ? "3d_model" : available.find((layer) => layer.label === "Point Cloud" && layer.ready) ? "point_cloud" : null;
+  const mapReady = available.some((layer) => layer.label === "Orthomosaic" && layer.ready);
+  useEffect(() => {
+    if (focusModule !== "3D & Point Cloud" && focusModule !== "Map Viewer") return;
+    const layer = focusModule === "3D & Point Cloud" ? modelLayer : mapReady ? "orthomosaic" : modelLayer;
+    if (!layer) return;
+    const frame = requestAnimationFrame(() => {
+      setViewerMode(layer === "orthomosaic" ? "map" : "3d");
+      setRequestedLayer(layer);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusModule, modelLayer, mapReady]);
 
   return (
     <div style={{ border: `1px solid ${V.line}`, borderRadius: 12, overflow: "hidden", background: "#070B0F", boxShadow: "0 24px 70px rgba(0,0,0,.28)" }}>
@@ -111,7 +126,7 @@ export default function DominicWorkbench({
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               {[
                 { id: "map" as const, label: "Map View", icon: Map, layer: "orthomosaic" },
-                { id: "3d" as const, label: "3D View", icon: Box, layer: "3d_model" },
+                { id: "3d" as const, label: "3D View", icon: Box, layer: modelLayer ?? "3d_model" },
                 { id: "elevation" as const, label: "Elevation", icon: Mountain, layer: available.find((layer) => layer.label === "DTM" && layer.ready) ? "dtm" : "dsm" },
                 { id: "compare" as const, label: "Compare", icon: Columns3, layer: null },
               ].map((view) => {
@@ -120,6 +135,7 @@ export default function DominicWorkbench({
                 return (
                   <button
                     key={view.id}
+                    aria-pressed={active}
                     disabled={!ready}
                     onClick={() => {
                       setViewerMode(view.id);
@@ -158,7 +174,11 @@ export default function DominicWorkbench({
               {["General", "Roof", "Solar", "Construction", "Infrastructure", "Property", "Thermal"].map((set) => <option key={set}>{set}</option>)}
             </select>
           </div>
-          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} requestedLayer={requestedLayer} viewerMode={viewerMode} />
+          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} requestedLayer={requestedLayer} viewerMode={viewerMode} showDeliverables={showDeliverables}
+            onLayerChange={(layer) => {
+              setRequestedLayer(layer);
+              setViewerMode(layer === "3d_model" || layer === "point_cloud" ? "3d" : layer === "dsm" || layer === "dtm" ? "elevation" : "map");
+            }} />
         </main>
 
         <aside style={{ borderLeft: `1px solid ${V.line}`, background: "#0B1016", padding: 12, display: compactWorkbench ? "none" : "flex", flexDirection: "column" }}>
@@ -212,33 +232,6 @@ export default function DominicWorkbench({
             </div>
           ) : null}
 
-          <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 14, paddingTop: 14 }}>
-            <div style={{ color: V.inkFaint, fontSize: 9, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 8 }}>Tool Set</div>
-            <div style={{ color: V.ink, fontSize: 13, fontWeight: 700 }}>{toolSet}</div>
-            <p style={{ color: V.inkFaint, fontSize: 10, lineHeight: 1.45, marginTop: 5 }}>DOMINIC saves notes, callouts, issue pins and drawn regions to this project with the selected inspection workflow.</p>
-          </div>
-
-          <button
-            disabled
-            title="Automatic markup analysis is staged for a later build pass"
-            style={{ width: "100%", marginTop: 14, border: `1px solid ${V.line}`, background: "rgba(244,90,30,.08)", color: V.inkDim, borderRadius: 9, padding: "9px 10px", display: "flex", alignItems: "center", justifyContent: "center", gap: 7, fontSize: 11 }}
-          >
-            <Sparkles size={14} color={V.signal} /> Auto Markup
-          </button>
-
-          <div style={{ marginTop: "auto", paddingTop: 18 }}>
-            <div style={{ borderTop: `1px solid ${V.line}`, paddingTop: 12 }}>
-              <div style={{ color: V.inkFaint, fontSize: 9, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 8 }}>Project Output</div>
-              <div style={{ display: "grid", gap: 6 }}>
-                <a href={`/dominic/report/${projectId}`} style={{ textDecoration: "none", border: `1px solid ${V.line}`, background: "#121922", color: V.ink, borderRadius: 8, padding: "8px 9px", display: "flex", alignItems: "center", gap: 7, fontSize: 10, fontWeight: 700 }}>
-                  <FileText size={13} color={V.signal} /> Project Report
-                </a>
-                <div style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.inkDim, borderRadius: 8, padding: "8px 9px", display: "flex", alignItems: "center", gap: 7, fontSize: 10 }}>
-                  <Download size={13} color={V.telemetry} /> Deliverables below
-                </div>
-              </div>
-            </div>
-          </div>
         </aside>
       </div>
     </div>

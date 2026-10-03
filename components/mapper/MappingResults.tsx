@@ -33,6 +33,9 @@ export default function MappingResults({
   toolSet = "General",
   requestedLayer,
   viewerMode = "map",
+  showPreview = true,
+  showDeliverables = true,
+  onLayerChange,
 }: {
   deliverables: MappingDeliverable[];
   accessToken: string;
@@ -41,6 +44,9 @@ export default function MappingResults({
   toolSet?: string;
   requestedLayer?: string | null;
   viewerMode?: "map" | "3d" | "elevation" | "compare";
+  showPreview?: boolean;
+  showDeliverables?: boolean;
+  onLayerChange?: (layer: string) => void;
 }) {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -59,8 +65,8 @@ export default function MappingResults({
       setSelectedLayer(requestedLayer as ViewerLayer);
       return;
     }
-    if (!availableLayers.includes(selectedLayer) && availableLayers.length > 0) setSelectedLayer(availableLayers[0]);
-  }, [requestedLayer, availableLayers, selectedLayer]);
+    setSelectedLayer((current) => availableLayers.includes(current) || availableLayers.length === 0 ? current : availableLayers[0]);
+  }, [requestedLayer, availableLayers]);
 
   useEffect(() => {
     const targets = availableLayers
@@ -111,7 +117,7 @@ export default function MappingResults({
 
   return (
     <div>
-      {availableLayers.length === 0 ? (
+      {showPreview ? availableLayers.length === 0 ? (
         <p style={{ color: V.inkFaint, fontSize: 13, marginBottom: 16 }}>
           No processed outputs yet — they&apos;ll appear here once DOMINIC finishes processing this mission.
         </p>
@@ -121,7 +127,8 @@ export default function MappingResults({
             {availableLayers.map((layer) => (
               <button
                 key={layer}
-                onClick={() => setSelectedLayer(layer)}
+                aria-pressed={selectedLayer === layer}
+                onClick={() => { setSelectedLayer(layer); onLayerChange?.(layer); }}
                 style={{
                   ...btnGhost,
                   padding: "6px 10px",
@@ -166,10 +173,11 @@ export default function MappingResults({
             </div>
           )}
         </>
-      )}
+      ) : null}
 
       {previewError && <p style={{ color: V.danger, fontSize: 12, marginBottom: 20 }}>{previewError}</p>}
 
+      {showDeliverables ? <section id="dominic-deliverables" style={{ scrollMarginTop: 96 }}>
       <DominicDeliverySummary deliverables={deduped} projectId={projectId} />
       <DominicExportPanel deliverables={deduped} accessToken={accessToken} projectId={projectId} />
 
@@ -177,6 +185,7 @@ export default function MappingResults({
         All outputs
       </div>
       <MappingDeliverables deliverables={deduped} accessToken={accessToken} projectId={projectId} />
+      </section> : null}
     </div>
   );
 }

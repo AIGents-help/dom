@@ -33,12 +33,14 @@ export default function MappingProjectWorkspace({
   projectId,
   onBack,
   focusModule,
+  onNavigate,
   online = true,
 }: {
   accessToken: string;
   projectId: string;
   onBack: () => void;
   focusModule?: string | null;
+  onNavigate?: (module: string) => void;
   online?: boolean;
 }) {
   const [data, setData] = useState<WorkspacePayload | null>(null);
@@ -109,7 +111,7 @@ export default function MappingProjectWorkspace({
       "Measure & Markup": "dominic-workbench",
       "Analysis": "dominic-workbench",
       "3D & Point Cloud": "dominic-workbench",
-      "Deliverables": "dominic-workbench",
+      "Deliverables": "dominic-deliverables",
       "Processing": "dominic-processing",
       "Data Library": "dominic-source-imagery",
     };
@@ -180,6 +182,11 @@ export default function MappingProjectWorkspace({
   const { project, images, processingJobs, deliverables } = data;
   const latestJob = processingJobs[0] ?? null;
   const processed = deliverables.length > 0;
+  const showAll = !onNavigate;
+  const photosVisible = showAll || focusModule === "Data Library";
+  const processingVisible = showAll || focusModule === "Processing";
+  const outputsVisible = showAll || focusModule === "Deliverables";
+  const viewerVisible = showAll || !["Data Library", "Processing", "Deliverables"].includes(focusModule ?? "");
 
   return (
     <div>
@@ -238,8 +245,9 @@ export default function MappingProjectWorkspace({
       </div>
 
       <div
+        hidden={!showAll}
         style={{
-          display: "grid",
+          display: showAll ? "grid" : "none",
           gridTemplateColumns: "repeat(4, minmax(120px, 1fr))",
           gap: 1,
           background: V.lineSoft,
@@ -256,16 +264,16 @@ export default function MappingProjectWorkspace({
       </div>
 
       {processed && (
-        <section id="dominic-workbench" style={{ marginBottom: 16, scrollMarginTop: 96 }}>
+        <section id="dominic-workbench" hidden={!viewerVisible} style={{ marginBottom: 16, scrollMarginTop: 96 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8, color: V.inkFaint, fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase" }}>
             <Layers3 size={14} color={V.signal} /> Map · Measure · Analyze
           </div>
-          <DominicWorkbench deliverables={deliverables} accessToken={accessToken} projectId={project.id} />
+          <DominicWorkbench deliverables={deliverables} accessToken={accessToken} projectId={project.id} focusModule={focusModule} showDeliverables={showAll} />
         </section>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: processed ? "minmax(0, .78fr) minmax(0, 1.22fr)" : "1fr", gap: 14, alignItems: "start" }}>
-        <section id="dominic-source-imagery" style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface, padding: 15, scrollMarginTop: 96 }}>
+      <div style={{ display: "grid", gridTemplateColumns: showAll && processed ? "minmax(0, .78fr) minmax(0, 1.22fr)" : "minmax(0,1fr)", gap: photosVisible && processingVisible ? 14 : 0, alignItems: "start" }}>
+        <section id="dominic-source-imagery" hidden={!photosVisible} style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface, padding: 15, scrollMarginTop: 96 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10, color: V.inkFaint, fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase" }}>
             <UploadCloud size={14} color={V.signal} /> Source Imagery
           </div>
@@ -319,19 +327,26 @@ export default function MappingProjectWorkspace({
           )}
         </section>
 
-        <section id="dominic-processing" style={{ scrollMarginTop: 96 }}>
+        <section id="dominic-processing" hidden={!processingVisible} style={{ scrollMarginTop: 96 }}>
           <MappingProcessingStatus accessToken={accessToken} project={project} latestJob={latestJob} deliverables={deliverables} onQueued={load} online={online} />
         </section>
       </div>
 
-      {!processed && (
+      {!processed && viewerVisible && (
         <section style={{ marginTop: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8, color: V.inkFaint, fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase" }}>
             <Layers3 size={14} color={V.signal} /> Results
           </div>
-          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={project.id} />
+          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={project.id} showDeliverables={showAll} />
+          {onNavigate ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button type="button" onClick={() => onNavigate("Data Library")} style={btnGhost}>Upload photos</button>
+            <button type="button" onClick={() => onNavigate("Processing")} style={btnGhost}>Open processing</button>
+          </div> : null}
         </section>
       )}
+      {!showAll ? <section hidden={!outputsVisible}>
+        <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={project.id} showPreview={false} />
+      </section> : null}
     </div>
   );
 }

@@ -1,5 +1,7 @@
 "use client";
 
+import { V as workspaceTheme } from "@/components/mapper/theme";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
@@ -189,16 +191,9 @@ type RecentFlightRun = {
 };
 
 const V = {
-  bg: "#0B1117",
-  panel: "#10161D",
-  panel2: "#151D25",
-  line: "#25303B",
-  text: "#F5F7FA",
-  muted: "#8F9CAA",
-  orange: "#F45A1E",
-  orangeDark: "#D9480F",
-  green: "#70D6A0",
-  amber: "#FFB86B",
+  bg: workspaceTheme.surface, panel: workspaceTheme.surface, panel2: workspaceTheme.raised,
+  line: workspaceTheme.line, text: workspaceTheme.ink, muted: workspaceTheme.inkDim,
+  orange: workspaceTheme.signal, orangeDark: "#D9480F", green: workspaceTheme.telemetry, amber: workspaceTheme.warn,
 };
 
 const safetyItems = [
@@ -3308,22 +3303,14 @@ export default function DominicCapturePlanner({
 
   return (
     <div style={{ minHeight: 650, background: V.bg, color: V.text }}>
-      <div style={{ padding: "18px 18px 12px", borderBottom: `1px solid ${V.line}`, display: showAdvancedPlanner ? "flex" : "none", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+      <div style={{ padding: "18px 18px 12px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 9, color: V.orange, fontSize: 11, fontWeight: 900, letterSpacing: ".13em", textTransform: "uppercase" }}>
-            <Crosshair size={16} /> DOMINIC Capture Planner
-          </div>
-          <h1 style={{ margin: "6px 0 4px", fontSize: 23, lineHeight: 1.1 }}>Plan the capture before you fly it.</h1>
-          <p style={{ margin: 0, color: V.muted, maxWidth: 720, fontSize: 12, lineHeight: 1.55 }}>
-            Manual-flight guidance now. The same capture checkpoints are structured so they can become autonomous DJI waypoints later.
+          <h1 style={{ margin: "0 0 5px", fontSize: 24, fontWeight: 700 }}>Capture plans</h1>
+          <p style={{ margin: 0, color: V.muted, maxWidth: 620, fontSize: 13, lineHeight: 1.55 }}>
+            Choose a capture type, set the area or object, and review the route before flying.
           </p>
         </div>
-        <div style={{ minWidth: 250, border: `1px solid ${V.line}`, background: V.panel, borderRadius: 10, padding: "10px 12px" }}>
-          <div style={{ color: V.muted, fontSize: 9, letterSpacing: ".1em", textTransform: "uppercase" }}>Planning engine</div>
-          <div style={{ marginTop: 5, display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 800 }}>
-            <CheckCircle2 size={15} color={V.green} /> Manual capture guidance active
-          </div>
-          <div style={{ color: V.muted, fontSize: 10, marginTop: 4 }}>Checkpoint model designed for future DJI mission export.</div>
+        <div style={{ minWidth: 0, width: 320, maxWidth: "100%" }}>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto", gap: 6, marginTop: 10 }}>
             <input
               aria-label="Capture plan name"
@@ -3964,7 +3951,7 @@ export default function DominicCapturePlanner({
               ) : null}
             </div>
             {missionType === "object" ? (
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(260px,.8fr) minmax(320px,1.2fr)", gap: 14, marginTop: 14 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 14, marginTop: 14 }}>
                 <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: V.panel, padding: 12 }}>
                   <div style={{ color: V.text, fontSize: 11, fontWeight: 900 }}>Object size & capture quality</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 9 }}>
@@ -4012,7 +3999,7 @@ export default function DominicCapturePlanner({
             </button>
           </div>
 
-          <div style={{ padding: 14, display: "grid", gridTemplateColumns: "minmax(0,1.25fr) minmax(300px,.75fr)", gap: 12 }}>
+          <div style={{ padding: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 12 }}>
             <div style={{ display: "grid", gap: 10 }}>
               <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", padding: 12 }}>
                 <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Mission summary</div>
@@ -4233,7 +4220,7 @@ export default function DominicCapturePlanner({
       </section>
 
       {missionType !== "object" ? (
-        <div style={{ padding: 18, display: "grid", gridTemplateColumns: "minmax(280px,.75fr) minmax(0,1.25fr)", gap: 14, alignItems: "start" }}>
+        <div style={{ padding: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 14, alignItems: "start" }}>
           <aside style={{ display: "grid", gap: 12 }}>
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 14 }}>
               <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".12em", textTransform: "uppercase" }}>{activeProfile.label} geometry</div>
@@ -4359,7 +4346,7 @@ export default function DominicCapturePlanner({
                 </div>
               ) : null}
 
-              <div style={{ padding: "0 14px 14px", display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(220px,.6fr)", gap: 12 }}>
+              <div style={{ padding: "0 14px 14px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 12 }}>
                 <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", minHeight: 310, position: "relative", overflow: "hidden" }}>
                   <svg viewBox="0 0 100 70" style={{ width: "100%", height: "100%" }} role="img" aria-label={`${activeProfile.label} calculated capture pattern`}>
                     <rect x="20" y="14" width="60" height="42" rx="2" fill="rgba(244,90,30,.05)" stroke="rgba(244,90,30,.35)" strokeWidth=".6" />
@@ -4590,7 +4577,7 @@ export default function DominicCapturePlanner({
             </section>
           </main>
         </div>      ) : (
-        <div style={{ padding: 14, display: "grid", gridTemplateColumns: "minmax(270px,.72fr) minmax(420px,1.5fr) minmax(270px,.78fr)", gap: 12, alignItems: "start" }}>
+        <div style={{ padding: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 12, alignItems: "start" }}>
           <aside style={{ display: "grid", gap: 12 }}>
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
               <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>Object geometry</div>

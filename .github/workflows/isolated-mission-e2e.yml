@@ -57,11 +57,13 @@ jobs:
       - name: Show application log after failure
         if: failure()
         run: cat /tmp/dom-e2e.log || true
-      - name: Upload maintenance queue browser captures
+      - name: Upload DOMINIC browser captures
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: maintenance-queue-browser-captures
-          path: /tmp/dom-maintenance-queue-*.png
+          name: dominic-browser-captures
+          path: |
+            /tmp/dom-maintenance-queue-*.png
+            /tmp/dom-navigation-*.png
           if-no-files-found: ignore
           retention-days: 7

@@ -205,3 +205,28 @@ The current first validation target is Matrice 4E with its integrated RGB camera
 This is not yet a claim of field validation: the Android camera/media path must still be
 compiled in the controller application and verified against real 4E hardware before it
 is treated as production-ready.
+
+## Live inspection preview
+
+The inspection host now emits `camera_preview` messages over its existing loopback
+WebSocket. DJI's decoded RGBA callback is sampled at up to 2 frames/second, resized
+to at most 960 pixels on either side, and encoded as bounded JPEG payloads.
+Frames are dropped while encoding is busy or a socket has buffered data. Only
+wide/zoom camera sources are accepted; infrared preview is not labelled RGB.
+No preview is written to disk by the controller and no shutter, recording, or
+flight command is issued by this path.
+
+In DOMINIC, open an asset inspection's **Plan Capture**, choose **Live Drone**,
+and connect the inspection bridge. **Inspect this frame** saves the selected
+preview to private inspection evidence and uses the existing AI screening queue.
+Optional sampling runs no faster than every 30 seconds and waits for each job.
+The camera feed is separate from annotated evidence: callouts belong to the saved
+frame, not a later preview. Missing telemetry is stored as unknown. The web view
+pauses inspection after five seconds without a received frame.
+
+This is a low rate preview, not a full motion video stream. Continuous video
+inference, automatic geometric alignment, and physical aircraft validation remain
+unfinished. Install/rebuild the native host with this bridge version and your
+registered DJI SDK key before testing on a supported controller. The browser test
+uses a photorealistic JPEG fixture; it does not validate DJI hardware or anomaly
+accuracy.

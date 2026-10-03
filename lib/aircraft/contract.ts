@@ -13,6 +13,7 @@ export type AircraftCapabilities = {
   cameraSourceControl?: boolean;
   focusControl?: boolean;
   aeLockControl?: boolean;
+  cameraPreview?: boolean;
 };
 
 export type RangefinderTarget = {
@@ -59,6 +60,14 @@ export type UniversalMediaCapture = {
   evidenceRole?: InspectionEvidenceRole;
   evidenceSequenceId?: string;
   radiometric?: RadiometricCaptureSummary;
+  previewFrame?: { width: number; height: number; telemetryAvailable: boolean };
+};
+
+export type UniversalCameraPreviewFrame = {
+  capture: UniversalMediaCapture;
+  width: number;
+  height: number;
+  jpegBase64: string;
 };
 
 export type UniversalAircraftCommand =
@@ -84,6 +93,7 @@ export interface DominicAircraftAdapter {
   send(command:UniversalAircraftCommand):Promise<CommandResult>;
   subscribe(listener:(state:UniversalAircraftState)=>void):()=>void;
   subscribeMedia?(listener:(capture:UniversalMediaCapture)=>void):()=>void;
+  subscribePreview?(listener:(frame:UniversalCameraPreviewFrame)=>void):()=>void;
 }
 
 export function commandCapability(command:UniversalAircraftCommand["type"]):keyof AircraftCapabilities|null {

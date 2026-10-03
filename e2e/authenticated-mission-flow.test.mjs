@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createClient } from "@supabase/supabase-js";
 import { chromium, request } from "playwright";
+import sharp from "sharp";
 
 const isolated = process.env.E2E_ISOLATED_SUPABASE === "true";
 const baseURL = (process.env.E2E_BASE_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
@@ -6278,6 +6279,55 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.equal((await safeReport.json()).media.find((item) => item.id === hiddenMedia.id).url, null, "forged foreign storage paths must never be signed");
     await intelligent.getByRole("button", { name: "Open asset & capture setup", exact: true }).click();
     await page.getByRole("button", { name: "Review Evidence", exact: true, pressed: true }).waitFor();
+    // Actual browser transport -> private storage -> owned inspection row.
+    // The photorealistic fixture is a preview, not a physical aircraft test.
+    const jpeg = await sharp(fixtureImage).resize({ width: 960 }).jpeg({ quality: 80 }).toBuffer();
+    const jpegSize = await sharp(jpeg).metadata();
+    let previewSequence = 0;
+    let sendingPreview = true;
+    const previewCommands = [];
+    await page.routeWebSocket("ws://127.0.0.1:8787", (socket) => {
+      const protocol = "dominic.flight-bridge.v1";
+      socket.send(JSON.stringify({ type: "hello", protocol, bridgeId: "preview-e2e", adapterVersion: "preview-e2e", vendor: "dji", aircraftId: "preview-aircraft", capabilities: { telemetry: true, cameraPreview: true, photoCapture: false, arm: false, takeoff: false, goTo: false, velocityControl: false, yawControl: false, gimbalControl: false, videoCapture: false, pauseResume: false, returnHome: false, land: false, obstacleSensing: false, rtk: false } }));
+      const timer = setInterval(() => {
+        if (!sendingPreview) return;
+        const id = `browser-preview-${stamp}-${++previewSequence}`;
+        socket.send(JSON.stringify({ type: "camera_preview", protocol, sequence: previewSequence, frame: { width: jpegSize.width, height: jpegSize.height, jpegBase64: jpeg.toString("base64"), capture: { id, aircraftId: "preview-aircraft", capturedAtMs: Date.now(), mimeType: "image/jpeg", latitude: 0, longitude: 0, relativeAltitudeFt: 0, headingDeg: 0, gimbalPitchDeg: 0, previewFrame: { width: jpegSize.width, height: jpegSize.height, telemetryAvailable: false } } } }));
+      }, 500);
+      socket.onMessage((raw) => previewCommands.push(JSON.parse(String(raw))));
+      socket.onClose(() => clearInterval(timer));
+    });
+    const inspectionCard = page.getByText("Verify coating condition", { exact: true }).locator("..").locator("..");
+    await inspectionCard.getByRole("button", { name: "Plan Capture", exact: true }).click();
+    await page.getByRole("button", { name: "Live Drone", exact: false }).click();
+    await page.getByRole("button", { name: "Connect Aircraft Bridge", exact: true }).click();
+    await page.getByText("Camera preview connected", { exact: true }).waitFor();
+    await page.waitForFunction(() => [...document.images].some((img) => img.alt === "Current aircraft camera preview" && img.complete && img.naturalWidth > 0));
+    await page.getByRole("button", { name: "Inspect this frame", exact: true }).click();
+    await page.getByText("Frame saved. Review its callouts and add report notes below.", { exact: true }).waitFor({ timeout: 20_000 });
+    const previewRows = await admin.from("dominic_inspection_media").select("*").eq("inspection_id", inspection.id).like("source_capture_id", `browser-preview-${stamp}-%`);
+    assert.ifError(previewRows.error);
+    assert.equal(previewRows.data.length, 1);
+    const savedPreview = previewRows.data[0];
+    inspectionStoragePaths.push(savedPreview.storage_path);
+    assert.equal(savedPreview.metadata.source, "camera_preview");
+    assert.equal(savedPreview.sensor_mode, "rgb");
+    assert.equal(savedPreview.latitude, null, "missing GPS must not become an invented zero coordinate");
+    assert.equal(savedPreview.metadata.gimbalPitchDeg, null);
+    assert.equal(savedPreview.metadata.previewFrame.telemetryAvailable, false);
+    const previewImage = await auth.storage.from("dominic-inspection-evidence").download(savedPreview.storage_path);
+    assert.ifError(previewImage.error);
+    assert.ok(previewImage.data.size > 10_000);
+    assert.equal(previewCommands.filter((message) => message.type === "command").length, 0, "preview inspection must not issue shutter or aircraft commands");
+    await page.screenshot({ path: "/tmp/dom-navigation-live-inspection-preview.png" });
+    await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).check();
+    sendingPreview = false;
+    await page.getByText("Preview paused — frame inspection unavailable", { exact: true }).waitFor({ timeout: 8000 });
+    assert.equal(await page.getByRole("button", { name: "Inspect this frame", exact: true }).isDisabled(), true);
+    await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).uncheck();
+    await page.getByRole("button", { name: "Disconnect Aircraft Bridge", exact: true }).click();
+    await page.getByText("Aircraft disconnected", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Assets & inspections", exact: true }).click();
     await page.getByRole("button", { name: "Return to current project", exact: true }).click();
     await page.getByText("Working reconstruction", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Processing", exact: true }).click();

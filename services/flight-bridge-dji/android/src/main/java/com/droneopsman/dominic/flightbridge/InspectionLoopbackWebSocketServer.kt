@@ -43,6 +43,9 @@ class InspectionLoopbackWebSocketServer(
         override val open: Boolean
             get() = socket.isOpen
 
+        override val readyForPreview: Boolean
+            get() = socket.isOpen && !socket.hasBufferedData()
+
         override fun send(text: String) {
             if (socket.isOpen) socket.send(text)
         }

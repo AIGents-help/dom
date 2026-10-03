@@ -6283,6 +6283,19 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     // The photorealistic fixture is a preview, not a physical aircraft test.
     const jpeg = await sharp(fixtureImage).resize({ width: 960 }).jpeg({ quality: 80 }).toBuffer();
     const jpegSize = await sharp(jpeg).metadata();
+    let screenedPreviewFrames = 0;
+    // Controlled model response tests frame -> candidate -> callout. This does
+    // not claim to validate model accuracy or physical aircraft imagery.
+    await page.route(`${baseURL}/api/dominic/inspections/${inspection.id}/analyze-media`, async (route) => {
+      const { mediaId } = route.request().postDataJSON();
+      const source = await admin.from("dominic_inspection_media").select("id,metadata,user_id,inspection_id").eq("id", mediaId).single();
+      assert.ifError(source.error);
+      assert.equal(source.data.user_id, user.id);
+      assert.equal(source.data.inspection_id, inspection.id);
+      assert.equal(source.data.metadata.source, "camera_preview");
+      const candidate = await seed("dominic_findings", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, finding_type: "visual_anomaly", title: `Preview fixture anomaly ${++screenedPreviewFrames}`, severity: "medium", review_status: "needs_review", detector: { provider: "controlled-browser-fixture", mediaId }, spatial_anchor: { mediaId, imageRegion: { x: .25, y: .25, width: .2, height: .2 } } });
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ configured: true, mediaId, candidateCount: 1, findings: [candidate] }) });
+    });
     let previewSequence = 0;
     let sendingPreview = true;
     const previewCommands = [];
@@ -6316,6 +6329,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.equal(previewRows.data.length, 1);
     const savedPreview = previewRows.data[0];
     inspectionStoragePaths.push(savedPreview.storage_path);
+    assert.equal(screenedPreviewFrames, 1, "a saved eligible frame must reach the AI screening queue");
     assert.equal(savedPreview.metadata.source, "camera_preview");
     assert.equal(savedPreview.sensor_mode, "rgb");
     assert.equal(savedPreview.latitude, null, "missing GPS must not become an invented zero coordinate");
@@ -6326,7 +6340,13 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.ok(previewImage.data.size > 10_000);
     assert.equal(previewCommands.filter((message) => message.type === "command").length, 0, "preview inspection must not issue shutter or aircraft commands");
     await page.getByRole("button", { name: "Review frames & report", exact: true }).click();
-    await page.getByRole("button", { name: "Open callout Workflow coating wear", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Open callout Preview fixture anomaly 1", exact: true }).click({ timeout: 12_000 });
+    const previewCallout = page.getByRole("dialog", { name: "Preview fixture anomaly 1", exact: true });
+    await previewCallout.getByRole("img", { name: "Current inspection evidence", exact: true }).waitFor();
+    await previewCallout.getByRole("textbox", { name: "Note for report" }).fill("Review this saved camera frame before confirming.");
+    await previewCallout.getByRole("button", { name: "Save report note", exact: true }).click();
+    await previewCallout.getByText("Report note saved.", { exact: true }).waitFor();
+    await previewCallout.getByRole("button", { name: "Close callout", exact: true }).click();
     await page.getByRole("img", { name: "Current aircraft camera preview", exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: "/tmp/dom-navigation-live-inspection-preview.png" });
     await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).check();
@@ -6339,6 +6359,8 @@ test("DOMINIC keeps the working project across planning and inspection and opens
       sampledRows = sampleQuery.data;
     }
     assert.equal(sampledRows.length, 2, "opt-in sampling must save a subsequent current camera frame");
+    await page.getByText("Frame saved. Review its callouts and add report notes.", { exact: true }).waitFor();
+    assert.equal(screenedPreviewFrames, 2, "sampling must screen each saved eligible frame");
     inspectionStoragePaths.push(...sampledRows.filter((row) => row.id !== savedPreview.id).map((row) => row.storage_path));
     sendingPreview = false;
     await page.getByText("Preview paused — frame inspection unavailable", { exact: true }).waitFor({ timeout: 8000 });

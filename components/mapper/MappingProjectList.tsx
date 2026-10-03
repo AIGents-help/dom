@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import DominicMascotImage from "@/components/dominic/DominicMascotImage";
-import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
-import { ArrowRight, Plus, ScanLine, Sparkles } from "lucide-react";
+import { ArrowRight, Plus, ScanLine } from "lucide-react";
 import { V, panelStyle, btnPrimary, statusPillStyle } from "./theme";
 import { MAPPING_PROJECT_STATUS_OPTIONS, MAPPING_PROJECT_STATUS_LABELS, formatProgress } from "@/lib/mapperPipeline";
 import type { MappingProject } from "./types";
@@ -26,6 +24,7 @@ export default function MappingProjectList({
   onOpenProject: (id: string) => void;
   onNewProject: () => void;
 }) {
+  const [search, setSearch] = useState("");
   const [projects, setProjects] = useState<ProjectRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,66 +47,22 @@ export default function MappingProjectList({
     load();
   }, [load]);
 
-  const processing = projects.filter((p) => ["queued", "processing"].includes(p.status)).length;
-  const completed = projects.filter((p) => p.status === "completed").length;
+  const query = search.trim().toLowerCase();
+  const visibleProjects = projects.filter((project) => !query || [project.name, project.location_snapshot, project.job?.title].some((value) => value?.toLowerCase().includes(query)));
 
   return (
     <div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1.4fr) minmax(260px, .6fr)",
-          gap: 14,
-          marginBottom: 16,
-        }}
-      >
-        <div
-          style={{
-            ...panelStyle,
-            minHeight: 180,
-            background: "radial-gradient(circle at 84% 12%, rgba(244,90,30,.20), transparent 34%), linear-gradient(135deg, #121922, #0C1218)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 18,
-          }}
-        >
-          <div>
-            <div style={{ marginBottom: 12 }}><DominicBrandLockup size="sm" /></div>
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 7, color: V.signal, fontSize: 10, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase" }}>
-              <Sparkles size={14} /> Map · Measure · Analyze · Deliver
-            </div>
-            <h2 className="font-saira" style={{ marginTop: 9, fontSize: 27, lineHeight: 1.05, color: V.ink, fontWeight: 800 }}>
-              Turn flight data into answers.
-            </h2>
-            <p style={{ marginTop: 8, color: V.inkDim, fontSize: 13, maxWidth: 560, lineHeight: 1.55 }}>
-              Upload once. DOMINIC processes, measures, analyzes, and prepares professional deliverables inside the same DOM mission workflow.
-            </p>
-            <button onClick={onNewProject} style={{ ...btnPrimary, marginTop: 16, display: "inline-flex", alignItems: "center", gap: 8 }}>
-              <Plus size={16} /> New DOMINIC Project
-            </button>
-          </div>
-          <div style={{ width: 176, height: 176, position: "relative", flexShrink: 0, borderRadius: 18, overflow: "hidden", border: `1px solid ${V.line}`, boxShadow: "0 16px 40px rgba(0,0,0,.28)" }}>
-            <DominicMascotImage className="object-cover object-[48%_32%]" />
-          </div>
-        </div>
-
-        <div style={{ ...panelStyle, display: "grid", alignContent: "center", gap: 12 }}>
-          <Metric label="Projects" value={String(projects.length)} />
-          <Metric label="Processing now" value={String(processing)} accent />
-          <Metric label="Completed" value={String(completed)} />
-        </div>
-      </div>
-
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
         <div>
-          <div className="font-saira" style={{ color: V.ink, fontWeight: 750, fontSize: 16 }}>Projects</div>
-          <div style={{ color: V.inkFaint, fontSize: 11, marginTop: 2 }}>Mission-linked processing workspaces</div>
+          <h1 style={{ color: V.ink, fontWeight: 700, fontSize: 24, margin: 0 }}>Projects</h1>
+          <p style={{ color: V.inkDim, fontSize: 13, marginTop: 5 }}>Open a project to upload photos, process maps and models, or export results.</p>
         </div>
-        <button onClick={onNewProject} style={{ ...btnPrimary, padding: "7px 12px", display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <Plus size={14} /> New
+        <button onClick={onNewProject} style={{ ...btnPrimary, display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <Plus size={15} /> New project
         </button>
       </div>
+      <input aria-label="Search projects" placeholder="Search projects or locations" value={search} onChange={(event) => setSearch(event.target.value)}
+        style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${V.line}`, background: V.raised, color: V.ink, borderRadius: 8, padding: "10px 12px", fontSize: 13, marginBottom: 14 }} />
 
       {error && <p style={{ color: V.danger, fontSize: 13, marginBottom: 12 }}>{error}</p>}
       {loading && <p style={{ color: V.inkDim }}>Loading DOMINIC projects…</p>}
@@ -115,12 +70,13 @@ export default function MappingProjectList({
         <div style={{ ...panelStyle, textAlign: "center", padding: 42 }}>
           <ScanLine size={32} color={V.signal} style={{ margin: "0 auto 12px" }} />
           <p style={{ color: V.ink, fontWeight: 700 }}>No DOMINIC projects yet.</p>
-          <p style={{ color: V.inkFaint, fontSize: 13, marginTop: 6 }}>Start from an accepted mission and keep the full mapping workflow inside DOM.</p>
+          <p style={{ color: V.inkFaint, fontSize: 13, marginTop: 6 }}>Create a project to upload your photos.</p>
         </div>
       )}
 
+      {!loading && projects.length > 0 && visibleProjects.length === 0 ? <p style={{ color: V.inkDim }}>No projects match this search.</p> : null}
       <div style={{ display: "grid", gap: 9 }}>
-        {projects.map((p) => (
+        {visibleProjects.map((p) => (
           <button
             key={p.id}
             onClick={() => onOpenProject(p.id)}
@@ -156,15 +112,6 @@ export default function MappingProjectList({
           </button>
         ))}
       </div>
-    </div>
-  );
-}
-
-function Metric({ label, value, accent = false }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingBottom: 8, borderBottom: `1px solid ${V.lineSoft}` }}>
-      <span style={{ color: V.inkDim, fontSize: 12 }}>{label}</span>
-      <span className="font-mono-ibm" style={{ color: accent ? V.signal : V.ink, fontSize: 20, fontWeight: 800 }}>{value}</span>
     </div>
   );
 }

@@ -949,13 +949,13 @@ export default function DominicAssetIntelligence({
       >
         <div>
           <div style={{ color: ORANGE, fontSize: 10, fontWeight: 900, letterSpacing: ".14em", textTransform: "uppercase" }}>
-            Asset Intelligence
+            Assets & inspections
           </div>
           <h1 style={{ margin: "4px 0 0", fontSize: 24, fontWeight: 900 }}>
             What changed, what is wrong, and what needs attention.
           </h1>
           <div style={{ color: MUTED, fontSize: 11, marginTop: 5 }}>
-            Persistent assets, inspection history, findings and tracked issues — not isolated mapping projects.
+            Manage assets, review inspection evidence, and track unresolved issues.
           </div>
         </div>
         <button

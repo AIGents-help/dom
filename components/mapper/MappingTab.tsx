@@ -10,7 +10,7 @@ type View = { name: "list" } | { name: "create" } | { name: "workspace"; project
 // Top-level content for the "Mapping" PilotTab. Owns only view-switching
 // state — all data loading lives in the child components, same separation
 // used by the rest of app/pilot/page.tsx's tabs.
-export default function MappingTab({ accessToken, focusModule, onProjectChange, showProjectsSignal = 0, newProjectSignal = 0, online = true }: { accessToken: string; focusModule?: string | null; onProjectChange?: (projectId: string | null) => void; showProjectsSignal?: number; newProjectSignal?: number; online?: boolean }) {
+export default function MappingTab({ accessToken, focusModule, onProjectChange, onNavigate, showProjectsSignal = 0, newProjectSignal = 0, online = true }: { accessToken: string; focusModule?: string | null; onProjectChange?: (projectId: string | null, module?: string) => void; onNavigate?: (module: string) => void; showProjectsSignal?: number; newProjectSignal?: number; online?: boolean }) {
   const [view, setView] = useState<View>({ name: "list" });
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function MappingTab({ accessToken, focusModule, onProjectChange, 
     return (
       <MappingProjectCreate
         accessToken={accessToken}
-        onCreated={(projectId) => { setView({ name: "workspace", projectId }); onProjectChange?.(projectId); }}
+        onCreated={(projectId) => { setView({ name: "workspace", projectId }); onProjectChange?.(projectId, "Data Library"); }}
         onCancel={() => setView({ name: "list" })}
       />
     );
@@ -41,6 +41,7 @@ export default function MappingTab({ accessToken, focusModule, onProjectChange, 
         accessToken={accessToken}
         projectId={view.projectId}
         focusModule={focusModule}
+        onNavigate={onNavigate}
         online={online}
         onBack={() => { setView({ name: "list" }); onProjectChange?.(null); }}
       />

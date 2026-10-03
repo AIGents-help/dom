@@ -6299,7 +6299,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     let previewSequence = 0;
     let sendingPreview = true;
     const previewCommands = [];
-    await page.routeWebSocket("ws://127.0.0.1:8787", (socket) => {
+    await page.routeWebSocket(/^ws:\/\/127\.0\.0\.1:8787\/?$/, (socket) => {
       const protocol = "dominic.flight-bridge.v1";
       socket.send(JSON.stringify({ type: "hello", protocol, bridgeId: "preview-e2e", adapterVersion: "preview-e2e", vendor: "dji", aircraftId: "preview-aircraft", capabilities: { telemetry: true, cameraPreview: true, photoCapture: false, arm: false, takeoff: false, goTo: false, velocityControl: false, yawControl: false, gimbalControl: false, videoCapture: false, pauseResume: false, returnHome: false, land: false, obstacleSensing: false, rtk: false } }));
       const timer = setInterval(() => {

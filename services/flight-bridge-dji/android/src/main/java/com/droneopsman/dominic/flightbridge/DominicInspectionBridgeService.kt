@@ -30,11 +30,17 @@ class DominicInspectionBridgeService(
 ) {
     interface Client {
         val open: Boolean
+        val readyForPreview: Boolean get() = open
         fun send(text: String)
         fun close()
     }
 
     private val clients = CopyOnWriteArraySet<Client>()
+    private val preview = DjiCameraPreview(
+        telemetryProvider,
+        hasViewers = { clients.any { it.readyForPreview } },
+        publish = { frame -> clients.filter { it.readyForPreview }.forEach { runCatching { it.send(frame) } } },
+    )
     private val telemetrySequence = AtomicLong(0)
     private val mediaSequence = AtomicLong(0)
     private var heartbeatExecutor: ScheduledExecutorService? = null
@@ -50,6 +56,7 @@ class DominicInspectionBridgeService(
         }
 
         cameraController.start()
+        preview.start()
 
         heartbeatExecutor = Executors.newSingleThreadScheduledExecutor().also { executor ->
             executor.scheduleAtFixedRate(
@@ -64,6 +71,7 @@ class DominicInspectionBridgeService(
     fun stop() {
         heartbeatExecutor?.shutdownNow()
         heartbeatExecutor = null
+        preview.stop()
         cameraController.stop()
         telemetryProvider.stop()
         clients.toList().forEach { it.close() }
@@ -287,6 +295,7 @@ class DominicInspectionBridgeService(
                     .put("aeLockControl", true)
                     .put("zoomControl", true)
                     .put("videoCapture", false)
+                    .put("cameraPreview", true)
                     .put("pauseResume", false)
                     .put("returnHome", false)
                     .put("land", false)

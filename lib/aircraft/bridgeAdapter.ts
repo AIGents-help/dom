@@ -7,7 +7,9 @@ import type {
   UniversalAircraftCommand,
   UniversalAircraftState,
   UniversalMediaCapture,
+  UniversalCameraPreviewFrame,
 } from "@/lib/aircraft/contract";
+import { isCameraPreviewFrame } from "@/lib/aircraft/cameraPreview";
 import {
   DOMINIC_BRIDGE_PROTOCOL,
   type BridgeHello,
@@ -28,6 +30,8 @@ export class FlightBridgeAircraftAdapter implements DominicAircraftAdapter {
   private state: UniversalAircraftState;
   private listeners = new Set<(state: UniversalAircraftState) => void>();
   private mediaListeners = new Set<(capture: UniversalMediaCapture) => void>();
+  private previewListeners = new Set<(frame: UniversalCameraPreviewFrame) => void>();
+  private lastPreviewSequence = 0;
   private pending = new Map<string, PendingCommand>();
   private unsubscribeTransport?: () => void;
   private requestSequence = 0;
@@ -67,6 +71,7 @@ export class FlightBridgeAircraftAdapter implements DominicAircraftAdapter {
   }
 
   async disconnect() {
+    this.lastPreviewSequence = 0;
     this.unsubscribeTransport?.();
     this.unsubscribeTransport = undefined;
     for (const [requestId, pending] of this.pending) {
@@ -83,7 +88,12 @@ export class FlightBridgeAircraftAdapter implements DominicAircraftAdapter {
   }
 
   getState() {
-    return { ...this.state };
+    return { ...this.state, connected: this.state.connected && this.transport.connected };
+  }
+
+  subscribePreview(listener: (frame: UniversalCameraPreviewFrame) => void) {
+    this.previewListeners.add(listener);
+    return () => this.previewListeners.delete(listener);
   }
 
   subscribe(listener: (state: UniversalAircraftState) => void) {
@@ -122,6 +132,12 @@ export class FlightBridgeAircraftAdapter implements DominicAircraftAdapter {
   }
 
   private handleMessage(message: FlightBridgeMessage) {
+    if (message.type === "camera_preview") {
+      if (!Number.isSafeInteger(message.sequence) || message.sequence < 1 || !this.capabilities.cameraPreview || !isCameraPreviewFrame(message.frame) || message.frame.capture.aircraftId !== this.state.aircraftId || message.sequence <= this.lastPreviewSequence) return;
+      this.lastPreviewSequence = message.sequence;
+      for (const listener of this.previewListeners) listener({ ...message.frame, capture: { ...message.frame.capture } });
+      return;
+    }
     if (message.type === "telemetry") {
       this.state = { ...message.state, connected: true };
       this.emit();

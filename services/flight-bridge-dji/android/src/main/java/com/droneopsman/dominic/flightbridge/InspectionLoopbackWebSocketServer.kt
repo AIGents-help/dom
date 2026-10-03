@@ -1,6 +1,9 @@
 package com.droneopsman.dominic.flightbridge
 
 import org.java_websocket.WebSocket
+import org.java_websocket.drafts.Draft
+import org.java_websocket.exceptions.InvalidDataException
+import org.java_websocket.handshake.ServerHandshakeBuilder
 import org.java_websocket.handshake.ClientHandshake
 import org.java_websocket.server.WebSocketServer
 import java.net.InetAddress
@@ -12,6 +15,12 @@ class InspectionLoopbackWebSocketServer(
     port: Int = 8787,
 ) : WebSocketServer(InetSocketAddress(InetAddress.getLoopbackAddress(), port)) {
     private val clients = ConcurrentHashMap<WebSocket, DominicInspectionBridgeService.Client>()
+
+    override fun onWebsocketHandshakeReceivedAsServer(conn: WebSocket, draft: Draft, request: ClientHandshake): ServerHandshakeBuilder {
+        val origin = if (request.hasFieldValue("Origin")) request.getFieldValue("Origin") else null
+        if (!isAllowedInspectionWebOrigin(origin)) throw InvalidDataException(1008, "Inspection bridge origin is not permitted")
+        return super.onWebsocketHandshakeReceivedAsServer(conn, draft, request)
+    }
 
     override fun onOpen(conn: WebSocket, handshake: ClientHandshake) {
         val client = SocketClient(conn)
@@ -42,6 +51,9 @@ class InspectionLoopbackWebSocketServer(
     ) : DominicInspectionBridgeService.Client {
         override val open: Boolean
             get() = socket.isOpen
+
+        override val readyForPreview: Boolean
+            get() = socket.isOpen && !socket.hasBufferedData()
 
         override fun send(text: String) {
             if (socket.isOpen) socket.send(text)

@@ -6,7 +6,9 @@ import type {
   UniversalAircraftCommand,
   UniversalAircraftState,
   UniversalMediaCapture,
+  UniversalCameraPreviewFrame,
 } from "@/lib/aircraft/contract";
+import { isCameraPreviewFrame } from "@/lib/aircraft/cameraPreview";
 
 export const DOMINIC_BRIDGE_PROTOCOL = "dominic.flight-bridge.v1" as const;
 
@@ -44,6 +46,13 @@ export type BridgeCommand = {
   command: UniversalAircraftCommand;
 };
 
+export type BridgeCameraPreview = {
+  type: "camera_preview";
+  protocol: typeof DOMINIC_BRIDGE_PROTOCOL;
+  sequence: number;
+  frame: UniversalCameraPreviewFrame;
+};
+
 export type BridgeCommandResult = {
   type: "command_result";
   protocol: typeof DOMINIC_BRIDGE_PROTOCOL;
@@ -69,6 +78,7 @@ export type FlightBridgeMessage =
   | BridgeHello
   | BridgeTelemetry
   | BridgeMediaCapture
+  | BridgeCameraPreview
   | BridgeCommand
   | BridgeCommandResult
   | BridgeHeartbeat
@@ -78,6 +88,10 @@ export function isFlightBridgeMessage(value: unknown): value is FlightBridgeMess
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<FlightBridgeMessage> & { protocol?: string; type?: string };
   if (candidate.protocol !== DOMINIC_BRIDGE_PROTOCOL) return false;
+  if (candidate.type === "camera_preview") {
+    const preview = candidate as Partial<BridgeCameraPreview>;
+    return Number.isSafeInteger(preview.sequence) && (preview.sequence ?? 0) > 0 && isCameraPreviewFrame(preview.frame);
+  }
   return ["hello", "telemetry", "media_capture", "command", "command_result", "heartbeat", "error"].includes(
     String(candidate.type),
   );

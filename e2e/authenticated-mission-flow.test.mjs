@@ -5996,3 +5996,110 @@ test("DOMINIC flight audits persist and remain pilot-owned", { skip: !isolated }
     await admin.auth.admin.deleteUser(userB.id);
   }
 });
+
+test("DOMINIC maintenance queue includes older urgent work and stays user-owned", { skip: !isolated }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey, "isolated Supabase credentials are required");
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/, "E2E database must be local");
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Queue-${stamp}!Aa1`;
+  const users = [];
+  let browser;
+  let browserContext;
+  try {
+    for (const suffix of ["owner", "other"]) {
+      const { data, error } = await admin.auth.admin.createUser({ email: `queue-${suffix}-${stamp}@e2e.dom.invalid`, password, email_confirm: true });
+      assert.ifError(error);
+      users.push(data.user);
+    }
+    const { data: assets, error: assetError } = await admin.from("dominic_assets").insert([
+      { user_id: users[0].id, name: "Queue Tank 17", asset_type: "tank", external_ref: `QUEUE-TANK-${stamp}`, location_label: "North terminal" },
+      { user_id: users[0].id, name: "Queue transfer line", asset_type: "pipeline", location_label: "Dock" },
+      { user_id: users[1].id, name: "Other operator private tank", asset_type: "tank" },
+    ]).select("id,name");
+    assert.ifError(assetError);
+    const tank = assets.find((asset) => asset.name === "Queue Tank 17");
+    const pipe = assets.find((asset) => asset.name === "Queue transfer line");
+    const privateTank = assets.find((asset) => asset.name === "Other operator private tank");
+    const { randomUUID } = await import("node:crypto");
+    const prefix = randomUUID().slice(0, 24);
+    const rows = Array.from({ length: 201 }, (_, index) => ({
+      id: `${prefix}${String(index).padStart(12, "0")}`,
+      user_id: users[0].id,
+      asset_id: index === 200 ? pipe.id : tank.id,
+      issue_type: "corrosion",
+      title: index === 200 ? "Older critical transfer line defect" : `Queue issue ${index}`,
+      severity: index === 200 ? "critical" : "low",
+      status: index === 198 ? "verified" : index === 199 ? "resolved" : index === 3 ? "in_progress" : "open",
+      first_seen_at: index === 200 ? "2026-01-01T00:00:00Z" : new Date().toISOString(),
+      last_seen_at: index === 200 ? "2026-01-02T00:00:00Z" : new Date().toISOString(),
+      metadata: index === 199 ? { verificationRequired: true, verificationStatus: "required" }
+        : index === 3 ? { maintenanceWorkOrder: "QUEUE-WO-778" } : {},
+    }));
+    const { error: issueError } = await admin.from("dominic_issues").insert([
+      ...rows,
+      { user_id: users[1].id, asset_id: privateTank.id, issue_type: "corrosion", title: "Other operator private critical defect", severity: "critical", status: "open" },
+    ]);
+    assert.ifError(issueError);
+    const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const { data: signedIn, error: signInError } = await auth.auth.signInWithPassword({ email: users[0].email, password });
+    assert.ifError(signInError);
+    const { data: hidden, error: hiddenError } = await auth.from("dominic_issues").select("id").eq("user_id", users[1].id).range(0, 199);
+    assert.ifError(hiddenError);
+    assert.deepEqual(hidden, [], "another operator's queue must remain private");
+
+    browser = await chromium.launch({ headless: true });
+    browserContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    await browserContext.addInitScript(({ key, session }) => localStorage.setItem(key, JSON.stringify(session)), {
+      key: `sb-${new URL(supabaseURL).hostname.split(".")[0]}-auth-token`, session: signedIn.session,
+    });
+    const page = await browserContext.newPage();
+    const errors = [];
+    const issueQueries = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("request", (req) => {
+      if (req.url().includes("/rest/v1/dominic_issues?")) issueQueries.push(new URL(req.url()));
+    });
+    await page.goto(`${baseURL}/dominic`, { waitUntil: "networkidle", timeout: 45_000 });
+    await page.getByRole("button", { name: "Asset Intelligence", exact: true }).click();
+    const queue = page.getByRole("region", { name: "Maintenance work queue" });
+    await queue.getByText("Showing 1–10 of 200 issues", { exact: true }).waitFor();
+    assert.ok(issueQueries.some((url) => url.searchParams.get("offset") === "200"), "queue must fetch past the first 200 issues");
+    assert.ok(issueQueries.every((url) => url.searchParams.get("user_id") === `eq.${users[0].id}`), "queue queries must explicitly scope ownership");
+    assert.match(await queue.locator("article").first().innerText(), /Older critical transfer line defect/);
+    assert.ok(!(await queue.innerText()).includes("Other operator private"));
+    await queue.screenshot({ path: "/tmp/dom-maintenance-queue-desktop.png" });
+    await queue.locator("article").first().getByRole("button", { name: "Open issue", exact: true }).click();
+    await page.locator("#dominic-issue-details").getByText("Older critical transfer line defect", { exact: true }).waitFor();
+    await queue.getByRole("button", { name: "Next", exact: true }).click();
+    await queue.getByText("Showing 11–20 of 200 issues", { exact: true }).waitFor();
+    await queue.getByRole("textbox", { name: "Search maintenance work" }).fill("QUEUE-WO-778");
+    await queue.getByText("Showing 1–1 of 1 issues", { exact: true }).waitFor();
+    assert.match(await queue.locator("article").innerText(), /Queue issue 3/);
+    await queue.getByRole("textbox", { name: "Search maintenance work" }).fill("");
+    await queue.getByRole("button", { name: /^Awaiting verification/ }).click();
+    await queue.getByText("Showing 1–1 of 1 issues", { exact: true }).waitFor();
+    assert.match(await queue.locator("article").innerText(), /Queue issue 199/);
+    await queue.getByRole("combobox", { name: "Maintenance priority filter" }).selectOption("escalated");
+    await queue.getByText("No work matches these filters.", { exact: true }).waitFor();
+    await queue.getByRole("button", { name: /^All active work/ }).click();
+    await queue.getByText("Showing 1–1 of 1 issues", { exact: true }).waitFor();
+    assert.match(await queue.locator("article").innerText(), /Older critical transfer line defect/);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await queue.scrollIntoViewIfNeeded();
+    assert.ok(await queue.evaluate((node) => node.scrollWidth <= node.clientWidth + 1), "queue controls must fit a narrow viewport");
+    await queue.screenshot({ path: "/tmp/dom-maintenance-queue-mobile.png" });
+    await queue.locator("article").getByRole("button", { name: "Open issue", exact: true }).click();
+    await page.locator("#dominic-issue-details").getByText("Older critical transfer line defect", { exact: true }).waitFor({ state: "visible" });
+    assert.deepEqual(errors, []);
+  } finally {
+    await browserContext?.close();
+    await browser?.close();
+    for (const user of users.reverse()) {
+      await admin.from("dominic_issue_events").delete().eq("user_id", user.id);
+      await admin.from("dominic_issues").delete().eq("user_id", user.id);
+      await admin.from("dominic_assets").delete().eq("user_id", user.id);
+      await admin.auth.admin.deleteUser(user.id);
+    }
+  }
+});

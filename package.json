@@ -11,9 +11,9 @@
     "test": "vitest run",
     "test:e2e": "node --test e2e/*.test.mjs",
     "typecheck:worker": "npm --prefix services/mapper-worker run typecheck",
-    "verify": "npm test && npm run test:deployment && npm run lint:ci && npm run build && npm run typecheck:worker && npm audit && npm audit --prefix services/mapper-worker",
+    "verify": "npm test && npm run test:deployment && npm run lint:ci && npm run build && npm run typecheck:worker && npm audit --omit=dev && node scripts/audit-development.mjs && npm audit --prefix services/mapper-worker",
     "import:leads": "tsx scripts/import-dom-leads.ts",
-    "test:deployment": "node --test scripts/wait-for-production.node-test.mjs"
+    "test:deployment": "node --test scripts/*.node-test.mjs"
   },
   "dependencies": {
     "@notionhq/client": "^2.2.15",

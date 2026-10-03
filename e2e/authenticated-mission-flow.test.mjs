@@ -6186,6 +6186,14 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.equal(savedPlan.plan_state.mappingProjectId, project.id);
     const inspectedAsset = await seed("dominic_assets", { user_id: user.id, name: "Workflow tank", asset_type: "tank" });
     const inspection = await seed("dominic_inspections", { user_id: user.id, asset_id: inspectedAsset.id, mapping_project_id: project.id, capture_plan_id: null, inspection_type: "visual", status: "review", objective: "Verify coating condition" });
+    const existingBucket = await admin.storage.getBucket("pilot-media");
+    if (existingBucket.error?.message === "Bucket not found") {
+      const createdBucket = await admin.storage.createBucket("pilot-media", { public: false });
+      assert.ifError(createdBucket.error);
+    } else assert.ifError(existingBucket.error);
+    const privateBucket = await admin.storage.getBucket("pilot-media");
+    assert.ifError(privateBucket.error);
+    assert.equal(privateBucket.data.public, false, "inspection evidence must stay private");
     const evidencePath = `${user.id}/dominic-inspections/${inspection.id}/current.webp`;
     const previousPath = `${user.id}/dominic-inspections/${inspection.id}/previous.webp`;
     const fixtureImage = await readFile(new URL("../public/images/dominic-demo/refinery-aerial-v1.webp", import.meta.url));
@@ -6237,7 +6245,8 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     const callout = page.getByRole("dialog", { name: "Workflow coating wear", exact: true });
     await callout.getByRole("img", { name: "Current inspection evidence", exact: true }).waitFor();
     await callout.getByRole("button", { name: "Overlay previous image", exact: true }).click();
-    await callout.getByRole("slider", { name: "Horizontal alignment" }).fill("7");
+    await callout.getByRole("slider", { name: "Horizontal alignment" }).focus();
+    await callout.getByRole("slider", { name: "Horizontal alignment" }).press("ArrowRight");
     await callout.getByRole("textbox", { name: "Note for report" }).fill("Confirm east-rim coating loss before assigning repair.");
     await callout.getByRole("button", { name: "Save report note", exact: true }).click();
     await callout.getByText("Report note saved.", { exact: true }).waitFor();

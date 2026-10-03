@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import { issueLifecycleLabel } from "@/lib/dominicIssueLifecycle";
 
 type Evidence = {
   id: string;
@@ -113,6 +114,7 @@ type PackagePayload = {
     resolved_at: string | null;
     verified_at: string | null;
     resolution_notes: string | null;
+    metadata: Record<string, unknown>;
   };
   maintenanceReview: {
     priority: string;
@@ -129,6 +131,34 @@ type PackagePayload = {
     latestObservedAt: string | null;
   };
   observations: Observation[];
+  verification: {
+    inspection: {
+      id: string;
+      inspection_type: string;
+      objective: string | null;
+      status: string;
+      capture_source: string;
+      sensor_modes: string[];
+      started_at: string | null;
+      completed_at: string | null;
+      summary: string | null;
+      created_at: string;
+    };
+    assessment: {
+      status: string;
+      canVerify: boolean;
+      shouldReopen: boolean;
+      reasons: string[];
+    };
+    findings: Array<{
+      id: string;
+      title: string;
+      severity: string;
+      review_status: string;
+      observed_at: string;
+    }>;
+    evidence: Evidence[];
+  } | null;
   events: Array<{
     id: string;
     inspection_id: string | null;
@@ -176,9 +206,10 @@ function severityColor(severity: string) {
 }
 
 function comparisonColor(state: string | null) {
-  if (state === "worsening") return "#B3261E";
-  if (state === "improving") return "#1F7A52";
+  if (state === "worsening" || state === "failed") return "#B3261E";
+  if (state === "improving" || state === "improved" || state === "cleared") return "#1F7A52";
   if (state === "unchanged") return "#245A8D";
+  if (state === "needs_review" || state === "capturing") return "#A15C00";
   return "#65717E";
 }
 
@@ -249,7 +280,7 @@ export default function DominicMaintenancePackage({ issueId }: { issueId: string
       (data?.observations ?? []).reduce(
         (total, observation) => total + observation.evidence.length,
         0,
-      ),
+      ) + (data?.verification?.evidence.length ?? 0),
     [data],
   );
 
@@ -436,7 +467,7 @@ export default function DominicMaintenancePackage({ issueId }: { issueId: string
               />
               <Row k="Asset condition" v={titleCase(data.asset.condition_state)} />
               <Row k="Issue type" v={titleCase(data.issue.issue_type)} />
-              <Row k="Issue status" v={titleCase(data.issue.status)} />
+              <Row k="Issue status" v={issueLifecycleLabel(data.issue)} />
               <Row k="First observed" v={formatDateTime(data.issue.first_seen_at)} />
               <Row k="Last observed" v={formatDateTime(data.issue.last_seen_at)} />
             </tbody>
@@ -694,6 +725,121 @@ export default function DominicMaintenancePackage({ issueId }: { issueId: string
             </table>
           )}
 
+          <SectionTitle>Maintenance Closure & Verification</SectionTitle>
+          {!data.issue.resolution_notes && !data.verification ? (
+            <Empty>Maintenance has not yet been recorded complete for this issue.</Empty>
+          ) : (
+            <>
+              {data.issue.resolution_notes ? (
+                <div className="dominic-maintenance-keep" style={{ ...narrativeStyle, borderLeft: "4px solid #F45A1E" }}>
+                  <div style={{ fontSize: 9, color: "#65717E", textTransform: "uppercase", fontWeight: 850 }}>
+                    Maintenance performed
+                  </div>
+                  <div style={{ fontSize: 11, color: "#3D4955", lineHeight: 1.6, marginTop: 5 }}>
+                    {data.issue.resolution_notes}
+                  </div>
+                  {typeof data.issue.metadata?.maintenanceWorkOrder === "string" && data.issue.metadata.maintenanceWorkOrder ? (
+                    <div style={{ fontSize: 9, color: "#65717E", marginTop: 6 }}>
+                      Work order / reference: {String(data.issue.metadata.maintenanceWorkOrder)}
+                    </div>
+                  ) : null}
+                  {data.issue.resolved_at ? (
+                    <div style={{ fontSize: 9, color: "#65717E", marginTop: 6 }}>
+                      Recorded complete {formatDateTime(data.issue.resolved_at)}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {data.verification ? (
+                <div className="dominic-maintenance-keep" style={{ border: "1px solid #D9E0E6", borderRadius: 12, overflow: "hidden", marginBottom: 22 }}>
+                  <div style={{ background: "#F5F7F9", padding: "11px 12px", display: "flex", justifyContent: "space-between", gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 9, color: "#65717E", textTransform: "uppercase", fontWeight: 850 }}>
+                        Post-maintenance verification
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 900, marginTop: 3 }}>
+                        {data.verification.inspection.objective ?? "Verification inspection"}
+                      </div>
+                      <div style={{ fontSize: 9, color: "#65717E", marginTop: 4 }}>
+                        {formatDateTime(data.verification.inspection.created_at)} · {titleCase(data.verification.inspection.status)}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ color: comparisonColor(data.verification.assessment.status), fontSize: 10, fontWeight: 900, textTransform: "uppercase" }}>
+                        {titleCase(data.verification.assessment.status)}
+                      </div>
+                      {data.issue.verified_at ? (
+                        <div style={{ color: "#1F7A52", fontSize: 8, fontWeight: 850, marginTop: 3 }}>
+                          Verified {formatDateTime(data.issue.verified_at)}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div style={{ padding: 12 }}>
+                    <div style={{ fontSize: 10, lineHeight: 1.55, color: "#3D4955" }}>
+                      {data.verification.assessment.reasons.join(" ")}
+                    </div>
+                    {data.verification.findings.length > 0 ? (
+                      <div style={{ marginTop: 8, fontSize: 9, color: "#65717E" }}>
+                        Verification review: {data.verification.findings.filter((finding) => finding.review_status === "confirmed").length} confirmed · {data.verification.findings.filter((finding) => finding.review_status === "dismissed").length} dismissed · {data.verification.findings.filter((finding) => finding.review_status === "needs_review").length} pending
+                      </div>
+                    ) : data.verification.assessment.status === "cleared" ? (
+                      <div style={{ marginTop: 8, fontSize: 9, color: "#1F7A52" }}>
+                        No remaining candidate anomaly was recorded in the verification inspection.
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 8, fontSize: 9, color: "#65717E" }}>
+                        No verification findings have been recorded yet.
+                      </div>
+                    )}
+                    {typeof data.issue.metadata?.verificationNotes === "string" && data.issue.metadata.verificationNotes ? (
+                      <div style={{ marginTop: 8, fontSize: 9, color: "#3D4955", lineHeight: 1.5 }}>
+                        Operator verification note: {String(data.issue.metadata.verificationNotes)}
+                      </div>
+                    ) : null}
+
+                    {data.verification.evidence.length > 0 ? (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(220px,1fr))", gap: 9, marginTop: 12 }}>
+                        {data.verification.evidence.map((evidence) => (
+                          <div key={evidence.id} className="dominic-evidence-card" style={{ border: "1px solid #D9E0E6", borderRadius: 9, overflow: "hidden", background: "#FAFBFC" }}>
+                            {evidence.signedUrl && evidence.mimeType?.startsWith("image/") ? (
+                              <img
+                                src={evidence.signedUrl}
+                                alt="Post-maintenance verification evidence"
+                                style={{ width: "100%", height: 210, objectFit: "contain", display: "block", background: "#090D11" }}
+                              />
+                            ) : (
+                              <div style={{ height: 110, display: "grid", placeItems: "center", color: "#65717E", fontSize: 10 }}>
+                                Verification evidence file recorded
+                              </div>
+                            )}
+                            <div style={{ padding: 9 }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                                <span style={{ fontSize: 8, fontWeight: 900, textTransform: "uppercase", color: evidence.role === "detail" ? "#B84A1D" : evidence.role === "context" ? "#1F7A52" : "#65717E" }}>
+                                  {titleCase(evidence.role)}
+                                </span>
+                                <span style={{ color: "#65717E", fontSize: 8 }}>{titleCase(evidence.sensorMode)}</span>
+                              </div>
+                              <div style={{ fontSize: 9, color: "#3D4955", marginTop: 6 }}>
+                                <Eye size={11} style={{ display: "inline", marginRight: 4 }} />
+                                {formatDateTime(evidence.capturedAt)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ marginTop: 10, color: "#65717E", fontSize: 10 }}>
+                        No verification media has been stored yet.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
+
           <SectionTitle>Issue Audit Trail</SectionTitle>
           {data.events.length === 0 ? (
             <Empty>No issue events recorded.</Empty>
@@ -724,15 +870,6 @@ export default function DominicMaintenancePackage({ issueId }: { issueId: string
               ))}
             </div>
           )}
-
-          {data.issue.resolution_notes ? (
-            <>
-              <SectionTitle>Resolution Notes</SectionTitle>
-              <div className="dominic-maintenance-keep" style={narrativeStyle}>
-                {data.issue.resolution_notes}
-              </div>
-            </>
-          ) : null}
 
           <div
             style={{

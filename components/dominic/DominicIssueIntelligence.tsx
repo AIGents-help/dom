@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, AlertTriangle, Clock3, Eye, FileText, TrendingDown, TrendingUp } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import DominicIssueMaintenanceLifecycle from "@/components/dominic/DominicIssueMaintenanceLifecycle";
 import { deriveIssueTrend, issueTrendLabel } from "@/lib/dominicIssueTrend";
 import {
   deriveMaintenanceReviewPriority,
@@ -30,6 +31,9 @@ type Issue = {
   severity: "info" | "low" | "medium" | "high" | "critical";
   status: "open" | "monitoring" | "in_progress" | "resolved" | "verified" | "dismissed";
   recommended_action: string | null;
+  resolution_notes: string | null;
+  resolved_at: string | null;
+  verified_at: string | null;
   first_seen_at: string;
   last_seen_at: string;
   metadata: Record<string, unknown>;
@@ -100,10 +104,14 @@ export default function DominicIssueIntelligence({
   issue,
   busy = false,
   onReinspect,
+  onPlanVerification,
+  onChanged,
 }: {
   issue: Issue;
   busy?: boolean;
   onReinspect?: (issue: Issue) => void;
+  onPlanVerification?: (issue: Issue) => void;
+  onChanged?: () => void | Promise<void>;
 }) {
   const [links, setLinks] = useState<LinkRow[]>([]);
   const [findings, setFindings] = useState<FindingRow[]>([]);
@@ -331,6 +339,15 @@ export default function DominicIssueIntelligence({
           {message}
         </div>
       ) : null}
+      <DominicIssueMaintenanceLifecycle
+        issue={issue}
+        onPlanVerification={onPlanVerification ? () => onPlanVerification(issue) : undefined}
+        onChanged={async () => {
+          await load();
+          await onChanged?.();
+        }}
+      />
+
 
       {loading ? (
         <div style={{ padding: 14, color: MUTED, fontSize: 9 }}>Loading issue history…</div>

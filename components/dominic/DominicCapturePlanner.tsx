@@ -4035,6 +4035,10 @@ export default function DominicCapturePlanner({
             preview={cameraPreview}
             connected={bridgeStatus === "connected"}
             supported={Boolean(bridgeInfo?.capabilities.cameraPreview)}
+            connecting={bridgeStatus === "connecting"}
+            connectionError={bridgeError}
+            onConnect={connectAircraftBridge}
+            onDisconnect={disconnectAircraftBridge}
             canSave={Boolean(inspectionContext)}
             onInspect={inspectCameraPreview}
             onReview={() => setShowInspectionEvidence(true)}

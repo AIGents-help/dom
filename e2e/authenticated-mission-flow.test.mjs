@@ -6297,7 +6297,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
       socket.onMessage((raw) => previewCommands.push(JSON.parse(String(raw))));
       socket.onClose(() => clearInterval(timer));
     });
-    const inspectionCard = page.getByText("Verify coating condition", { exact: true }).locator("..").locator("..");
+    const inspectionCard = page.getByText("Verify coating condition", { exact: true }).locator("..").locator("..").filter({ has: page.getByRole("button", { name: "Plan Capture", exact: true }) });
     await inspectionCard.getByRole("button", { name: "Plan Capture", exact: true }).click();
     await page.getByRole("button", { name: "Live Drone", exact: false }).click();
     await page.getByRole("button", { name: "Connect Aircraft Bridge", exact: true }).click();

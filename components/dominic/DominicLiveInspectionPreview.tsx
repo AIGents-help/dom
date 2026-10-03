@@ -10,6 +10,10 @@ type Props = {
   preview: { frame: UniversalCameraPreviewFrame; receivedAtMs: number } | null;
   connected: boolean;
   supported: boolean;
+  connecting: boolean;
+  connectionError: string | null;
+  onConnect: () => Promise<void>;
+  onDisconnect: () => Promise<void>;
   canSave: boolean;
   onInspect: (frame: UniversalCameraPreviewFrame) => Promise<void>;
   onReview: () => void;
@@ -71,6 +75,10 @@ export default function DominicLiveInspectionPreview(props: Props) {
       <span role="status" style={{ color: fresh ? "#70D6A0" : "#FFB86B", fontSize: 12 }}>
         {!props.connected ? "Aircraft disconnected" : !props.supported ? "Install the preview-enabled DJI inspection bridge" : fresh ? "Camera preview connected" : "Waiting for current camera frames"}
       </span>
+    </div>
+    <div style={{ marginBottom: 12 }}>
+      <button type="button" disabled={props.connecting} onClick={() => void (props.connected ? props.onDisconnect() : props.onConnect())} style={{ background: props.connected ? "#1C242D" : "#F45A1E", color: "#FFF", border: 0, borderRadius: 8, padding: "10px 14px", cursor: props.connecting ? "wait" : "pointer" }}>{props.connected ? "Disconnect Aircraft Bridge" : props.connecting ? "Connecting…" : "Connect Aircraft Bridge"}</button>
+      {props.connectionError ? <p role="alert" style={{ color: "#FFB86B" }}>{props.connectionError}</p> : null}
     </div>
     <div style={{ background: "#090D12", minHeight: 280, position: "relative", display: "grid", placeItems: "center" }}>
       {props.preview ? <img src={previewImageUrl(props.preview.frame)} alt="Current aircraft camera preview" onError={() => setFailedFrameId(props.preview!.frame.capture.id)} style={{ display: "block", width: "100%", maxHeight: 560, objectFit: "contain", opacity: fresh ? 1 : 0.35 }} /> : <p style={{ padding: 24, color: "#A7B0BA" }}>Connect your DJI inspection bridge to see the aircraft camera.</p>}

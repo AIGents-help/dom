@@ -126,7 +126,7 @@ export default function DominicWorkbench({
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               {[
                 { id: "map" as const, label: "Map View", icon: Map, layer: "orthomosaic" },
-                { id: "3d" as const, label: "3D View", icon: Box, layer: "3d_model" },
+                { id: "3d" as const, label: "3D View", icon: Box, layer: modelLayer ?? "3d_model" },
                 { id: "elevation" as const, label: "Elevation", icon: Mountain, layer: available.find((layer) => layer.label === "DTM" && layer.ready) ? "dtm" : "dsm" },
                 { id: "compare" as const, label: "Compare", icon: Columns3, layer: null },
               ].map((view) => {
@@ -174,7 +174,11 @@ export default function DominicWorkbench({
               {["General", "Roof", "Solar", "Construction", "Infrastructure", "Property", "Thermal"].map((set) => <option key={set}>{set}</option>)}
             </select>
           </div>
-          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} requestedLayer={requestedLayer} viewerMode={viewerMode} showDeliverables={showDeliverables} />
+          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={projectId} workbenchTool={activeTool} toolSet={toolSet} requestedLayer={requestedLayer} viewerMode={viewerMode} showDeliverables={showDeliverables}
+            onLayerChange={(layer) => {
+              setRequestedLayer(layer);
+              setViewerMode(layer === "3d_model" || layer === "point_cloud" ? "3d" : layer === "dsm" || layer === "dtm" ? "elevation" : "map");
+            }} />
         </main>
 
         <aside style={{ borderLeft: `1px solid ${V.line}`, background: "#0B1016", padding: 12, display: compactWorkbench ? "none" : "flex", flexDirection: "column" }}>

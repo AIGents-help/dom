@@ -35,6 +35,7 @@ export default function MappingResults({
   viewerMode = "map",
   showPreview = true,
   showDeliverables = true,
+  onLayerChange,
 }: {
   deliverables: MappingDeliverable[];
   accessToken: string;
@@ -45,6 +46,7 @@ export default function MappingResults({
   viewerMode?: "map" | "3d" | "elevation" | "compare";
   showPreview?: boolean;
   showDeliverables?: boolean;
+  onLayerChange?: (layer: string) => void;
 }) {
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -126,7 +128,7 @@ export default function MappingResults({
               <button
                 key={layer}
                 aria-pressed={selectedLayer === layer}
-                onClick={() => setSelectedLayer(layer)}
+                onClick={() => { setSelectedLayer(layer); onLayerChange?.(layer); }}
                 style={{
                   ...btnGhost,
                   padding: "6px 10px",

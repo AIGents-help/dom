@@ -137,6 +137,7 @@ export default function PilotDashboard() {
     setMyClaims(body.myClaims ?? []);
     setTutorials(body.tutorials ?? []);
     setResourcesLocked(!!body.resourcesLocked);
+    if (new URLSearchParams(window.location.search).get("tab") === "profile") setTab("profile");
     setLoading(false);
   }, [router]);
 
@@ -746,8 +747,8 @@ export default function PilotDashboard() {
           </div>
           <p style={{ color: V.inkDim, fontSize: 13, marginTop: 10 }}>
             {profile.subscription_active
-              ? "You're subscribed — DOM takes 0% commission on every mission, whether DOM sources it or you do."
-              : "Your commission rate steps down as you complete more missions in the trailing 90 days. Subscribe for $99/mo to drop to 0% on every mission instead."}
+              ? "You're subscribed — DOMINIC Premium is included at no extra charge, and DOM takes 0% commission on every mission, whether DOM sources it or you do."
+              : "Your commission rate steps down as you complete more missions in the trailing 90 days. Subscribe for $99/mo to include DOMINIC Premium and drop to 0% on every mission."}
           </p>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
             <span className="font-mono-ibm" style={{ fontSize: 20, fontWeight: 600, color: profile.subscription_active ? V.telemetry : V.signal }}>

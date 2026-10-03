@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
@@ -170,6 +171,8 @@ function RefineryMap({ activeRoute = true }: { activeRoute?: boolean }) {
   const path = activeRoute ? routeNodes.slice(0, 6) : routeNodes.slice(0, 4);
   return (
     <div style={{ position: "relative", width: "100%", aspectRatio: "16 / 9", minHeight: 320, maxHeight: 520, background: "radial-gradient(circle at 50% 45%, rgba(244,90,30,.09), transparent 36%), #0B1117", overflow: "hidden" }}>
+      <Image src="/images/dominic-demo/refinery-aerial-v1.webp" alt="Photorealistic generated refinery backdrop for the operational simulation" fill sizes="(max-width: 980px) 100vw, 900px" style={{ objectFit: "cover", opacity: .75 }} />
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,rgba(8,13,18,.15),rgba(8,13,18,.2) 65%,rgba(8,13,18,.95))" }} />
       <svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}>
         <defs>
           <pattern id="hub-grid" width="5" height="5" patternUnits="userSpaceOnUse">
@@ -195,7 +198,7 @@ function RefineryMap({ activeRoute = true }: { activeRoute?: boolean }) {
         <StatusPill tone="blue">REFINERY DIGITAL TWIN</StatusPill>
       </div>
       <div style={{ position: "absolute", left: 14, bottom: 12, right: 14, display: "flex", justifyContent: "space-between", color: MUTED, fontSize: 10 }}>
-        <span>Monroe Energy · Training Environment</span>
+        <span>Fictional refinery · AI-generated sample</span>
         <span>Route nodes: {path.length} · Geofence loaded</span>
       </div>
       <div style={{ position: "absolute", right: 15, top: 14, border: `1px solid ${LINE}`, background: "rgba(8,13,18,.82)", padding: "8px 10px", borderRadius: 9, fontSize: 10 }}>

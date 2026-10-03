@@ -4,13 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ImageIcon, Layers3, UploadCloud, CalendarDays, MapPin, Plane, CheckCircle2, RefreshCw, Trash2 } from "lucide-react";
 import { V, btnGhost, statusPillStyle } from "./theme";
 import { MAPPING_PROJECT_STATUS_LABELS, formatBytes, canUploadImages } from "@/lib/mapperPipeline";
+import MappingProjectRecords from "./MappingProjectRecords";
+import type { ProjectRecords } from "@/lib/dominicProjectRecords";
 import MappingImageUploader from "./MappingImageUploader";
 import MappingProcessingStatus from "./MappingProcessingStatus";
 import MappingResults from "./MappingResults";
 import DominicWorkbench from "./DominicWorkbench";
 import type { MappingProject, MappingImage, MappingProcessingJob, MappingDeliverable } from "./types";
 
-interface WorkspacePayload {
+interface WorkspacePayload extends Partial<ProjectRecords> {
   project: MappingProject & { job: { id: string; title: string; location: string | null; status: string } | null };
   images: MappingImage[];
   processingJobs: MappingProcessingJob[];
@@ -34,6 +36,8 @@ export default function MappingProjectWorkspace({
   onBack,
   focusModule,
   onNavigate,
+  onOpenCapturePlan,
+  onOpenInspection,
   online = true,
 }: {
   accessToken: string;
@@ -41,6 +45,8 @@ export default function MappingProjectWorkspace({
   onBack: () => void;
   focusModule?: string | null;
   onNavigate?: (module: string) => void;
+  onOpenCapturePlan?: (planId: string | null) => void;
+  onOpenInspection?: (assetId: string, inspectionId: string) => void;
   online?: boolean;
 }) {
   const [data, setData] = useState<WorkspacePayload | null>(null);
@@ -114,6 +120,7 @@ export default function MappingProjectWorkspace({
       "Deliverables": "dominic-deliverables",
       "Processing": "dominic-processing",
       "Data Library": "dominic-source-imagery",
+      "Project Records": "dominic-project-records",
     };
     const id = targetMap[focusModule];
     if (!id) return;
@@ -126,6 +133,12 @@ export default function MappingProjectWorkspace({
       (primary ?? fallback)?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   }, [focusModule]);
+
+  useEffect(() => {
+    if (focusModule !== "Project Records") return;
+    const frame = window.requestAnimationFrame(() => { void load(); });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusModule, load]);
 
   useEffect(() => {
     if (!online || !data || !["queued", "processing"].includes(data.project.status)) return;
@@ -186,7 +199,7 @@ export default function MappingProjectWorkspace({
   const photosVisible = showAll || focusModule === "Data Library";
   const processingVisible = showAll || focusModule === "Processing";
   const outputsVisible = showAll || focusModule === "Deliverables";
-  const viewerVisible = showAll || !["Data Library", "Processing", "Deliverables"].includes(focusModule ?? "");
+  const viewerVisible = showAll || !["Data Library", "Processing", "Deliverables", "Project Records"].includes(focusModule ?? "");
 
   return (
     <div>
@@ -262,6 +275,10 @@ export default function MappingProjectWorkspace({
         <Stat k="Deliverables" v={String(deliverables.length)} />
         <Stat k="Processing" v={latestJob?.status ? (MAPPING_PROJECT_STATUS_LABELS[latestJob.status] ?? latestJob.status) : "Ready"} />
       </div>
+
+      {focusModule === "Project Records" && onOpenCapturePlan && onOpenInspection ? <MappingProjectRecords
+        records={{ capturePlans: data.capturePlans ?? [], inspections: data.inspections ?? [], findings: data.findings ?? [], recordsError: data.recordsError ?? null }}
+        online={online} onOpenPlan={onOpenCapturePlan} onOpenInspection={onOpenInspection} /> : null}
 
       {processed && (
         <section id="dominic-workbench" hidden={!viewerVisible} style={{ marginBottom: 16, scrollMarginTop: 96 }}>

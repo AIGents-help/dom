@@ -77,6 +77,17 @@ const audiences = [
 
 const plans = [
   {
+    kicker: "DOM PILOT BENEFIT",
+    featured: false,
+    title: "DOMINIC Premium",
+    price: "Included",
+    suffix: "with a DOM Pilot subscription",
+    copy: "An active DOM Pilot subscription includes all DOMINIC premium tools at no extra software charge. Free pilots keep the basic tools and can upgrade through their pilot account.",
+    items: ["All basic tools", "Projects, mapping and processing", "Map & 3D, measurements and exports", "DOMINIC HUB simulation", "Premium access follows your active pilot subscription"],
+    cta: "Open Pilot Account",
+    href: "/pilot?tab=profile",
+  },
+  {
     kicker: "FREE FOREVER",
     title: "DOMINIC Free",
     price: "$0",
@@ -84,7 +95,7 @@ const plans = [
     copy: "Keep the core planning experience free forever. New accounts also receive a 30-day Operator trial for mapping and processing — no credit card required.",
     items: [
       "Free DOMINIC profile",
-      "DOMINIC Home workspace",
+      "Basic capture planning and saved plans",
       "Manual Capture Planner",
       "Basic mission planning",
       "Preview next-generation modules",
@@ -147,9 +158,11 @@ const plans = [
 ];
 
 const faqs = [
+  ["Is DOMINIC Premium included for subscribed DOM pilots?", "Yes. An active DOM Pilot subscription includes DOMINIC Premium at no extra charge. Free DOM pilots retain basic tools; premium access requires a subscription or a standalone software license. Future tools remain labeled simulations until their connected capabilities are available."],
+  ["Can I explore without signing in?", "Yes. The public sample workspace is view-only, uses fictional sample data, and does not require an account. Open Explore DOMINIC on the homepage."],
   [
     "Is DOMINIC really free to start?",
-    "Yes. DOMINIC Free is permanent. Home, the Manual Capture Planner, basic planning, and preview modules stay available without a paid license. New accounts also receive a 30-day Operator trial for mapping and processing.",
+    "Yes. DOMINIC Free is permanent. The Manual Capture Planner, basic planning, assets and inspections, and simulations stay available without a paid license. New accounts also receive a 30-day Operator trial for mapping and processing.",
   ],
   [
     "Do I need to be a DOM pilot to use DOMINIC?",
@@ -161,7 +174,7 @@ const faqs = [
   ],
   [
     "What changes when I upgrade?",
-    "After the 30-day Operator trial, Free remains available while persistent projects, mapping, processing, advanced 3D workflows, and deliverables require Operator or higher. DOMINIC HUB industrial operations requires an Organization license.",
+    "After the 30-day Operator trial, Free remains available while persistent projects, mapping, processing, advanced 3D workflows, and deliverables require Operator or higher. DOMINIC HUB requires an Organization license for standalone users. Active DOM Pilot subscribers receive these premium tools automatically at no extra charge.",
   ],
 ];
 
@@ -307,7 +320,7 @@ export default function DominicLicensingPage() {
               and automation to the workflow.
             </p>
             <Link
-              href="/dominic"
+              href="/dominic/demo"
               target="_blank"
               className="mt-6 inline-flex items-center gap-2 rounded-md bg-[#F45A1E] px-5 py-3 text-xs font-black text-black"
             >

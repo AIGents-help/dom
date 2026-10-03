@@ -201,8 +201,10 @@ function Card({
 
 export default function DominicAssetIntelligence({
   onPlanInspection,
+  selection,
 }: {
   onPlanInspection?: (context: DominicInspectionPlanningContext) => void;
+  selection?: { assetId: string; inspectionId: string } | null;
 }) {
   const [assets, setAssets] = useState<AssetRow[]>([]);
   const [inspections, setInspections] = useState<InspectionRow[]>([]);
@@ -326,6 +328,25 @@ export default function DominicAssetIntelligence({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!selection) return;
+    const frame = window.requestAnimationFrame(() => { void refresh(); });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selection, refresh]);
+
+  useEffect(() => {
+    if (!selection || loading) return;
+    const inspection = inspections.find((item) => item.id === selection.inspectionId && item.asset_id === selection.assetId);
+    if (!inspection || !assets.some((asset) => asset.id === selection.assetId)) return;
+    const frame = window.requestAnimationFrame(() => {
+      setSearch("");
+      setSelectedAssetId(selection.assetId);
+      setSelectedInspectionId(selection.inspectionId);
+      setSelectedIssueId(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selection, loading, inspections, assets]);
 
   const selectedAsset = useMemo(
     () => assets.find((asset) => asset.id === selectedAssetId) ?? null,
@@ -1230,6 +1251,7 @@ export default function DominicAssetIntelligence({
                           {inspection.status !== "cancelled" ? (
                             <button
                               type="button"
+                              aria-pressed={selectedInspectionId === inspection.id}
                               onClick={() => setSelectedInspectionId(inspection.id)}
                               style={{ border: `1px solid ${selectedInspectionId === inspection.id ? "rgba(112,214,160,.45)" : LINE}`, background: selectedInspectionId === inspection.id ? "rgba(112,214,160,.09)" : PANEL_2, color: selectedInspectionId === inspection.id ? GREEN : TEXT, borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
                             >

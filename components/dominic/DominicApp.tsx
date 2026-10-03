@@ -24,6 +24,7 @@ const MUTED = "#8F9CAA";
 const previewModules = new Set(["Live Flight", "AR View", "AI Copilot"]);
 const mappingModules = new Set([
   "Projects",
+  "Project Records",
   "Map Viewer",
   "Processing",
   "Measure & Markup",
@@ -49,6 +50,8 @@ export default function DominicApp() {
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeModule, setActiveModule] = useState("Projects");
   const [openedWorkspaces, setOpenedWorkspaces] = useState<string[]>(["Projects"]);
+  const [selectedCapturePlanId, setSelectedCapturePlanId] = useState<string | null>(null);
+  const [inspectionSelection, setInspectionSelection] = useState<{ assetId: string; inspectionId: string } | null>(null);
   const [inspectionPlanningContext, setInspectionPlanningContext] = useState<DominicInspectionPlanningContext | null>(null);
   const [showProjectsSignal, setShowProjectsSignal] = useState(0);
   const [newProjectSignal, setNewProjectSignal] = useState(0);
@@ -215,7 +218,7 @@ export default function DominicApp() {
           <div style={{ textAlign: "right", lineHeight: 1.15, display: compactViewport ? "none" : "block" }}>
             <div style={{ color: TEXT, fontSize: 12, fontWeight: 800 }}>DOMINIC Workspace</div>
             <div style={{ color: dominicAccess.trialActive ? ORANGE : MUTED, fontSize: 9, letterSpacing: ".08em", marginTop: 3, fontWeight: 800 }}>
-              {dominicAccess.trialActive ? "OPERATOR TRIAL" : dominicPlanLabel(dominicAccess.plan).toUpperCase()}
+              {dominicAccess.premiumIncluded ? "PREMIUM INCLUDED · DOM PILOT" : dominicAccess.trialActive ? "OPERATOR TRIAL" : dominicPlanLabel(dominicAccess.plan).toUpperCase()}
             </div>
           </div>
           <div
@@ -323,6 +326,7 @@ export default function DominicApp() {
                 router.push("/dominic/licensing");
                 return;
               }
+              if (module === "Capture Planner") { setSelectedCapturePlanId(null); setInspectionPlanningContext(null); }
               openModule(module);
               if (module === "Projects") setShowProjectsSignal((value) => value + 1);
             }}
@@ -355,7 +359,7 @@ export default function DominicApp() {
                       </div>
                       <h2 style={{ marginTop: 8, fontSize: 24, fontWeight: 900 }}>{activeModule} is a licensed DOMINIC module</h2>
                       <p style={{ marginTop: 8, color: MUTED, fontSize: 12, lineHeight: 1.6 }}>
-                        DOMINIC Free always includes Home, the Manual Capture Planner, and preview modules. Mapping/processing unlocks with Operator or higher; HUB unlocks with Organization.
+                        DOMINIC Free includes basic capture planning, assets and inspections, and simulations. Premium tools are included at no extra charge with an active DOM Pilot subscription. Standalone software licenses are also available.
                       </p>
                       <button onClick={() => router.push("/dominic/licensing")} style={{ marginTop: 16, border: 0, borderRadius: 8, background: ORANGE, color: "#160A02", padding: "10px 14px", fontWeight: 900, cursor: "pointer" }}>View Licensing</button>
                     </div>
@@ -363,7 +367,7 @@ export default function DominicApp() {
                 ) : activeModule === "DOMINIC HUB" ? (
                   <DominicHub />
                 ) : activeModule === "Capture Planner" ? (
-                  <DominicCapturePlanner inspectionContext={inspectionPlanningContext} />
+                  <DominicCapturePlanner key={selectedCapturePlanId ?? "new"} inspectionContext={inspectionPlanningContext} projectId={activeProjectId} initialSavedPlanId={selectedCapturePlanId} />
                 ) : previewModules.has(activeModule) ? (
                   <DominicPreviewEnvironment module={activeModule as "Live Flight" | "AR View" | "AI Copilot"} onOpen={openModule} />
                 ) : null}
@@ -372,7 +376,9 @@ export default function DominicApp() {
                 {openedWorkspaces.includes("Asset Intelligence") ? (
                   <div hidden={activeModule !== "Asset Intelligence"}>
                     <DominicAssetIntelligence
+                      selection={inspectionSelection}
                       onPlanInspection={(context) => {
+                        setSelectedCapturePlanId(null);
                         setInspectionPlanningContext(context);
                         openModule("Capture Planner");
                       }}
@@ -388,6 +394,15 @@ export default function DominicApp() {
                       newProjectSignal={newProjectSignal}
                       onProjectChange={handleProjectChange}
                       onNavigate={openModule}
+                      onOpenCapturePlan={(planId) => {
+                        setSelectedCapturePlanId(planId);
+                        setInspectionPlanningContext(null);
+                        openModule("Capture Planner");
+                      }}
+                      onOpenInspection={(assetId, inspectionId) => {
+                        setInspectionSelection({ assetId, inspectionId });
+                        openModule("Asset Intelligence");
+                      }}
                       online={online}
                     />
                   </div>
@@ -440,6 +455,7 @@ export default function DominicApp() {
                     return;
                   }
                   if (disabled) return;
+                  if (label === "Capture Planner") { setSelectedCapturePlanId(null); setInspectionPlanningContext(null); }
                   openModule(label);
                   if (label === "Projects") setShowProjectsSignal((value) => value + 1);
                 }}

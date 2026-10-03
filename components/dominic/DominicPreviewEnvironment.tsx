@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type CSSProperties } from "react";
+import DominicSampleScene from "./DominicSampleScene";
 import { V } from "@/components/mapper/theme";
 
 type PreviewModule = "Live Flight" | "AR View" | "AI Copilot";
@@ -40,7 +41,7 @@ export default function DominicPreviewEnvironment({ module, onOpen }: { module: 
   return <section aria-label="Simulation project" style={{ color: V.ink, maxWidth: 1100, margin: "0 auto", padding: 8 }}>
     <div style={{ color: V.signal, fontSize: 11, fontWeight: 700 }}>SIMULATIONS & PREVIEWS · SAMPLE DATA</div>
     <h1 style={{ fontSize: 23, margin: "8px 0" }}>Demo refinery inspection</h1>
-    <p style={{ color: V.inkDim, fontSize: 13, lineHeight: 1.6 }}>Explore future tools using a fictional inspection project. This simulation uses a drawn site and scripted examples; aircraft, camera feeds and AI services are not connected.</p>
+    <p style={{ color: V.inkDim, fontSize: 13, lineHeight: 1.6 }}>Explore future tools using a fictional inspection project. This simulation uses photorealistic generated imagery and scripted examples; aircraft, camera feeds and AI services are not connected.</p>
     <nav aria-label="Simulation tools" style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "16px 0" }}>
       {tools.map((tool) => <button key={tool} type="button" aria-pressed={module === tool} onClick={() => onOpen(tool)}
         style={{ ...button, color: module === tool ? V.signal : V.ink, borderColor: module === tool ? V.signal : V.line }}>{tool}</button>)}
@@ -48,21 +49,7 @@ export default function DominicPreviewEnvironment({ module, onOpen }: { module: 
     <h2 style={{ fontSize: 18 }}>{module} simulation</h2>
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 20, marginTop: 14 }}>
       <div>
-        <svg viewBox="0 0 500 300" role="img" aria-label="Drawn refinery site with Tank 17, Transfer line and B-07" style={{ width: "100%", background: "#141E28", borderRadius: 8 }}>
-          <path d="M35 255H465 M60 40V265 M30 70H470" stroke="#354554" strokeWidth="12" fill="none" />
-          <circle cx="150" cy="140" r="40" fill="#2B3D4B" stroke="#647887" strokeWidth="3" />
-          <path d="M195 110H330" stroke="#647887" strokeWidth="14" />
-          <rect x="360" y="145" width="80" height="70" fill="#2B3D4B" stroke="#647887" strokeWidth="3" />
-          {module === "Live Flight" ? <>
-            <path d="M90 220L150 140L280 110L400 180L90 220" fill="none" stroke={V.signal} strokeDasharray="6 5" />
-            <circle cx={frame.x} cy={frame.y} r="9" fill={V.signal} stroke="white" strokeWidth="2" />
-          </> : null}
-          {assets.map((asset, index) => <g key={asset.name}>
-            <text x={asset.x} y={asset.y - 50} textAnchor="middle" fill="#F5F7FA" fontSize="13">{asset.name}</text>
-            {module === "AR View" && showHistory ? <circle cx={asset.x} cy={asset.y} r="9" fill={index === selectedAsset ? V.signal : "#E7B45A"} /> : null}
-          </g>)}
-          <text x="20" y="287" fill="#9BAAB8" fontSize="11">Illustrated sample site · not a live map or camera</text>
-        </svg>
+        <DominicSampleScene position={module === "Live Flight" ? frame : undefined} showFindings={module === "AR View" && showHistory} selectedAsset={selectedAsset} />
         {module === "Live Flight" ? <>
           <p aria-live="polite" style={{ fontSize: 13 }}>{frame.event}</p>
           <p style={{ color: V.inkDim, fontSize: 12 }}>Frame {frameIndex + 1}/{frames.length} · Altitude {frame.altitude} ft · Battery {frame.battery}% · Coverage {frame.coverage}%</p>

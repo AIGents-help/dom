@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import type { InspectionFinding } from "@/lib/dominicInspectionEvidence";
+import { isOwnedInspectionStoragePath, type InspectionFinding } from "@/lib/dominicInspectionEvidence";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ inspectionId: string }> }) {
   const admin = getSupabaseAdmin();
@@ -29,8 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ insp
     .in("id", baselineIds).eq("asset_id", inspection.asset_id).eq("user_id", userId) : { data: [], error: null };
   if (baselineResult.error) return NextResponse.json({ error: "Previous evidence could not be loaded." }, { status: 500 });
   const sign = async (rows: NonNullable<typeof mediaResult.data>) => Promise.all(rows.map(async ({ storage_path, ...row }) => {
-    const safePath = storage_path?.startsWith(`${userId}/`) && !storage_path.split("/").includes("..") && !/[\\%]/.test(storage_path);
-    const result = safePath ? await admin.storage.from("dominic-inspection-evidence").createSignedUrl(storage_path, 900) : null;
+    const result = isOwnedInspectionStoragePath(storage_path, userId) ? await admin.storage.from("dominic-inspection-evidence").createSignedUrl(storage_path, 900) : null;
     return { ...row, url: result?.data?.signedUrl ?? null };
   }));
   const [media, baselineMedia] = await Promise.all([sign(mediaResult.data ?? []), sign(baselineResult.data ?? [])]);

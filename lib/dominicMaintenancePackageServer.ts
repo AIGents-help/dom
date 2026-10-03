@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { isOwnedInspectionStoragePath } from "@/lib/dominicInspectionEvidence";
 import { deriveIssueTrend, issueTrendLabel } from "@/lib/dominicIssueTrend";
 import {
   deriveMaintenanceReviewPriority,
@@ -243,7 +244,7 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
   }
 
   const signedEntries = await Promise.all(
-    Array.from(storagePaths).map(async (storagePath) => {
+    Array.from(storagePaths).filter((path) => isOwnedInspectionStoragePath(path, userId)).map(async (storagePath) => {
       const { data } = await admin.storage
         .from("dominic-inspection-evidence")
         .createSignedUrl(storagePath, 3600);

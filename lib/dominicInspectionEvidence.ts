@@ -13,6 +13,9 @@ export type InspectionReportData = {
   findings: InspectionFinding[]; media: InspectionMedia[]; baselineMedia: InspectionMedia[];
   generatedAt: string;
 };
+export function isOwnedInspectionStoragePath(path: unknown, userId: string): path is string {
+  return typeof path === "string" && path.startsWith(`${userId}/`) && !path.split("/").includes("..") && !/[\\%]/.test(path);
+}
 export function findingMediaId(finding: InspectionFinding) {
   const value = finding.detector?.mediaId ?? finding.spatial_anchor?.mediaId;
   return typeof value === "string" ? value : null;

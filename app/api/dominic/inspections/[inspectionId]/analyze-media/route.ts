@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { isOwnedInspectionStoragePath } from "@/lib/dominicInspectionEvidence";
 import { buildFollowUpCapturePrescription } from "@/lib/dominicFollowUpCapture";
 import {
   rangefinderTargetMatchesRegion,
@@ -125,7 +126,7 @@ export async function POST(
   if (media.media_type !== "image" || !media.storage_path) {
     return NextResponse.json({ error: "This evidence item is not an analyzable image." }, { status: 422 });
   }
-  if (!String(media.storage_path).startsWith(`${user.id}/`)) {
+  if (!isOwnedInspectionStoragePath(media.storage_path, user.id)) {
     return NextResponse.json({ error: "Inspection media path is invalid." }, { status: 422 });
   }
 
@@ -217,7 +218,7 @@ export async function POST(
         .limit(1)
         .maybeSingle();
 
-      if (evidence?.storage_path && evidence.mime_type?.startsWith("image/")) {
+      if (isOwnedInspectionStoragePath(evidence?.storage_path, user.id) && evidence?.mime_type?.startsWith("image/")) {
         const { data: baselineSigned } = await admin.storage
           .from("dominic-inspection-evidence")
           .createSignedUrl(evidence.storage_path, 300);

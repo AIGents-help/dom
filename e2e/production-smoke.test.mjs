@@ -78,16 +78,18 @@ test("homepage exposes the approved DOMINIC layout", async () => {
   await page.close();
 });
 
-test("deployment build identity is uncached when exposed by the production domain", async () => {
+test("deployment build identity is uncached and matches the expected commit", async () => {
+  const expectedSHA = process.env.E2E_EXPECTED_BUILD_SHA;
   const context = await browser.newContext();
   try {
     let response;
     try {
       response = await context.request.get(`${baseURL}/api/build`, {
         failOnStatusCode: false,
-        timeout: 5_000,
+        timeout: 15_000,
       });
     } catch (error) {
+      if (expectedSHA) throw error;
       console.warn(
         `Production build identity endpoint did not respond; continuing with authoritative live smoke coverage. ${error instanceof Error ? error.message : ""}`,
       );
@@ -96,10 +98,10 @@ test("deployment build identity is uncached when exposed by the production domai
 
     const contentType = response.headers()["content-type"] ?? "";
 
-    // The custom production domain does not expose /api/build consistently,
-    // so commit identity is diagnostic rather than the health gate. Homepage,
-    // privileged API and login-route smoke tests remain authoritative.
+    // Production CI requires exact commit identity. Local smoke runs can still
+    // check application health without Vercel deployment metadata.
     if (response.status() !== 200 || !contentType.includes("application/json")) {
+      assert.ok(!expectedSHA, `Expected production commit ${expectedSHA}, but build endpoint returned ${response.status()} (${contentType || "unknown"})`);
       console.warn(
         `Production build identity endpoint unavailable (status=${response.status()}, content-type=${contentType || "unknown"}); continuing with live smoke coverage.`,
       );
@@ -108,6 +110,7 @@ test("deployment build identity is uncached when exposed by the production domai
 
     const body = await response.json();
     assert.ok(body.buildId, "build endpoint should expose a deployment identity");
+    if (expectedSHA) assert.equal(body.buildId, expectedSHA, "Production must still serve the verified commit during smoke tests");
     const cacheControl = response.headers()["cache-control"] ?? "";
     assert.match(cacheControl, /no-store/i, "build identity must never be cached");
   } finally {

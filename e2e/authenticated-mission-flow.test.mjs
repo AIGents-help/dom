@@ -6186,21 +6186,18 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.equal(savedPlan.plan_state.mappingProjectId, project.id);
     const inspectedAsset = await seed("dominic_assets", { user_id: user.id, name: "Workflow tank", asset_type: "tank" });
     const inspection = await seed("dominic_inspections", { user_id: user.id, asset_id: inspectedAsset.id, mapping_project_id: project.id, capture_plan_id: null, inspection_type: "visual", status: "review", objective: "Verify coating condition" });
-    const existingBucket = await admin.storage.getBucket("pilot-media");
-    if (existingBucket.error?.message === "Bucket not found") {
-      const createdBucket = await admin.storage.createBucket("pilot-media", { public: false });
-      assert.ifError(createdBucket.error);
-    } else assert.ifError(existingBucket.error);
-    const privateBucket = await admin.storage.getBucket("pilot-media");
+    const privateBucket = await admin.storage.getBucket("dominic-inspection-evidence");
     assert.ifError(privateBucket.error);
     assert.equal(privateBucket.data.public, false, "inspection evidence must stay private");
     const evidencePath = `${user.id}/dominic-inspections/${inspection.id}/current.webp`;
     const previousPath = `${user.id}/dominic-inspections/${inspection.id}/previous.webp`;
     const fixtureImage = await readFile(new URL("../public/images/dominic-demo/refinery-aerial-v1.webp", import.meta.url));
     for (const path of [evidencePath, previousPath]) {
-      const uploaded = await admin.storage.from("pilot-media").upload(path, fixtureImage, { contentType: "image/webp" });
+      const uploaded = await admin.storage.from("dominic-inspection-evidence").upload(path, fixtureImage, { contentType: "image/webp" });
       assert.ifError(uploaded.error); inspectionStoragePaths.push(path);
     }
+    const anonymousImage = await context.request.get(`${supabaseURL}/storage/v1/object/public/dominic-inspection-evidence/${evidencePath}`);
+    assert.ok(anonymousImage.status() >= 400, "private inspection image must reject public downloads");
     const baselineInspection = await seed("dominic_inspections", { user_id: user.id, asset_id: inspectedAsset.id, inspection_type: "visual", status: "complete" });
     const baselineMedia = await seed("dominic_inspection_media", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: baselineInspection.id, media_type: "image", sensor_mode: "rgb", storage_path: previousPath, original_filename: "previous.webp" });
     const currentMedia = await seed("dominic_inspection_media", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, media_type: "image", sensor_mode: "rgb", storage_path: evidencePath, original_filename: "current.webp" });
@@ -6351,7 +6348,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
       await admin.from("dominic_capture_plans").delete().eq("user_id", intruder.id);
       await admin.auth.admin.deleteUser(intruder.id);
     }
-    if (inspectionStoragePaths.length) await admin.storage.from("pilot-media").remove(inspectionStoragePaths);
+    if (inspectionStoragePaths.length) await admin.storage.from("dominic-inspection-evidence").remove(inspectionStoragePaths);
     await admin.from("dominic_findings").delete().eq("user_id", user.id);
     await admin.from("dominic_inspection_media").delete().eq("user_id", user.id);
     await admin.from("dominic_inspections").delete().eq("user_id", user.id);

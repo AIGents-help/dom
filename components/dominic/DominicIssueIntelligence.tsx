@@ -178,7 +178,7 @@ export default function DominicIssueIntelligence({
           .filter((item) => item.storage_path && item.mime_type?.startsWith("image/"))
           .map(async (item) => {
             const { data } = await sb.storage
-              .from("pilot-media")
+              .from("dominic-inspection-evidence")
               .createSignedUrl(item.storage_path as string, 900);
             return [item.id, data?.signedUrl ?? ""] as const;
           }),

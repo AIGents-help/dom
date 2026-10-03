@@ -316,7 +316,7 @@ export default function DominicInspectionEvidenceReview({
           const cached = urlCache.current.get(item.storage_path as string);
           if (cached && cached.expires > Date.now()) return [item.id, cached.url] as const;
           const { data } = await sb.storage
-            .from("pilot-media")
+            .from("dominic-inspection-evidence")
             .createSignedUrl(item.storage_path as string, 900);
           if (data?.signedUrl) urlCache.current.set(item.storage_path as string, { url: data.signedUrl, expires: Date.now() + 600_000 });
           return [item.id, data?.signedUrl ?? ""] as const;
@@ -413,7 +413,7 @@ export default function DominicInspectionEvidenceReview({
 
       const storagePath = `${userId}/dominic-inspections/${inspection.id}/${Date.now()}-${crypto.randomUUID()}-${cleanFilename(file.name)}`;
       const { error: uploadError } = await sb.storage
-        .from("pilot-media")
+        .from("dominic-inspection-evidence")
         .upload(storagePath, file, {
           cacheControl: "3600",
           contentType: file.type || "image/jpeg",
@@ -446,7 +446,7 @@ export default function DominicInspectionEvidenceReview({
           },
         });
       if (rowError) {
-        await sb.storage.from("pilot-media").remove([storagePath]);
+        await sb.storage.from("dominic-inspection-evidence").remove([storagePath]);
         throw rowError;
       }
 

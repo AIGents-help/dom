@@ -175,7 +175,7 @@ export async function POST(
   }
 
   const { data: signed, error: signedError } = await admin.storage
-    .from("pilot-media")
+    .from("dominic-inspection-evidence")
     .createSignedUrl(media.storage_path, 300);
   if (signedError || !signed?.signedUrl) {
     return NextResponse.json({ error: "Inspection evidence could not be opened for analysis." }, { status: 502 });
@@ -219,7 +219,7 @@ export async function POST(
 
       if (evidence?.storage_path && evidence.mime_type?.startsWith("image/")) {
         const { data: baselineSigned } = await admin.storage
-          .from("pilot-media")
+          .from("dominic-inspection-evidence")
           .createSignedUrl(evidence.storage_path, 300);
         if (baselineSigned?.signedUrl) {
           baselineSignedUrl = baselineSigned.signedUrl;

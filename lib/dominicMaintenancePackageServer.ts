@@ -245,7 +245,7 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
   const signedEntries = await Promise.all(
     Array.from(storagePaths).map(async (storagePath) => {
       const { data } = await admin.storage
-        .from("pilot-media")
+        .from("dominic-inspection-evidence")
         .createSignedUrl(storagePath, 3600);
       return [storagePath, data?.signedUrl ?? null] as const;
     }),

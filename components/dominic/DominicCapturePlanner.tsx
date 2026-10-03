@@ -1185,7 +1185,7 @@ export default function DominicCapturePlanner({
       `${userId}/dominic-inspections/${inspectionContext.inspectionId}/${capture.capturedAtMs}-${capture.id}-${safeName}`;
 
     const { error: uploadError } = await sb.storage
-      .from("pilot-media")
+      .from("dominic-inspection-evidence")
       .upload(storagePath, file, {
         cacheControl: "3600",
         contentType: file.type || capture.mimeType || "image/jpeg",
@@ -1295,7 +1295,7 @@ export default function DominicCapturePlanner({
       .single();
 
     if (rowError || !insertedMedia) {
-      await sb.storage.from("pilot-media").remove([storagePath]);
+      await sb.storage.from("dominic-inspection-evidence").remove([storagePath]);
       throw rowError ?? new Error("Inspection media record could not be created.");
     }
 

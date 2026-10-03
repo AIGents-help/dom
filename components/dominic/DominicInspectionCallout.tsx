@@ -51,7 +51,7 @@ export default function DominicInspectionCallout({ finding, inspectionId, onClos
   return <dialog ref={dialogRef} onCancel={onClose} aria-labelledby="inspection-callout-title"
     style={{ width: "min(900px,calc(100vw - 28px))", maxHeight: "90vh", overflow: "auto", padding: 20, background: V.surface, color: V.ink, border: `1px solid ${V.line}`, borderRadius: 12 }}>
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}><h2 id="inspection-callout-title" style={{ fontSize: 21 }}>{finding.title}</h2><button type="button" style={btnGhost} onClick={onClose}>Close callout</button></div>
-    <p style={{ fontSize: 13, color: V.inkDim }}>{finding.severity} · {finding.review_status.replaceAll("_", " ")} · {finding.confidence === null ? "Operator observation" : `${Math.round(finding.confidence * 100)}% model confidence`}</p>
+    <p style={{ fontSize: 13, color: V.inkDim }}>{finding.severity} · {finding.review_status.replaceAll("_", " ")} · {finding.confidence === null ? finding.detector.provider === "operator" ? "Operator observation" : "Confidence not recorded" : `${Math.round(finding.confidence * 100)}% model confidence`}</p>
     <p>{finding.description}</p>
     {current?.url ? <figure style={{ margin: 0 }}>
       <div style={{ position: "relative", overflow: "hidden", background: "#090D11" }}>

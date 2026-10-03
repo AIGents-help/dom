@@ -452,10 +452,9 @@ export default function DominicInspectionEvidenceReview({
 
       await sb
         .from("dominic_inspections")
-        .update({
-          status: inspection.status === "planned" ? "review" : inspection.status,
-        })
-        .eq("id", inspection.id);
+        .update({ status: "review" })
+        .eq("id", inspection.id)
+        .eq("status", "planned");
 
       await load();
       await onChanged?.();

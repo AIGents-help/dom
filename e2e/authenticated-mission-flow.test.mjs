@@ -6197,6 +6197,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.getByRole("heading", { name: "Review the Tank 17 rim", exact: true }).waitFor();
     await page.screenshot({ path: "/tmp/dom-navigation-simulation-desktop.png" });
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByRole("navigation", { name: "DOMINIC field navigation", exact: true }).waitFor({ state: "visible" });
     await page.getByRole("button", { name: "Photos", exact: true }).click();
     await page.locator("#dominic-source-imagery").waitFor({ state: "visible" });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "project UI must fit the mobile viewport");

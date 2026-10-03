@@ -10,6 +10,7 @@ import DominicNavigation from "@/components/dominic/DominicNavigation";
 import DominicPreviewEnvironment from "@/components/dominic/DominicPreviewEnvironment";
 import DominicHub from "@/components/dominic/DominicHub";
 import DominicCapturePlanner from "@/components/dominic/DominicCapturePlanner";
+import DominicIntelligentInspection from "@/components/dominic/DominicIntelligentInspection";
 import DominicAssetIntelligence from "@/components/dominic/DominicAssetIntelligence";
 import { dominicPlanLabel, type DominicAccess } from "@/lib/dominicEntitlements";
 import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
@@ -368,6 +369,9 @@ export default function DominicApp() {
                   <DominicHub />
                 ) : activeModule === "Capture Planner" ? (
                   <DominicCapturePlanner key={selectedCapturePlanId ?? "new"} inspectionContext={inspectionPlanningContext} projectId={activeProjectId} initialSavedPlanId={selectedCapturePlanId} />
+                ) : activeModule === "Intelligent Inspection" && activeProjectId ? (
+                  <DominicIntelligentInspection key={`${activeProjectId}:${inspectionSelection?.inspectionId ?? ""}`} projectId={activeProjectId} accessToken={accessToken} initialInspectionId={inspectionSelection?.inspectionId}
+                    onOpenAssets={(assetId, inspectionId) => { setInspectionSelection(assetId && inspectionId ? { assetId, inspectionId } : null); openModule("Asset Intelligence"); }} />
                 ) : previewModules.has(activeModule) ? (
                   <DominicPreviewEnvironment module={activeModule as "Live Flight" | "AR View" | "AI Copilot"} onOpen={openModule} />
                 ) : null}
@@ -401,7 +405,7 @@ export default function DominicApp() {
                       }}
                       onOpenInspection={(assetId, inspectionId) => {
                         setInspectionSelection({ assetId, inspectionId });
-                        openModule("Asset Intelligence");
+                        openModule("Intelligent Inspection");
                       }}
                       online={online}
                     />

@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- signed private inspection evidence is rendered directly */
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -15,6 +15,9 @@ import {
 } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { readStoredRangefinderTarget } from "@/lib/aircraft/rangefinderTarget";
+
+import DominicInspectionCallout from "./DominicInspectionCallout";
+import { findingImageRegion } from "@/lib/dominicInspectionEvidence";
 
 const ORANGE = "#F45A1E";
 const PANEL = "#10171E";
@@ -239,27 +242,18 @@ function followUpFromFinding(finding: FindingRow) {
   };
 }
 
-function imageRegionFromFinding(finding: FindingRow) {
-  const region = finding.spatial_anchor?.imageRegion;
-  if (!region || typeof region !== "object") return null;
-  const record = region as Record<string, unknown>;
-  const x = Number(record.x);
-  const y = Number(record.y);
-  const width = Number(record.width);
-  const height = Number(record.height);
-  if (![x, y, width, height].every(Number.isFinite)) return null;
-  if (width <= 0 || height <= 0) return null;
-  return { x, y, width, height };
-}
+const imageRegionFromFinding = findingImageRegion;
 
 export default function DominicInspectionEvidenceReview({
   inspection,
   asset,
   onChanged,
   onPlanFollowUp,
+  watchIncoming = false,
 }: {
   inspection: InspectionContext;
   asset: AssetContext;
+  watchIncoming?: boolean;
   onChanged?: () => void | Promise<void>;
   onPlanFollowUp?: (input: {
     findingId: string;
@@ -271,6 +265,9 @@ export default function DominicInspectionEvidenceReview({
     guidance: string[];
   }) => void;
 }) {
+  const [callout, setCallout] = useState<FindingRow | null>(null);
+  const [watchError, setWatchError] = useState("");
+  const urlCache = useRef(new Map<string, { url: string; expires: number }>());
   const [media, setMedia] = useState<MediaRow[]>([]);
   const [findings, setFindings] = useState<FindingRow[]>([]);
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
@@ -316,9 +313,12 @@ export default function DominicInspectionEvidenceReview({
       nextMedia
         .filter((item) => item.storage_path)
         .map(async (item) => {
+          const cached = urlCache.current.get(item.storage_path as string);
+          if (cached && cached.expires > Date.now()) return [item.id, cached.url] as const;
           const { data } = await sb.storage
-            .from("pilot-media")
+            .from("dominic-inspection-evidence")
             .createSignedUrl(item.storage_path as string, 900);
+          if (data?.signedUrl) urlCache.current.set(item.storage_path as string, { url: data.signedUrl, expires: Date.now() + 600_000 });
           return [item.id, data?.signedUrl ?? ""] as const;
         }),
     );
@@ -338,6 +338,23 @@ export default function DominicInspectionEvidenceReview({
       setMessage(error instanceof Error ? error.message : "Inspection evidence could not be loaded.");
     });
   }, [load]);
+
+
+  useEffect(() => {
+    if (!watchIncoming) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      if (!active) return;
+      if (document.visibilityState === "visible") {
+        try { await load(); if (active) setWatchError(""); }
+        catch { if (active) setWatchError("Incoming evidence refresh failed. Reconnect to resume updates."); }
+      }
+      if (active) timer = setTimeout(() => void poll(), 3000);
+    };
+    timer = setTimeout(() => void poll(), 3000);
+    return () => { active = false; clearTimeout(timer); };
+  }, [load, watchIncoming]);
 
 
   useEffect(() => {
@@ -396,7 +413,7 @@ export default function DominicInspectionEvidenceReview({
 
       const storagePath = `${userId}/dominic-inspections/${inspection.id}/${Date.now()}-${crypto.randomUUID()}-${cleanFilename(file.name)}`;
       const { error: uploadError } = await sb.storage
-        .from("pilot-media")
+        .from("dominic-inspection-evidence")
         .upload(storagePath, file, {
           cacheControl: "3600",
           contentType: file.type || "image/jpeg",
@@ -429,16 +446,15 @@ export default function DominicInspectionEvidenceReview({
           },
         });
       if (rowError) {
-        await sb.storage.from("pilot-media").remove([storagePath]);
+        await sb.storage.from("dominic-inspection-evidence").remove([storagePath]);
         throw rowError;
       }
 
       await sb
         .from("dominic_inspections")
-        .update({
-          status: inspection.status === "planned" ? "review" : inspection.status,
-        })
-        .eq("id", inspection.id);
+        .update({ status: "review" })
+        .eq("id", inspection.id)
+        .eq("status", "planned");
 
       await load();
       await onChanged?.();
@@ -643,7 +659,7 @@ export default function DominicInspectionEvidenceReview({
               letterSpacing: ".09em",
             }}
           >
-            Inspection Evidence
+            Intelligent Inspection · Evidence
           </div>
           <div style={{ color: TEXT, fontSize: 13, fontWeight: 900, marginTop: 3 }}>
             {asset.name} · {inspection.inspection_type.replaceAll("_", " ")}
@@ -683,6 +699,13 @@ export default function DominicInspectionEvidenceReview({
         </div>
       </div>
 
+      {callout ? <DominicInspectionCallout key={callout.id} finding={callout} inspectionId={inspection.id} onClose={() => setCallout(null)} onSaved={load} /> : null}
+      <div style={{ padding: "12px", borderBottom: `1px solid ${LINE}`, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
+        <a href={`/dominic/inspections/${inspection.id}/report`} target="_blank" rel="noopener noreferrer" style={{ color: ORANGE, fontSize: 13 }}>Generate illustrated report</a>
+        {watchIncoming ? <span role="status" style={{ color: watchError ? AMBER : GREEN, fontSize: 12 }}>{watchError || "Watching incoming evidence · refresh every 3 seconds"}</span> : null}
+      </div>
+      {watchIncoming ? <p style={{ padding: "0 12px", color: MUTED, fontSize: 12 }}>This view follows saved capture frames and findings. Aircraft connection and automatic screening run in Capture Planner; continuous live video is not connected here yet.</p> : null}
+      {findings.filter((finding) => !media.some((item) => item.id === mediaIdFromFinding(finding))).map((finding) => <button key={finding.id} type="button" aria-label={`Open callout ${finding.title}`} onClick={() => setCallout(finding)} style={{ margin: 12, padding: 10, border: `1px solid ${LINE}`, color: TEXT, background: PANEL_2, borderRadius: 8 }}>{finding.title} · {finding.severity} · {finding.review_status.replaceAll("_", " ")}</button>)}
       {message ? (
         <div
           style={{
@@ -794,7 +817,6 @@ export default function DominicInspectionEvidenceReview({
                     style={{
                       position: "relative",
                       width: "100%",
-                      maxHeight: 360,
                       overflow: "hidden",
                       background: "#06090D",
                     }}
@@ -805,7 +827,6 @@ export default function DominicInspectionEvidenceReview({
                       style={{
                         display: "block",
                         width: "100%",
-                        maxHeight: 360,
                         objectFit: "contain",
                       }}
                     />
@@ -836,7 +857,10 @@ export default function DominicInspectionEvidenceReview({
                         const region = imageRegionFromFinding(finding);
                         if (!region) return null;
                         return (
-                          <div
+                          <button
+                            type="button"
+                            aria-label={`Open callout ${finding.title}`}
+                            onClick={() => setCallout(finding)}
                             key={finding.id}
                             title={finding.title}
                             style={{
@@ -848,7 +872,8 @@ export default function DominicInspectionEvidenceReview({
                               border: `2px solid ${severityColor(finding.severity)}`,
                               background: "rgba(255,255,255,.03)",
                               boxSizing: "border-box",
-                              pointerEvents: "none",
+                              cursor: "pointer",
+                              padding: 0,
                             }}
                           >
                             <span
@@ -866,7 +891,7 @@ export default function DominicInspectionEvidenceReview({
                             >
                               {finding.title}
                             </span>
-                          </div>
+                          </button>
                         );
                       })}
                   </div>
@@ -986,6 +1011,7 @@ export default function DominicInspectionEvidenceReview({
                               : ""}
                             {finding.review_status.replaceAll("_", " ")}
                           </div>
+                          <button type="button" aria-label={`Open finding details ${finding.title}`} onClick={() => setCallout(finding)} style={{ marginTop: 8, padding: "6px 8px", border: `1px solid ${LINE}`, background: PANEL_2, color: TEXT, borderRadius: 7 }}>Details / note for report</button>
                           {thermal ? (
                             <div
                               style={{

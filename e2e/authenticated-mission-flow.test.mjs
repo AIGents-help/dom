@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { createClient } from "@supabase/supabase-js";
 import { chromium, request } from "playwright";
@@ -6138,6 +6139,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
   assert.ifError(userError);
   const user = created.user;
   let contractor, mission, job, project, browser, intruder;
+  const inspectionStoragePaths = [];
   try {
     const seed = async (table, row) => {
       const { data, error } = await admin.from(table).insert(row).select("*").single();
@@ -6184,7 +6186,22 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.equal(savedPlan.plan_state.mappingProjectId, project.id);
     const inspectedAsset = await seed("dominic_assets", { user_id: user.id, name: "Workflow tank", asset_type: "tank" });
     const inspection = await seed("dominic_inspections", { user_id: user.id, asset_id: inspectedAsset.id, mapping_project_id: project.id, capture_plan_id: null, inspection_type: "visual", status: "review", objective: "Verify coating condition" });
-    await seed("dominic_findings", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, finding_type: "corrosion", title: "Workflow coating wear", severity: "medium", review_status: "needs_review" });
+    const privateBucket = await admin.storage.getBucket("dominic-inspection-evidence");
+    assert.ifError(privateBucket.error);
+    assert.equal(privateBucket.data.public, false, "inspection evidence must stay private");
+    const evidencePath = `${user.id}/dominic-inspections/${inspection.id}/current.webp`;
+    const previousPath = `${user.id}/dominic-inspections/${inspection.id}/previous.webp`;
+    const fixtureImage = await readFile(new URL("../public/images/dominic-demo/refinery-aerial-v1.webp", import.meta.url));
+    for (const path of [evidencePath, previousPath]) {
+      const uploaded = await admin.storage.from("dominic-inspection-evidence").upload(path, fixtureImage, { contentType: "image/webp" });
+      assert.ifError(uploaded.error); inspectionStoragePaths.push(path);
+    }
+    const anonymousImage = await context.request.get(`${supabaseURL}/storage/v1/object/public/dominic-inspection-evidence/${evidencePath}`);
+    assert.ok(anonymousImage.status() >= 400, "private inspection image must reject public downloads");
+    const baselineInspection = await seed("dominic_inspections", { user_id: user.id, asset_id: inspectedAsset.id, inspection_type: "visual", status: "complete" });
+    const baselineMedia = await seed("dominic_inspection_media", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: baselineInspection.id, media_type: "image", sensor_mode: "rgb", storage_path: previousPath, original_filename: "previous.webp" });
+    const currentMedia = await seed("dominic_inspection_media", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, media_type: "image", sensor_mode: "rgb", storage_path: evidencePath, original_filename: "current.webp" });
+    const coatingFinding = await seed("dominic_findings", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, finding_type: "corrosion", title: "Workflow coating wear", severity: "medium", review_status: "needs_review", description: "Inspect the east tank rim.", spatial_anchor: { mediaId: currentMedia.id, imageRegion: { x: .2, y: .2, width: .2, height: .2 } }, detector: { mediaId: currentMedia.id, baselineSourceMediaId: baselineMedia.id, comparisonNote: "Fixture comparison requires review." } });
     const outsider = await admin.auth.admin.createUser({ email: `records-outsider-${stamp}@e2e.dom.invalid`, password, email_confirm: true });
     assert.ifError(outsider.error);
     intruder = outsider.data.user;
@@ -6218,6 +6235,48 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.getByRole("button", { name: "Return to current project", exact: true }).click();
     await page.getByRole("button", { name: "Plans & inspections", exact: true }).click();
     await records.getByRole("button", { name: "Review inspection of Workflow tank", exact: true }).click();
+    const intelligent = page.getByRole("region", { name: "Intelligent Inspection", exact: true });
+    await intelligent.getByRole("combobox", { name: "Project inspection" }).waitFor();
+    assert.equal(await intelligent.getByRole("combobox", { name: "Project inspection" }).inputValue(), inspection.id);
+    await intelligent.getByRole("button", { name: "Open callout Workflow coating wear", exact: true }).click();
+    const callout = page.getByRole("dialog", { name: "Workflow coating wear", exact: true });
+    await callout.getByRole("img", { name: "Current inspection evidence", exact: true }).waitFor();
+    await callout.getByRole("button", { name: "Overlay previous image", exact: true }).click();
+    await callout.getByRole("slider", { name: "Horizontal alignment" }).focus();
+    await callout.getByRole("slider", { name: "Horizontal alignment" }).press("ArrowRight");
+    await callout.getByRole("textbox", { name: "Note for report" }).fill("Confirm east-rim coating loss before assigning repair.");
+    await callout.getByRole("button", { name: "Save report note", exact: true }).click();
+    await callout.getByText("Report note saved.", { exact: true }).waitFor();
+    const noteResult = await admin.from("dominic_findings").select("detector").eq("id", coatingFinding.id).single();
+    assert.ifError(noteResult.error);
+    assert.equal(noteResult.data.detector.reportNote, "Confirm east-rim coating loss before assigning repair.");
+    assert.equal(noteResult.data.detector.mediaId, currentMedia.id, "saving notes must preserve detection provenance");
+    await callout.getByRole("button", { name: "Close callout", exact: true }).click();
+    const incoming = await seed("dominic_findings", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, finding_type: "visual_anomaly", title: "Incoming capture alert", severity: "low", review_status: "needs_review", detector: { mediaId: currentMedia.id }, spatial_anchor: { imageRegion: { x: .6, y: .3, width: .1, height: .1 } } });
+    await intelligent.getByRole("button", { name: "Open callout Incoming capture alert", exact: true }).waitFor({ timeout: 12_000 });
+    await intelligent.screenshot({ path: "/tmp/dom-navigation-intelligent-inspection.png" });
+    const [reportPage] = await Promise.all([context.waitForEvent("page"), intelligent.getByRole("link", { name: "Generate illustrated report" }).click()]);
+    await reportPage.getByRole("heading", { name: "Workflow tank — inspection report", exact: true }).waitFor();
+    await reportPage.getByText("Confirm east-rim coating loss before assigning repair.", { exact: false }).waitFor();
+    await reportPage.waitForFunction(() => [...document.images].length >= 3 && [...document.images].every((image) => image.complete && image.naturalWidth > 0));
+    assert.equal(await reportPage.getByRole("button", { name: "Print / Save PDF", exact: true }).isEnabled(), true);
+    await reportPage.screenshot({ path: "/tmp/dom-navigation-illustrated-inspection-report.png" });
+    const pdf = await reportPage.pdf({ format: "A4", printBackground: true });
+    assert.ok(pdf.length > 50_000, "illustrated PDF must include the source images");
+    await reportPage.close();
+    const outsidersLogin = await createClient(supabaseURL, anonKey, { auth: { persistSession: false } }).auth.signInWithPassword({ email: `records-outsider-${stamp}@e2e.dom.invalid`, password });
+    assert.ifError(outsidersLogin.error);
+    const privateHeaders = { Authorization: `Bearer ${outsidersLogin.data.session.access_token}` };
+    assert.equal((await context.request.get(`${baseURL}/api/dominic/inspections/${inspection.id}/report`, { headers: privateHeaders })).status(), 404);
+    assert.equal((await context.request.patch(`${baseURL}/api/dominic/findings/${coatingFinding.id}/report-note`, { headers: privateHeaders, data: { note: "Unauthorized", included: false } })).status(), 404);
+    const ownerHeaders = { Authorization: `Bearer ${login.session.access_token}` };
+    assert.equal((await context.request.patch(`${baseURL}/api/dominic/findings/${coatingFinding.id}/report-note`, { headers: ownerHeaders, data: { note: "x".repeat(2001), included: true } })).status(), 400);
+    assert.equal((await context.request.patch(`${baseURL}/api/dominic/findings/${incoming.id}/report-note`, { headers: ownerHeaders, data: { note: "Exclude provisional alert", included: false } })).status(), 200);
+    const hiddenMedia = await seed("dominic_inspection_media", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, media_type: "image", sensor_mode: "rgb", storage_path: `${intruder.id}/private.webp` });
+    const safeReport = await context.request.get(`${baseURL}/api/dominic/inspections/${inspection.id}/report`, { headers: ownerHeaders });
+    assert.equal(safeReport.status(), 200);
+    assert.equal((await safeReport.json()).media.find((item) => item.id === hiddenMedia.id).url, null, "forged foreign storage paths must never be signed");
+    await intelligent.getByRole("button", { name: "Open asset & capture setup", exact: true }).click();
     await page.getByRole("button", { name: "Review Evidence", exact: true, pressed: true }).waitFor();
     await page.getByRole("button", { name: "Return to current project", exact: true }).click();
     await page.getByText("Working reconstruction", { exact: true }).waitFor();
@@ -6289,7 +6348,9 @@ test("DOMINIC keeps the working project across planning and inspection and opens
       await admin.from("dominic_capture_plans").delete().eq("user_id", intruder.id);
       await admin.auth.admin.deleteUser(intruder.id);
     }
+    if (inspectionStoragePaths.length) await admin.storage.from("dominic-inspection-evidence").remove(inspectionStoragePaths);
     await admin.from("dominic_findings").delete().eq("user_id", user.id);
+    await admin.from("dominic_inspection_media").delete().eq("user_id", user.id);
     await admin.from("dominic_inspections").delete().eq("user_id", user.id);
     await admin.from("dominic_assets").delete().eq("user_id", user.id);
     await admin.from("dominic_capture_plans").delete().eq("user_id", user.id);

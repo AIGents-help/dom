@@ -365,7 +365,7 @@ export default function DominicApp() {
                 ) : activeModule === "Capture Planner" ? (
                   <DominicCapturePlanner inspectionContext={inspectionPlanningContext} />
                 ) : previewModules.has(activeModule) ? (
-                  <DominicPreviewEnvironment module={activeModule as "Live Flight" | "AR View" | "AI Copilot"} />
+                  <DominicPreviewEnvironment module={activeModule as "Live Flight" | "AR View" | "AI Copilot"} onOpen={openModule} />
                 ) : null}
                 {/* Keep data workspaces mounted so navigation does not discard
                     uploads, the open project, or the selected inspection. */}
@@ -408,7 +408,7 @@ export default function DominicApp() {
             bottom: "max(8px, env(safe-area-inset-bottom))",
             zIndex: 60,
             display: "grid",
-            gridTemplateColumns: "repeat(3,minmax(0,1fr))",
+            gridTemplateColumns: "repeat(4,minmax(0,1fr))",
             gap: 6,
             padding: 6,
             border: `1px solid ${LINE}`,
@@ -422,11 +422,12 @@ export default function DominicApp() {
             { label: "Projects", title: "Projects", icon: FolderKanban },
             { label: "Capture Planner", title: "Capture plans", icon: Crosshair },
             { label: "Asset Intelligence", title: "Assets & inspections", icon: Factory },
+            { label: "Live Flight", title: "Simulations", icon: Maximize2 },
           ].map(({ label, title, icon: DockIcon }) => {
             const licenseLocked = mappingModules.has(label) ? !featureAccess.mapping : label === "DOMINIC HUB" ? !featureAccess.hub : false;
             const requiresProject = false;
             const disabled = requiresProject && !activeProjectId;
-            const active = activeModule === label;
+            const active = activeModule === label || (label === "Live Flight" && previewModules.has(activeModule));
             return (
               <button
                 key={label}

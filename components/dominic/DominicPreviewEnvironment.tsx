@@ -1,96 +1,98 @@
 "use client";
 
-import { Activity, Aperture, BrainCircuit, Crosshair, Layers3, Radar, Satellite, ScanSearch, Sparkles, Waypoints } from "lucide-react";
-import DominicMascotImage from "@/components/dominic/DominicMascotImage";
+import { useState, type CSSProperties } from "react";
+import { V } from "@/components/mapper/theme";
 
-const ORANGE = "#F45A1E";
-const LINE = "#25303B";
-const TEXT = "#F5F7FA";
-const MUTED = "#8F9CAA";
+type PreviewModule = "Live Flight" | "AR View" | "AI Copilot";
+const tools: PreviewModule[] = ["Live Flight", "AR View", "AI Copilot"];
+const explanation: Record<PreviewModule, string> = {
+  "Live Flight": "The future tool is intended to show connected aircraft position, telemetry, camera feeds and mission alerts alongside the planned route.",
+  "AR View": "The future tool is intended to align asset names, prior findings and inspection targets with a live camera view.",
+  "AI Copilot": "The future tool is intended to suggest missing coverage and inspection candidates using project imagery and telemetry, with decisions left to the pilot.",
+};
+const frames = [
+  { x: 90, y: 220, altitude: 0, battery: 100, coverage: 0, event: "Sample aircraft at the launch point." },
+  { x: 150, y: 140, altitude: 120, battery: 94, coverage: 28, event: "Tank 17 pass complete. Transfer line is next." },
+  { x: 280, y: 110, altitude: 120, battery: 88, coverage: 61, event: "Transfer line captured. B-07 requires an oblique pass." },
+  { x: 400, y: 180, altitude: 90, battery: 81, coverage: 86, event: "B-07 pass complete. Sample route returns to launch." },
+  { x: 90, y: 220, altitude: 0, battery: 76, coverage: 100, event: "Sample mission complete. Aircraft at launch." },
+];
+const assets = [
+  { name: "Tank 17", x: 150, y: 140, finding: "Sample finding: coating wear on the east rim. Capture a closer inspection image." },
+  { name: "Transfer line", x: 280, y: 110, finding: "Sample finding: prior inspection recorded a loose support bracket." },
+  { name: "B-07", x: 400, y: 180, finding: "Sample finding: the north face lacks oblique imagery." },
+];
+const recommendations = [
+  { title: "Capture the north face of B-07", reason: "The sample dataset has no oblique image of this face. Add a pass before completing coverage." },
+  { title: "Review the Tank 17 rim", reason: "This scripted example flags possible coating wear. An inspector would verify it against the source image." },
+  { title: "Retake the transfer line image", reason: "The sample frame is marked blurred. A sharper image would improve inspection evidence." },
+];
+const button: CSSProperties = { border: `1px solid ${V.line}`, borderRadius: 7, padding: "9px 12px", color: V.ink, background: V.surface, cursor: "pointer", fontSize: 12 };
 
-const configs = {
-  "Live Flight": {
-    eyebrow: "DOMINIC LIVE",
-    title: "Real-Time Flight Operations",
-    copy: "A preview of the live command environment planned for connected aircraft, telemetry, video and mission awareness.",
-    status: "Flight connection not yet enabled",
-    metrics: [["ALT", "124 ft"], ["SPD", "18.4 mph"], ["BAT", "78%"], ["RTK", "FIX"]],
-    features: [
-      ["Live Telemetry", "Aircraft position, heading, altitude, speed and battery.", Satellite],
-      ["Mission Path", "Planned route, live track and coverage awareness.", Waypoints],
-      ["Live Camera", "Low-latency field video with future AI overlays.", Aperture],
-      ["Operational Alerts", "Coverage, battery and mission-condition guidance.", Radar],
-    ],
-  },
-  "AR View": {
-    eyebrow: "DOMINIC AR",
-    title: "Augmented Reality Mission View",
-    copy: "Preview the interface where DOMINIC will place mission intelligence directly over the live camera view.",
-    status: "AR camera pipeline coming soon",
-    metrics: [["TARGET", "B-07"], ["RANGE", "42 ft"], ["LAYER", "SITE"], ["LOCK", "READY"]],
-    features: [
-      ["Asset Labels", "Place names, IDs and inspection history into the scene.", Crosshair],
-      ["Previous Findings", "Revisit exact defects, notes and inspection targets.", ScanSearch],
-      ["Spatial Layers", "Property, site, waypoint and digital-twin overlays.", Layers3],
-      ["Change Detection", "Compare the live view with prior mission data.", Sparkles],
-    ],
-  },
-  "AI Copilot": {
-    eyebrow: "DOMINIC INTELLIGENCE",
-    title: "AI Flight Copilot",
-    copy: "A preview of the assistant planned to combine imagery, telemetry and mission context while the pilot remains in control.",
-    status: "Advisory intelligence preview",
-    metrics: [["COVERAGE", "82%"], ["IMAGES", "146"], ["ISSUES", "3"], ["MODE", "ADVISE"]],
-    features: [
-      ["Capture Guidance", "Recommend position, angle and missing coverage.", BrainCircuit],
-      ["Visual Detection", "Surface objects, anomalies and inspection candidates.", ScanSearch],
-      ["Mission Awareness", "Connect current flight data with project requirements.", Radar],
-      ["Pilot Assistance", "Contextual recommendations without replacing pilot authority.", Activity],
-    ],
-  },
-} as const;
-
-export default function DominicPreviewEnvironment({ module }: { module: keyof typeof configs }) {
-  const config = configs[module];
-  return (
-    <div style={{ minHeight: 650, background: "radial-gradient(circle at 70% 15%, rgba(244,90,30,.16), transparent 30%), #0B1117", color: TEXT, borderRadius: 10, overflow: "hidden" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, padding: "16px 18px", borderBottom: `1px solid ${LINE}`, background: "rgba(10,15,20,.9)" }}>
-        <div>
-          <div style={{ color: ORANGE, fontSize: 10, fontWeight: 900, letterSpacing: ".16em" }}>{config.eyebrow}</div>
-          <div style={{ fontSize: 21, fontWeight: 900, marginTop: 4 }}>{config.title}</div>
-        </div>
-        <div style={{ border: "1px solid rgba(244,90,30,.4)", background: "rgba(244,90,30,.1)", color: "#FF9A70", borderRadius: 999, padding: "7px 10px", fontSize: 10, fontWeight: 900, letterSpacing: ".1em" }}>COMING SOON · PREVIEW</div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.55fr) minmax(280px,.8fr)", gap: 14, padding: 14 }}>
-        <section style={{ border: `1px solid ${LINE}`, borderRadius: 12, minHeight: 360, position: "relative", overflow: "hidden", background: "linear-gradient(135deg,#151D25,#0B1015)" }}>
-          <div style={{ position: "absolute", inset: 0, opacity: .45, backgroundImage: "linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg,rgba(255,255,255,.035) 1px, transparent 1px)", backgroundSize: "34px 34px" }} />
-          <div style={{ position: "absolute", left: 18, top: 18, display: "grid", gridTemplateColumns: "repeat(4,minmax(72px,1fr))", gap: 7, right: 18 }}>
-            {config.metrics.map(([label,value]) => <div key={label} style={{ border: `1px solid ${LINE}`, borderRadius: 8, background: "rgba(8,13,18,.78)", padding: "8px 10px" }}><div style={{ color: MUTED, fontSize: 8, fontWeight: 800 }}>{label}</div><div style={{ fontSize: 14, fontWeight: 900, marginTop: 2 }}>{value}</div></div>)}
+export default function DominicPreviewEnvironment({ module, onOpen }: { module: PreviewModule; onOpen: (module: string) => void }) {
+  const [frameIndex, setFrameIndex] = useState(0);
+  const [selectedAsset, setSelectedAsset] = useState(0);
+  const [showHistory, setShowHistory] = useState(true);
+  const [decisions, setDecisions] = useState<Record<number, string>>({});
+  const frame = frames[frameIndex];
+  const recommendationIndex = recommendations.findIndex((_, index) => !decisions[index]);
+  const recommendation = recommendations[recommendationIndex];
+  return <section aria-label="Simulation project" style={{ color: V.ink, maxWidth: 1100, margin: "0 auto", padding: 8 }}>
+    <div style={{ color: V.signal, fontSize: 11, fontWeight: 700 }}>SIMULATIONS & PREVIEWS · SAMPLE DATA</div>
+    <h1 style={{ fontSize: 23, margin: "8px 0" }}>Demo refinery inspection</h1>
+    <p style={{ color: V.inkDim, fontSize: 13, lineHeight: 1.6 }}>Explore future tools using a fictional inspection project. This simulation uses a drawn site and scripted examples; aircraft, camera feeds and AI services are not connected.</p>
+    <nav aria-label="Simulation tools" style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "16px 0" }}>
+      {tools.map((tool) => <button key={tool} type="button" aria-pressed={module === tool} onClick={() => onOpen(tool)}
+        style={{ ...button, color: module === tool ? V.signal : V.ink, borderColor: module === tool ? V.signal : V.line }}>{tool}</button>)}
+    </nav>
+    <h2 style={{ fontSize: 18 }}>{module} simulation</h2>
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 20, marginTop: 14 }}>
+      <div>
+        <svg viewBox="0 0 500 300" role="img" aria-label="Drawn refinery site with Tank 17, Transfer line and B-07" style={{ width: "100%", background: "#141E28", borderRadius: 8 }}>
+          <path d="M35 255H465 M60 40V265 M30 70H470" stroke="#354554" strokeWidth="12" fill="none" />
+          <circle cx="150" cy="140" r="40" fill="#2B3D4B" stroke="#647887" strokeWidth="3" />
+          <path d="M195 110H330" stroke="#647887" strokeWidth="14" />
+          <rect x="360" y="145" width="80" height="70" fill="#2B3D4B" stroke="#647887" strokeWidth="3" />
+          {module === "Live Flight" ? <>
+            <path d="M90 220L150 140L280 110L400 180L90 220" fill="none" stroke={V.signal} strokeDasharray="6 5" />
+            <circle cx={frame.x} cy={frame.y} r="9" fill={V.signal} stroke="white" strokeWidth="2" />
+          </> : null}
+          {assets.map((asset, index) => <g key={asset.name}>
+            <text x={asset.x} y={asset.y - 50} textAnchor="middle" fill="#F5F7FA" fontSize="13">{asset.name}</text>
+            {module === "AR View" && showHistory ? <circle cx={asset.x} cy={asset.y} r="9" fill={index === selectedAsset ? V.signal : "#E7B45A"} /> : null}
+          </g>)}
+          <text x="20" y="287" fill="#9BAAB8" fontSize="11">Illustrated sample site · not a live map or camera</text>
+        </svg>
+        {module === "Live Flight" ? <>
+          <p aria-live="polite" style={{ fontSize: 13 }}>{frame.event}</p>
+          <p style={{ color: V.inkDim, fontSize: 12 }}>Frame {frameIndex + 1}/{frames.length} · Altitude {frame.altitude} ft · Battery {frame.battery}% · Coverage {frame.coverage}%</p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+            <button type="button" style={button} disabled={frameIndex === frames.length - 1} onClick={() => setFrameIndex((index) => Math.min(index + 1, frames.length - 1))}>Next sample frame</button>
+            <button type="button" style={button} onClick={() => setFrameIndex(0)}>Reset replay</button>
           </div>
-          <div style={{ position: "absolute", inset: "80px 16px 16px", border: "1px dashed rgba(244,90,30,.26)", borderRadius: 10 }}>
-            <div style={{ position: "absolute", left: "50%", top: "50%", width: 120, height: 120, transform: "translate(-50%,-50%)", border: "1px solid rgba(244,90,30,.45)", borderRadius: "50%" }} />
-            <div style={{ position: "absolute", left: "50%", top: "50%", width: 10, height: 10, transform: "translate(-50%,-50%)", background: ORANGE, borderRadius: "50%", boxShadow: "0 0 22px rgba(244,90,30,.7)" }} />
-            <div style={{ position: "absolute", left: 16, bottom: 14, color: MUTED, fontSize: 10 }}>{config.status}</div>
-          </div>
-        </section>
-
-        <aside style={{ border: `1px solid ${LINE}`, borderRadius: 12, background: "#111820", overflow: "hidden", position: "relative", minHeight: 360 }}>
-          <div style={{ position: "relative", height: 250 }}>
-            <DominicMascotImage className="object-contain object-bottom p-2" />
-            <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg,transparent 50%,#111820 100%)" }} />
-            <div style={{ position: "absolute", left: 14, bottom: 10, right: 14 }}>
-              <div style={{ color: ORANGE, fontSize: 10, fontWeight: 900, letterSpacing: ".12em" }}>DOMINIC IS BUILDING THIS</div>
-              <div style={{ fontSize: 18, fontWeight: 900, marginTop: 4 }}>Your next workspace is taking shape.</div>
+        </> : module === "AR View" ? <>
+          <label style={{ display: "block", fontSize: 13, margin: "14px 0" }}><input type="checkbox" checked={showHistory} onChange={(event) => setShowHistory(event.target.checked)} /> Show prior findings</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{assets.map((asset, index) => <button key={asset.name} type="button" aria-pressed={selectedAsset === index} style={button} onClick={() => setSelectedAsset(index)}>{asset.name}</button>)}</div>
+          <p aria-live="polite" style={{ fontSize: 13, lineHeight: 1.6 }}>{showHistory ? assets[selectedAsset].finding : "Prior findings hidden. Select an asset to highlight its location."}</p>
+        </> : <div style={{ marginTop: 14 }}>
+          {recommendation ? <>
+            <h3 style={{ fontSize: 15 }}>{recommendation.title}</h3>
+            <p style={{ color: V.inkDim, fontSize: 13, lineHeight: 1.6 }}>{recommendation.reason}</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              <button type="button" style={button} onClick={() => setDecisions((previous) => ({ ...previous, [recommendationIndex]: "Added to sample checklist" }))}>Add to sample checklist</button>
+              <button type="button" style={button} onClick={() => setDecisions((previous) => ({ ...previous, [recommendationIndex]: "Dismissed" }))}>Dismiss example</button>
             </div>
-          </div>
-          <div style={{ padding: "8px 14px 16px", color: MUTED, fontSize: 12, lineHeight: 1.55 }}>{config.copy}</div>
-        </aside>
+          </> : <p>All sample recommendations reviewed.</p>}
+          <ul aria-live="polite" style={{ paddingLeft: 20, fontSize: 12 }}>{recommendations.map((item, index) => decisions[index] ? <li key={item.title}>{item.title}: {decisions[index]}</li> : null)}</ul>
+          <button type="button" style={button} onClick={() => setDecisions({})}>Reset recommendations</button>
+        </div>}
       </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 10, padding: "0 14px 14px" }}>
-        {config.features.map(([title,copy,Icon]) => <div key={title} style={{ border: `1px solid ${LINE}`, borderRadius: 10, background: "#10161D", padding: 12 }}><Icon size={19} color={ORANGE}/><div style={{ fontWeight: 900, marginTop: 10, fontSize: 13 }}>{title}</div><div style={{ color: MUTED, fontSize: 10, lineHeight: 1.45, marginTop: 5 }}>{copy}</div></div>)}
-      </div>
+      <aside style={{ borderTop: `1px solid ${V.line}`, paddingTop: 12 }}>
+        <h3 style={{ fontSize: 15, marginTop: 0 }}>What the future tool will do</h3>
+        <p style={{ color: V.inkDim, fontSize: 13, lineHeight: 1.7 }}>{explanation[module]}</p>
+        <p style={{ color: V.inkDim, fontSize: 13, lineHeight: 1.7 }}>{module === "Live Flight" ? "Try advancing the sample frames to see position, coverage and battery change together." : module === "AR View" ? "Try selecting an asset and toggling its prior findings. Real camera alignment and change detection remain future capabilities." : "Try accepting or dismissing the examples. These recommendations are scripted, not generated by an AI model."}</p>
+        <p style={{ color: V.inkFaint, fontSize: 12, lineHeight: 1.6 }}>Sample actions stay in this preview. They do not create inspection records or control an aircraft. Reset the example to try again.</p>
+      </aside>
     </div>
-  );
+  </section>;
 }

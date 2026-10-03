@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Crosshair, Factory, FolderKanban, Image, Layers3, Map, type LucideIcon } from "lucide-react";
+import { Activity, Crosshair, Factory, FolderKanban, Image, Layers3, Map, Radar, ScanSearch, BrainCircuit, type LucideIcon } from "lucide-react";
 import { V } from "@/components/mapper/theme";
 
 type Item = { module: string; label: string; icon: LucideIcon };
@@ -45,6 +45,14 @@ export default function DominicNavigation({ activeModule, hasProject, collapsed,
         {project.map((item) => <NavigationButton key={item.module} item={item} active={activeModule === item.module} collapsed={collapsed} onOpen={onOpen} />)}
       </div>
     </section> : null}
+    {projectOnly ? null : <section aria-label="Simulations & previews">
+      {!collapsed ? <div style={{ color: V.inkFaint, fontSize: 10, padding: "0 9px 7px" }}>SIMULATIONS & PREVIEWS</div> : null}
+      {([
+        { module: "Live Flight", label: "Live Flight simulation", icon: Radar },
+        { module: "AR View", label: "AR View simulation", icon: ScanSearch },
+        { module: "AI Copilot", label: "AI Copilot simulation", icon: BrainCircuit },
+      ] satisfies Item[]).map((item) => <NavigationButton key={item.module} item={item} active={activeModule === item.module} collapsed={collapsed} onOpen={onOpen} />)}
+    </section>}
     {projectOnly ? null : <details>
       <summary title="Operations" style={{ color: V.inkFaint, fontSize: 11, padding: "7px 9px", cursor: "pointer" }}>{collapsed ? "…" : "Operations"}</summary>
       <NavigationButton item={{ module: "DOMINIC HUB", label: "Refinery simulator", icon: Factory }} active={activeModule === "DOMINIC HUB"} collapsed={collapsed} onOpen={onOpen} />

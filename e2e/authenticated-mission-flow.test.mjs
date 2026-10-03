@@ -6181,7 +6181,21 @@ test("DOMINIC keeps the working project across planning and inspection and opens
       return top != null && top >= 0 && top < window.innerHeight;
     });
     assert.equal(await page.getByRole("button", { name: "Auto Markup", exact: true }).count(), 0);
-    assert.equal(await page.getByRole("button", { name: "Live Flight, preview environment", exact: true }).count(), 0);
+    await page.getByRole("button", { name: "Live Flight simulation", exact: true }).click();
+    await page.getByRole("heading", { name: "Demo refinery inspection", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Next sample frame", exact: true }).click();
+    await page.getByText("Tank 17 pass complete. Transfer line is next.", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "Reset replay", exact: true }).click();
+    await page.getByText("Sample aircraft at the launch point.", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "AR View", exact: true }).click();
+    await page.getByRole("button", { name: "B-07", exact: true }).click();
+    await page.getByText("Sample finding: the north face lacks oblique imagery.", { exact: true }).waitFor();
+    await page.getByRole("checkbox", { name: "Show prior findings", exact: true }).uncheck();
+    await page.getByText("Prior findings hidden. Select an asset to highlight its location.", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "AI Copilot", exact: true }).click();
+    await page.getByRole("button", { name: "Add to sample checklist", exact: true }).click();
+    await page.getByRole("heading", { name: "Review the Tank 17 rim", exact: true }).waitFor();
+    await page.screenshot({ path: "/tmp/dom-navigation-simulation-desktop.png" });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole("button", { name: "Photos", exact: true }).click();
     await page.locator("#dominic-source-imagery").waitFor({ state: "visible" });
@@ -6191,6 +6205,10 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.getByRole("textbox", { name: "Capture plan name" }).waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "planner UI must fit the mobile viewport");
     await page.screenshot({ path: "/tmp/dom-navigation-mobile-planner.png" });
+    await page.getByRole("button", { name: "Simulations", exact: true }).click();
+    await page.getByRole("heading", { name: "Demo refinery inspection", exact: true }).waitFor();
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "simulation UI must fit the mobile viewport");
+    await page.screenshot({ path: "/tmp/dom-navigation-simulation-mobile.png" });
     assert.deepEqual(errors, []);
   } finally {
     await browser?.close();

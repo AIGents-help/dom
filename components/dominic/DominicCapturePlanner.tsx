@@ -46,6 +46,7 @@ import { SimulatorAircraftAdapter } from "@/lib/aircraft/simulator";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { buildDominicDjiMissionPackage, downloadDominicDjiMissionPackage } from "@/lib/aircraft/djiMissionPackage";
 import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
+import DominicInspectionEvidenceReview from "./DominicInspectionEvidenceReview";
 import {
   decideRealtimeInspectionScreening,
   realtimeScreeningReasonLabel,
@@ -409,6 +410,7 @@ export default function DominicCapturePlanner({
   const inspectionWatchCapturePendingRef = useRef(false);
   const inspectionWatchLastRequestedAtRef = useRef(0);
   const [liveInspectionFindings, setLiveInspectionFindings] = useState<LiveInspectionFinding[]>([]);
+  const [showInspectionEvidence, setShowInspectionEvidence] = useState(false);
   const [liveFindingReviewBusyId, setLiveFindingReviewBusyId] = useState<string | null>(null);
   const [followUpFindingId, setFollowUpFindingId] = useState<string | null>(null);
   const [benchReport, setBenchReport] = useState<BenchReadinessReport | null>(null);
@@ -3712,6 +3714,13 @@ export default function DominicCapturePlanner({
           ))}
         </div>
       </section>
+
+      {inspectionContext ? <details onToggle={(event) => setShowInspectionEvidence(event.currentTarget.open)} style={{ margin: "10px 14px", color: V.text }}>
+        <summary style={{ cursor: "pointer", padding: "10px 0", fontSize: 13, fontWeight: 800 }}>Inspection images, callouts & report</summary>
+        {showInspectionEvidence ? <DominicInspectionEvidenceReview key={inspectionContext.inspectionId}
+          inspection={{ id: inspectionContext.inspectionId, asset_id: inspectionContext.assetId, inspection_type: inspectionContext.inspectionType, objective: inspectionContext.objective, status: "capturing", sensor_modes: inspectionContext.sensorModes }}
+          asset={{ id: inspectionContext.assetId, name: inspectionContext.assetName, asset_type: inspectionContext.assetType }} watchIncoming /> : null}
+      </details> : null}
 
       {inspectionContext && liveInspectionFindings.some((finding) => finding.review_status === "needs_review") ? (
         <section style={{ margin: "10px 14px 0", border: `1px solid rgba(255,184,107,.38)`, borderRadius: 12, background: "rgba(255,184,107,.055)", overflow: "hidden" }}>

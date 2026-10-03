@@ -52,11 +52,12 @@ export default function DominicDemo() {
             </dl>
             <p style={{ color: V.inkDim, fontSize: 13 }}>Free accounts can create and save real capture plans. This sample plan is view-only.</p>
             <button type="button" style={btnGhost} onClick={() => setModule("Asset Intelligence")}>Review sample inspections</button>
-          </> : module === "Asset Intelligence" || module === "Map Viewer" ? <>
-            <h2 style={{ fontSize: 19 }}>{module === "Map Viewer" ? "Sample image & inspection overlays" : "Assets & inspections"}</h2>
+          </> : module === "Intelligent Inspection" || module === "Asset Intelligence" || module === "Map Viewer" ? <>
+            <h2 style={{ fontSize: 19 }}>{module === "Map Viewer" ? "Sample image & inspection overlays" : module === "Intelligent Inspection" ? "Intelligent Inspection sample" : "Assets & inspections"}</h2>
             <DominicSampleScene showFindings selectedAsset={selectedFinding} />
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "16px 0" }}>{sampleFindings.map((item, index) => <button key={item.asset} type="button" style={btnGhost} aria-pressed={selectedFinding === index} onClick={() => setSelectedFinding(index)}>{item.asset}</button>)}</div>
             <div aria-live="polite"><h3 style={{ fontSize: 17 }}>{finding.title}</h3><p style={{ color: V.inkDim, fontSize: 13 }}>{finding.severity} priority · Fictional example requiring inspector review</p><p style={{ fontSize: 13 }}>{finding.action}</p></div>
+            {module === "Intelligent Inspection" ? <p style={{ color: V.inkDim, fontSize: 13 }}>Vision: incoming flight images produce anomaly callouts, previous-image comparisons and illustrated reports. These findings are scripted sample data. The account workspace reviews saved inspection evidence; continuous live video and automatic image registration are still future capabilities.</p> : null}
             <p style={{ color: V.inkFaint, fontSize: 12 }}>This sample viewer uses an aerial image. Real maps and 3D models come from processed project imagery in the licensed workspace.</p>
           </> : module === "Data Library" ? <>
             <h2 style={{ fontSize: 19 }}>Sample source imagery</h2>

@@ -9,6 +9,7 @@ const library: Item[] = [
   { module: "Asset Intelligence", label: "Assets & inspections", icon: Factory },
 ];
 const project: Item[] = [
+  { module: "Intelligent Inspection", label: "Intelligent Inspection", icon: ScanSearch },
   { module: "Project Records", label: "Plans & inspections", icon: Crosshair },
   { module: "Data Library", label: "Photos", icon: Image },
   { module: "Processing", label: "Processing", icon: Activity },

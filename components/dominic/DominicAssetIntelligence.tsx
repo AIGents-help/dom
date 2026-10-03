@@ -32,6 +32,8 @@ import {
 } from "@/lib/dominicMaintenanceReview";
 import DominicInspectionEvidenceReview from "@/components/dominic/DominicInspectionEvidenceReview";
 import DominicIssueIntelligence from "@/components/dominic/DominicIssueIntelligence";
+import DominicMaintenanceQueue from "@/components/dominic/DominicMaintenanceQueue";
+import { buildMaintenanceQueue, loadAllMaintenanceRows, maintenanceQueueStage } from "@/lib/dominicMaintenanceQueue";
 
 const ORANGE = "#F45A1E";
 const BG = "#0B1117";
@@ -162,13 +164,7 @@ function maintenancePriorityColor(priority: DominicMaintenanceReviewPriority) {
 }
 
 function isIssueActionable(issue: IssueRow) {
-  return (
-    ["open", "monitoring", "in_progress"].includes(issue.status) ||
-    (issue.status === "resolved" &&
-      (issue.metadata?.verificationRequired === true ||
-        issue.metadata?.verificationStatus === "required" ||
-        issue.metadata?.verificationStatus === "in_progress"))
-  );
+  return maintenanceQueueStage(issue) !== null;
 }
 
 function formatWhen(value: string | null) {
@@ -221,6 +217,7 @@ export default function DominicAssetIntelligence({
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [queueLoadError, setQueueLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [showAssetForm, setShowAssetForm] = useState(false);
@@ -230,11 +227,13 @@ export default function DominicAssetIntelligence({
 
   const refresh = useCallback(async () => {
     setLoading(true);
+    setQueueLoadError(null);
     setMessage(null);
     try {
       const sb = getSupabaseBrowser();
       const { data: sessionData } = await sb.auth.getSession();
-      if (!sessionData.session?.user.id) throw new Error("Your DOMINIC session expired.");
+      const userId = sessionData.session?.user.id;
+      if (!userId) throw new Error("Your DOMINIC session expired.");
 
       const [
         assetResult,
@@ -245,10 +244,15 @@ export default function DominicAssetIntelligence({
         pilotCapabilityResult,
         equipmentResult,
       ] = await Promise.all([
-        sb
-          .from("dominic_assets")
-          .select("id,name,asset_type,external_ref,description,status,condition_state,condition_score,location_label,latitude,longitude,last_inspected_at,next_inspection_due_at,updated_at")
-          .order("updated_at", { ascending: false }),
+        loadAllMaintenanceRows<AssetRow>(async (from, to) => {
+          const result = await sb
+            .from("dominic_assets")
+            .select("id,name,asset_type,external_ref,description,status,condition_state,condition_score,location_label,latitude,longitude,last_inspected_at,next_inspection_due_at,updated_at")
+            .eq("user_id", userId)
+            .order("id", { ascending: true })
+            .range(from, to);
+          return { data: result.data as AssetRow[] | null, error: result.error };
+        }),
         sb
           .from("dominic_inspections")
           .select("id,asset_id,inspection_type,objective,status,capture_source,sensor_modes,health_score,summary,created_at,completed_at,required_capabilities,optional_capabilities,capability_snapshot")
@@ -259,11 +263,15 @@ export default function DominicAssetIntelligence({
           .select("id,asset_id,inspection_id,finding_type,title,severity,review_status,confidence,sensor_mode,observed_at")
           .order("observed_at", { ascending: false })
           .limit(100),
-        sb
-          .from("dominic_issues")
-          .select("id,asset_id,issue_type,title,severity,status,recommended_action,resolution_notes,resolved_at,verified_at,first_seen_at,last_seen_at,metadata")
-          .order("last_seen_at", { ascending: false })
-          .limit(100),
+        loadAllMaintenanceRows<IssueRow>(async (from, to) => {
+          const result = await sb
+            .from("dominic_issues")
+            .select("id,asset_id,issue_type,title,severity,status,recommended_action,resolution_notes,resolved_at,verified_at,first_seen_at,last_seen_at,metadata")
+            .eq("user_id", userId)
+            .order("id", { ascending: true })
+            .range(from, to);
+          return { data: result.data as IssueRow[] | null, error: result.error };
+        }),
         sb
           .from("pilot_assets")
           .select("id,manufacturer,model,display_name,capabilities_verified")
@@ -281,20 +289,18 @@ export default function DominicAssetIntelligence({
           .order("selected_at", { ascending: false }),
       ]);
 
-      if (assetResult.error) throw assetResult.error;
       if (inspectionResult.error) throw inspectionResult.error;
       if (findingResult.error) throw findingResult.error;
-      if (issueResult.error) throw issueResult.error;
       if (pilotAssetResult.error) throw pilotAssetResult.error;
       if (pilotCapabilityResult.error) throw pilotCapabilityResult.error;
       if (equipmentResult.error) throw equipmentResult.error;
 
-      const nextAssets = (assetResult.data ?? []) as AssetRow[];
+      const nextAssets = assetResult.sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at));
       const nextPilotAssets = (pilotAssetResult.data ?? []) as PilotAssetRow[];
       setAssets(nextAssets);
       setInspections((inspectionResult.data ?? []) as InspectionRow[]);
       setFindings((findingResult.data ?? []) as FindingRow[]);
-      setIssues((issueResult.data ?? []) as IssueRow[]);
+      setIssues(issueResult);
       setPilotAssets(nextPilotAssets);
       setPilotAssetCapabilities((pilotCapabilityResult.data ?? []) as PilotAssetCapabilityRow[]);
       setInspectionEquipment((equipmentResult.data ?? []) as InspectionEquipmentRow[]);
@@ -309,7 +315,9 @@ export default function DominicAssetIntelligence({
           : nextAssets[0]?.id ?? null,
       );
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Asset intelligence could not be loaded.");
+      const errorMessage = error instanceof Error ? error.message : "Asset intelligence could not be loaded.";
+      setQueueLoadError(errorMessage);
+      setMessage(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -370,6 +378,10 @@ export default function DominicAssetIntelligence({
         ] as const),
       ),
     [issues],
+  );
+  const maintenanceQueue = useMemo(
+    () => buildMaintenanceQueue(issues, assets, issueAssessments),
+    [issues, assets, issueAssessments],
   );
   const openIssues = issues.filter(isIssueActionable);
   const criticalIssues = openIssues.filter((issue) =>
@@ -993,7 +1005,23 @@ export default function DominicAssetIntelligence({
         </div>
       ) : null}
 
-      <div style={{ display: "grid", gridTemplateColumns: "280px minmax(0,1.15fr) minmax(320px,.85fr)", gap: 10 }}>
+      <DominicMaintenanceQueue
+        entries={maintenanceQueue}
+        loading={loading}
+        error={queueLoadError}
+        selectedIssueId={selectedIssueId}
+        onSelectIssue={(issueId, assetId) => {
+          setSearch("");
+          setSelectedAssetId(assetId);
+          setSelectedIssueId(issueId);
+          setSelectedInspectionId(null);
+          window.requestAnimationFrame(() => {
+            document.getElementById("dominic-issue-details")?.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+        }}
+      />
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 10 }}>
         <Card style={{ overflow: "hidden" }}>
           <div style={{ padding: 11, borderBottom: `1px solid ${LINE}` }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
@@ -1306,17 +1334,19 @@ export default function DominicAssetIntelligence({
             )}
           </Card>
 
-          {selectedIssue ? (
-            <DominicIssueIntelligence
-              issue={selectedIssue}
-              busy={busy}
-              onReinspect={(issue) => void createIssueReinspection(issue)}
-              onPlanVerification={(issue) =>
-                void createIssueReinspection(issue, "maintenance_verification")
-              }
-              onChanged={() => refresh()}
-            />
-          ) : null}
+          <div id="dominic-issue-details" style={{ scrollMarginTop: 20 }}>
+            {selectedIssue ? (
+              <DominicIssueIntelligence
+                issue={selectedIssue}
+                busy={busy}
+                onReinspect={(issue) => void createIssueReinspection(issue)}
+                onPlanVerification={(issue) =>
+                  void createIssueReinspection(issue, "maintenance_verification")
+                }
+                onChanged={() => refresh()}
+              />
+            ) : null}
+          </div>
 
           {selectedAsset && selectedClosedIssues.length > 0 ? (
             <Card style={{ overflow: "hidden" }}>

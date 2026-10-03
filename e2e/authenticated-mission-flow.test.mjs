@@ -6304,7 +6304,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.getByText("Camera preview connected", { exact: true }).waitFor();
     await page.waitForFunction(() => [...document.images].some((img) => img.alt === "Current aircraft camera preview" && img.complete && img.naturalWidth > 0));
     await page.getByRole("button", { name: "Inspect this frame", exact: true }).click();
-    await page.getByText("Frame saved. Review its callouts and add report notes below.", { exact: true }).waitFor({ timeout: 20_000 });
+    await page.getByText("Frame saved. Review its callouts and add report notes.", { exact: true }).waitFor({ timeout: 20_000 });
     const previewRows = await admin.from("dominic_inspection_media").select("*").eq("inspection_id", inspection.id).like("source_capture_id", `browser-preview-${stamp}-%`);
     assert.ifError(previewRows.error);
     assert.equal(previewRows.data.length, 1);
@@ -6319,6 +6319,9 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.ifError(previewImage.error);
     assert.ok(previewImage.data.size > 10_000);
     assert.equal(previewCommands.filter((message) => message.type === "command").length, 0, "preview inspection must not issue shutter or aircraft commands");
+    await page.getByRole("button", { name: "Review frames & report", exact: true }).click();
+    await page.getByRole("button", { name: "Open callout Workflow coating wear", exact: true }).waitFor();
+    await page.getByRole("img", { name: "Current aircraft camera preview", exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: "/tmp/dom-navigation-live-inspection-preview.png" });
     await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).check();
     const sampleDeadline = Date.now() + 38_000;

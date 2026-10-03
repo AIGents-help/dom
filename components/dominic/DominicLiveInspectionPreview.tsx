@@ -45,7 +45,7 @@ export default function DominicLiveInspectionPreview(props: Props) {
     setMessage("Saving this camera frame…");
     try {
       await latest.onInspect(frame);
-      if (mounted.current) setMessage("Frame saved. Review its callouts and add report notes below.");
+      if (mounted.current) setMessage("Frame saved. Review its callouts and add report notes.");
     } catch (error) {
       if (mounted.current) {
         setAutomatic(false);
@@ -85,9 +85,9 @@ export default function DominicLiveInspectionPreview(props: Props) {
       {props.preview && !fresh ? <strong style={{ position: "absolute", background: "#090D12", padding: 12 }}>Preview paused — frame inspection unavailable</strong> : null}
     </div>
     <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center", marginTop: 14 }}>
-      <button type="button" disabled={!ready || busy} onClick={() => void inspect()} style={{ padding: "10px 14px" }}>{busy ? "Saving & screening…" : "Inspect this frame"}</button>
+      <button type="button" disabled={!ready || busy} onClick={() => void inspect()} style={{ padding: "10px 14px", background: ready && !busy ? "#F45A1E" : "#39424B", color: "#FFF", border: 0, borderRadius: 8, cursor: ready && !busy ? "pointer" : "not-allowed" }}>{busy ? "Saving & screening…" : "Inspect this frame"}</button>
       <label style={{ fontSize: 13 }}><input type="checkbox" checked={automatic} disabled={!ready && !automatic} onChange={(event) => { lastStartedAt.current = Date.now(); setAutomatic(event.target.checked); }} /> Sample for inspection every 30 seconds</label>
-      <button type="button" disabled={!props.canSave} onClick={props.onReview}>Review frames & report</button>
+      <button type="button" disabled={!props.canSave} onClick={props.onReview} style={{ background: "#1C242D", color: "#FFF", border: "1px solid #39424B", borderRadius: 8, padding: "10px 14px", cursor: props.canSave ? "pointer" : "not-allowed" }}>Review frames & report</button>
     </div>
     <p style={{ color: "#A7B0BA", fontSize: 12, lineHeight: 1.6 }}>Low rate camera preview. Inspection saves an RGB preview image and screens it when AI is configured; results stay on that saved image. Use full resolution still captures for detail. Sampling waits for each screening job and pauses when frames stop.</p>
     {!props.canSave ? <p>Select a project asset and inspection before saving evidence.</p> : null}

@@ -422,6 +422,7 @@ export default function DominicCapturePlanner({
   const inspectionWatchCapturePendingRef = useRef(false);
   const inspectionWatchLastRequestedAtRef = useRef(0);
   const [liveInspectionFindings, setLiveInspectionFindings] = useState<LiveInspectionFinding[]>([]);
+  const inspectionEvidenceRef = useRef<HTMLDetailsElement | null>(null);
   const [showInspectionEvidence, setShowInspectionEvidence] = useState(false);
   const [liveFindingReviewBusyId, setLiveFindingReviewBusyId] = useState<string | null>(null);
   const [followUpFindingId, setFollowUpFindingId] = useState<string | null>(null);
@@ -3755,7 +3756,7 @@ export default function DominicCapturePlanner({
         </div>
       </section>
 
-      {inspectionContext ? <details open={showInspectionEvidence} onToggle={(event) => setShowInspectionEvidence(event.currentTarget.open)} style={{ margin: "10px 14px", color: V.text }}>
+      {inspectionContext ? <details ref={inspectionEvidenceRef} open={showInspectionEvidence} onToggle={(event) => setShowInspectionEvidence(event.currentTarget.open)} style={{ margin: "10px 14px", color: V.text }}>
         <summary style={{ cursor: "pointer", padding: "10px 0", fontSize: 13, fontWeight: 800 }}>Inspection images, callouts & report</summary>
         {showInspectionEvidence ? <DominicInspectionEvidenceReview key={inspectionContext.inspectionId}
           inspection={{ id: inspectionContext.inspectionId, asset_id: inspectionContext.assetId, inspection_type: inspectionContext.inspectionType, objective: inspectionContext.objective, status: "capturing", sensor_modes: inspectionContext.sensorModes }}
@@ -4041,7 +4042,10 @@ export default function DominicCapturePlanner({
             onDisconnect={disconnectAircraftBridge}
             canSave={Boolean(inspectionContext)}
             onInspect={inspectCameraPreview}
-            onReview={() => setShowInspectionEvidence(true)}
+            onReview={() => {
+              setShowInspectionEvidence(true);
+              requestAnimationFrame(() => inspectionEvidenceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+            }}
             screeningStatus={automaticMediaStatus}
           />
         ) : (

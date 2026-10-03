@@ -6301,7 +6301,13 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await inspectionCard.getByRole("button", { name: "Plan Capture", exact: true }).click();
     await page.getByRole("button", { name: "Live Drone", exact: false }).click();
     await page.getByRole("button", { name: "Connect Aircraft Bridge", exact: true }).click();
-    await page.getByText("Camera preview connected", { exact: true }).waitFor();
+    try {
+      await page.getByText("Camera preview connected", { exact: true }).waitFor({ timeout: 12_000 });
+    } catch (error) {
+      console.error("Preview connection diagnostic", { sentFrames: previewSequence, alerts: await page.getByRole("alert").allTextContents(), statuses: await page.getByRole("status").allTextContents(), pageErrors: errors });
+      await page.screenshot({ path: "/tmp/dom-navigation-live-preview-failure.png" });
+      throw error;
+    }
     await page.waitForFunction(() => [...document.images].some((img) => img.alt === "Current aircraft camera preview" && img.complete && img.naturalWidth > 0));
     await page.getByRole("button", { name: "Inspect this frame", exact: true }).click();
     await page.getByText("Frame saved. Review its callouts and add report notes.", { exact: true }).waitFor({ timeout: 20_000 });

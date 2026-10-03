@@ -6038,7 +6038,7 @@ test("DOMINIC maintenance queue includes older urgent work and stays user-owned"
     }));
     const { error: issueError } = await admin.from("dominic_issues").insert([
       ...rows,
-      { user_id: users[1].id, asset_id: privateTank.id, issue_type: "corrosion", title: "Other operator private critical defect", severity: "critical", status: "open" },
+      { id: randomUUID(), user_id: users[1].id, asset_id: privateTank.id, issue_type: "corrosion", title: "Other operator private critical defect", severity: "critical", status: "open", first_seen_at: new Date().toISOString(), last_seen_at: new Date().toISOString(), metadata: {} },
     ]);
     assert.ifError(issueError);
     const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });

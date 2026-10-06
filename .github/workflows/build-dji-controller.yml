@@ -1,0 +1,32 @@
+name: Build DJI Controller Hardware APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hardware-apk:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Build keyed bench APK
+        env:
+          DOMINIC_DJI_API_KEY: ${{ secrets.DOMINIC_DJI_API_KEY }}
+        run: gradle -p services/flight-bridge-dji/android :controller-app:requireDjiAppKey :controller-app:assembleDebug :controller-app:testDebugUnitTest
+      - name: Upload controller APK for bench installation
+        uses: actions/upload-artifact@v4
+        with:
+          name: dominic-controller-hardware-bench
+          path: services/flight-bridge-dji/android/controller-app/build/outputs/apk/debug/controller-app-debug.apk
+          if-no-files-found: error
+          retention-days: 7

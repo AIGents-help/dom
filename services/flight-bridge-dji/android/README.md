@@ -12,6 +12,53 @@ The first hardware milestone remains intentionally **read-only**:
 
 The module pins DJI Mobile SDK V5 5.18.0 for Matrice 4E hardware validation.
 
+## Installable controller app
+
+`controller-app` packages this library into an arm64 Android APK. It initializes
+DJI's protection helper before loading MSDK, requests SDK permissions, displays
+registration/product status, and provides a command-free loopback feed check.
+The embedded DOMINIC browser stays in the foreground with the native bridge;
+opening this site on your desktop cannot reach the controller's loopback address.
+Web navigation is restricted to the production DOM domains. Cleartext network
+access is restricted to localhost; no JavaScript/native command interface is exposed.
+
+1. Register a **DJI Mobile SDK V5 Android app** for package
+   `com.droneopsman.dominic.controller` in the DJI developer account.
+2. Add the resulting key as the GitHub Actions repository secret
+   `DOMINIC_DJI_API_KEY` in `AIGents-help/dom` (Settings → Secrets and variables → Actions).
+   Keep it out of source code and chat. DJI Android app keys are embedded in the
+   installed APK; distribute this bench artifact only to your validation team.
+3. On `main`, run **Build DJI Controller Hardware APK** in GitHub Actions and
+   download the `dominic-controller-hardware-bench` artifact.
+4. Extract the APK and install on the supported controller using its installer,
+   or use `adb install -r controller-app-debug.apk` from a connected computer.
+5. Open **DOMINIC Controller**, grant the requested permissions, and tap
+   **Start bridge** while online for SDK registration.
+6. Connect the Matrice 4E, keep it grounded, and tap **Check feed**. Verify a
+   handshake, connected aircraft telemetry, and increasing camera preview counts.
+7. Tap **Open DOMINIC**, sign in, open the asset inspection's **Plan Capture**,
+   select **Live Drone**, then **Connect Aircraft Bridge**.
+8. Verify the live preview, save one frame, and compare its image/metadata with
+   the aircraft/controller. Confirm its source image and candidate callouts in
+   **Review frames & report**. Model candidates still require human review.
+9. Disconnect the aircraft and confirm stale frames become unavailable; reconnect
+   and repeat. Tap **Stop** when finished. Closing the app ends the native host.
+
+Local build:
+
+```bash
+# Set DOMINIC_DJI_API_KEY in your environment or private Gradle properties.
+gradle -p services/flight-bridge-dji/android :controller-app:requireDjiAppKey :controller-app:assembleDebug
+```
+
+Pull-request verification builds a separate **diagnostic-no-key** APK. It proves
+packaging but refuses to start hardware sessions. It is not the keyed hardware APK.
+Bench APKs use Gradle's debug signature; builds on different machines may require
+uninstalling the previous bench app before installing (clears its local login).
+Stable release signing, physical controller testing, and supported-controller
+WebView compatibility remain required before wider distribution. This app does
+not enable autonomous aircraft flight.
+
 ## MSDK host lifecycle
 
 `DjiMsdkReadOnlyHost` now owns the registration lifecycle used by DJI's V5 sample:

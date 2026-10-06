@@ -25,4 +25,11 @@ jobs:
         with:
           gradle-version: "8.10.2"
       - name: Compile and test DJI Android bridge
-        run: gradle -p services/flight-bridge-dji/android compileDebugKotlin testDebugUnitTest --stacktrace
+        run: gradle -p services/flight-bridge-dji/android compileDebugKotlin testDebugUnitTest :controller-app:assembleDebug :controller-app:testDebugUnitTest --stacktrace
+      - name: Upload controller diagnostic APK (no DJI key)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dominic-controller-diagnostic-no-key
+          path: services/flight-bridge-dji/android/controller-app/build/outputs/apk/debug/controller-app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

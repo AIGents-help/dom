@@ -22,7 +22,7 @@ jobs:
       - name: Build keyed bench APK
         env:
           DOMINIC_DJI_API_KEY: ${{ secrets.DOMINIC_DJI_API_KEY }}
-        run: gradle -p services/flight-bridge-dji/android :controller-app:requireDjiAppKey :controller-app:assembleDebug :controller-app:testDebugUnitTest
+        run: gradle -p services/flight-bridge-dji/android :controller-app:requireDjiAppKey :controller-app:assembleDebug :controller-app:testDebugUnitTest :controller-app:verifyDebugDjiAppKey
       - name: Upload controller APK for bench installation
         uses: actions/upload-artifact@v4
         with:

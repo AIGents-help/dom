@@ -25,7 +25,7 @@ jobs:
         with:
           gradle-version: "8.10.2"
       - name: Compile and test DJI Android bridge
-        run: gradle -p services/flight-bridge-dji/android compileDebugKotlin testDebugUnitTest :controller-app:assembleDebug :controller-app:testDebugUnitTest --stacktrace
+        run: gradle -p services/flight-bridge-dji/android compileDebugKotlin testDebugUnitTest :controller-app:assembleDebug :controller-app:testDebugUnitTest :controller-app:verifyDebugDjiAppKey --stacktrace
       - name: Upload controller diagnostic APK (no DJI key)
         uses: actions/upload-artifact@v4
         with:

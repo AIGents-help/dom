@@ -1,3 +1,6 @@
+import com.android.build.api.artifact.SingleArtifact
+import javax.xml.parsers.DocumentBuilderFactory
+
 plugins {
     id("com.android.application")
     kotlin("android")
@@ -45,6 +48,22 @@ tasks.register("requireDjiAppKey") {
     doLast {
         check(djiKey.get().isNotBlank() && djiKey.get() != "__MISSING_DJI_API_KEY__") {
             "Set DOMINIC_DJI_API_KEY for com.droneopsman.dominic.controller before building a hardware APK."
+        }
+    }
+}
+
+androidComponents.onVariants(androidComponents.selector().withBuildType("debug")) { variant ->
+    val manifest = variant.artifacts.get(SingleArtifact.MERGED_MANIFEST)
+    tasks.register("verifyDebugDjiAppKey") {
+        inputs.file(manifest)
+        doLast {
+            val document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(manifest.get().asFile)
+            val metadata = document.getElementsByTagName("meta-data")
+            val actual = (0 until metadata.length).map { metadata.item(it).attributes }
+                .firstOrNull { it.getNamedItem("android:name")?.nodeValue == "com.dji.sdk.API_KEY" }
+                ?.getNamedItem("android:value")?.nodeValue
+            check(actual == djiKey.get()) { "Controller manifest does not contain its configured DJI app key." }
         }
     }
 }

@@ -71,6 +71,8 @@ export class WebSocketFlightBridgeTransport implements FlightBridgeTransport {
 
     const socket = this.factory(this.url);
     this.socket = socket;
+    socket.addEventListener("message", this.onMessage);
+    socket.addEventListener("close", this.onClose);
 
     await new Promise<void>((resolve, reject) => {
       let settled = false;
@@ -90,6 +92,8 @@ export class WebSocketFlightBridgeTransport implements FlightBridgeTransport {
         if (settled) return;
         settled = true;
         cleanup();
+        socket.removeEventListener("message", this.onMessage);
+        socket.removeEventListener("close", this.onClose);
         this.socket = null;
         reject(new Error("Unable to connect to DOMINIC Flight Bridge."));
       };
@@ -100,6 +104,8 @@ export class WebSocketFlightBridgeTransport implements FlightBridgeTransport {
         try {
           socket.close(4000, "DOMINIC connection timeout");
         } catch {}
+        socket.removeEventListener("message", this.onMessage);
+        socket.removeEventListener("close", this.onClose);
         this.socket = null;
         reject(new Error(`Flight Bridge connection timed out after ${this.connectTimeoutMs} ms.`));
       }, this.connectTimeoutMs);
@@ -108,8 +114,6 @@ export class WebSocketFlightBridgeTransport implements FlightBridgeTransport {
       socket.addEventListener("error", onError);
     });
 
-    socket.addEventListener("message", this.onMessage);
-    socket.addEventListener("close", this.onClose);
   }
 
   async disconnect() {

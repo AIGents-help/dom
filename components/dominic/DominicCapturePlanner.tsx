@@ -47,6 +47,8 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { buildDominicDjiMissionPackage, downloadDominicDjiMissionPackage } from "@/lib/aircraft/djiMissionPackage";
 import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
 import DominicInspectionEvidenceReview from "./DominicInspectionEvidenceReview";
+import DominicLiveInspectionPreview from "./DominicLiveInspectionPreview";
+import { PREVIEW_STALE_MS, previewFrameFile } from "@/lib/aircraft/cameraPreview";
 import {
   decideRealtimeInspectionScreening,
   realtimeScreeningReasonLabel,
@@ -77,6 +79,7 @@ import type {
   DominicAircraftAdapter,
   AircraftCapabilities,
   UniversalMediaCapture,
+  UniversalCameraPreviewFrame,
 } from "@/lib/aircraft/contract";
 import { analyzeImageFile, type ImageQualityAssessment } from "@/lib/imageQuality";
 import { matchRangefinderTargetToCapture } from "@/lib/aircraft/rangefinderTarget";
@@ -399,6 +402,15 @@ export default function DominicCapturePlanner({
   const [missionControlMessage, setMissionControlMessage] = useState<string | null>(null);
   const bridgeUnsubscribeRef = useRef<(() => void) | null>(null);
   const bridgeMediaUnsubscribeRef = useRef<(() => void) | null>(null);
+  const bridgePreviewUnsubscribeRef = useRef<(() => void) | null>(null);
+  const [cameraPreview, setCameraPreview] = useState<{ frame: UniversalCameraPreviewFrame; receivedAtMs: number } | null>(null);
+  const latestCameraPreviewRef = useRef<typeof cameraPreview>(null);
+  useEffect(() => () => {
+    bridgeUnsubscribeRef.current?.();
+    bridgeMediaUnsubscribeRef.current?.();
+    bridgePreviewUnsubscribeRef.current?.();
+    void bridgeAdapterRef.current?.disconnect();
+  }, []);
   const realtimeScreeningQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [automaticMediaCount, setAutomaticMediaCount] = useState(0);
   const [automaticScreeningCount, setAutomaticScreeningCount] = useState(0);
@@ -410,6 +422,7 @@ export default function DominicCapturePlanner({
   const inspectionWatchCapturePendingRef = useRef(false);
   const inspectionWatchLastRequestedAtRef = useRef(0);
   const [liveInspectionFindings, setLiveInspectionFindings] = useState<LiveInspectionFinding[]>([]);
+  const inspectionEvidenceRef = useRef<HTMLDetailsElement | null>(null);
   const [showInspectionEvidence, setShowInspectionEvidence] = useState(false);
   const [liveFindingReviewBusyId, setLiveFindingReviewBusyId] = useState<string | null>(null);
   const [followUpFindingId, setFollowUpFindingId] = useState<string | null>(null);
@@ -1194,7 +1207,7 @@ export default function DominicCapturePlanner({
     if (uploadError) throw uploadError;
 
     const payloadKind = activeConnectedPayload?.kind;
-    const sensorMode =
+    const sensorMode = capture.previewFrame ? "rgb" :
       payloadKind && payloadKind !== "other"
         ? payloadKind
         : inspectionContext.sensorModes[0] ?? "rgb";
@@ -1246,9 +1259,9 @@ export default function DominicCapturePlanner({
         original_filename: capture.filename ?? file.name,
         mime_type: file.type || capture.mimeType || "image/jpeg",
         captured_at: new Date(capture.capturedAtMs).toISOString(),
-        latitude: capture.latitude,
-        longitude: capture.longitude,
-        relative_altitude_ft: capture.relativeAltitudeFt,
+        latitude: capture.previewFrame && !capture.previewFrame.telemetryAvailable ? null : capture.latitude,
+        longitude: capture.previewFrame && !capture.previewFrame.telemetryAvailable ? null : capture.longitude,
+        relative_altitude_ft: capture.previewFrame && !capture.previewFrame.telemetryAvailable ? null : capture.relativeAltitudeFt,
         source_capture_id: capture.id,
         source_aircraft_id: capture.aircraftId,
         analysis_status: "pending",
@@ -1264,10 +1277,11 @@ export default function DominicCapturePlanner({
           },
         },
         metadata: {
-          source: "flight_bridge",
+          source: capture.previewFrame ? "camera_preview" : "flight_bridge",
+          previewFrame: capture.previewFrame ?? null,
           checkpointId: capture.checkpointId ?? null,
-          headingDeg: capture.headingDeg,
-          gimbalPitchDeg: capture.gimbalPitchDeg,
+          headingDeg: capture.previewFrame && !capture.previewFrame.telemetryAvailable ? null : capture.headingDeg,
+          gimbalPitchDeg: capture.previewFrame ? null : capture.gimbalPitchDeg,
           gimbalYawDeg: capture.gimbalYawDeg ?? null,
           bridgeId: bridgeInfo?.bridgeId ?? null,
           vendor: bridgeInfo?.vendor ?? null,
@@ -2052,6 +2066,24 @@ export default function DominicCapturePlanner({
     bridgeInfo?.capabilities.photoCapture,
   ]);
 
+  const inspectCameraPreview = async (frame: UniversalCameraPreviewFrame) => {
+    const latest = latestCameraPreviewRef.current;
+    if (!inspectionContext || !bridgeAdapterRef.current?.getState().connected ||
+        !latest || Date.now() - latest.receivedAtMs > PREVIEW_STALE_MS) {
+      throw new Error("A current camera preview and linked inspection are required.");
+    }
+    const file = previewFrameFile(frame);
+    const quality = await analyzeImageFile(file);
+    const persisted = await persistInspectionBridgeMedia(frame.capture, file, quality);
+    if (!persisted.persisted || !persisted.mediaId || !persisted.sensorMode) throw new Error("Frame could not be linked to this inspection.");
+    if (persisted.created) {
+      setAutomaticMediaCount((count) => count + 1);
+      queueRealtimeInspectionScreening(persisted.mediaId, persisted.sensorMode, quality);
+      await realtimeScreeningQueueRef.current;
+    }
+    setShowInspectionEvidence(true);
+  };
+
   const connectAircraftBridge = async () => {
     if (bridgeStatus === "connecting" || bridgeStatus === "connected") return;
     setBridgeStatus("connecting");
@@ -2076,6 +2108,11 @@ export default function DominicCapturePlanner({
             void ingestBridgeMediaCapture(capture);
           })
         : null;
+      bridgePreviewUnsubscribeRef.current = adapter.subscribePreview?.((frame) => {
+        const preview = { frame, receivedAtMs: Date.now() };
+        latestCameraPreviewRef.current = preview;
+        setCameraPreview(preview);
+      }) ?? null;
       setBridgeInfo({
         bridgeId: hello.bridgeId,
         vendor: hello.vendor,
@@ -2141,6 +2178,10 @@ export default function DominicCapturePlanner({
     bridgeUnsubscribeRef.current = null;
     bridgeMediaUnsubscribeRef.current?.();
     bridgeMediaUnsubscribeRef.current = null;
+    bridgePreviewUnsubscribeRef.current?.();
+    bridgePreviewUnsubscribeRef.current = null;
+    latestCameraPreviewRef.current = null;
+    setCameraPreview(null);
     const adapter = bridgeAdapterRef.current;
     bridgeAdapterRef.current = null;
     if (adapter) await adapter.disconnect();
@@ -3715,7 +3756,7 @@ export default function DominicCapturePlanner({
         </div>
       </section>
 
-      {inspectionContext ? <details onToggle={(event) => setShowInspectionEvidence(event.currentTarget.open)} style={{ margin: "10px 14px", color: V.text }}>
+      {inspectionContext ? <details ref={inspectionEvidenceRef} open={showInspectionEvidence} onToggle={(event) => setShowInspectionEvidence(event.currentTarget.open)} style={{ margin: "10px 14px", color: V.text }}>
         <summary style={{ cursor: "pointer", padding: "10px 0", fontSize: 13, fontWeight: 800 }}>Inspection images, callouts & report</summary>
         {showInspectionEvidence ? <DominicInspectionEvidenceReview key={inspectionContext.inspectionId}
           inspection={{ id: inspectionContext.inspectionId, asset_id: inspectionContext.assetId, inspection_type: inspectionContext.inspectionType, objective: inspectionContext.objective, status: "capturing", sensor_modes: inspectionContext.sensorModes }}
@@ -3990,20 +4031,23 @@ export default function DominicCapturePlanner({
             ) : null}
           </div>
         ) : planningSource === "live" ? (
-          <div style={{ minHeight: 420, display: "grid", placeItems: "center", padding: 24, textAlign: "center" }}>
-            <div style={{ maxWidth: 620 }}>
-              <Radio size={34} color={bridgeStatus === "connected" ? V.green : V.orange} />
-              <div style={{ color: V.text, fontSize: 18, fontWeight: 900, marginTop: 10 }}>Live Drone View</div>
-              <div style={{ color: V.muted, fontSize: 10, lineHeight: 1.6, marginTop: 6 }}>
-                {bridgeStatus === "connected"
-                  ? "The aircraft telemetry bridge is connected. Camera-video transport is the remaining piece before DOMINIC can let you outline the subject directly on the live image."
-                  : "Connect the DJI bridge first. DOMINIC will use the aircraft camera plus telemetry to let you outline a current stockpile, construction area, roof, vehicle or other subject."}
-              </div>
-              <div style={{ marginTop: 12, border: `1px solid ${bridgeStatus === "connected" ? "rgba(112,214,160,.25)" : "rgba(255,184,107,.25)"}`, background: V.panel, borderRadius: 9, padding: 10, color: bridgeStatus === "connected" ? V.green : V.amber, fontSize: 9, fontWeight: 900 }}>
-                {bridgeStatus === "connected" ? "Telemetry connected · video feed not yet available" : "Aircraft not connected"}
-              </div>
-            </div>
-          </div>
+          <DominicLiveInspectionPreview
+            key={`${inspectionContext?.inspectionId ?? "unlinked"}-${bridgeStatus}`}
+            preview={cameraPreview}
+            connected={bridgeStatus === "connected"}
+            supported={Boolean(bridgeInfo?.capabilities.cameraPreview)}
+            connecting={bridgeStatus === "connecting"}
+            connectionError={bridgeError}
+            onConnect={connectAircraftBridge}
+            onDisconnect={disconnectAircraftBridge}
+            canSave={Boolean(inspectionContext)}
+            onInspect={inspectCameraPreview}
+            onReview={() => {
+              setShowInspectionEvidence(true);
+              requestAnimationFrame(() => inspectionEvidenceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+            }}
+            screeningStatus={automaticMediaStatus}
+          />
         ) : (
           <div style={{ padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", flexWrap: "wrap" }}>

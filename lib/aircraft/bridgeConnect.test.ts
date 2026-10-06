@@ -1,10 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { waitForBridgeHello } from "@/lib/aircraft/bridgeConnect";
+import { connectFlightBridgeAdapter, waitForBridgeHello } from "@/lib/aircraft/bridgeConnect";
 import { DOMINIC_BRIDGE_PROTOCOL } from "@/lib/aircraft/bridgeProtocol";
-import { LoopbackFlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
+import { LoopbackFlightBridgeTransport, WebSocketFlightBridgeTransport } from "@/lib/aircraft/bridgeTransport";
 import { simulatorCapabilities } from "@/lib/aircraft/simulator";
 
 describe("DOMINIC Flight Bridge connection handshake", () => {
+  it("receives an immediate hello emitted in the same turn as socket open", async () => {
+    class ImmediateHelloSocket extends EventTarget {
+      readyState = 0;
+      send() {}
+      close() { this.readyState = 3; this.dispatchEvent(new Event("close")); }
+    }
+    const socket = new ImmediateHelloSocket();
+    const transport = new WebSocketFlightBridgeTransport("ws://127.0.0.1:8787", () => {
+      queueMicrotask(() => {
+        socket.readyState = 1;
+        socket.dispatchEvent(new Event("open"));
+        socket.dispatchEvent(new MessageEvent("message", { data: JSON.stringify({
+          type: "hello", protocol: DOMINIC_BRIDGE_PROTOCOL, bridgeId: "immediate",
+          vendor: "dji", adapterVersion: "1", aircraftId: "camera-aircraft",
+          capabilities: { ...simulatorCapabilities, cameraPreview: true },
+        }) }));
+      });
+      return socket;
+    });
+    const { adapter, hello } = await connectFlightBridgeAdapter(transport, 100);
+    expect(hello.capabilities.cameraPreview).toBe(true);
+    expect(adapter.getState().connected).toBe(true);
+    await adapter.disconnect();
+    expect(transport.connected).toBe(false);
+  });
+
   it("discovers vendor and capabilities from bridge hello", async () => {
     const transport = new LoopbackFlightBridgeTransport();
     const helloPromise = waitForBridgeHello(transport, 500);

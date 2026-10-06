@@ -29,10 +29,16 @@ export async function connectFlightBridgeAdapter(
   transport: FlightBridgeTransport,
   helloTimeoutMs = 5000,
 ) {
-  const helloPromise = waitForBridgeHello(transport, helloTimeoutMs);
-  await transport.connect();
-  const hello = await helloPromise;
-  const adapter = new FlightBridgeAircraftAdapter(transport, hello);
-  await adapter.connect();
-  return { adapter, hello };
+  try {
+    const [hello] = await Promise.all([
+      waitForBridgeHello(transport, helloTimeoutMs),
+      transport.connect(),
+    ]);
+    const adapter = new FlightBridgeAircraftAdapter(transport, hello);
+    await adapter.connect();
+    return { adapter, hello };
+  } catch (error) {
+    await transport.disconnect();
+    throw error;
+  }
 }

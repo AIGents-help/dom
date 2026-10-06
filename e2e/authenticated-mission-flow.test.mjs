@@ -6164,6 +6164,24 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     const page = await context.newPage();
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
+    // WebSocket routing installs an init script, so register it before navigation.
+    const fixtureImage = await readFile(new URL("../public/images/dominic-demo/refinery-aerial-v1.webp", import.meta.url));
+    const jpeg = await sharp(fixtureImage).resize({ width: 960 }).jpeg({ quality: 80 }).toBuffer();
+    const jpegSize = await sharp(jpeg).metadata();
+    let previewSequence = 0;
+    let sendingPreview = true;
+    const previewCommands = [];
+    await page.routeWebSocket(/^ws:\/\/127\.0\.0\.1:8787\/?$/, (socket) => {
+      const protocol = "dominic.flight-bridge.v1";
+      socket.send(JSON.stringify({ type: "hello", protocol, bridgeId: "preview-e2e", adapterVersion: "preview-e2e", vendor: "dji", aircraftId: "preview-aircraft", capabilities: { telemetry: true, cameraPreview: true, photoCapture: false, arm: false, takeoff: false, goTo: false, velocityControl: false, yawControl: false, gimbalControl: false, videoCapture: false, pauseResume: false, returnHome: false, land: false, obstacleSensing: false, rtk: false } }));
+      const timer = setInterval(() => {
+        if (!sendingPreview) return;
+        const id = `browser-preview-${stamp}-${++previewSequence}`;
+        socket.send(JSON.stringify({ type: "camera_preview", protocol, sequence: previewSequence, frame: { width: jpegSize.width, height: jpegSize.height, jpegBase64: jpeg.toString("base64"), capture: { id, aircraftId: "preview-aircraft", capturedAtMs: Date.now(), mimeType: "image/jpeg", latitude: 0, longitude: 0, relativeAltitudeFt: 0, headingDeg: 0, gimbalPitchDeg: 0, previewFrame: { width: jpegSize.width, height: jpegSize.height, telemetryAvailable: false } } } }));
+      }, 500);
+      socket.onMessage((raw) => previewCommands.push(JSON.parse(String(raw))));
+      socket.onClose(() => clearInterval(timer));
+    });
     await page.goto(`${baseURL}/dominic`, { waitUntil: "networkidle", timeout: 45_000 });
     await page.getByRole("button", { name: "Projects", exact: true }).click();
     await page.getByRole("button").filter({ hasText: "Working reconstruction" }).click();
@@ -6192,7 +6210,6 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.equal(privateBucket.data.public, false, "inspection evidence must stay private");
     const evidencePath = `${user.id}/dominic-inspections/${inspection.id}/current.webp`;
     const previousPath = `${user.id}/dominic-inspections/${inspection.id}/previous.webp`;
-    const fixtureImage = await readFile(new URL("../public/images/dominic-demo/refinery-aerial-v1.webp", import.meta.url));
     for (const path of [evidencePath, previousPath]) {
       const uploaded = await admin.storage.from("dominic-inspection-evidence").upload(path, fixtureImage, { contentType: "image/webp" });
       assert.ifError(uploaded.error); inspectionStoragePaths.push(path);
@@ -6281,8 +6298,6 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.getByRole("button", { name: "Review Evidence", exact: true, pressed: true }).waitFor();
     // Actual browser transport -> private storage -> owned inspection row.
     // The photorealistic fixture is a preview, not a physical aircraft test.
-    const jpeg = await sharp(fixtureImage).resize({ width: 960 }).jpeg({ quality: 80 }).toBuffer();
-    const jpegSize = await sharp(jpeg).metadata();
     let screenedPreviewFrames = 0;
     // Controlled model response tests frame -> candidate -> callout. This does
     // not claim to validate model accuracy or physical aircraft imagery.
@@ -6295,20 +6310,6 @@ test("DOMINIC keeps the working project across planning and inspection and opens
       assert.equal(source.data.metadata.source, "camera_preview");
       const candidate = await seed("dominic_findings", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, finding_type: "visual_anomaly", title: `Preview fixture anomaly ${++screenedPreviewFrames}`, severity: "medium", review_status: "needs_review", detector: { provider: "controlled-browser-fixture", mediaId }, spatial_anchor: { mediaId, imageRegion: { x: .25, y: .25, width: .2, height: .2 } } });
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ configured: true, mediaId, candidateCount: 1, findings: [candidate] }) });
-    });
-    let previewSequence = 0;
-    let sendingPreview = true;
-    const previewCommands = [];
-    await page.routeWebSocket(/^ws:\/\/127\.0\.0\.1:8787\/?$/, (socket) => {
-      const protocol = "dominic.flight-bridge.v1";
-      socket.send(JSON.stringify({ type: "hello", protocol, bridgeId: "preview-e2e", adapterVersion: "preview-e2e", vendor: "dji", aircraftId: "preview-aircraft", capabilities: { telemetry: true, cameraPreview: true, photoCapture: false, arm: false, takeoff: false, goTo: false, velocityControl: false, yawControl: false, gimbalControl: false, videoCapture: false, pauseResume: false, returnHome: false, land: false, obstacleSensing: false, rtk: false } }));
-      const timer = setInterval(() => {
-        if (!sendingPreview) return;
-        const id = `browser-preview-${stamp}-${++previewSequence}`;
-        socket.send(JSON.stringify({ type: "camera_preview", protocol, sequence: previewSequence, frame: { width: jpegSize.width, height: jpegSize.height, jpegBase64: jpeg.toString("base64"), capture: { id, aircraftId: "preview-aircraft", capturedAtMs: Date.now(), mimeType: "image/jpeg", latitude: 0, longitude: 0, relativeAltitudeFt: 0, headingDeg: 0, gimbalPitchDeg: 0, previewFrame: { width: jpegSize.width, height: jpegSize.height, telemetryAvailable: false } } } }));
-      }, 500);
-      socket.onMessage((raw) => previewCommands.push(JSON.parse(String(raw))));
-      socket.onClose(() => clearInterval(timer));
     });
     const inspectionCard = page.getByText("Verify coating condition", { exact: true }).locator("..").locator("..").filter({ has: page.getByRole("button", { name: "Plan Capture", exact: true }) });
     await inspectionCard.getByRole("button", { name: "Plan Capture", exact: true }).click();

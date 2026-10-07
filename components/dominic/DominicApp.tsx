@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FolderKanban, Crosshair, Factory, KeyRound, PanelLeftClose, PanelLeftOpen, Maximize2, Minimize2, Wifi, WifiOff } from "lucide-react";
+import { BrainCircuit, FolderKanban, Crosshair, Factory, KeyRound, PanelLeftClose, PanelLeftOpen, Maximize2, Minimize2, Wifi, WifiOff } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import MappingTab from "@/components/mapper/MappingTab";
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
@@ -22,7 +22,7 @@ const LINE = "#25303B";
 const TEXT = "#F5F7FA";
 const MUTED = "#8F9CAA";
 
-const previewModules = new Set(["AR View", "AI Copilot"]);
+const previewModules = new Set(["AR View"]);
 const mappingModules = new Set([
   "Projects",
   "Project Records",
@@ -377,9 +377,20 @@ export default function DominicApp() {
                     initialSavedPlanId={selectedCapturePlanId}
                     initialPlanningSource="live"
                   />
-                ) : activeModule === "Intelligent Inspection" && activeProjectId ? (
-                  <DominicIntelligentInspection key={`${activeProjectId}:${inspectionSelection?.inspectionId ?? ""}`} projectId={activeProjectId} accessToken={accessToken} initialInspectionId={inspectionSelection?.inspectionId}
+                ) : (activeModule === "Intelligent Inspection" || activeModule === "AI Copilot") && activeProjectId ? (
+                  <DominicIntelligentInspection key={`${activeModule}:${activeProjectId}:${inspectionSelection?.inspectionId ?? ""}`} projectId={activeProjectId} accessToken={accessToken} initialInspectionId={inspectionSelection?.inspectionId}
                     onOpenAssets={(assetId, inspectionId) => { setInspectionSelection(assetId && inspectionId ? { assetId, inspectionId } : null); openModule("Asset Intelligence"); }} />
+                ) : activeModule === "AI Copilot" ? (
+                  <div style={{ minHeight: 520, display: "grid", placeItems: "center", padding: 28 }}>
+                    <div style={{ maxWidth: 560, textAlign: "center", border: `1px solid ${LINE}`, borderRadius: 14, padding: 26, background: "#10171E" }}>
+                      <BrainCircuit size={28} color={ORANGE} style={{ margin: "0 auto" }} />
+                      <h2 style={{ marginTop: 12, fontSize: 22, fontWeight: 900 }}>Select a project to open AI Inspection Copilot</h2>
+                      <p style={{ marginTop: 8, color: MUTED, fontSize: 12, lineHeight: 1.6 }}>
+                        DOMINIC Copilot works from real project inspections, source evidence, findings, issue history and review state. Open a project first so recommendations stay tied to traceable evidence.
+                      </p>
+                      <button onClick={() => { openModule("Projects"); setShowProjectsSignal((value) => value + 1); }} style={{ marginTop: 16, border: 0, borderRadius: 8, background: ORANGE, color: "#160A02", padding: "10px 14px", fontWeight: 900, cursor: "pointer" }}>Choose Project</button>
+                    </div>
+                  </div>
                 ) : previewModules.has(activeModule) ? (
                   <DominicPreviewEnvironment module={activeModule as "Live Flight" | "AR View" | "AI Copilot"} onOpen={openModule} />
                 ) : null}

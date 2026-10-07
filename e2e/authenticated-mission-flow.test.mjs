@@ -6415,7 +6415,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.getByText("Sample finding: the north face lacks oblique imagery.", { exact: true }).waitFor();
     await page.getByRole("checkbox", { name: "Show prior findings", exact: true }).uncheck();
     await page.getByText("Prior findings hidden. Select an asset to highlight its location.", { exact: true }).waitFor();
-    await page.getByRole("button", { name: "AI Copilot", exact: true }).click();
+    await page.getByRole("navigation", { name: "DOMINIC navigation", exact: true }).getByRole("button", { name: "AI Copilot", exact: true }).click();
     const copilot = page.getByRole("region", { name: "AI Inspection Copilot", exact: true });
     await copilot.getByRole("heading", { name: "Evidence-based next actions", exact: true }).waitFor();
     await copilot.getByRole("combobox", { name: "Project inspection", exact: true }).selectOption(inspection.id);
@@ -6428,7 +6428,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.screenshot({ path: "/tmp/dom-navigation-simulation-desktop.png" });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole("navigation", { name: "DOMINIC field navigation", exact: true }).waitFor({ state: "visible" });
-    await page.getByRole("button", { name: "AI Copilot", exact: true }).click();
+    await page.getByRole("navigation", { name: "DOMINIC field navigation", exact: true }).getByRole("button", { name: "AI Copilot", exact: true }).click();
     await copilot.getByRole("heading", { name: "Evidence-based next actions", exact: true }).waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "Copilot must fit the mobile viewport");
     await page.screenshot({ path: "/tmp/dom-navigation-copilot-mobile.png" });

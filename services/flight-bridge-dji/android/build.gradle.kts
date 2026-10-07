@@ -27,6 +27,7 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     implementation("com.dji:dji-sdk-v5-aircraft:5.18.0")
     implementation("com.dji:dji-sdk-v5-networkImp:5.18.0")
+    implementation("com.dji:wpmzsdk:1.0.5.1")
     compileOnly("com.dji:dji-sdk-v5-aircraft-provided:5.18.0")
     implementation("org.java-websocket:Java-WebSocket:1.6.0")
 }

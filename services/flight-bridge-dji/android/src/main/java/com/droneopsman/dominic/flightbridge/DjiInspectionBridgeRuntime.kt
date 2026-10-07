@@ -25,6 +25,7 @@ class DjiInspectionBridgeRuntime(
         bridgeId = bridgeId,
         telemetryProvider = telemetryProvider,
         cameraController = cameraController,
+        missionValidator = DominicDjiMissionValidator(context.applicationContext),
     )
     private val socketServer = InspectionLoopbackWebSocketServer(service, websocketPort)
 

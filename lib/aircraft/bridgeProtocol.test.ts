@@ -13,6 +13,17 @@ describe("DOMINIC Flight Bridge", () => {
       sentAtMs: 123,
     });
     expect(parseFlightBridgeMessage(raw).type).toBe("heartbeat");
+    expect(
+      parseFlightBridgeMessage(
+        JSON.stringify({
+          type: "mission_validation_result",
+          protocol: DOMINIC_BRIDGE_PROTOCOL,
+          requestId: "validation-1",
+          valid: true,
+          errors: [],
+        }),
+      ).type,
+    ).toBe("mission_validation_result");
     expect(() => parseFlightBridgeMessage('{"type":"heartbeat","protocol":"wrong"}')).toThrow();
   });
 

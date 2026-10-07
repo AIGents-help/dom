@@ -10,8 +10,9 @@ type Context = {
   inspection: { id: string; asset_id: string; inspection_type: string; objective: string | null; status: string; sensor_modes: string[] };
   asset: { id: string; name: string; asset_type: string };
 };
-export default function DominicIntelligentInspection({ projectId, accessToken, initialInspectionId, onOpenAssets }: {
+export default function DominicIntelligentInspection({ projectId, accessToken, initialInspectionId, onOpenAssets, copilotMode = false }: {
   projectId: string; accessToken: string; initialInspectionId?: string | null;
+  copilotMode?: boolean;
   onOpenAssets: (assetId?: string, inspectionId?: string) => void;
 }) {
   const [inspections, setInspections] = useState<ProjectInspection[]>([]);
@@ -50,8 +51,8 @@ export default function DominicIntelligentInspection({ projectId, accessToken, i
     return () => { active = false; };
   }, [selectedId, inspections]);
   const selectedContext = context?.inspection.id === selectedId ? context : null;
-  return <section aria-label="Intelligent Inspection" style={{ padding: "20px clamp(12px,3vw,32px)", minWidth: 0 }}>
-    <h1 style={{ fontSize: 25, color: V.ink }}>Intelligent Inspection</h1>
+  return <section aria-label={copilotMode ? "AI Inspection Copilot" : "Intelligent Inspection"} style={{ padding: "20px clamp(12px,3vw,32px)", minWidth: 0 }}>
+    <h1 style={{ fontSize: 25, color: V.ink }}>{copilotMode ? "AI Inspection Copilot" : "Intelligent Inspection"}</h1>
     <p style={{ color: V.inkDim, fontSize: 13, lineHeight: 1.6 }}>Review incoming inspection images, open anomaly callouts, compare linked previous evidence and generate a report with images.</p>
     {error ? <p role="alert" style={{ color: V.warn }}>{error}</p> : null}
     {loading ? <p>Loading project inspections…</p> : inspections.length ? <>
@@ -61,7 +62,7 @@ export default function DominicIntelligentInspection({ projectId, accessToken, i
         </select></label>
         <button type="button" style={btnGhost} onClick={() => { const row = inspections.find((item) => item.id === selectedId); if (row) onOpenAssets(row.asset_id, row.id); }}>Open asset & capture setup</button>
       </div>
-      {selectedContext ? <DominicInspectionEvidenceReview key={selectedId} inspection={selectedContext.inspection} asset={selectedContext.asset} watchIncoming /> : <p>Loading selected inspection…</p>}
+      {selectedContext ? <DominicInspectionEvidenceReview key={selectedId} inspection={selectedContext.inspection} asset={selectedContext.asset} watchIncoming copilotMode={copilotMode} onCaptureSetup={() => onOpenAssets(selectedContext.asset.id, selectedContext.inspection.id)} /> : <p>Loading selected inspection…</p>}
     </> : <>
       <p style={{ color: V.inkDim }}>No inspections linked to this project yet. Create an asset inspection and choose this project when saving its capture plan.</p>
       <button type="button" style={btnGhost} onClick={() => onOpenAssets()}>Create an asset inspection</button>

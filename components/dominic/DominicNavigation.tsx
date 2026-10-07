@@ -52,7 +52,7 @@ export default function DominicNavigation({ activeModule, hasProject, collapsed,
       {([
         { module: "Live Flight", label: demoMode ? "Live Flight simulation" : "Live Flight", icon: Radar },
         { module: "AR View", label: "AR View preview", icon: ScanSearch },
-        { module: "AI Copilot", label: "AI Copilot preview", icon: BrainCircuit },
+        { module: "AI Copilot", label: demoMode ? "AI Copilot preview" : "AI Copilot", icon: BrainCircuit },
       ] satisfies Item[]).map((item) => <NavigationButton key={item.module} item={item} active={activeModule === item.module} collapsed={collapsed} onOpen={onOpen} />)}
     </section>}
     {projectOnly ? null : <details>

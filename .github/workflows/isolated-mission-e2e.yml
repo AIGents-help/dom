@@ -30,10 +30,11 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - name: Start disposable Supabase stack
         run: |
+          # Upload/evidence tests require Storage; browser subscriptions require Realtime.
           started=false
           for attempt in 1 2 3 4; do
             echo "Starting Supabase (attempt $attempt of 4)..."
-            if supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor; then
+            if supabase start -x mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor; then
               started=true
               break
             fi

@@ -57,9 +57,9 @@ export default function DominicDemo() {
     </header>
     <div className="grid lg:grid-cols-[220px_minmax(0,1fr)]">
       <aside className="border-b p-4 lg:border-b-0 lg:border-r" style={{ background: V.surface, borderColor: V.line }}>
-        <div className="hidden lg:block"><DominicNavigation activeModule={module} hasProject collapsed={false} onOpen={setModule} /></div>
+        <div className="hidden lg:block"><DominicNavigation demoMode activeModule={module} hasProject collapsed={false} onOpen={setModule} /></div>
         <details className="lg:hidden"><summary style={{ cursor: "pointer", color: V.signal, fontSize: 13 }}>Browse sample tools</summary>
-          <div style={{ paddingTop: 14 }}><DominicNavigation activeModule={module} hasProject collapsed={false} onOpen={(next) => { setModule(next); }} /></div>
+          <div style={{ paddingTop: 14 }}><DominicNavigation demoMode activeModule={module} hasProject collapsed={false} onOpen={(next) => { setModule(next); }} /></div>
         </details>
       </aside>
       <main style={{ padding: "20px clamp(14px,3vw,36px)", minWidth: 0, maxWidth: 1400 }}>

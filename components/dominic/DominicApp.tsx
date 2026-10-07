@@ -449,7 +449,7 @@ export default function DominicApp() {
             { label: "Projects", title: "Projects", icon: FolderKanban },
             { label: "Capture Planner", title: "Capture plans", icon: Crosshair },
             { label: "Asset Intelligence", title: "Assets & inspections", icon: Factory },
-            { label: "Live Flight", title: "Simulations", icon: Maximize2 },
+            { label: "Live Flight", title: "Live Flight", icon: Maximize2 },
           ].map(({ label, title, icon: DockIcon }) => {
             const licenseLocked = mappingModules.has(label) ? !featureAccess.mapping : label === "DOMINIC HUB" ? !featureAccess.hub : false;
             const requiresProject = false;

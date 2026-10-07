@@ -9,9 +9,36 @@ import DominicSampleScene from "./DominicSampleScene";
 import { V, btnGhost } from "@/components/mapper/theme";
 
 const sampleFindings = [
-  { asset: "Tank 17", title: "Coating wear on east rim", severity: "Medium", action: "Review close-range evidence before confirming repair." },
-  { asset: "Transfer line", title: "Support bracket needs review", severity: "Medium", action: "Confirm bracket condition during the next inspection." },
-  { asset: "B-07", title: "Missing north-face coverage", severity: "Low", action: "Add an oblique pass to complete visual coverage." },
+  {
+    asset: "Tank 17",
+    title: "Coating wear on east rim",
+    severity: "Medium",
+    condition: "WATCH",
+    confidence: "87%",
+    history: "Observed on 2 consecutive inspections",
+    action: "Review close-range evidence before confirming repair.",
+    verification: "Repeat capture prescribed from the same east-rim viewpoint after maintenance.",
+  },
+  {
+    asset: "Transfer line",
+    title: "Support bracket needs review",
+    severity: "Medium",
+    condition: "ELEVATED",
+    confidence: "82%",
+    history: "New candidate condition",
+    action: "Confirm bracket condition during the next inspection.",
+    verification: "Reinspect bracket using the saved baseline viewpoint and camera settings.",
+  },
+  {
+    asset: "B-07",
+    title: "Missing north-face coverage",
+    severity: "Low",
+    condition: "CAPTURE GAP",
+    confidence: "96%",
+    history: "Coverage quality issue, not a confirmed defect",
+    action: "Add an oblique pass to complete visual coverage.",
+    verification: "Close only after the missing surface is captured and reviewed.",
+  },
 ];
 const previews = new Set(["Live Flight", "AR View", "AI Copilot"]);
 
@@ -42,8 +69,22 @@ export default function DominicDemo() {
           <h1 style={{ fontSize: 27, margin: "7px 0 18px" }}>Demo refinery inspection</h1>
           {module === "Projects" ? <>
             <DominicSampleScene />
-            <p style={{ color: V.inkDim, lineHeight: 1.6 }}>Inspect the sample site, review its capture plan and findings, and explore how project tools fit together.</p>
-            <button type="button" style={btnGhost} onClick={() => setModule("Map Viewer")}>Open sample project</button>
+            <div className="grid gap-3 md:grid-cols-4" style={{ marginTop: 16 }}>
+              {[
+                ["Industrial assets", "3"],
+                ["Candidate findings", "3"],
+                ["Repeat condition", "1"],
+                ["Capture gap", "1"],
+              ].map(([label, value]) => <div key={label} style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: V.surface, padding: 12 }}>
+                <div style={{ color: V.inkFaint, fontSize: 9, letterSpacing: ".08em", textTransform: "uppercase" }}>{label}</div>
+                <div style={{ color: V.ink, fontSize: 21, fontWeight: 900, marginTop: 5 }}>{value}</div>
+              </div>)}
+            </div>
+            <p style={{ color: V.inkDim, lineHeight: 1.6 }}>This sample follows an industrial inspection from captured evidence to candidate finding, maintenance priority and post-repair verification.</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
+              <button type="button" style={btnGhost} onClick={() => setModule("Intelligent Inspection")}>Start industrial walkthrough</button>
+              <button type="button" style={btnGhost} onClick={() => setModule("Map Viewer")}>Open sample project</button>
+            </div>
           </> : module === "Capture Planner" || module === "Project Records" ? <>
             <h2 style={{ fontSize: 19 }}>Sample capture plan</h2>
             <DominicSampleScene position={{ x: 280, y: 110 }} />
@@ -56,7 +97,38 @@ export default function DominicDemo() {
             <h2 style={{ fontSize: 19 }}>{module === "Map Viewer" ? "Sample image & inspection overlays" : module === "Intelligent Inspection" ? "Intelligent Inspection sample" : "Assets & inspections"}</h2>
             <DominicSampleScene showFindings selectedAsset={selectedFinding} />
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "16px 0" }}>{sampleFindings.map((item, index) => <button key={item.asset} type="button" style={btnGhost} aria-pressed={selectedFinding === index} onClick={() => setSelectedFinding(index)}>{item.asset}</button>)}</div>
-            <div aria-live="polite"><h3 style={{ fontSize: 17 }}>{finding.title}</h3><p style={{ color: V.inkDim, fontSize: 13 }}>{finding.severity} priority · Fictional example requiring inspector review</p><p style={{ fontSize: 13 }}>{finding.action}</p></div>
+            <div className="grid gap-3 md:grid-cols-4" style={{ margin: "4px 0 16px" }}>
+              {[
+                ["Asset condition", finding.condition],
+                ["AI candidate confidence", finding.confidence],
+                ["Issue history", finding.history],
+                ["Review state", "Inspector review required"],
+              ].map(([label, value]) => <div key={label} style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: V.surface, padding: 12 }}>
+                <div style={{ color: V.inkFaint, fontSize: 9, letterSpacing: ".08em", textTransform: "uppercase" }}>{label}</div>
+                <div style={{ color: label === "Asset condition" ? V.signal : V.ink, fontSize: 13, fontWeight: 800, marginTop: 6 }}>{value}</div>
+              </div>)}
+            </div>
+            <div aria-live="polite" style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: V.surface, padding: 15 }}>
+              <div style={{ color: V.signal, fontSize: 10, fontWeight: 900, letterSpacing: ".08em" }}>CANDIDATE FINDING</div>
+              <h3 style={{ fontSize: 18, margin: "7px 0" }}>{finding.title}</h3>
+              <p style={{ color: V.inkDim, fontSize: 13 }}>{finding.severity} priority · Fictional example requiring inspector review</p>
+              <div className="grid gap-3 md:grid-cols-2" style={{ marginTop: 12 }}>
+                <div style={{ borderLeft: `3px solid ${V.signal}`, paddingLeft: 10 }}>
+                  <div style={{ color: V.inkFaint, fontSize: 10 }}>RECOMMENDED ACTION</div>
+                  <p style={{ fontSize: 13, marginBottom: 0 }}>{finding.action}</p>
+                </div>
+                <div style={{ borderLeft: "3px solid #70D6A0", paddingLeft: 10 }}>
+                  <div style={{ color: V.inkFaint, fontSize: 10 }}>VERIFICATION PLAN</div>
+                  <p style={{ fontSize: 13, marginBottom: 0 }}>{finding.verification}</p>
+                </div>
+              </div>
+            </div>
+            <div className="grid gap-2 md:grid-cols-5" style={{ margin: "16px 0" }}>
+              {["Detect", "Document", "Prioritize", "Repair", "Verify"].map((step, index) => <div key={step} style={{ border: `1px solid ${index < 3 ? V.signal : V.line}`, borderRadius: 8, padding: "10px 12px", background: V.surface }}>
+                <div style={{ color: index < 3 ? V.signal : V.inkFaint, fontSize: 9 }}>0{index + 1}</div>
+                <div style={{ fontSize: 12, fontWeight: 900, marginTop: 3 }}>{step}</div>
+              </div>)}
+            </div>
             {module === "Intelligent Inspection" ? <p style={{ color: V.inkDim, fontSize: 13 }}>Vision: incoming inspection imagery can be screened into candidate anomaly callouts, previous-image comparisons and illustrated reports. These findings are scripted sample data. In the account workspace, supported live camera preview can save inspection frames into evidence and queue AI screening; candidates remain subject to human review.</p> : null}
             <p style={{ color: V.inkFaint, fontSize: 12 }}>This sample viewer uses an aerial image. Real maps and 3D models come from processed project imagery in the licensed workspace.</p>
           </> : module === "Data Library" ? <>
@@ -72,7 +144,17 @@ export default function DominicDemo() {
           </> : module === "Deliverables" ? <>
             <h2 style={{ fontSize: 19 }}>Sample inspection report</h2>
             <DominicSampleScene showFindings selectedAsset={selectedFinding} />
-            <ul style={{ color: V.inkDim, fontSize: 13, lineHeight: 2 }}>{sampleFindings.map((item) => <li key={item.asset}>{item.asset}: {item.title} · {item.severity}</li>)}</ul>
+            <div className="grid gap-3 md:grid-cols-3" style={{ marginTop: 16 }}>
+              {sampleFindings.map((item) => <div key={item.asset} style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: V.surface, padding: 13 }}>
+                <div style={{ color: V.signal, fontSize: 10, fontWeight: 900 }}>{item.asset}</div>
+                <div style={{ fontSize: 14, fontWeight: 800, marginTop: 5 }}>{item.title}</div>
+                <div style={{ color: V.inkDim, fontSize: 12, marginTop: 7 }}>{item.severity} · {item.condition}</div>
+              </div>)}
+            </div>
+            <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: V.surface, padding: 15, marginTop: 14 }}>
+              <div style={{ color: V.signal, fontSize: 10, fontWeight: 900, letterSpacing: ".08em" }}>MAINTENANCE HANDOFF</div>
+              <p style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>A production report can preserve the source image, reviewed finding, asset identity, issue history, recommended action and post-repair verification evidence as one traceable package.</p>
+            </div>
             <p style={{ fontSize: 13 }}>A real report includes source-linked inspection evidence, inspector review, issue history and available export files. The fictional findings here are view-only.</p><p style={{ color: V.signal, fontSize: 12, fontWeight: 800 }}>Industrial workflow: Detect → Document → Prioritize → Repair → Verify</p>
           </> : <>
             <h2 style={{ fontSize: 19 }}>Refinery operations sample</h2>

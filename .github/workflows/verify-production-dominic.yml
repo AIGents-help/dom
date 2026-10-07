@@ -52,11 +52,15 @@ jobs:
           test "${magic:16:8}" = "57454250"
           echo "DOMINIC mascot WebP is live and valid ($bytes bytes)."
 
-      - name: Verify DOMINIC route responds
+      - name: Verify DOMINIC routes respond
         shell: bash
         run: |
           set -euo pipefail
           code="$(curl -L -sS -o /tmp/dominic.html -w '%{http_code}' --max-time 20 https://droneopsman.com/dominic)"
           test "$code" = "200"
           grep -qi "DOMINIC" /tmp/dominic.html
-          echo "DOMINIC route is live and contains the product shell marker."
+          demo_code="$(curl -L -sS -o /tmp/dominic-demo.html -w '%{http_code}' --max-time 20 https://droneopsman.com/dominic/demo)"
+          test "$demo_code" = "200"
+          grep -qi "Demo refinery inspection" /tmp/dominic-demo.html
+          grep -qi "VIEW-ONLY SAMPLE" /tmp/dominic-demo.html
+          echo "DOMINIC workspace and public industrial demo routes are live."

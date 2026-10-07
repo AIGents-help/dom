@@ -57,7 +57,7 @@ export default function DominicDemo() {
             <DominicSampleScene showFindings selectedAsset={selectedFinding} />
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "16px 0" }}>{sampleFindings.map((item, index) => <button key={item.asset} type="button" style={btnGhost} aria-pressed={selectedFinding === index} onClick={() => setSelectedFinding(index)}>{item.asset}</button>)}</div>
             <div aria-live="polite"><h3 style={{ fontSize: 17 }}>{finding.title}</h3><p style={{ color: V.inkDim, fontSize: 13 }}>{finding.severity} priority · Fictional example requiring inspector review</p><p style={{ fontSize: 13 }}>{finding.action}</p></div>
-            {module === "Intelligent Inspection" ? <p style={{ color: V.inkDim, fontSize: 13 }}>Vision: incoming flight images produce anomaly callouts, previous-image comparisons and illustrated reports. These findings are scripted sample data. The account workspace reviews saved inspection evidence; continuous live video and automatic image registration are still future capabilities.</p> : null}
+            {module === "Intelligent Inspection" ? <p style={{ color: V.inkDim, fontSize: 13 }}>Vision: incoming inspection imagery can be screened into candidate anomaly callouts, previous-image comparisons and illustrated reports. These findings are scripted sample data. In the account workspace, supported live camera preview can save inspection frames into evidence and queue AI screening; candidates remain subject to human review.</p> : null}
             <p style={{ color: V.inkFaint, fontSize: 12 }}>This sample viewer uses an aerial image. Real maps and 3D models come from processed project imagery in the licensed workspace.</p>
           </> : module === "Data Library" ? <>
             <h2 style={{ fontSize: 19 }}>Sample source imagery</h2>
@@ -73,7 +73,7 @@ export default function DominicDemo() {
             <h2 style={{ fontSize: 19 }}>Sample inspection report</h2>
             <DominicSampleScene showFindings selectedAsset={selectedFinding} />
             <ul style={{ color: V.inkDim, fontSize: 13, lineHeight: 2 }}>{sampleFindings.map((item) => <li key={item.asset}>{item.asset}: {item.title} · {item.severity}</li>)}</ul>
-            <p style={{ fontSize: 13 }}>A real report includes project evidence, inspector review and available export files. The fictional findings here are view-only.</p>
+            <p style={{ fontSize: 13 }}>A real report includes source-linked inspection evidence, inspector review, issue history and available export files. The fictional findings here are view-only.</p><p style={{ color: V.signal, fontSize: 12, fontWeight: 800 }}>Industrial workflow: Detect → Document → Prioritize → Repair → Verify</p>
           </> : <>
             <h2 style={{ fontSize: 19 }}>Refinery operations sample</h2>
             <DominicSampleScene position={{ x: 150, y: 140 }} />

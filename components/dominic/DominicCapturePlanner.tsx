@@ -302,7 +302,7 @@ export default function DominicCapturePlanner({
   inspectionContext = null,
   projectId = null,
   initialSavedPlanId = null,
-  initialPlanningSource = "map",
+  initialPlanningSource,
 }: {
   projectId?: string | null;
   initialSavedPlanId?: string | null;
@@ -314,7 +314,7 @@ export default function DominicCapturePlanner({
   const [projectOptionsError, setProjectOptionsError] = useState<string | null>(null);
   const [savedInspectionLink, setSavedInspectionLink] = useState<Pick<PersistedCapturePlanState, "inspectionId" | "assetId" | "assetName" | "inspectionType">>({});
   const [missionType, setMissionType] = useState<CaptureMissionType>("roof");
-  const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">(initialPlanningSource);
+  const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">(initialPlanningSource ?? "map");
   const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
   const [plannerView, setPlannerView] = useState<"plan" | "review">("plan");
   const [reviewPreflightRan, setReviewPreflightRan] = useState(false);
@@ -567,7 +567,7 @@ export default function DominicCapturePlanner({
       setMapLocationLabel(targetLabel);
       setMapSearch(targetLabel);
       setMapFocusRevision((value) => value + 1);
-      setPlanningSource("map");
+      setPlanningSource(initialPlanningSource ?? "map");
     } else if (hasAssetLocation) {
       setCenterLatitude(inspectionContext.latitude as number);
       setCenterLongitude(inspectionContext.longitude as number);
@@ -578,7 +578,7 @@ export default function DominicCapturePlanner({
       );
       setMapSearch(inspectionContext.locationLabel ?? inspectionContext.assetName);
       setMapFocusRevision((value) => value + 1);
-      setPlanningSource("map");
+      setPlanningSource(initialPlanningSource ?? "map");
     }
 
     if (inspectionContext.assetType === "roof" || inspectionContext.inspectionType === "roof") {
@@ -596,7 +596,7 @@ export default function DominicCapturePlanner({
     ) {
       setMissionType("building");
     }
-  }, [inspectionContext]);
+  }, [inspectionContext, initialPlanningSource]);
 
 
   const persistedPlanState = (): PersistedCapturePlanState => ({
@@ -768,7 +768,7 @@ export default function DominicCapturePlanner({
     setMapAreaPoints(Array.isArray(state.mapAreaPoints) ? state.mapAreaPoints : []);
     setMapAreaDefined(Array.isArray(state.mapAreaPoints) && state.mapAreaPoints.length >= 3);
     setMapLocationLabel(state.mapLocationLabel ?? null);
-    setPlanningSource(state.planningSource ?? (saved.mission_type === "object" ? "local" : "map"));
+    setPlanningSource(initialPlanningSource ?? state.planningSource ?? (saved.mission_type === "object" ? "local" : "map"));
     setMapFocusRevision((value) => value + 1);
     setSelectedWaypointId(null);
 
@@ -792,8 +792,8 @@ export default function DominicCapturePlanner({
     setReviewPreflightRan(false);
     setReviewFlightConfirmed(false);
     setDjiMissionValidation({ status: "idle", errors: [] });
-    setPlannerView("review");
-  }, []);
+    setPlannerView(initialPlanningSource === "live" ? "plan" : "review");
+  }, [initialPlanningSource]);
 
   useEffect(() => {
     let active = true;

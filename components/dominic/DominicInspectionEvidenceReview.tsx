@@ -16,6 +16,8 @@ import {
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import { readStoredRangefinderTarget } from "@/lib/aircraft/rangefinderTarget";
 
+import DominicInspectionCopilot from "./DominicInspectionCopilot";
+import { inspectionCopilotActions } from "@/lib/dominicInspectionCopilot";
 import DominicInspectionCallout from "./DominicInspectionCallout";
 import { findingImageRegion } from "@/lib/dominicInspectionEvidence";
 
@@ -250,10 +252,14 @@ export default function DominicInspectionEvidenceReview({
   onChanged,
   onPlanFollowUp,
   watchIncoming = false,
+  copilotMode = false,
+  onCaptureSetup,
 }: {
   inspection: InspectionContext;
   asset: AssetContext;
   watchIncoming?: boolean;
+  copilotMode?: boolean;
+  onCaptureSetup?: () => void;
   onChanged?: () => void | Promise<void>;
   onPlanFollowUp?: (input: {
     findingId: string;
@@ -268,6 +274,7 @@ export default function DominicInspectionEvidenceReview({
   const [callout, setCallout] = useState<FindingRow | null>(null);
   const [watchError, setWatchError] = useState("");
   const urlCache = useRef(new Map<string, { url: string; expires: number }>());
+  const [evidenceLoaded, setEvidenceLoaded] = useState(false);
   const [media, setMedia] = useState<MediaRow[]>([]);
   const [findings, setFindings] = useState<FindingRow[]>([]);
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
@@ -307,6 +314,7 @@ export default function DominicInspectionEvidenceReview({
 
     const nextMedia = (mediaResult.data ?? []) as MediaRow[];
     setMedia(nextMedia);
+    setEvidenceLoaded(true);
     setFindings((findingResult.data ?? []) as FindingRow[]);
 
     const urlEntries = await Promise.all(
@@ -699,6 +707,11 @@ export default function DominicInspectionEvidenceReview({
         </div>
       </div>
 
+      {copilotMode ? <DominicInspectionCopilot actions={inspectionCopilotActions(media, findings)} evidenceCount={media.length}
+        confirmedCount={findings.filter((finding) => finding.review_status === "confirmed").length}
+        loaded={evidenceLoaded} screeningReady={aiReadiness.configured} screeningBusy={Boolean(analysisBusyId)}
+        onReview={(findingId) => { const finding = findings.find((item) => item.id === findingId); if (finding) setCallout(finding); }}
+        onScreen={(mediaId) => void runScreening(mediaId)} onCapture={() => onCaptureSetup?.()} /> : null}
       {callout ? <DominicInspectionCallout key={callout.id} finding={callout} inspectionId={inspection.id} onClose={() => setCallout(null)} onSaved={load} /> : null}
       <div style={{ padding: "12px", borderBottom: `1px solid ${LINE}`, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
         <a href={`/dominic/inspections/${inspection.id}/report`} target="_blank" rel="noopener noreferrer" style={{ color: ORANGE, fontSize: 13 }}>Generate illustrated report</a>

@@ -378,7 +378,7 @@ export default function DominicApp() {
                     initialPlanningSource="live"
                   />
                 ) : (activeModule === "Intelligent Inspection" || activeModule === "AI Copilot") && activeProjectId ? (
-                  <DominicIntelligentInspection key={`${activeModule}:${activeProjectId}:${inspectionSelection?.inspectionId ?? ""}`} projectId={activeProjectId} accessToken={accessToken} initialInspectionId={inspectionSelection?.inspectionId}
+                  <DominicIntelligentInspection key={`${activeModule}:${activeProjectId}:${inspectionSelection?.inspectionId ?? ""}`} projectId={activeProjectId} accessToken={accessToken} copilotMode={activeModule === "AI Copilot"} initialInspectionId={inspectionSelection?.inspectionId}
                     onOpenAssets={(assetId, inspectionId) => { setInspectionSelection(assetId && inspectionId ? { assetId, inspectionId } : null); openModule("Asset Intelligence"); }} />
                 ) : activeModule === "AI Copilot" ? (
                   <div style={{ minHeight: 520, display: "grid", placeItems: "center", padding: 28 }}>
@@ -446,7 +446,7 @@ export default function DominicApp() {
             bottom: "max(8px, env(safe-area-inset-bottom))",
             zIndex: 60,
             display: "grid",
-            gridTemplateColumns: "repeat(4,minmax(0,1fr))",
+            gridTemplateColumns: "repeat(5,minmax(0,1fr))",
             gap: 6,
             padding: 6,
             border: `1px solid ${LINE}`,
@@ -460,7 +460,8 @@ export default function DominicApp() {
             { label: "Projects", title: "Projects", icon: FolderKanban },
             { label: "Capture Planner", title: "Capture plans", icon: Crosshair },
             { label: "Asset Intelligence", title: "Assets & inspections", icon: Factory },
-            { label: "Live Flight", title: "Simulations", icon: Maximize2 },
+            { label: "Live Flight", title: "Live Flight", icon: Maximize2 },
+            { label: "AI Copilot", title: "AI Copilot", icon: BrainCircuit },
           ].map(({ label, title, icon: DockIcon }) => {
             const licenseLocked = mappingModules.has(label) ? !featureAccess.mapping : label === "DOMINIC HUB" ? !featureAccess.hub : false;
             const requiresProject = false;

@@ -31,8 +31,8 @@ function NavigationButton({ item, active, collapsed, nested, onOpen }: {
   </button>;
 }
 
-export default function DominicNavigation({ activeModule, hasProject, collapsed, onOpen, projectOnly = false }: {
-  activeModule: string; hasProject: boolean; collapsed: boolean; onOpen: (module: string) => void; projectOnly?: boolean;
+export default function DominicNavigation({ activeModule, hasProject, collapsed, onOpen, projectOnly = false, demoMode = false }: {
+  activeModule: string; hasProject: boolean; collapsed: boolean; onOpen: (module: string) => void; projectOnly?: boolean; demoMode?: boolean;
 }) {
   return <nav aria-label="DOMINIC navigation" style={{ display: "grid", gap: 18 }}>
     {projectOnly ? null : <section aria-label="Projects library">
@@ -50,9 +50,9 @@ export default function DominicNavigation({ activeModule, hasProject, collapsed,
     {projectOnly ? null : <section aria-label="Flight and assist tools">
       {!collapsed ? <div style={{ color: V.inkFaint, fontSize: 10, padding: "0 9px 7px" }}>FLIGHT & ASSIST</div> : null}
       {([
-        { module: "Live Flight", label: "Live Flight", icon: Radar },
+        { module: "Live Flight", label: demoMode ? "Live Flight simulation" : "Live Flight", icon: Radar },
         { module: "AR View", label: "AR View preview", icon: ScanSearch },
-        { module: "AI Copilot", label: "AI Copilot preview", icon: BrainCircuit },
+        { module: "AI Copilot", label: demoMode ? "AI Copilot preview" : "AI Copilot", icon: BrainCircuit },
       ] satisfies Item[]).map((item) => <NavigationButton key={item.module} item={item} active={activeModule === item.module} collapsed={collapsed} onOpen={onOpen} />)}
     </section>}
     {projectOnly ? null : <details>

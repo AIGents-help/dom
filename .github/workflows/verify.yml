@@ -30,11 +30,6 @@ jobs:
             package-lock.json
             services/mapper-worker/package-lock.json
 
-      - name: Regenerate security lockfile for verification
-        run: |
-          npm install --package-lock-only --ignore-scripts
-          git diff -- package-lock.json
-
       - name: Install application dependencies
         run: npm ci
 

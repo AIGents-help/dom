@@ -69,8 +69,22 @@ export default function DominicDemo() {
           <h1 style={{ fontSize: 27, margin: "7px 0 18px" }}>Demo refinery inspection</h1>
           {module === "Projects" ? <>
             <DominicSampleScene />
-            <p style={{ color: V.inkDim, lineHeight: 1.6 }}>Inspect the sample site, review its capture plan and findings, and explore how project tools fit together.</p>
-            <button type="button" style={btnGhost} onClick={() => setModule("Map Viewer")}>Open sample project</button>
+            <div className="grid gap-3 md:grid-cols-4" style={{ marginTop: 16 }}>
+              {[
+                ["Industrial assets", "3"],
+                ["Candidate findings", "3"],
+                ["Repeat condition", "1"],
+                ["Capture gap", "1"],
+              ].map(([label, value]) => <div key={label} style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: V.surface, padding: 12 }}>
+                <div style={{ color: V.inkFaint, fontSize: 9, letterSpacing: ".08em", textTransform: "uppercase" }}>{label}</div>
+                <div style={{ color: V.ink, fontSize: 21, fontWeight: 900, marginTop: 5 }}>{value}</div>
+              </div>)}
+            </div>
+            <p style={{ color: V.inkDim, lineHeight: 1.6 }}>This sample follows an industrial inspection from captured evidence to candidate finding, maintenance priority and post-repair verification.</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
+              <button type="button" style={btnGhost} onClick={() => setModule("Intelligent Inspection")}>Start industrial walkthrough</button>
+              <button type="button" style={btnGhost} onClick={() => setModule("Map Viewer")}>Open sample project</button>
+            </div>
           </> : module === "Capture Planner" || module === "Project Records" ? <>
             <h2 style={{ fontSize: 19 }}>Sample capture plan</h2>
             <DominicSampleScene position={{ x: 280, y: 110 }} />

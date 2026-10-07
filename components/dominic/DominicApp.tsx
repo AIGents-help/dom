@@ -22,7 +22,7 @@ const LINE = "#25303B";
 const TEXT = "#F5F7FA";
 const MUTED = "#8F9CAA";
 
-const previewModules = new Set(["Live Flight", "AR View", "AI Copilot"]);
+const previewModules = new Set(["AR View", "AI Copilot"]);
 const mappingModules = new Set([
   "Projects",
   "Project Records",
@@ -369,6 +369,14 @@ export default function DominicApp() {
                   <DominicHub />
                 ) : activeModule === "Capture Planner" ? (
                   <DominicCapturePlanner key={selectedCapturePlanId ?? "new"} inspectionContext={inspectionPlanningContext} projectId={activeProjectId} initialSavedPlanId={selectedCapturePlanId} />
+                ) : activeModule === "Live Flight" ? (
+                  <DominicCapturePlanner
+                    key={selectedCapturePlanId ?? "live"}
+                    inspectionContext={inspectionPlanningContext}
+                    projectId={activeProjectId}
+                    initialSavedPlanId={selectedCapturePlanId}
+                    initialPlanningSource="live"
+                  />
                 ) : activeModule === "Intelligent Inspection" && activeProjectId ? (
                   <DominicIntelligentInspection key={`${activeProjectId}:${inspectionSelection?.inspectionId ?? ""}`} projectId={activeProjectId} accessToken={accessToken} initialInspectionId={inspectionSelection?.inspectionId}
                     onOpenAssets={(assetId, inspectionId) => { setInspectionSelection(assetId && inspectionId ? { assetId, inspectionId } : null); openModule("Asset Intelligence"); }} />

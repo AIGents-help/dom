@@ -6250,6 +6250,10 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.ifError(reloadedPlan.error);
     assert.equal(reloadedPlan.data.plan_state.inspectionId, inspection.id);
     assert.equal(reloadedPlan.data.plan_state.mappingProjectId, project.id);
+    await page.getByRole("button", { name: "Live Flight", exact: true }).click();
+    await page.getByRole("button", { name: "Connect Aircraft Bridge", exact: true }).waitFor();
+    await page.getByText("Aircraft disconnected", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("textbox", { name: "Capture plan name" }).inputValue(), "Workflow capture plan", "Live Flight must retain saved geometry while opening the camera workspace");
     await page.getByRole("button", { name: "Return to current project", exact: true }).click();
     await page.getByRole("button", { name: "Plans & inspections", exact: true }).click();
     await records.getByRole("button", { name: "Review inspection of Workflow tank", exact: true }).click();

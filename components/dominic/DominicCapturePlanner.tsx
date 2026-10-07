@@ -302,17 +302,19 @@ export default function DominicCapturePlanner({
   inspectionContext = null,
   projectId = null,
   initialSavedPlanId = null,
+  initialPlanningSource = "map",
 }: {
   projectId?: string | null;
   initialSavedPlanId?: string | null;
   inspectionContext?: DominicInspectionPlanningContext | null;
+  initialPlanningSource?: "map" | "live" | "local";
 }) {
   const [linkedProjectId, setLinkedProjectId] = useState<string | null>(projectId);
   const [projectOptions, setProjectOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [projectOptionsError, setProjectOptionsError] = useState<string | null>(null);
   const [savedInspectionLink, setSavedInspectionLink] = useState<Pick<PersistedCapturePlanState, "inspectionId" | "assetId" | "assetName" | "inspectionType">>({});
   const [missionType, setMissionType] = useState<CaptureMissionType>("roof");
-  const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">("map");
+  const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">(initialPlanningSource);
   const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
   const [plannerView, setPlannerView] = useState<"plan" | "review">("plan");
   const [reviewPreflightRan, setReviewPreflightRan] = useState(false);

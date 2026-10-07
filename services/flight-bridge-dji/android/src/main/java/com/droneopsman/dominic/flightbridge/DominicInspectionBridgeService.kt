@@ -27,6 +27,7 @@ class DominicInspectionBridgeService(
     private val bridgeId: String,
     private val telemetryProvider: MsdkTelemetryProvider,
     private val cameraController: DjiInspectionCameraController,
+    private val missionValidator: DominicDjiMissionValidator? = null,
 ) {
     interface Client {
         val open: Boolean
@@ -100,6 +101,33 @@ class DominicInspectionBridgeService(
             client.send(error("unsupported_protocol", "Unsupported Flight Bridge protocol."))
             return
         }
+
+        if (parsed.optString("type") == "mission_validate") {
+            val requestId = parsed.optString("requestId")
+            val mission = parsed.optJSONObject("mission")
+            if (requestId.isBlank() || mission == null) {
+                client.send(error("invalid_mission_validation_request", "Mission validation request is missing requestId or mission.", requestId.takeIf { it.isNotBlank() }))
+                return
+            }
+            val validator = missionValidator
+            if (validator == null) {
+                client.send(error("mission_validation_unavailable", "DJI static mission validation is not available in this controller build.", requestId))
+                return
+            }
+            val report = validator.validate(mission.toString())
+            client.send(
+                JSONObject()
+                    .put("type", "mission_validation_result")
+                    .put("protocol", ReadOnlyProtocol.PROTOCOL)
+                    .put("requestId", requestId)
+                    .put("valid", report.valid)
+                    .put("errors", JSONArray(report.errors))
+                    .put("raw", report.raw)
+                    .toString(),
+            )
+            return
+        }
+
         if (parsed.optString("type") != "command") return
 
         val requestId = parsed.optString("requestId")

@@ -6168,6 +6168,9 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     // WebSocket routing installs an init script, so register it before navigation.
     page.setDefaultTimeout(15_000);
     page.setDefaultNavigationTimeout(45_000);
+    await page.route(`${baseURL}/api/dominic/ai/status`, (route) => route.fulfill({
+      status: 200, contentType: "application/json", body: JSON.stringify({ configured: true, provider: "fixture", model: "fixture" }),
+    }));
     const fixtureImage = await readFile(new URL("../public/images/dominic-demo/refinery-aerial-v1.webp", import.meta.url));
     const jpeg = await sharp(fixtureImage).resize({ width: 960 }).jpeg({ quality: 80 }).toBuffer();
     const jpegSize = await sharp(jpeg).metadata();
@@ -6235,6 +6238,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     const baselineInspection = await seed("dominic_inspections", { user_id: user.id, asset_id: inspectedAsset.id, inspection_type: "visual", status: "complete" });
     const baselineMedia = await seed("dominic_inspection_media", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: baselineInspection.id, media_type: "image", sensor_mode: "rgb", storage_path: previousPath, original_filename: "previous.webp" });
     const currentMedia = await seed("dominic_inspection_media", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, media_type: "image", sensor_mode: "rgb", storage_path: evidencePath, original_filename: "current.webp" });
+    await seed("dominic_media_screening_jobs", { media_id: currentMedia.id, user_id: user.id, inspection_id: inspection.id, status: "failed", lease_expires_at: new Date(Date.now() - 1000).toISOString(), last_error: "Fixture interrupted screening" });
     const coatingFinding = await seed("dominic_findings", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, finding_type: "corrosion", title: "Workflow coating wear", severity: "medium", review_status: "needs_review", description: "Inspect the east tank rim.", spatial_anchor: { mediaId: currentMedia.id, imageRegion: { x: .2, y: .2, width: .2, height: .2 } }, detector: { mediaId: currentMedia.id, baselineSourceMediaId: baselineMedia.id, comparisonNote: "Fixture comparison requires review." } });
     const outsider = await admin.auth.admin.createUser({ email: `records-outsider-${stamp}@e2e.dom.invalid`, password, email_confirm: true });
     assert.ifError(outsider.error);
@@ -6301,6 +6305,36 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     const intelligent = page.getByRole("region", { name: "Intelligent Inspection", exact: true });
     await intelligent.getByRole("combobox", { name: "Project inspection" }).waitFor();
     assert.equal(await intelligent.getByRole("combobox", { name: "Project inspection" }).inputValue(), inspection.id);
+    let recoveryRequests = 0;
+    const screeningURL = `${baseURL}/api/dominic/inspections/${inspection.id}/analyze-media`;
+    await page.route(screeningURL, async (route) => {
+      recoveryRequests += 1;
+      assert.equal(route.request().postDataJSON().mediaId, currentMedia.id, "retry must reuse saved evidence");
+      const claimed = await admin.rpc("claim_dominic_media_screening", { p_media_id: currentMedia.id, p_user_id: user.id });
+      assert.ifError(claimed.error); assert.equal(claimed.data.decision, "claimed");
+      const finished = await admin.rpc("finish_dominic_media_screening", {
+        p_media_id: currentMedia.id, p_user_id: user.id, p_run_id: claimed.data.runId,
+        p_summary: { summary: "Controlled recovery result", candidateCount: 0, analyzedAt: new Date().toISOString() }, p_candidates: [],
+      });
+      assert.ifError(finished.error); assert.equal(finished.data, true);
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ configured: true, candidateCount: 0 }) });
+    });
+    await intelligent.getByText("Fixture interrupted screening", { exact: true }).waitFor();
+    assert.equal(recoveryRequests, 0, "failed work must not retry automatically");
+    await intelligent.getByRole("button", { name: "Retry screening", exact: true }).click();
+    await intelligent.getByRole("button", { name: "Screened", exact: true }).waitFor();
+    assert.equal(await intelligent.getByRole("button", { name: "Screened", exact: true }).isDisabled(), true);
+    // Simulate a terminated attempt. Polling must reveal both the active lease
+    // and its expiry, with no provider request until the operator retries.
+    assert.ifError((await admin.from("dominic_media_screening_jobs").update({ status: "processing", lease_expires_at: new Date(Date.now() + 8000).toISOString() }).eq("media_id", currentMedia.id)).error);
+    await intelligent.getByRole("button", { name: "Screening…", exact: true }).waitFor();
+    assert.equal(await intelligent.getByRole("button", { name: "Screening…", exact: true }).isDisabled(), true);
+    await intelligent.getByRole("button", { name: "Retry interrupted screening", exact: true }).waitFor();
+    assert.equal(recoveryRequests, 1, "lease expiry must not enqueue a retry");
+    await intelligent.getByRole("button", { name: "Retry interrupted screening", exact: true }).click();
+    await intelligent.getByRole("button", { name: "Screened", exact: true }).waitFor();
+    assert.equal(recoveryRequests, 2);
+    await page.unroute(screeningURL);
     await intelligent.getByRole("button", { name: "Open callout Workflow coating wear", exact: true }).click();
     const callout = page.getByRole("dialog", { name: "Workflow coating wear", exact: true });
     await callout.getByRole("img", { name: "Current inspection evidence", exact: true }).waitFor();
@@ -6623,6 +6657,96 @@ test("DOMINIC keeps the working project across planning and inspection and opens
   }
 });
 
+
+test("DOMINIC screening claims recover safely without duplicate findings or cross-owner access", { skip: !isolated, timeout: 90_000 }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey);
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Screening-${stamp}!Aa1`;
+  const users = [];
+  let asset, inspection;
+  const seed = async (table, row) => {
+    const result = await admin.from(table).insert(row).select("*").single();
+    assert.ifError(result.error); return result.data;
+  };
+  try {
+    const clients = [];
+    for (const role of ["owner", "outsider"]) {
+      const email = `screening-${role}-${stamp}@e2e.dom.invalid`;
+      const created = await admin.auth.admin.createUser({ email, password, email_confirm: true });
+      assert.ifError(created.error); users.push(created.data.user);
+      const client = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+      const login = await client.auth.signInWithPassword({ email, password });
+      assert.ifError(login.error); clients.push({ client, token: login.data.session.access_token });
+    }
+    const owner = users[0];
+    asset = await seed("dominic_assets", { user_id: owner.id, name: "Recovery tank", asset_type: "tank" });
+    inspection = await seed("dominic_inspections", { user_id: owner.id, asset_id: asset.id, inspection_type: "visual", ai_summary: { issueId: "preserved-context" } });
+    const media = await seed("dominic_inspection_media", { user_id: owner.id, asset_id: asset.id, inspection_id: inspection.id, sensor_mode: "rgb", media_type: "image", storage_path: `${owner.id}/dominic-inspections/${inspection.id}/recovery.jpg` });
+    const args = { p_media_id: media.id, p_user_id: owner.id };
+    const claims = await Promise.all(Array.from({ length: 8 }, () => admin.rpc("claim_dominic_media_screening", args)));
+    claims.forEach((result) => assert.ifError(result.error));
+    assert.equal(claims.filter((result) => result.data.decision === "claimed").length, 1);
+    assert.equal(claims.filter((result) => result.data.decision === "busy").length, 7);
+    const first = claims.find((result) => result.data.decision === "claimed").data;
+    const api = async (token) => {
+      const response = await fetch(`${baseURL}/api/dominic/inspections/${inspection.id}/analyze-media`, {
+        method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ mediaId: media.id }),
+      });
+      return { status: response.status, body: await response.json() };
+    };
+    assert.equal((await api(clients[0].token)).status, 409, "active claims must be visible before provider configuration");
+    assert.equal((await api(clients[1].token)).status, 404);
+    assert.ok((await clients[0].client.rpc("claim_dominic_media_screening", args)).error, "owners cannot claim jobs directly");
+    assert.ok((await createClient(supabaseURL, anonKey).rpc("claim_dominic_media_screening", args)).error, "anonymous claims must be denied");
+    assert.equal((await clients[0].client.from("dominic_media_screening_jobs").select("media_id")).data.length, 1);
+    assert.deepEqual((await clients[1].client.from("dominic_media_screening_jobs").select("media_id")).data, []);
+    assert.ok((await clients[0].client.from("dominic_media_screening_jobs").update({ status: "succeeded" }).eq("media_id", media.id)).error, "client writes cannot bypass the lease");
+    assert.ok((await admin.rpc("claim_dominic_media_screening", { ...args, p_user_id: users[1].id })).error);
+    assert.ifError((await admin.from("dominic_media_screening_jobs").update({ lease_expires_at: new Date(Date.now() - 10_000).toISOString() }).eq("media_id", media.id)).error);
+    const retry = await admin.rpc("claim_dominic_media_screening", args);
+    assert.ifError(retry.error); assert.equal(retry.data.decision, "claimed"); assert.equal(retry.data.attemptCount, 2);
+    assert.notEqual(retry.data.runId, first.runId);
+    const summary = { summary: "Saved screening", candidateCount: 1, analyzedAt: new Date().toISOString() };
+    const candidates = [{ finding_type: "visual_anomaly", title: "Recovery candidate", description: "Review image", severity: "medium", confidence: .8, fingerprint: `vision:${media.id}:recovery`, spatial_anchor: { mediaId: media.id }, detector: { mediaId: media.id } }];
+    const finish = (runId, extra = {}) => admin.rpc("finish_dominic_media_screening", { ...args, p_run_id: runId, p_summary: summary, p_candidates: candidates, ...extra });
+    const obsolete = await finish(first.runId); assert.ifError(obsolete.error); assert.equal(obsolete.data, false);
+    assert.equal((await admin.from("dominic_findings").select("id").eq("inspection_id", inspection.id)).data.length, 0);
+    // Invalid final writes must roll back findings, media, inspection, and job together.
+    assert.ok((await finish(retry.data.runId, { p_candidates: [{ ...candidates[0], severity: "invalid" }] })).error);
+    assert.equal((await admin.from("dominic_media_screening_jobs").select("status").eq("media_id", media.id).single()).data.status, "processing");
+    const finished = await finish(retry.data.runId, { p_candidates: [candidates[0], candidates[0]] }); assert.ifError(finished.error); assert.equal(finished.data, true);
+    const repeatedFinish = await finish(retry.data.runId); assert.ifError(repeatedFinish.error); assert.equal(repeatedFinish.data, false);
+    const findings = await admin.from("dominic_findings").select("id").eq("inspection_id", inspection.id);
+    assert.ifError(findings.error); assert.equal(findings.data.length, 1);
+    const inspected = await admin.from("dominic_inspections").select("status,ai_summary").eq("id", inspection.id).single();
+    assert.equal(inspected.data.status, "review"); assert.equal(inspected.data.ai_summary.issueId, "preserved-context");
+    assert.equal((await admin.from("dominic_inspection_media").select("analysis_status").eq("id", media.id).single()).data.analysis_status, "review");
+    assert.ifError((await admin.from("dominic_findings").update({ review_status: "confirmed" }).eq("id", findings.data[0].id)).error);
+    const cached = await api(clients[0].token);
+    assert.equal(cached.status, 200); assert.equal(cached.body.cached, true); assert.deepEqual(cached.body.findings, [], "cached results must preserve human decisions");
+    assert.equal((await admin.rpc("claim_dominic_media_screening", args)).data.decision, "cached");
+    const second = await seed("dominic_inspection_media", { user_id: owner.id, asset_id: asset.id, inspection_id: inspection.id, sensor_mode: "rgb", media_type: "image" });
+    const secondArgs = { p_media_id: second.id, p_user_id: owner.id };
+    const secondClaim = await admin.rpc("claim_dominic_media_screening", secondArgs);
+    assert.ifError(secondClaim.error);
+    const failed = await admin.rpc("finish_dominic_media_screening", { ...secondArgs, p_run_id: secondClaim.data.runId, p_summary: { error: "Provider unavailable" }, p_candidates: [], p_error: "Provider unavailable" });
+    assert.ifError(failed.error); assert.equal(failed.data, true);
+    assert.equal((await admin.from("dominic_inspection_media").select("analysis_status").eq("id", second.id).single()).data.analysis_status, "failed");
+    const failedRetry = await admin.rpc("claim_dominic_media_screening", secondArgs);
+    assert.ifError(failedRetry.error); assert.equal(failedRetry.data.attemptCount, 2);
+    assert.ok((await clients[0].client.rpc("finish_dominic_media_screening", { ...secondArgs, p_run_id: failedRetry.data.runId, p_summary: {}, p_candidates: [] })).error);
+  } finally {
+    if (inspection) {
+      await admin.from("dominic_findings").delete().eq("inspection_id", inspection.id);
+      await admin.from("dominic_inspection_media").delete().eq("inspection_id", inspection.id);
+      await admin.from("dominic_inspections").delete().eq("id", inspection.id);
+    }
+    if (asset) await admin.from("dominic_assets").delete().eq("id", asset.id);
+    for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});
 
 test("public DOMINIC sample uses photorealistic imagery and never mutates account data", { skip: !isolated }, async () => {
   const browser = await chromium.launch({ headless: true });

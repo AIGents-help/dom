@@ -20,6 +20,7 @@ import DominicInspectionCopilot from "./DominicInspectionCopilot";
 import { inspectionCopilotActions } from "@/lib/dominicInspectionCopilot";
 import DominicInspectionCallout from "./DominicInspectionCallout";
 import { findingImageRegion } from "@/lib/dominicInspectionEvidence";
+import { screeningRecoveryState, type ScreeningJob } from "@/lib/dominicScreeningRecovery";
 
 const ORANGE = "#F45A1E";
 const PANEL = "#10171E";
@@ -276,6 +277,9 @@ export default function DominicInspectionEvidenceReview({
   const urlCache = useRef(new Map<string, { url: string; expires: number }>());
   const [evidenceLoaded, setEvidenceLoaded] = useState(false);
   const [media, setMedia] = useState<MediaRow[]>([]);
+  const [screeningJobs, setScreeningJobs] = useState<Record<string, ScreeningJob>>({});
+  const [screeningClock, setScreeningClock] = useState(() => Date.now());
+  const screeningRequest = useRef(false);
   const [findings, setFindings] = useState<FindingRow[]>([]);
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   const [sensorMode, setSensorMode] = useState("rgb");
@@ -294,7 +298,7 @@ export default function DominicInspectionEvidenceReview({
 
   const load = useCallback(async () => {
     const sb = getSupabaseBrowser();
-    const [mediaResult, findingResult] = await Promise.all([
+    const [mediaResult, findingResult, jobResult] = await Promise.all([
       sb
         .from("dominic_inspection_media")
         .select("id,sensor_mode,media_type,storage_path,original_filename,mime_type,captured_at,analysis_status,analysis_summary,metadata,created_at")
@@ -307,13 +311,19 @@ export default function DominicInspectionEvidenceReview({
         .eq("inspection_id", inspection.id)
         .eq("asset_id", asset.id)
         .order("observed_at", { ascending: false }),
+      sb.from("dominic_media_screening_jobs")
+        .select("media_id,status,lease_expires_at,attempt_count,last_error")
+        .eq("inspection_id", inspection.id),
     ]);
 
     if (mediaResult.error) throw mediaResult.error;
     if (findingResult.error) throw findingResult.error;
+    if (jobResult.error) throw jobResult.error;
 
     const nextMedia = (mediaResult.data ?? []) as MediaRow[];
     setMedia(nextMedia);
+    setScreeningJobs(Object.fromEntries((jobResult.data ?? []).map((job) => [job.media_id, job as ScreeningJob])));
+    setScreeningClock(Date.now());
     setEvidenceLoaded(true);
     setFindings((findingResult.data ?? []) as FindingRow[]);
 
@@ -348,8 +358,9 @@ export default function DominicInspectionEvidenceReview({
   }, [load]);
 
 
+  const hasProcessingJobs = Object.values(screeningJobs).some((job) => screeningRecoveryState(job, screeningClock).active);
   useEffect(() => {
-    if (!watchIncoming) return;
+    if (!watchIncoming && !hasProcessingJobs) return;
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
@@ -362,7 +373,7 @@ export default function DominicInspectionEvidenceReview({
     };
     timer = setTimeout(() => void poll(), 3000);
     return () => { active = false; clearTimeout(timer); };
-  }, [load, watchIncoming]);
+  }, [load, watchIncoming, hasProcessingJobs]);
 
 
   useEffect(() => {
@@ -475,6 +486,10 @@ export default function DominicInspectionEvidenceReview({
   };
 
   const runScreening = async (mediaId: string) => {
+    if (screeningRequest.current) return;
+    const recovery = screeningRecoveryState(screeningJobs[mediaId], Date.now());
+    if (recovery.active || recovery.completed) return;
+    screeningRequest.current = true;
     setAnalysisBusyId(mediaId);
     setMessage(null);
     try {
@@ -495,6 +510,7 @@ export default function DominicInspectionEvidenceReview({
         },
       );
       const body = await response.json().catch(() => ({}));
+      await load();
       if (!response.ok) {
         if (body?.code === "VISION_NOT_CONFIGURED") {
           throw new Error(
@@ -504,7 +520,6 @@ export default function DominicInspectionEvidenceReview({
         throw new Error(body?.error ?? "AI screening failed.");
       }
 
-      await load();
       await onChanged?.();
       const count = Number(body?.candidateCount ?? 0);
       const baselineCompared = Boolean(body?.baselineCompared);
@@ -520,6 +535,7 @@ export default function DominicInspectionEvidenceReview({
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "AI screening failed.");
     } finally {
+      screeningRequest.current = false;
       setAnalysisBusyId(null);
     }
   };
@@ -815,6 +831,8 @@ export default function DominicInspectionEvidenceReview({
             const rangefinderTarget = readStoredRangefinderTarget(item.metadata);
             const evidenceRole = evidenceRoleFromMedia(item);
             const evidenceSequenceId = evidenceSequenceFromMedia(item);
+            const recovery = screeningRecoveryState(screeningJobs[item.id], screeningClock);
+            const screeningDisabled = Boolean(analysisBusyId) || recovery.active || recovery.completed || !aiReadiness.configured;
             return (
               <div
                 key={item.id}
@@ -954,7 +972,7 @@ export default function DominicInspectionEvidenceReview({
                     <button
                       type="button"
                       onClick={() => void runScreening(item.id)}
-                      disabled={analysisBusyId === item.id || !aiReadiness.configured}
+                      disabled={screeningDisabled}
                       style={{
                         border: `1px solid rgba(244,90,30,.4)`,
                         background: "rgba(244,90,30,.10)",
@@ -966,14 +984,16 @@ export default function DominicInspectionEvidenceReview({
                         alignItems: "center",
                         fontSize: 8,
                         fontWeight: 900,
-                        cursor: analysisBusyId === item.id ? "wait" : aiReadiness.configured ? "pointer" : "not-allowed",
-                        opacity: aiReadiness.configured ? 1 : .55,
+                        cursor: analysisBusyId === item.id || recovery.active ? "wait" : screeningDisabled ? "not-allowed" : "pointer",
+                        opacity: screeningDisabled ? .55 : 1,
                       }}
                     >
                       <ScanSearch size={12} />
-                      {analysisBusyId === item.id ? "Screening…" : aiReadiness.configured ? "Run AI Screening" : "AI Not Configured"}
+                      {analysisBusyId === item.id ? "Screening…" : recovery.completed || recovery.active ? recovery.label : aiReadiness.configured ? recovery.label : "AI Not Configured"}
                     </button>
                   </div>
+
+                  {recovery.note ? <div role="status" style={{ color: MUTED, fontSize: 9, marginTop: 7 }}>{recovery.note}</div> : null}
 
                   {itemFindings.length ? (
                     <div style={{ display: "grid", gap: 7, marginTop: 9 }}>

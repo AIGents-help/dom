@@ -6778,6 +6778,9 @@ test("DOMINIC live findings survive returning to a saved inspection and retain o
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
     await context.addInitScript(({ key, session }) => {
       localStorage.setItem(key, JSON.stringify(session)); localStorage.setItem("dom-cookie-consent", "essential");
+      // Controller browsers may have AbortController without newer static helpers.
+      Object.defineProperty(AbortSignal, "any", { configurable: true, value: undefined });
+      Object.defineProperty(AbortSignal, "timeout", { configurable: true, value: undefined });
     }, { key: `sb-${new URL(supabaseURL).hostname.split(".")[0]}-auth-token`, session: login.data.session });
     const page = await context.newPage();
     page.setDefaultTimeout(15_000); page.setDefaultNavigationTimeout(45_000);

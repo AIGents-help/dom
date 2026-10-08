@@ -49,6 +49,7 @@ import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
 import DominicInspectionEvidenceReview from "./DominicInspectionEvidenceReview";
 import DominicLiveInspectionPreview from "./DominicLiveInspectionPreview";
 import { useLiveInspectionFindings } from "./useLiveInspectionFindings";
+import { abortableRequest } from "@/lib/abortableRequest";
 import { PREVIEW_STALE_MS, previewFrameFile } from "@/lib/aircraft/cameraPreview";
 import {
   decideRealtimeInspectionScreening,
@@ -315,18 +316,18 @@ export default function DominicCapturePlanner({
     if (providedContextForPlan || !savedInspectionLink.inspectionId || !savedInspectionLink.assetId) return;
     let active = true;
     const controller = new AbortController();
+    const deadline = abortableRequest(controller.signal, 15_000);
     void (async () => {
       try {
         const sb = getSupabaseBrowser();
         const { data: session } = await sb.auth.getSession();
         const userId = session.session?.user.id;
         if (!userId) throw new Error("Sign in to restore the saved inspection.");
-        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]);
         const [inspection, asset] = await Promise.all([
           sb.from("dominic_inspections").select("id,asset_id,inspection_type,objective,sensor_modes,required_capabilities,optional_capabilities")
-            .eq("user_id", userId).eq("id", savedInspectionLink.inspectionId).eq("asset_id", savedInspectionLink.assetId).abortSignal(signal).maybeSingle(),
+            .eq("user_id", userId).eq("id", savedInspectionLink.inspectionId).eq("asset_id", savedInspectionLink.assetId).abortSignal(deadline.signal).maybeSingle(),
           sb.from("dominic_assets").select("id,name,asset_type,location_label,latitude,longitude")
-            .eq("user_id", userId).eq("id", savedInspectionLink.assetId).abortSignal(signal).maybeSingle(),
+            .eq("user_id", userId).eq("id", savedInspectionLink.assetId).abortSignal(deadline.signal).maybeSingle(),
         ]);
         if (inspection.error || asset.error || !inspection.data || !asset.data) throw new Error("The saved inspection link is unavailable. Open Assets & inspections to select an owned inspection.");
         if (active) setRestoredInspection({ key: savedInspectionKey, error: null, context: {
@@ -339,9 +340,11 @@ export default function DominicCapturePlanner({
         } });
       } catch (error) {
         if (active) setRestoredInspection({ key: savedInspectionKey, context: null, error: error instanceof Error ? error.message : "Saved inspection could not be restored." });
+      } finally {
+        deadline.dispose();
       }
     })();
-    return () => { active = false; controller.abort(); };
+    return () => { active = false; controller.abort(); deadline.dispose(); };
   }, [providedContextForPlan, savedInspectionLink.inspectionId, savedInspectionLink.assetId, savedInspectionKey]);
   const [missionType, setMissionType] = useState<CaptureMissionType>("roof");
   const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">(initialPlanningSource ?? "map");

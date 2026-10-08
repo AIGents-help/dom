@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
+import DominicHubOperations from "./DominicHubOperations";
 
 const ORANGE = "#F45A1E";
 const ORANGE_DARK = "#D9480F";
@@ -40,7 +41,7 @@ const AMBER = "#FFB565";
 const RED = "#FF7474";
 const CYAN = "#63CBE8";
 
-type HubView = "Command" | "Scheduler" | "Route Planner" | "Fleet" | "Sensors" | "Compliance";
+type HubView = "Operations" | "Command" | "Scheduler" | "Route Planner" | "Fleet" | "Sensors" | "Compliance";
 type MissionType = "Surveillance" | "Thermal Inspection" | "LDAR" | "Emergency Recon";
 type HubMissionTypeKey = "surveillance" | "thermal_inspection" | "ldar" | "emergency_recon";
 
@@ -82,6 +83,7 @@ const missionTypeLabel: Record<HubMissionTypeKey, MissionType> = {
 };
 
 const views: { label: HubView; icon: typeof Activity }[] = [
+  { label: "Operations", icon: ClipboardCheck },
   { label: "Command", icon: Activity },
   { label: "Scheduler", icon: CalendarClock },
   { label: "Route Planner", icon: Route },
@@ -209,8 +211,8 @@ function RefineryMap({ activeRoute = true }: { activeRoute?: boolean }) {
   );
 }
 
-export default function DominicHub() {
-  const [view, setView] = useState<HubView>("Command");
+export default function DominicHub(props: React.ComponentProps<typeof DominicHubOperations>) {
+  const [view, setView] = useState<HubView>("Operations");
   const [missionType, setMissionType] = useState<MissionType>("LDAR");
   const [selectedAircraft, setSelectedAircraft] = useState("DOM-401");
   const [routeMode, setRouteMode] = useState<"Patrol" | "Thermal Sweep" | "LDAR East">("LDAR East");
@@ -586,23 +588,23 @@ export default function DominicHub() {
     </div>
   );
 
-  const content = view === "Command" ? commandView : view === "Scheduler" ? schedulerView : view === "Route Planner" ? plannerView : view === "Fleet" ? fleetView : view === "Sensors" ? sensorsView : complianceView;
+  const content = view === "Operations" ? <DominicHubOperations key={`${props.projectId}:${props.accessToken}`} {...props} /> : view === "Command" ? commandView : view === "Scheduler" ? schedulerView : view === "Route Planner" ? plannerView : view === "Fleet" ? fleetView : view === "Sensors" ? sensorsView : complianceView;
 
   return (
     <div style={{ minHeight: 680, color: TEXT, background: `radial-gradient(circle at 72% 0%, rgba(244,90,30,.12), transparent 24%), ${BG}`, borderRadius: 10, overflow: "hidden" }}>
       <div style={{ padding: "14px 16px", borderBottom: `1px solid ${LINE}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
             <Orbit size={20} color={ORANGE} />
             <span style={{ color: ORANGE, fontWeight: 950, fontSize: 11, letterSpacing: ".16em" }}>DOMINIC HUB</span>
-            <StatusPill tone="blue">REFINERY SIMULATION</StatusPill>
+            <StatusPill tone="blue">{view === "Operations" ? "PROJECT RECORDS" : "REFINERY SIMULATION"}</StatusPill>
           </div>
-          <div style={{ fontSize: 22, fontWeight: 950, marginTop: 5 }}>Autonomous Operations Command Center</div>
-          <div style={{ color: MUTED, fontSize: 10, marginTop: 4 }}>Mission planning, fleet control, sensor awareness, alerts and audit — designed now, hardware-connected progressively.</div>
+          <div style={{ fontSize: 22, fontWeight: 950, marginTop: 5 }}>Operations Command Center</div>
+          <div style={{ color: MUTED, fontSize: 10, marginTop: 4 }}>Project operations uses saved account records. All other HUB tabs are refinery simulations, not live telemetry.</div>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <div style={{ border: `1px solid ${LINE}`, borderRadius: 9, background: PANEL, padding: "8px 10px", minWidth: 112 }}><div style={{ color: MUTED, fontSize: 8 }}>SYSTEM</div><div style={{ color: GREEN, fontSize: 11, fontWeight: 900, marginTop: 2 }}>SIMULATION SAFE</div></div>
-          <div style={{ border: `1px solid ${LINE}`, borderRadius: 9, background: PANEL, padding: "8px 10px", minWidth: 112 }}><div style={{ color: MUTED, fontSize: 8 }}>AIRCRAFT LINK</div><div style={{ color: AMBER, fontSize: 11, fontWeight: 900, marginTop: 2 }}>NOT CONNECTED</div></div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ border: `1px solid ${LINE}`, borderRadius: 9, background: PANEL, padding: "8px 10px", minWidth: 112 }}><div style={{ color: MUTED, fontSize: 8 }}>SYSTEM</div><div style={{ color: CYAN, fontSize: 11, fontWeight: 900, marginTop: 2 }}>{view === "Operations" ? "SAVED RECORDS" : "SIMULATION ONLY"}</div></div>
+          <div style={{ border: `1px solid ${LINE}`, borderRadius: 9, background: PANEL, padding: "8px 10px", minWidth: 112 }}><div style={{ color: MUTED, fontSize: 8 }}>AIRCRAFT LINK</div><div style={{ color: AMBER, fontSize: 11, fontWeight: 900, marginTop: 2 }}>NOT ASSESSED</div></div>
         </div>
       </div>
 
@@ -616,7 +618,7 @@ export default function DominicHub() {
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, borderTop: `1px solid ${LINE}`, padding: "9px 12px", color: MUTED, fontSize: 9 }}>
         <ShieldCheck size={13} color={GREEN} />
-        This HUB build is an operations simulator. It does not transmit commands to a real aircraft, dock, or LDAR sensor.
+        HUB does not transmit aircraft commands. Operations opens real project workflows; Command, Scheduler, Route Planner, Fleet, Sensors and Compliance contain simulation data only.
       </div>
     </div>
   );

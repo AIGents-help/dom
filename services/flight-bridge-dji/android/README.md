@@ -270,7 +270,13 @@ flight command is issued by this path.
 In DOMINIC, open an asset inspection's **Plan Capture**, choose **Live Drone**,
 and connect the inspection bridge. **Inspect this frame** saves the selected
 preview to private inspection evidence and uses the existing AI screening queue.
-Optional sampling runs no faster than every 30 seconds and waits for each job.
+Optional sampling defaults to 30 seconds; the pilot may explicitly choose 10 or
+5 seconds. Every automatic run is capped at 30 frames and waits for the preceding
+save/screening job rather than queuing a backlog. Only current, decoded, previously
+unsent frames are eligible. Hidden tabs, offline browsers, and stale camera feeds
+pause sampling; an AI/provider error turns it off while retaining saved evidence.
+Restarting approves another run. Faster cadence may increase evidence storage and
+AI charges; this is sampled RGB screening, not every-frame video analysis.
 The camera feed is separate from annotated evidence: callouts belong to the saved
 frame, not a later preview. Missing telemetry is stored as unknown. The web view
 pauses inspection after five seconds without a received frame.

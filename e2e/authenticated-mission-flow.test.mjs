@@ -6344,15 +6344,25 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     // Actual browser transport -> private storage -> owned inspection row.
     // The photorealistic fixture is a preview, not a physical aircraft test.
     let screenedPreviewFrames = 0;
+    let previewScreeningRequests = 0;
+    let holdPreviewScreening = false;
+    let releasePreviewScreening;
+    let previewScreeningError = false;
     // Controlled model response tests frame -> candidate -> callout. This does
     // not claim to validate model accuracy or physical aircraft imagery.
     await page.route(`${baseURL}/api/dominic/inspections/${inspection.id}/analyze-media`, async (route) => {
+      previewScreeningRequests += 1;
       const { mediaId } = route.request().postDataJSON();
       const source = await admin.from("dominic_inspection_media").select("id,metadata,user_id,inspection_id").eq("id", mediaId).single();
       assert.ifError(source.error);
       assert.equal(source.data.user_id, user.id);
       assert.equal(source.data.inspection_id, inspection.id);
       assert.equal(source.data.metadata.source, "camera_preview");
+      if (holdPreviewScreening) await new Promise((resolve) => { releasePreviewScreening = resolve; });
+      if (previewScreeningError) {
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ code: "VISION_NOT_CONFIGURED", error: "Controlled fixture: screening unavailable" }) });
+        return;
+      }
       const candidate = await seed("dominic_findings", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, finding_type: "visual_anomaly", title: `Preview fixture anomaly ${++screenedPreviewFrames}`, severity: "medium", review_status: "needs_review", detector: { provider: "controlled-browser-fixture", mediaId }, spatial_anchor: { mediaId, imageRegion: { x: .25, y: .25, width: .2, height: .2 } } });
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ configured: true, mediaId, candidateCount: 1, findings: [candidate] }) });
     });
@@ -6421,9 +6431,47 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.getByText("Frame saved. Review its callouts and add report notes.", { exact: true }).waitFor();
     assert.equal(screenedPreviewFrames, 2, "sampling must screen each saved eligible frame");
     inspectionStoragePaths.push(...sampledRows.filter((row) => row.id !== savedPreview.id).map((row) => row.storage_path));
+    await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).uncheck();
+    const cadence = page.getByRole("combobox", { name: "Preview screening cadence", exact: true });
+    assert.equal(await cadence.inputValue(), "30", "faster screening must be explicitly selected");
+    await cadence.selectOption("5");
+    holdPreviewScreening = true;
+    const fastSampling = page.getByRole("checkbox", { name: "Sample for inspection every 5 seconds", exact: true });
+    await fastSampling.check();
+    const fastDeadline = Date.now() + 12_000;
+    while (!releasePreviewScreening && Date.now() < fastDeadline) await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.equal(typeof releasePreviewScreening, "function", "the 5-second cadence must start a screening job");
+    // Keep the provider pending past another interval: neither saves nor jobs may pile up.
+    await new Promise((resolve) => setTimeout(resolve, 6500));
+    assert.equal(previewScreeningRequests, 3);
+    const busyRows = await admin.from("dominic_inspection_media").select("*").eq("inspection_id", inspection.id).like("source_capture_id", `browser-preview-${stamp}-%`);
+    assert.ifError(busyRows.error);
+    assert.equal(busyRows.data.length, 3, "backpressure must also prevent an evidence-upload backlog");
+    await page.getByRole("status", { name: "Automatic preview screening status", exact: true }).filter({ hasText: "Waiting for the current save and screening job" }).waitFor();
+    await page.screenshot({ path: "/tmp/dom-navigation-bounded-live-screening.png" });
+    await fastSampling.uncheck();
+    holdPreviewScreening = false;
+    releasePreviewScreening();
+    await page.getByText("Frame saved. Review its callouts and add report notes.", { exact: true }).waitFor();
+    assert.equal(screenedPreviewFrames, 3);
+    previewScreeningError = true;
+    await fastSampling.check();
+    await page.getByText("Frame saved, but AI screening is not configured. Automatic sampling stopped.", { exact: true }).waitFor({ timeout: 12_000 });
+    assert.equal(await fastSampling.isChecked(), false, "provider errors must turn automatic sampling off");
+    await new Promise((resolve) => setTimeout(resolve, 6000));
+    assert.equal(previewScreeningRequests, 4, "an unavailable provider must not be retried by the sampling timer");
+    const finalPreviewRows = await admin.from("dominic_inspection_media").select("*").eq("inspection_id", inspection.id).like("source_capture_id", `browser-preview-${stamp}-%`);
+    assert.ifError(finalPreviewRows.error);
+    assert.equal(finalPreviewRows.data.length, 4, "the failed screening must retain its saved evidence");
+    inspectionStoragePaths.push(...finalPreviewRows.data.filter((row) => !inspectionStoragePaths.includes(row.storage_path)).map((row) => row.storage_path));
+    previewScreeningError = false;
+    await cadence.selectOption("30");
+    await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).check();
     sendingPreview = false;
     await page.getByText("Preview paused — frame inspection unavailable", { exact: true }).waitFor({ timeout: 8000 });
     assert.equal(await page.getByRole("button", { name: "Inspect this frame", exact: true }).isDisabled(), true);
+    await page.getByRole("status", { name: "Automatic preview screening status", exact: true }).filter({ hasText: "waiting for a current camera frame" }).waitFor();
+    assert.equal(previewScreeningRequests, 4, "stale frames must not reach AI screening");
     await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).uncheck();
     await page.getByRole("button", { name: "Disconnect Aircraft Bridge", exact: true }).click();
     await page.getByText("Aircraft disconnected", { exact: true }).waitFor();

@@ -1345,6 +1345,7 @@ export default function DominicCapturePlanner({
     mediaId: string,
     sensorMode: string,
     quality: ImageQualityAssessment,
+    failOnError = false,
   ) => {
     if (!inspectionContext) return;
 
@@ -1363,7 +1364,7 @@ export default function DominicCapturePlanner({
       return;
     }
 
-    realtimeScreeningQueueRef.current = realtimeScreeningQueueRef.current
+    const screeningJob = realtimeScreeningQueueRef.current
       .catch(() => undefined)
       .then(async () => {
         setAutomaticMediaStatus(
@@ -1389,6 +1390,7 @@ export default function DominicCapturePlanner({
         const body = await response.json().catch(() => ({}));
         if (!response.ok) {
           if (body?.code === "VISION_NOT_CONFIGURED") {
+            if (failOnError) throw new Error("Frame saved, but AI screening is not configured. Automatic sampling stopped.");
             setAutomaticMediaStatus(
               `Evidence saved to ${inspectionContext.assetName}. AI screening is not configured on this deployment.`,
             );
@@ -1416,14 +1418,15 @@ export default function DominicCapturePlanner({
             ? `DOMINIC screened the new capture and flagged ${candidateCount} candidate finding${candidateCount === 1 ? "" : "s"} for review.`
             : "DOMINIC screened the new capture and did not flag a visible anomaly.",
         );
-      })
-      .catch((error) => {
-        setAutomaticMediaStatus(
-          error instanceof Error
-            ? `Evidence saved, but automatic screening failed: ${error.message}`
-            : "Evidence saved, but automatic screening failed.",
-        );
       });
+    realtimeScreeningQueueRef.current = screeningJob.catch((error) => {
+      setAutomaticMediaStatus(
+        error instanceof Error
+          ? `Evidence saved, but automatic screening failed: ${error.message}`
+          : "Evidence saved, but automatic screening failed.",
+      );
+    });
+    return failOnError ? screeningJob : realtimeScreeningQueueRef.current;
   };
 
   const reviewLiveInspectionFinding = async (
@@ -2091,8 +2094,7 @@ export default function DominicCapturePlanner({
     if (!persisted.persisted || !persisted.mediaId || !persisted.sensorMode) throw new Error("Frame could not be linked to this inspection.");
     if (persisted.created) {
       setAutomaticMediaCount((count) => count + 1);
-      queueRealtimeInspectionScreening(persisted.mediaId, persisted.sensorMode, quality);
-      await realtimeScreeningQueueRef.current;
+      await queueRealtimeInspectionScreening(persisted.mediaId, persisted.sensorMode, quality, true);
     }
     setShowInspectionEvidence(true);
   };

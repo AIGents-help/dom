@@ -27,7 +27,9 @@ jobs:
         with:
           version: 2.120.0
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - name: Install Chromium and system dependencies
+        timeout-minutes: 5
+        run: npx playwright install --with-deps chromium
       - name: Start disposable Supabase stack
         run: |
           # Upload/evidence tests require Storage; browser subscriptions require Realtime.

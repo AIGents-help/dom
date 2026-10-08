@@ -6716,7 +6716,7 @@ test("DOMINIC screening claims recover safely without duplicate findings or cros
     // Invalid final writes must roll back findings, media, inspection, and job together.
     assert.ok((await finish(retry.data.runId, { p_candidates: [{ ...candidates[0], severity: "invalid" }] })).error);
     assert.equal((await admin.from("dominic_media_screening_jobs").select("status").eq("media_id", media.id).single()).data.status, "processing");
-    const finished = await finish(retry.data.runId); assert.ifError(finished.error); assert.equal(finished.data, true);
+    const finished = await finish(retry.data.runId, { p_candidates: [candidates[0], candidates[0]] }); assert.ifError(finished.error); assert.equal(finished.data, true);
     const repeatedFinish = await finish(retry.data.runId); assert.ifError(repeatedFinish.error); assert.equal(repeatedFinish.data, false);
     const findings = await admin.from("dominic_findings").select("id").eq("inspection_id", inspection.id);
     assert.ifError(findings.error); assert.equal(findings.data.length, 1);

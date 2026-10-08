@@ -97,14 +97,15 @@ begin
   insert into public.dominic_findings(user_id, inspection_id, asset_id, finding_type,
     title, description, severity, review_status, confidence, sensor_mode, fingerprint,
     latitude, longitude, spatial_anchor, detector, observed_at)
-  select p_user_id, m.inspection_id, m.asset_id, c.finding_type, c.title, c.description,
+  select distinct on (c.fingerprint) p_user_id, m.inspection_id, m.asset_id, c.finding_type, c.title, c.description,
     c.severity, 'needs_review', c.confidence, m.sensor_mode, c.fingerprint,
     c.latitude, c.longitude, c.spatial_anchor, c.detector, coalesce(c.observed_at, clock_timestamp())
   from jsonb_to_recordset(p_candidates) as c(finding_type text, title text, description text,
     severity text, confidence numeric, fingerprint text, latitude numeric, longitude numeric,
     spatial_anchor jsonb, detector jsonb, observed_at timestamptz)
   where not exists (select 1 from public.dominic_findings f where f.user_id = p_user_id
-    and f.inspection_id = m.inspection_id and f.fingerprint = c.fingerprint);
+    and f.inspection_id = m.inspection_id and f.fingerprint = c.fingerprint)
+  order by c.fingerprint;
 
   update public.dominic_inspection_media set analysis_status = 'review', analysis_summary = p_summary
     where id = m.id;

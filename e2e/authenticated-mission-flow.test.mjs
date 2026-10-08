@@ -6170,6 +6170,8 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     const jpegSize = await sharp(jpeg).metadata();
     let previewSequence = 0;
     let sendingPreview = true;
+    let arFixtureEnabled = false;
+    let arPositionErrorM = 0.01;
     const previewCommands = [];
     await page.routeWebSocket(/^ws:\/\/127\.0\.0\.1:8787\/?$/, (socket) => {
       const protocol = "dominic.flight-bridge.v1";
@@ -6177,7 +6179,15 @@ test("DOMINIC keeps the working project across planning and inspection and opens
       const timer = setInterval(() => {
         if (!sendingPreview) return;
         const id = `browser-preview-${stamp}-${++previewSequence}`;
-        socket.send(JSON.stringify({ type: "camera_preview", protocol, sequence: previewSequence, frame: { width: jpegSize.width, height: jpegSize.height, jpegBase64: jpeg.toString("base64"), capture: { id, aircraftId: "preview-aircraft", capturedAtMs: Date.now(), mimeType: "image/jpeg", latitude: 0, longitude: 0, relativeAltitudeFt: 0, headingDeg: 0, gimbalPitchDeg: 0, previewFrame: { width: jpegSize.width, height: jpegSize.height, telemetryAvailable: false } } } }));
+        // Synthetic calibration/pose verifies overlay rendering and rejection only,
+        // not registration of this generated image to a physical refinery.
+        const registration = arFixtureEnabled ? {
+          coordinateFrameId: "browser-survey-fixture",
+          calibration: { id: "synthetic-calibration", aircraftId: "preview-aircraft", model: "rectified-pinhole", width: jpegSize.width, height: jpegSize.height, cameraSource: "wide", zoomRatio: 1, fx: 500, fy: 500, cx: jpegSize.width / 2, cy: jpegSize.height / 2, maxReprojectionErrorPx: 0.5 },
+          pose: { timestampMs: Date.now(), cameraPositionM: [0, 0, 0], worldToCameraRotation: [1, 0, 0, 0, 1, 0, 0, 0, 1], positionErrorM: arPositionErrorM, orientationErrorDeg: 0.01 },
+          anchors: [{ id: "synthetic-target", label: "Synthetic AR target", coordinateFrameId: "browser-survey-fixture", positionM: [0, 0, 10], positionErrorM: 0.01 }],
+        } : undefined;
+        socket.send(JSON.stringify({ type: "camera_preview", protocol, sequence: previewSequence, frame: { width: jpegSize.width, height: jpegSize.height, jpegBase64: jpeg.toString("base64"), registration, capture: { id, aircraftId: "preview-aircraft", capturedAtMs: Date.now(), mimeType: "image/jpeg", latitude: 0, longitude: 0, relativeAltitudeFt: 0, headingDeg: 0, gimbalPitchDeg: 0, cameraSource: "wide", zoomRatio: 1, previewFrame: { width: jpegSize.width, height: jpegSize.height, telemetryAvailable: false } } } }));
       }, 500);
       socket.onMessage((raw) => previewCommands.push(JSON.parse(String(raw))));
       socket.onClose(() => clearInterval(timer));
@@ -6327,6 +6337,18 @@ test("DOMINIC keeps the working project across planning and inspection and opens
       throw error;
     }
     await page.waitForFunction(() => [...document.images].some((img) => img.alt === "Current aircraft camera preview" && img.complete && img.naturalWidth > 0));
+    await page.getByRole("checkbox", { name: "Show calibrated AR", exact: true }).check();
+    await page.locator('[aria-label="AR registration status"]').waitFor();
+    assert.equal(await page.locator('svg[aria-label="Calibrated AR projections"]').count(), 0, "uncalibrated preview must never fabricate AR markers");
+    arFixtureEnabled = true;
+    await page.getByRole("img", { name: "Calibrated AR projections", exact: true }).waitFor();
+    await page.getByText("AR projections available — verify physical alignment", { exact: true }).waitFor();
+    await page.screenshot({ path: "/tmp/dom-navigation-calibrated-ar-fixture.png" });
+    arPositionErrorM = 3;
+    await page.getByRole("img", { name: "Calibrated AR projections", exact: true }).waitFor({ state: "detached" });
+    await page.getByText("AR hidden — no anchors meet alignment bounds", { exact: true }).waitFor();
+    arFixtureEnabled = false;
+
     await page.getByRole("button", { name: "Inspect this frame", exact: true }).click();
     await page.getByText("Frame saved. Review its callouts and add report notes.", { exact: true }).waitFor({ timeout: 20_000 });
     const previewRows = await admin.from("dominic_inspection_media").select("*").eq("inspection_id", inspection.id).like("source_capture_id", `browser-preview-${stamp}-%`);
@@ -6410,11 +6432,11 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.equal(await page.getByRole("heading", { name: "Demo refinery inspection", exact: true }).count(), 0);
     assert.equal(await page.getByRole("button", { name: "Next sample frame", exact: true }).count(), 0);
     assert.equal(previewCommands.filter((message) => message.type === "command").length, 0, "opening Live Flight must not issue aircraft commands");
-    await page.getByRole("button", { name: "AR View preview", exact: true }).click();
-    await page.getByRole("button", { name: "B-07", exact: true }).click();
-    await page.getByText("Sample finding: the north face lacks oblique imagery.", { exact: true }).waitFor();
-    await page.getByRole("checkbox", { name: "Show prior findings", exact: true }).uncheck();
-    await page.getByText("Prior findings hidden. Select an asset to highlight its location.", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "AR View", exact: true }).click();
+    assert.equal(await page.getByRole("checkbox", { name: "Show calibrated AR", exact: true }).isChecked(), true);
+    await page.getByText("AR hidden — current camera preview required", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("img", { name: "Calibrated AR projections", exact: true }).count(), 0);
+    assert.equal(previewCommands.filter((message) => message.type === "command").length, 0, "AR workspace must not issue aircraft commands");
     await page.getByRole("navigation", { name: "DOMINIC navigation", exact: true }).getByRole("button", { name: "AI Copilot", exact: true }).click();
     const copilot = page.getByRole("region", { name: "AI Inspection Copilot", exact: true });
     await copilot.getByRole("heading", { name: "Evidence-based next actions", exact: true }).waitFor();

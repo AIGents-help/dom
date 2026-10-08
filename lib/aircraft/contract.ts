@@ -68,6 +68,8 @@ export type UniversalCameraPreviewFrame = {
   width: number;
   height: number;
   jpegBase64: string;
+  // Optional, independently validated calibrated pose/anchors. Legacy previews remain usable.
+  registration?: unknown;
 };
 
 export type UniversalAircraftCommand =

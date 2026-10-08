@@ -5,8 +5,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { UniversalCameraPreviewFrame } from "@/lib/aircraft/contract";
 import { PREVIEW_STALE_MS, previewImageUrl } from "@/lib/aircraft/cameraPreview";
+import { projectArRegistration } from "@/lib/aircraft/arRegistration";
+import DominicArOverlay from "./DominicArOverlay";
 
 type Props = {
+  arMode?: boolean;
   preview: { frame: UniversalCameraPreviewFrame; receivedAtMs: number } | null;
   connected: boolean;
   supported: boolean;
@@ -21,6 +24,8 @@ type Props = {
 };
 
 export default function DominicLiveInspectionPreview(props: Props) {
+  const [showAr, setShowAr] = useState(Boolean(props.arMode));
+  const [decodedDimensions, setDecodedDimensions] = useState<{ frameId: string; width: number; height: number } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [automatic, setAutomatic] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -69,6 +74,10 @@ export default function DominicLiveInspectionPreview(props: Props) {
 
   const fresh = props.connected && props.preview && now - props.preview.receivedAtMs <= PREVIEW_STALE_MS;
   const ready = Boolean(fresh && props.canSave && failedFrameId !== props.preview?.frame.capture.id);
+  const frame = props.preview?.frame;
+  const registration = frame ? projectArRegistration(frame.registration, { aircraftId: frame.capture.aircraftId, width: frame.width, height: frame.height, capturedAtMs: frame.capture.capturedAtMs, cameraSource: frame.capture.cameraSource, zoomRatio: frame.capture.zoomRatio }, now) : null;
+  const imageMatches = frame && decodedDimensions?.frameId === frame.capture.id && decodedDimensions.width === frame.width && decodedDimensions.height === frame.height;
+  const arMarkers = showAr && fresh && imageMatches && failedFrameId !== frame?.capture.id ? registration?.markers ?? [] : [];
   return <div style={{ padding: 16, color: "#F5F7FA" }}>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
       <strong>Live inspection camera</strong>
@@ -81,9 +90,17 @@ export default function DominicLiveInspectionPreview(props: Props) {
       {props.connectionError ? <p role="alert" style={{ color: "#FFB86B" }}>{props.connectionError}</p> : null}
     </div>
     <div style={{ background: "#090D12", minHeight: 280, position: "relative", display: "grid", placeItems: "center" }}>
-      {props.preview ? <img src={previewImageUrl(props.preview.frame)} alt="Current aircraft camera preview" onError={() => setFailedFrameId(props.preview!.frame.capture.id)} style={{ display: "block", width: "100%", maxHeight: 560, objectFit: "contain", opacity: fresh ? 1 : 0.35 }} /> : <p style={{ padding: 24, color: "#A7B0BA" }}>Connect your DJI inspection bridge to see the aircraft camera.</p>}
+      {props.preview ? <div style={{ position: "relative", width: "100%", maxWidth: 560 * props.preview.frame.width / props.preview.frame.height }}>
+        <img key={props.preview.frame.capture.id} src={previewImageUrl(props.preview.frame)} alt="Current aircraft camera preview" onLoad={(event) => setDecodedDimensions({ frameId: props.preview!.frame.capture.id, width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} onError={() => setFailedFrameId(props.preview!.frame.capture.id)} style={{ display: "block", width: "100%", opacity: fresh ? 1 : 0.35 }} />
+        {arMarkers.length ? <DominicArOverlay markers={arMarkers} width={props.preview.frame.width} height={props.preview.frame.height} /> : null}
+      </div> : <p style={{ padding: 24, color: "#A7B0BA" }}>Connect your DJI inspection bridge to see the aircraft camera.</p>}
       {props.preview && !fresh ? <strong style={{ position: "absolute", background: "#090D12", padding: 12 }}>Preview paused — frame inspection unavailable</strong> : null}
     </div>
+    <label style={{ display: "block", fontSize: 13, marginTop: 12 }}><input type="checkbox" checked={showAr} onChange={(event) => setShowAr(event.target.checked)} /> Show calibrated AR</label>
+    {showAr ? <div aria-label="AR registration status" style={{ fontSize: 12, lineHeight: 1.6, color: "#FFB86B", marginTop: 8 }}>
+      <p>{!fresh ? "AR hidden — current camera preview required" : !imageMatches ? "AR hidden — decoded image dimensions do not match calibration" : registration?.status}</p>
+      <p>Only rectified, calibrated frames with synchronized camera pose and surveyed anchors can show projections. Aircraft heading alone is insufficient. Markers do not establish visibility, obstruction clearance or a confirmed defect. Physical alignment must be verified.</p>
+    </div> : null}
     <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center", marginTop: 14 }}>
       <button type="button" disabled={!ready || busy} onClick={() => void inspect()} style={{ padding: "10px 14px", background: ready && !busy ? "#F45A1E" : "#39424B", color: "#FFF", border: 0, borderRadius: 8, cursor: ready && !busy ? "pointer" : "not-allowed" }}>{busy ? "Saving & screening…" : "Inspect this frame"}</button>
       <label style={{ fontSize: 13 }}><input type="checkbox" checked={automatic} disabled={!ready && !automatic} onChange={(event) => { lastStartedAt.current = Date.now(); setAutomatic(event.target.checked); }} /> Sample for inspection every 30 seconds</label>

@@ -303,11 +303,13 @@ export default function DominicCapturePlanner({
   projectId = null,
   initialSavedPlanId = null,
   initialPlanningSource,
+  initialArMode = false,
 }: {
   projectId?: string | null;
   initialSavedPlanId?: string | null;
   inspectionContext?: DominicInspectionPlanningContext | null;
   initialPlanningSource?: "map" | "live" | "local";
+  initialArMode?: boolean;
 }) {
   const [linkedProjectId, setLinkedProjectId] = useState<string | null>(projectId);
   const [projectOptions, setProjectOptions] = useState<Array<{ id: string; name: string }>>([]);
@@ -4096,6 +4098,7 @@ export default function DominicCapturePlanner({
         ) : planningSource === "live" ? (
           <DominicLiveInspectionPreview
             key={`${inspectionContext?.inspectionId ?? "unlinked"}-${bridgeStatus}`}
+            arMode={initialArMode}
             preview={cameraPreview}
             connected={bridgeStatus === "connected"}
             supported={Boolean(bridgeInfo?.capabilities.cameraPreview)}

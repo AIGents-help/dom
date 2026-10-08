@@ -369,13 +369,14 @@ export default function DominicApp() {
                   <DominicHub />
                 ) : activeModule === "Capture Planner" ? (
                   <DominicCapturePlanner key={selectedCapturePlanId ?? "new"} inspectionContext={inspectionPlanningContext} projectId={activeProjectId} initialSavedPlanId={selectedCapturePlanId} />
-                ) : activeModule === "Live Flight" ? (
+                ) : (activeModule === "Live Flight" || activeModule === "AR View") ? (
                   <DominicCapturePlanner
-                    key={selectedCapturePlanId ?? "live"}
+                    key={`${activeModule}:${selectedCapturePlanId ?? "live"}`}
                     inspectionContext={inspectionPlanningContext}
                     projectId={activeProjectId}
                     initialSavedPlanId={selectedCapturePlanId}
                     initialPlanningSource="live"
+                    initialArMode={activeModule === "AR View"}
                   />
                 ) : (activeModule === "Intelligent Inspection" || activeModule === "AI Copilot") && activeProjectId ? (
                   <DominicIntelligentInspection key={`${activeModule}:${activeProjectId}:${inspectionSelection?.inspectionId ?? ""}`} projectId={activeProjectId} accessToken={accessToken} copilotMode={activeModule === "AI Copilot"} initialInspectionId={inspectionSelection?.inspectionId}

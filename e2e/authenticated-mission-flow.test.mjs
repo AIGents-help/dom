@@ -6506,6 +6506,9 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await modules.getByRole("button", { name: "DOMINIC HUB", exact: true }).waitFor();
     await modules.getByRole("button", { name: "AR View", exact: true }).waitFor();
     await modules.getByRole("button", { name: "Plans & inspections", exact: true }).waitFor();
+    await modules.getByRole("button", { name: "Close module menu", exact: true }).focus();
+    await page.keyboard.press("Shift+Tab");
+    assert.equal(await modules.getByRole("button", { name: "DOMINIC HUB", exact: true }).evaluate((element) => element === document.activeElement), true, "reverse Tab must wrap to the last module");
     for (let index = 0; index < 16; index++) {
       await page.keyboard.press("Tab");
       assert.ok(await page.evaluate(() => document.activeElement?.closest("dialog")?.open === true), "module menu must keep keyboard focus inside the modal");

@@ -6493,6 +6493,53 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.getByRole("button", { name: "Connect Aircraft Bridge", exact: true }).waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "Live Flight UI must fit the mobile viewport");
     await page.screenshot({ path: "/tmp/dom-navigation-simulation-mobile.png" });
+    const fieldDock = page.getByRole("navigation", { name: "DOMINIC field navigation", exact: true });
+    const modules = page.getByRole("dialog", { name: "All DOMINIC modules", exact: true });
+    const previousOverflow = await page.evaluate(() => document.body.style.overflow);
+    await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
+    await modules.waitFor();
+    await modules.getByRole("button", { name: "DOMINIC HUB", exact: true }).waitFor();
+    await modules.getByRole("button", { name: "AR View", exact: true }).waitFor();
+    await modules.getByRole("button", { name: "Plans & inspections", exact: true }).waitFor();
+    for (let index = 0; index < 16; index++) {
+      await page.keyboard.press("Tab");
+      assert.ok(await page.evaluate(() => document.activeElement?.closest("dialog")?.open === true), "module menu must keep keyboard focus inside the modal");
+    }
+    await page.keyboard.press("Escape");
+    await modules.waitFor({ state: "hidden" });
+    assert.equal(await page.locator(":focus").getAttribute("aria-label"), "All modules", "Escape must restore focus to the menu trigger");
+    assert.equal(await page.evaluate(() => document.body.style.overflow), previousOverflow);
+    await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
+    await modules.getByRole("button", { name: "AR View", exact: true }).click();
+    await modules.waitFor({ state: "hidden" });
+    await page.getByRole("checkbox", { name: "Show calibrated AR", exact: true }).waitFor();
+    assert.equal(await page.getByRole("checkbox", { name: "Show calibrated AR", exact: true }).isChecked(), true);
+    await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
+    await modules.getByRole("button", { name: "DOMINIC HUB", exact: true }).click();
+    await hub.getByRole("heading", { name: "Working reconstruction", exact: true }).waitFor();
+    await hub.getByRole("button", { name: "Open HUB live capture Workflow capture plan", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="Capture plan name"]')?.value === "Workflow capture plan");
+    assert.equal(previewCommands.filter((message) => message.type === "command").length, 0, "mobile module navigation must not issue aircraft commands");
+    await page.setViewportSize({ width: 320, height: 640 });
+    await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
+    await page.screenshot({ path: "/tmp/dom-navigation-all-modules-small-mobile.png" });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "module menu must fit a 320px viewport");
+    await modules.getByRole("button", { name: "Close module menu", exact: true }).click();
+    await modules.waitFor({ state: "hidden" });
+    assert.equal(await page.evaluate(() => document.body.style.overflow), previousOverflow);
+    // Removing the mobile menu on rotation must also release its scroll lock.
+    await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await modules.waitFor({ state: "detached" });
+    assert.equal(await page.evaluate(() => document.body.style.overflow), previousOverflow);
+    // The same menu must apply existing licensing and project-selection gates.
+    assert.ifError((await admin.from("dominic_profiles").update({ plan: "free" }).eq("user_id", user.id)).error);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${baseURL}/dominic`, { waitUntil: "networkidle" });
+    await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
+    assert.equal(await modules.getByRole("button", { name: "Plans & inspections", exact: true }).count(), 0, "project-only modules require a selected project");
+    await modules.getByRole("button", { name: "DOMINIC HUB", exact: true }).click();
+    await page.waitForURL("**/dominic/licensing");
     assert.deepEqual(errors, []);
   } finally {
     await browser?.close();

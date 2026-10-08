@@ -31,8 +31,8 @@ function NavigationButton({ item, active, collapsed, nested, onOpen }: {
   </button>;
 }
 
-export default function DominicNavigation({ activeModule, hasProject, collapsed, onOpen, projectOnly = false, demoMode = false }: {
-  activeModule: string; hasProject: boolean; collapsed: boolean; onOpen: (module: string) => void; projectOnly?: boolean; demoMode?: boolean;
+export default function DominicNavigation({ activeModule, hasProject, collapsed, onOpen, projectOnly = false, demoMode = false, operationsExpanded = false }: {
+  activeModule: string; hasProject: boolean; collapsed: boolean; onOpen: (module: string) => void; projectOnly?: boolean; demoMode?: boolean; operationsExpanded?: boolean;
 }) {
   return <nav aria-label="DOMINIC navigation" style={{ display: "grid", gap: 18 }}>
     {projectOnly ? null : <section aria-label="Projects library">
@@ -55,7 +55,10 @@ export default function DominicNavigation({ activeModule, hasProject, collapsed,
         { module: "AI Copilot", label: demoMode ? "AI Copilot preview" : "AI Copilot", icon: BrainCircuit },
       ] satisfies Item[]).map((item) => <NavigationButton key={item.module} item={item} active={activeModule === item.module} collapsed={collapsed} onOpen={onOpen} />)}
     </section>}
-    {projectOnly ? null : <details>
+    {projectOnly ? null : operationsExpanded ? <section aria-label="Operations tools">
+      <div style={{ color: V.inkFaint, fontSize: 10, padding: "0 9px 7px" }}>OPERATIONS</div>
+      <NavigationButton item={{ module: "DOMINIC HUB", label: "DOMINIC HUB", icon: Factory }} active={activeModule === "DOMINIC HUB"} collapsed={false} onOpen={onOpen} />
+    </section> : <details>
       <summary title="Operations" style={{ color: V.inkFaint, fontSize: 11, padding: "7px 9px", cursor: "pointer" }}>{collapsed ? "…" : "Operations"}</summary>
       <NavigationButton item={{ module: "DOMINIC HUB", label: demoMode ? "Refinery simulator" : "DOMINIC HUB", icon: Factory }} active={activeModule === "DOMINIC HUB"} collapsed={collapsed} onOpen={onOpen} />
     </details>}

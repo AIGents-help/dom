@@ -6129,7 +6129,7 @@ test("DOMINIC maintenance queue includes older urgent work and stays user-owned"
   }
 });
 
-test("DOMINIC keeps the working project across planning and inspection and opens the requested output", { skip: !isolated }, async () => {
+test("DOMINIC keeps the working project across planning and inspection and opens the requested output", { skip: !isolated, timeout: 180_000 }, async () => {
   assert.ok(supabaseURL && anonKey && serviceKey);
   assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
   const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
@@ -6165,6 +6165,8 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     // WebSocket routing installs an init script, so register it before navigation.
+    page.setDefaultTimeout(15_000);
+    page.setDefaultNavigationTimeout(45_000);
     const fixtureImage = await readFile(new URL("../public/images/dominic-demo/refinery-aerial-v1.webp", import.meta.url));
     const jpeg = await sharp(fixtureImage).resize({ width: 960 }).jpeg({ quality: 80 }).toBuffer();
     const jpegSize = await sharp(jpeg).metadata();
@@ -6539,7 +6541,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
     assert.equal(await modules.getByRole("button", { name: "Plans & inspections", exact: true }).count(), 0, "project-only modules require a selected project");
     await modules.getByRole("button", { name: "DOMINIC HUB", exact: true }).click();
-    await page.waitForURL("**/dominic/licensing");
+    await page.waitForURL("**/dominic/licensing", { timeout: 15_000 });
     assert.deepEqual(errors, []);
   } finally {
     await browser?.close();

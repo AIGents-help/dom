@@ -22,6 +22,7 @@ import {
 } from "@/lib/dominicVision";
 
 export const runtime = "nodejs";
+export const maxDuration = 180;
 
 function fingerprint(input: string) {
   return createHash("sha256").update(input).digest("hex").slice(0, 40);
@@ -151,6 +152,27 @@ export async function POST(
   }
   if (!inspection || !asset || inspection.asset_id !== asset.id) {
     return NextResponse.json({ error: "Inspection context is invalid." }, { status: 409 });
+  }
+
+  const completedResponse = async (summary: Record<string, unknown>, cached = false) => {
+    const { data: findings, error } = await admin.from("dominic_findings")
+      .select("id,finding_type,title,description,severity,review_status,confidence,sensor_mode,fingerprint,spatial_anchor,detector,observed_at")
+      .eq("user_id", user.id).eq("inspection_id", inspection.id)
+      .eq("review_status", "needs_review").order("observed_at", { ascending: false });
+    if (error) return NextResponse.json({ error: "Screening results could not be loaded. Retry to retrieve saved results." }, { status: 500 });
+    return NextResponse.json({ configured: true, mediaId: media.id, ...summary, cached, findings: findings ?? [] },
+      { headers: { "Cache-Control": "no-store" } });
+  };
+  const busyResponse = (leaseExpiresAt: string) => NextResponse.json({
+    code: "SCREENING_IN_PROGRESS", error: "This image is already being screened. Wait for the result or retry after the attempt expires.",
+    leaseExpiresAt,
+  }, { status: 409, headers: { "Cache-Control": "no-store" } });
+  const { data: existingJob, error: jobError } = await admin.from("dominic_media_screening_jobs")
+    .select("status,lease_expires_at,result").eq("media_id", media.id).eq("user_id", user.id).maybeSingle();
+  if (jobError) return NextResponse.json({ error: "Screening state could not be loaded." }, { status: 500 });
+  if (existingJob?.status === "succeeded") return completedResponse(existingJob.result, true);
+  if (existingJob?.status === "processing" && Date.parse(existingJob.lease_expires_at) > Date.now()) {
+    return busyResponse(existingJob.lease_expires_at);
   }
 
   const vercelGatewayToken =
@@ -285,24 +307,18 @@ export async function POST(
     comparisonComparability,
   });
 
-  await Promise.all([
-    admin
-      .from("dominic_inspection_media")
-      .update({ analysis_status: "analyzing" })
-      .eq("id", media.id)
-      .eq("user_id", user.id),
-    inspection.status === "planned" || inspection.status === "capturing"
-      ? admin
-          .from("dominic_inspections")
-          .update({ status: "analyzing" })
-          .eq("id", inspection.id)
-          .eq("user_id", user.id)
-      : Promise.resolve({ error: null }),
-  ]);
+  const { data: claim, error: claimError } = await admin.rpc("claim_dominic_media_screening", {
+    p_media_id: media.id, p_user_id: user.id,
+  });
+  if (claimError || !claim) return NextResponse.json({ error: "Screening attempt could not be started." }, { status: 500 });
+  if (claim.decision === "cached") return completedResponse(claim.result, true);
+  if (claim.decision === "busy") return busyResponse(claim.leaseExpiresAt);
+  if (claim.decision !== "claimed" || !claim.runId) return NextResponse.json({ error: "Invalid screening attempt." }, { status: 500 });
 
   try {
     const response = await fetch(providerUrl, {
       method: "POST",
+      signal: AbortSignal.timeout(90_000),
       headers: {
         Authorization: `Bearer ${providerToken}`,
         "Content-Type": "application/json",
@@ -444,119 +460,29 @@ export async function POST(
       };
     });
 
-    const fingerprints = candidateRows.map((row) => row.fingerprint);
-    let existingFingerprints = new Set<string>();
-    if (fingerprints.length) {
-      const { data: existing } = await admin
-        .from("dominic_findings")
-        .select("fingerprint")
-        .eq("user_id", user.id)
-        .eq("inspection_id", inspection.id)
-        .in("fingerprint", fingerprints);
-      existingFingerprints = new Set(
-        (existing ?? [])
-          .map((row) => row.fingerprint)
-          .filter((value): value is string => typeof value === "string"),
-      );
-    }
-
-    const newRows = candidateRows.filter((row) => !existingFingerprints.has(row.fingerprint));
-    if (newRows.length) {
-      const { error: insertError } = await admin.from("dominic_findings").insert(newRows);
-      if (insertError) throw insertError;
-    }
-
-    await Promise.all([
-      admin
-        .from("dominic_inspection_media")
-        .update({
-          analysis_status: "review",
-          analysis_summary: {
-            provider,
-            model,
-            inspectionProfileId: inspectionProfile.id,
-            inspectionProfileLabel: inspectionProfile.label,
-            summary: screening.summary,
-            candidateCount: screening.candidates.length,
-            limitations: [...screening.limitations, ...comparisonLimitations],
-            thermalEvidenceKind,
-            radiometric,
-            baselineCompared: Boolean(baselineSignedUrl),
-            baselineFindingId,
-            baselineEvidenceId,
-            baselineSourceMediaId,
-            comparisonComparability,
-            analyzedAt: new Date().toISOString(),
-          },
-        })
-        .eq("id", media.id)
-        .eq("user_id", user.id),
-      admin
-        .from("dominic_inspections")
-        .update({
-          status: "review",
-          ai_summary: {
-            ...aiSummary,
-            latestMediaId: media.id,
-            provider,
-            model,
-            inspectionProfileId: inspectionProfile.id,
-            inspectionProfileLabel: inspectionProfile.label,
-            summary: screening.summary,
-            candidateCount: screening.candidates.length,
-            limitations: [...screening.limitations, ...comparisonLimitations],
-            thermalEvidenceKind,
-            radiometric,
-            baselineCompared: Boolean(baselineSignedUrl),
-            baselineFindingId,
-            baselineEvidenceId,
-            baselineSourceMediaId,
-            comparisonComparability,
-            analyzedAt: new Date().toISOString(),
-          },
-        })
-        .eq("id", inspection.id)
-        .eq("user_id", user.id),
-    ]);
-
-    const { data: findings } = await admin
-      .from("dominic_findings")
-      .select("id,finding_type,title,description,severity,review_status,confidence,sensor_mode,fingerprint,spatial_anchor,detector,observed_at")
-      .eq("user_id", user.id)
-      .eq("inspection_id", inspection.id)
-      .eq("review_status", "needs_review")
-      .order("observed_at", { ascending: false });
-
-    return NextResponse.json({
-      configured: true,
-      mediaId: media.id,
-      summary: screening.summary,
-      limitations: [...screening.limitations, ...comparisonLimitations],
-      thermalEvidenceKind,
-      radiometric,
+    const summary = {
+      provider, model, inspectionProfileId: inspectionProfile.id,
+      inspectionProfileLabel: inspectionProfile.label, summary: screening.summary,
       candidateCount: screening.candidates.length,
-      baselineCompared: Boolean(baselineSignedUrl),
-      baselineFindingId,
-      comparisonComparability,
-      findings: findings ?? [],
-    }, {
-      headers: { "Cache-Control": "no-store" },
+      limitations: [...screening.limitations, ...comparisonLimitations],
+      thermalEvidenceKind, radiometric, baselineCompared: Boolean(baselineSignedUrl),
+      baselineFindingId, baselineEvidenceId, baselineSourceMediaId, comparisonComparability,
+      analyzedAt: new Date().toISOString(),
+    };
+    const { data: finished, error: finishError } = await admin.rpc("finish_dominic_media_screening", {
+      p_media_id: media.id, p_user_id: user.id, p_run_id: claim.runId,
+      p_summary: summary, p_candidates: candidateRows,
     });
+    if (finishError) throw finishError;
+    if (!finished) return NextResponse.json({ code: "SCREENING_ATTEMPT_EXPIRED", error: "This screening attempt expired. Reload evidence and retry if needed." }, { status: 409 });
+    return completedResponse(summary);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Vision screening failed.";
-    await admin
-      .from("dominic_inspection_media")
-      .update({
-        analysis_status: "failed",
-        analysis_summary: {
-          provider,
-          model,
-          failedAt: new Date().toISOString(),
-          error: message.slice(0, 500),
-        },
-      })
-      .eq("id", media.id)
-      .eq("user_id", user.id);
+    await admin.rpc("finish_dominic_media_screening", {
+      p_media_id: media.id, p_user_id: user.id, p_run_id: claim.runId,
+      p_summary: { provider, model, failedAt: new Date().toISOString(), error: message.slice(0, 500) },
+      p_candidates: [], p_error: message.slice(0, 500),
+    });
 
     return NextResponse.json({ error: message }, { status: 502 });
   }

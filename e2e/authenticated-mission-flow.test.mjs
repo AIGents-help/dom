@@ -6748,6 +6748,151 @@ test("DOMINIC screening claims recover safely without duplicate findings or cros
   }
 });
 
+test("DOMINIC live findings survive returning to a saved inspection and retain older urgent work", { skip: !isolated, timeout: 120_000 }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey);
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Feed-${stamp}!Aa1`;
+  const users = [];
+  let browser, contractor, mission, job, project;
+  const seed = async (table, row) => {
+    const result = await admin.from(table).insert(row).select("*").single();
+    assert.ifError(result.error); return result.data;
+  };
+  try {
+    for (const role of ["owner", "outsider"]) {
+      const result = await admin.auth.admin.createUser({ email: `feed-${role}-${stamp}@e2e.dom.invalid`, password, email_confirm: true });
+      assert.ifError(result.error); users.push(result.data.user);
+    }
+    const owner = users[0];
+    contractor = await seed("contractors", { user_id: owner.id, full_name: "Feed operator", email: owner.email, status: "active" });
+    await seed("dominic_profiles", { user_id: owner.id, plan: "organization", status: "active" });
+    mission = await seed("mission_requests", { requester_name: "Feed client", requester_email: owner.email, service_type: "aerial_images", location: "Feed site", status: "approved" });
+    job = await seed("jobs", { mission_request_id: mission.id, title: "Feed mission", service_type: "aerial_images", location: "Feed site", status: "scheduled" });
+    project = await seed("mapping_projects", { job_id: job.id, contractor_id: contractor.id, name: "Feed project", status: "uploaded", image_count: 20 });
+    const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const login = await auth.auth.signInWithPassword({ email: owner.email, password });
+    assert.ifError(login.error);
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    await context.addInitScript(({ key, session }) => {
+      localStorage.setItem(key, JSON.stringify(session)); localStorage.setItem("dom-cookie-consent", "essential");
+      // Controller browsers may have AbortController without newer static helpers.
+      Object.defineProperty(AbortSignal, "any", { configurable: true, value: undefined });
+      Object.defineProperty(AbortSignal, "timeout", { configurable: true, value: undefined });
+    }, { key: `sb-${new URL(supabaseURL).hostname.split(".")[0]}-auth-token`, session: login.data.session });
+    const page = await context.newPage();
+    page.setDefaultTimeout(15_000); page.setDefaultNavigationTimeout(45_000);
+    const errors = [];
+    let screeningRequests = 0, findingRequests = 0;
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("request", (req) => {
+      if (/\/analyze-media$/.test(req.url())) screeningRequests += 1;
+      if (/\/rest\/v1\/dominic_findings(?:\?|$)/.test(req.url())) findingRequests += 1;
+    });
+    const openHub = async () => {
+      const button = page.getByRole("navigation", { name: "DOMINIC navigation", exact: true }).getByRole("button", { name: "DOMINIC HUB", exact: true });
+      if (!await button.isVisible()) await page.locator('summary[title="Operations"]').click();
+      await button.click();
+    };
+    const chooseProject = async () => {
+      await openHub();
+      await page.getByRole("button", { name: "Choose operations project", exact: true }).click();
+      await page.getByRole("button").filter({ hasText: "Feed project" }).click();
+    };
+    await page.goto(`${baseURL}/dominic`, { waitUntil: "networkidle" });
+    await chooseProject();
+    await page.getByRole("button", { name: "Capture plans", exact: true }).click();
+    await page.getByRole("textbox", { name: "Capture plan name", exact: true }).fill("Feed capture plan");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await page.getByText("Capture plan saved.", { exact: true }).waitFor();
+    const saved = await admin.from("dominic_capture_plans").select("*").eq("user_id", owner.id).eq("name", "Feed capture plan").single();
+    assert.ifError(saved.error);
+    const asset = await seed("dominic_assets", { user_id: owner.id, name: "Feed tank", asset_type: "tank" });
+    const inspection = await seed("dominic_inspections", { user_id: owner.id, asset_id: asset.id, mapping_project_id: project.id, capture_plan_id: saved.data.id, inspection_type: "visual", sensor_modes: ["rgb"], status: "review" });
+    const planState = { ...saved.data.plan_state, mappingProjectId: project.id, inspectionId: inspection.id, assetId: asset.id, assetName: asset.name, inspectionType: "visual" };
+    assert.ifError((await admin.from("dominic_capture_plans").update({ plan_state: planState }).eq("id", saved.data.id)).error);
+    const common = { user_id: owner.id, asset_id: asset.id, inspection_id: inspection.id, finding_type: "visual_anomaly", review_status: "needs_review" };
+    const critical = await seed("dominic_findings", { ...common, title: "Older critical candidate", severity: "critical", observed_at: "2001-01-01T00:00:00Z" });
+    await seed("dominic_findings", { ...common, title: "Older high candidate", severity: "high", observed_at: "2002-01-01T00:00:00Z" });
+    assert.ifError((await admin.from("dominic_findings").insert(Array.from({ length: 18 }, (_, i) => ({ ...common, title: `Recent candidate ${i}`, severity: "low" })))).error);
+    const privateAsset = await seed("dominic_assets", { user_id: users[1].id, name: "Private outsider asset", asset_type: "tank" });
+    const privateInspection = await seed("dominic_inspections", { user_id: users[1].id, asset_id: privateAsset.id, inspection_type: "visual" });
+    await seed("dominic_findings", { user_id: users[1].id, asset_id: privateAsset.id, inspection_id: privateInspection.id, finding_type: "visual_anomaly", severity: "critical", review_status: "needs_review", title: "Private outsider candidate" });
+    await seed("dominic_capture_plans", { user_id: owner.id, name: "Forged inspection link", mission_type: saved.data.mission_type, plan_state: { ...planState, inspectionId: privateInspection.id, assetId: privateAsset.id, assetName: "Untrusted cached asset" } });
+    const feed = page.getByRole("region", { name: "Live inspection findings", exact: true });
+    const openPlan = async (name) => {
+      await openHub();
+      await page.getByRole("region", { name: "HUB project operations", exact: true }).getByRole("button", { name: `Open HUB live capture ${name}`, exact: true }).click();
+    };
+    await openPlan("Feed capture plan");
+    await feed.getByText("20 NEED REVIEW", { exact: true }).waitFor();
+    assert.equal(await feed.getByRole("article").count(), 12);
+    assert.equal(await feed.getByRole("article").nth(0).getAttribute("aria-label"), "Older critical candidate");
+    assert.equal(await feed.getByRole("article").nth(1).getAttribute("aria-label"), "Older high candidate");
+    assert.equal((await feed.textContent()).includes("Private outsider"), false);
+    assert.equal(await page.getByRole("button", { name: "Review frames & report", exact: true }).isEnabled(), true, "owned saved plans must restore the inspection link");
+    assert.equal(await page.getByRole("textbox", { name: "Capture plan name", exact: true }).inputValue(), "Feed capture plan", "restoring inspection context must preserve saved geometry and name");
+    await page.reload({ waitUntil: "networkidle" });
+    await chooseProject(); await openPlan("Feed capture plan");
+    await feed.getByText("20 NEED REVIEW", { exact: true }).waitFor();
+    await feed.getByRole("article", { name: "Older critical candidate", exact: true }).waitFor();
+    assert.ifError((await admin.from("dominic_findings").update({ review_status: "dismissed" }).eq("id", critical.id)).error);
+    await feed.getByText("19 NEED REVIEW", { exact: true }).waitFor();
+    assert.equal(await feed.getByRole("article", { name: "Older critical candidate", exact: true }).count(), 0, "reviews made elsewhere must remove stale candidates");
+    await feed.getByRole("article", { name: "Older high candidate", exact: true }).getByRole("button", { name: "Dismiss", exact: true }).click();
+    await feed.getByText("18 NEED REVIEW", { exact: true }).waitFor();
+    const findingURL = /\/rest\/v1\/dominic_findings(?:\?|$)/;
+    await page.route(findingURL, (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Fixture findings unavailable" }) }));
+    await feed.getByRole("button", { name: "Refresh findings", exact: true }).click();
+    await feed.getByRole("alert").filter({ hasText: "Saved findings could not be refreshed" }).waitFor();
+    assert.equal(await feed.getByRole("article").count(), 0, "failed refreshes must hide stale review controls");
+    await feed.getByText("REVIEW COUNT UNAVAILABLE", { exact: true }).waitFor();
+    await page.unroute(findingURL); await feed.getByRole("button", { name: "Refresh findings", exact: true }).click();
+    await feed.getByText("18 NEED REVIEW", { exact: true }).waitFor();
+    await context.setOffline(true);
+    await feed.getByRole("alert").filter({ hasText: "Offline" }).waitFor();
+    await context.setOffline(false);
+    await feed.getByText("18 NEED REVIEW", { exact: true }).waitFor();
+    await page.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" }); document.dispatchEvent(new Event("visibilitychange")); });
+    const beforeHidden = findingRequests;
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    assert.equal(findingRequests, beforeHidden, "hidden tabs must not poll the findings database");
+    await page.evaluate(() => { Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" }); document.dispatchEvent(new Event("visibilitychange")); });
+    await feed.getByText("18 NEED REVIEW", { exact: true }).waitFor();
+    await feed.screenshot({ path: "/tmp/dom-navigation-persisted-live-findings-desktop.png" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await feed.screenshot({ path: "/tmp/dom-navigation-persisted-live-findings-mobile.png" });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    // Wait for desktop layout to finish before inspecting the Operations menu;
+    // compact mode collapses the sidebar and leaves its menu state intact.
+    await page.getByRole("button", { name: "Expand DOMINIC sidebar", exact: true }).click();
+    await openPlan("Forged inspection link");
+    await page.getByRole("alert").filter({ hasText: "The saved inspection link is unavailable" }).waitFor();
+    assert.equal(await feed.count(), 0);
+    assert.equal(await page.getByRole("button", { name: "Review frames & report", exact: true }).isDisabled(), true);
+    assert.equal((await page.textContent("body")).includes("Private outsider candidate"), false);
+    assert.equal(screeningRequests, 0, "loading and reviewing saved findings must not create AI screening jobs");
+    assert.deepEqual(errors, []);
+  } finally {
+    if (browser) await browser.close();
+    const ids = users.map((user) => user.id);
+    if (ids.length) {
+      await admin.from("dominic_findings").delete().in("user_id", ids);
+      await admin.from("dominic_inspections").delete().in("user_id", ids);
+      await admin.from("dominic_assets").delete().in("user_id", ids);
+      await admin.from("dominic_capture_plans").delete().in("user_id", ids);
+    }
+    if (project) await admin.from("mapping_projects").delete().eq("id", project.id);
+    if (job) await admin.from("jobs").delete().eq("id", job.id);
+    if (mission) await admin.from("mission_requests").delete().eq("id", mission.id);
+    if (contractor) await admin.from("contractors").delete().eq("id", contractor.id);
+    for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});
+
 test("public DOMINIC sample uses photorealistic imagery and never mutates account data", { skip: !isolated }, async () => {
   const browser = await chromium.launch({ headless: true });
   try {

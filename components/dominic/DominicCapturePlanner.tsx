@@ -48,6 +48,8 @@ import { buildDominicDjiMissionPackage, downloadDominicDjiMissionPackage } from 
 import type { DominicInspectionPlanningContext } from "@/lib/dominicInspection";
 import DominicInspectionEvidenceReview from "./DominicInspectionEvidenceReview";
 import DominicLiveInspectionPreview from "./DominicLiveInspectionPreview";
+import { useLiveInspectionFindings } from "./useLiveInspectionFindings";
+import { abortableRequest } from "@/lib/abortableRequest";
 import { PREVIEW_STALE_MS, previewFrameFile } from "@/lib/aircraft/cameraPreview";
 import {
   decideRealtimeInspectionScreening,
@@ -166,18 +168,6 @@ type SavedCapturePlan = {
   schema_version: number;
   plan_state: PersistedCapturePlanState;
   updated_at: string;
-};
-
-type LiveInspectionFinding = {
-  id: string;
-  finding_type: string;
-  title: string;
-  description?: string | null;
-  severity: "info" | "low" | "medium" | "high" | "critical";
-  review_status: "detected" | "needs_review" | "confirmed" | "dismissed";
-  confidence: number | null;
-  sensor_mode?: string | null;
-  observed_at?: string;
 };
 
 type RecentFlightRun = {
@@ -299,7 +289,7 @@ function sectorPath(startBearingDeg: number, endBearingDeg: number, radius = 46)
 }
 
 export default function DominicCapturePlanner({
-  inspectionContext = null,
+  inspectionContext: providedInspectionContext = null,
   projectId = null,
   initialSavedPlanId = null,
   initialPlanningSource,
@@ -315,6 +305,47 @@ export default function DominicCapturePlanner({
   const [projectOptions, setProjectOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [projectOptionsError, setProjectOptionsError] = useState<string | null>(null);
   const [savedInspectionLink, setSavedInspectionLink] = useState<Pick<PersistedCapturePlanState, "inspectionId" | "assetId" | "assetName" | "inspectionType">>({});
+  const [savedPlanLoaded, setSavedPlanLoaded] = useState(false);
+  const [restoredInspection, setRestoredInspection] = useState<{ key: string; context: DominicInspectionPlanningContext | null; error: string | null } | null>(null);
+  const savedInspectionKey = `${savedInspectionLink.inspectionId ?? ""}:${savedInspectionLink.assetId ?? ""}`;
+  const providedContextForPlan = providedInspectionContext && (!savedPlanLoaded || (
+    providedInspectionContext.inspectionId === savedInspectionLink.inspectionId && providedInspectionContext.assetId === savedInspectionLink.assetId
+  )) ? providedInspectionContext : null;
+  const inspectionContext = providedContextForPlan ?? (restoredInspection?.key === savedInspectionKey ? restoredInspection.context : null);
+  useEffect(() => {
+    if (providedContextForPlan || !savedInspectionLink.inspectionId || !savedInspectionLink.assetId) return;
+    let active = true;
+    const controller = new AbortController();
+    const deadline = abortableRequest(controller.signal, 15_000);
+    void (async () => {
+      try {
+        const sb = getSupabaseBrowser();
+        const { data: session } = await sb.auth.getSession();
+        const userId = session.session?.user.id;
+        if (!userId) throw new Error("Sign in to restore the saved inspection.");
+        const [inspection, asset] = await Promise.all([
+          sb.from("dominic_inspections").select("id,asset_id,inspection_type,objective,sensor_modes,required_capabilities,optional_capabilities")
+            .eq("user_id", userId).eq("id", savedInspectionLink.inspectionId).eq("asset_id", savedInspectionLink.assetId).abortSignal(deadline.signal).maybeSingle(),
+          sb.from("dominic_assets").select("id,name,asset_type,location_label,latitude,longitude")
+            .eq("user_id", userId).eq("id", savedInspectionLink.assetId).abortSignal(deadline.signal).maybeSingle(),
+        ]);
+        if (inspection.error || asset.error || !inspection.data || !asset.data) throw new Error("The saved inspection link is unavailable. Open Assets & inspections to select an owned inspection.");
+        if (active) setRestoredInspection({ key: savedInspectionKey, error: null, context: {
+          inspectionId: inspection.data.id, assetId: asset.data.id, assetName: asset.data.name,
+          assetType: asset.data.asset_type, locationLabel: asset.data.location_label,
+          latitude: asset.data.latitude, longitude: asset.data.longitude,
+          inspectionType: inspection.data.inspection_type, objective: inspection.data.objective,
+          sensorModes: inspection.data.sensor_modes, requiredCapabilities: inspection.data.required_capabilities ?? [],
+          optionalCapabilities: inspection.data.optional_capabilities ?? [], equipment: null,
+        } });
+      } catch (error) {
+        if (active) setRestoredInspection({ key: savedInspectionKey, context: null, error: error instanceof Error ? error.message : "Saved inspection could not be restored." });
+      } finally {
+        deadline.dispose();
+      }
+    })();
+    return () => { active = false; controller.abort(); deadline.dispose(); };
+  }, [providedContextForPlan, savedInspectionLink.inspectionId, savedInspectionLink.assetId, savedInspectionKey]);
   const [missionType, setMissionType] = useState<CaptureMissionType>("roof");
   const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">(initialPlanningSource ?? "map");
   const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
@@ -433,7 +464,8 @@ export default function DominicCapturePlanner({
   const [inspectionWatchCapturePending, setInspectionWatchCapturePending] = useState(false);
   const inspectionWatchCapturePendingRef = useRef(false);
   const inspectionWatchLastRequestedAtRef = useRef(0);
-  const [liveInspectionFindings, setLiveInspectionFindings] = useState<LiveInspectionFinding[]>([]);
+  const liveFeed = useLiveInspectionFindings(inspectionContext?.inspectionId, inspectionContext?.assetId);
+  const liveInspectionFindings = liveFeed.findings;
   const inspectionEvidenceRef = useRef<HTMLDetailsElement | null>(null);
   const [showInspectionEvidence, setShowInspectionEvidence] = useState(false);
   const [liveFindingReviewBusyId, setLiveFindingReviewBusyId] = useState<string | null>(null);
@@ -507,7 +539,7 @@ export default function DominicCapturePlanner({
   }, []);
 
   useEffect(() => {
-    setLiveInspectionFindings([]);
+    const inspectionContext = providedInspectionContext;
     setFollowUpFindingId(null);
     setAutomaticScreeningCount(0);
     if (!inspectionContext) return;
@@ -598,7 +630,7 @@ export default function DominicCapturePlanner({
     ) {
       setMissionType("building");
     }
-  }, [inspectionContext, initialPlanningSource]);
+  }, [providedInspectionContext, initialPlanningSource]);
 
 
   const persistedPlanState = (): PersistedCapturePlanState => ({
@@ -738,6 +770,7 @@ export default function DominicCapturePlanner({
       return;
     }
     const state = saved.plan_state;
+    setSavedPlanLoaded(true);
     setLinkedProjectId(state.mappingProjectId ?? null);
     setSavedInspectionLink({ inspectionId: state.inspectionId, assetId: state.assetId, assetName: state.assetName, inspectionType: state.inspectionType });
     setMissionType(saved.mission_type);
@@ -1400,18 +1433,7 @@ export default function DominicCapturePlanner({
         }
 
         const candidateCount = Number(body?.candidateCount ?? 0);
-        const screenedFindings = Array.isArray(body?.findings)
-          ? (body.findings as LiveInspectionFinding[]).filter(
-              (finding) => finding.review_status === "needs_review",
-            )
-          : [];
-        if (screenedFindings.length) {
-          setLiveInspectionFindings((current) => {
-            const byId = new Map(current.map((finding) => [finding.id, finding]));
-            for (const finding of screenedFindings) byId.set(finding.id, finding);
-            return Array.from(byId.values()).slice(-12);
-          });
-        }
+        await liveFeed.refresh();
         setAutomaticScreeningCount((count) => count + 1);
         setAutomaticMediaStatus(
           candidateCount > 0
@@ -1433,6 +1455,7 @@ export default function DominicCapturePlanner({
     findingId: string,
     action: "confirm" | "dismiss",
   ) => {
+    if (liveFindingReviewBusyId) return;
     setLiveFindingReviewBusyId(findingId);
     try {
       const sb = getSupabaseBrowser();
@@ -1453,16 +1476,7 @@ export default function DominicCapturePlanner({
         throw new Error(body?.error ?? "Finding review failed.");
       }
 
-      setLiveInspectionFindings((current) =>
-        current.map((finding) =>
-          finding.id === findingId
-            ? {
-                ...finding,
-                review_status: action === "confirm" ? "confirmed" : "dismissed",
-              }
-            : finding,
-        ),
-      );
+      await liveFeed.refresh();
       if (followUpFindingId === findingId) setFollowUpFindingId(null);
       setAutomaticMediaStatus(
         action === "confirm"
@@ -3542,6 +3556,7 @@ export default function DominicCapturePlanner({
             </div>
           ) : null}
           {planPersistenceStatus ? <div style={{ color: V.muted, fontSize: 8, marginTop: 6, lineHeight: 1.35 }}>{planPersistenceStatus}</div> : null}
+          {!providedContextForPlan && restoredInspection?.key === savedInspectionKey && restoredInspection.error ? <p role="alert" style={{ color: V.amber, fontSize: 12 }}>{restoredInspection.error}</p> : null}
         </div>
       </div>
 
@@ -3830,29 +3845,38 @@ export default function DominicCapturePlanner({
           asset={{ id: inspectionContext.assetId, name: inspectionContext.assetName, asset_type: inspectionContext.assetType }} watchIncoming /> : null}
       </details> : null}
 
-      {inspectionContext && liveInspectionFindings.some((finding) => finding.review_status === "needs_review") ? (
-        <section style={{ margin: "10px 14px 0", border: `1px solid rgba(255,184,107,.38)`, borderRadius: 12, background: "rgba(255,184,107,.055)", overflow: "hidden" }}>
+      {inspectionContext ? (
+        <section aria-label="Live inspection findings" style={{ margin: "10px 14px 0", border: `1px solid rgba(255,184,107,.38)`, borderRadius: 12, background: "rgba(255,184,107,.055)", overflow: "hidden" }}>
           <div style={{ padding: "10px 12px", borderBottom: `1px solid rgba(255,184,107,.22)`, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <div>
               <div style={{ color: V.amber, fontSize: 9, fontWeight: 900, letterSpacing: ".09em", textTransform: "uppercase" }}>
                 Live Inspection Intelligence
               </div>
               <div style={{ color: V.text, fontSize: 13, fontWeight: 900, marginTop: 3 }}>
-                DOMINIC found something that needs a human look.
+                Saved findings for this inspection
               </div>
               <div style={{ color: V.muted, fontSize: 8, marginTop: 3 }}>
                 {inspectionContext.assetName} · candidates are visual screening only until you confirm them.
               </div>
             </div>
             <div style={{ color: V.amber, fontSize: 9, fontWeight: 900 }}>
-              {liveInspectionFindings.filter((finding) => finding.review_status === "needs_review").length} NEED REVIEW
+              {liveFeed.total === null ? "REVIEW COUNT UNAVAILABLE" : `${liveFeed.total} NEED REVIEW`}
             </div>
+            <button type="button" disabled={liveFeed.refreshing} onClick={() => void liveFeed.refresh()} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, padding: "8px 10px", borderRadius: 7, fontSize: 10 }}>Refresh findings</button>
+            <button type="button" onClick={() => {
+              setShowInspectionEvidence(true);
+              requestAnimationFrame(() => inspectionEvidenceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+            }} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, padding: "8px 10px", borderRadius: 7, fontSize: 10 }}>Review all saved findings</button>
           </div>
           <div style={{ display: "grid", gap: 7, padding: 10 }}>
+            {liveFeed.error ? <p role="alert" style={{ color: V.amber, fontSize: 12 }}>{liveFeed.error}</p>
+              : liveFeed.total === null ? <p role="status" style={{ color: V.muted, fontSize: 12 }}>Loading saved findings…</p>
+              : liveFeed.total === 0 ? <p role="status" style={{ color: V.muted, fontSize: 12 }}>No saved candidates need review. Human inspection review is still required.</p>
+              : <p style={{ color: V.muted, fontSize: 12 }}>Showing {liveInspectionFindings.length} of {liveFeed.total} candidates. Oldest critical and high-severity findings come first. Updates every 3 seconds while visible and online.</p>}
             {liveInspectionFindings
               .filter((finding) => finding.review_status === "needs_review")
               .map((finding) => (
-                <div key={finding.id} style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: V.panel, padding: 9 }}>
+                <article key={finding.id} aria-label={finding.title} style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: V.panel, padding: 9 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start" }}>
                     <div>
                       <div style={{ color: V.text, fontSize: 10, fontWeight: 900 }}>{finding.title}</div>
@@ -3877,7 +3901,7 @@ export default function DominicCapturePlanner({
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
                     <button
                       type="button"
-                      disabled={liveFindingReviewBusyId === finding.id}
+                      disabled={Boolean(liveFindingReviewBusyId) || liveFeed.refreshing}
                       onClick={() => void reviewLiveInspectionFinding(finding.id, "confirm")}
                       style={{ border: `1px solid rgba(112,214,160,.35)`, background: "rgba(112,214,160,.09)", color: V.green, borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: liveFindingReviewBusyId === finding.id ? "wait" : "pointer" }}
                     >
@@ -3892,14 +3916,14 @@ export default function DominicCapturePlanner({
                     </button>
                     <button
                       type="button"
-                      disabled={liveFindingReviewBusyId === finding.id}
+                      disabled={Boolean(liveFindingReviewBusyId) || liveFeed.refreshing}
                       onClick={() => void reviewLiveInspectionFinding(finding.id, "dismiss")}
                       style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.muted, borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: liveFindingReviewBusyId === finding.id ? "wait" : "pointer" }}
                     >
                       Dismiss
                     </button>
                   </div>
-                </div>
+                </article>
               ))}
           </div>
         </section>

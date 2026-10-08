@@ -366,7 +366,10 @@ export default function DominicApp() {
                     </div>
                   </div>
                 ) : activeModule === "DOMINIC HUB" ? (
-                  <DominicHub />
+                  <DominicHub projectId={activeProjectId} accessToken={accessToken}
+                    onChooseProject={() => { openModule("Projects"); setShowProjectsSignal((value) => value + 1); }}
+                    onOpenPlan={(planId, live) => { setSelectedCapturePlanId(planId); setInspectionPlanningContext(null); openModule(live ? "Live Flight" : "Capture Planner"); }}
+                    onReview={(assetId, inspectionId) => { setInspectionSelection({ assetId, inspectionId }); openModule("Intelligent Inspection"); }} />
                 ) : activeModule === "Capture Planner" ? (
                   <DominicCapturePlanner key={selectedCapturePlanId ?? "new"} inspectionContext={inspectionPlanningContext} projectId={activeProjectId} initialSavedPlanId={selectedCapturePlanId} />
                 ) : (activeModule === "Live Flight" || activeModule === "AR View") ? (

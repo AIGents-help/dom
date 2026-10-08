@@ -15,6 +15,10 @@ export default function DominicMobileModules({ activeModule, hasProject, onOpen 
       previousOverflow.current = null;
     }
   };
+  const closeMenu = () => {
+    unlockScroll();
+    dialog.current?.close();
+  };
   useEffect(() => () => {
     if (previousOverflow.current !== null) document.body.style.overflow = previousOverflow.current;
   }, []);
@@ -27,7 +31,7 @@ export default function DominicMobileModules({ activeModule, hasProject, onOpen 
     }} style={{ minHeight: 48, border: "1px solid #354553", borderRadius: 10, background: "#202B35", color: "#F5F7FA", display: "grid", justifyItems: "center", alignContent: "center", gap: 3, fontSize: 8, fontWeight: 800, cursor: "pointer" }}>
       <Menu size={17} /><span>All modules</span>
     </button>
-    <dialog ref={dialog} aria-labelledby="dominic-mobile-modules-title" className="dominic-mobile-modules" onClose={unlockScroll} onKeyDown={(event) => {
+    <dialog ref={dialog} aria-labelledby="dominic-mobile-modules-title" className="dominic-mobile-modules" onCancel={unlockScroll} onClose={() => { if (!dialog.current?.open) unlockScroll(); }} onKeyDown={(event) => {
       if (event.key !== "Tab") return;
       const controls = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')).filter((element) => element.getClientRects().length > 0);
       const first = controls[0];
@@ -38,10 +42,10 @@ export default function DominicMobileModules({ activeModule, hasProject, onOpen 
       style={{ margin: "auto", width: "min(420px, calc(100vw - 24px))", maxHeight: "calc(100dvh - 32px)", overflowY: "auto", border: "1px solid #354553", borderRadius: 14, padding: 16, background: "#10161D", color: "#F5F7FA" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
         <h2 id="dominic-mobile-modules-title" style={{ fontSize: 20, margin: 0 }}>All DOMINIC modules</h2>
-        <button type="button" aria-label="Close module menu" onClick={() => dialog.current?.close()} style={{ minWidth: 44, minHeight: 44, borderRadius: 8, background: "#202B35", border: "1px solid #354553", color: "#FFF", cursor: "pointer", display: "grid", placeItems: "center" }}><X size={20} /></button>
+        <button type="button" aria-label="Close module menu" onClick={closeMenu} style={{ minWidth: 44, minHeight: 44, borderRadius: 8, background: "#202B35", border: "1px solid #354553", color: "#FFF", cursor: "pointer", display: "grid", placeItems: "center" }}><X size={20} /></button>
       </div>
       <p style={{ fontSize: 12, color: "#A7B0BA", margin: "8px 0 16px" }}>Current workspace: {activeModule}. {hasProject ? "Your selected project stays open." : "Select a project to open its inspection and mapping tools."}</p>
-      <DominicNavigation activeModule={activeModule} hasProject={hasProject} collapsed={false} operationsExpanded onOpen={(module) => { dialog.current?.close(); onOpen(module); }} />
+      <DominicNavigation activeModule={activeModule} hasProject={hasProject} collapsed={false} operationsExpanded onOpen={(module) => { closeMenu(); onOpen(module); }} />
     </dialog>
     <style>{`.dominic-mobile-modules::backdrop { background: rgba(0,0,0,.72); }`}</style>
   </>;

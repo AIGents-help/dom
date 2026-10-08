@@ -14,6 +14,8 @@ create table public.dominic_media_screening_jobs (
 );
 create index dominic_media_screening_jobs_owner_inspection_idx
   on public.dominic_media_screening_jobs(user_id, inspection_id);
+create index dominic_media_screening_jobs_inspection_idx
+  on public.dominic_media_screening_jobs(inspection_id);
 alter table public.dominic_media_screening_jobs enable row level security;
 revoke all on public.dominic_media_screening_jobs from public, anon, authenticated;
 grant select on public.dominic_media_screening_jobs to authenticated;

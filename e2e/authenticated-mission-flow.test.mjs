@@ -6590,9 +6590,10 @@ test("public DOMINIC sample uses photorealistic imagery and never mutates accoun
       if (/\/api\/(dominic|pilot)|\/rest\/v1/.test(req.url())) accountRequests.push(req.url());
     });
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto(baseURL, { waitUntil: "networkidle" });
+    // Wait for the page content; unrelated background requests need not go idle.
+    await page.goto(baseURL, { waitUntil: "domcontentloaded" });
     assert.equal(await page.getByRole("link", { name: "Explore DOMINIC", exact: true }).getAttribute("href"), "/dominic/demo");
-    await page.goto(`${baseURL}/dominic/demo`, { waitUntil: "networkidle" });
+    await page.goto(`${baseURL}/dominic/demo`, { waitUntil: "domcontentloaded" });
     await page.getByRole("heading", { name: "Demo refinery inspection", exact: true }).waitFor();
     const photograph = page.getByRole("img", { name: "Photorealistic generated sample aerial image of a refinery tank, transfer pipes and industrial building", exact: true });
     await photograph.waitFor();

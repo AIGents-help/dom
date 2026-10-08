@@ -6141,6 +6141,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
   const user = created.user;
   let contractor, mission, job, project, browser, intruder;
   const inspectionStoragePaths = [];
+  const previewTimers = new Set();
   try {
     const seed = async (table, row) => {
       const { data, error } = await admin.from(table).insert(row).select("*").single();
@@ -6192,7 +6193,8 @@ test("DOMINIC keeps the working project across planning and inspection and opens
         socket.send(JSON.stringify({ type: "camera_preview", protocol, sequence: previewSequence, frame: { width: jpegSize.width, height: jpegSize.height, jpegBase64: jpeg.toString("base64"), registration, capture: { id, aircraftId: "preview-aircraft", capturedAtMs: Date.now(), mimeType: "image/jpeg", latitude: 0, longitude: 0, relativeAltitudeFt: 0, headingDeg: 0, gimbalPitchDeg: 0, cameraSource: "wide", zoomRatio: 1, previewFrame: { width: jpegSize.width, height: jpegSize.height, telemetryAvailable: false } } } }));
       }, 500);
       socket.onMessage((raw) => previewCommands.push(JSON.parse(String(raw))));
-      socket.onClose(() => clearInterval(timer));
+      previewTimers.add(timer);
+      socket.onClose(() => { clearInterval(timer); previewTimers.delete(timer); });
     });
     await page.goto(`${baseURL}/dominic`, { waitUntil: "networkidle", timeout: 45_000 });
     await page.locator('summary[title="Operations"]').click();
@@ -6403,7 +6405,8 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await previewCallout.getByRole("button", { name: "Save report note", exact: true }).click();
     await previewCallout.getByText("Report note saved.", { exact: true }).waitFor();
     await previewCallout.getByRole("button", { name: "Close callout", exact: true }).click();
-    await page.getByRole("img", { name: "Current aircraft camera preview", exact: true }).scrollIntoViewIfNeeded();
+    // Camera images are replaced on every frame; scroll a stable control instead.
+    await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: "/tmp/dom-navigation-live-inspection-preview.png" });
     await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).check();
     const sampleDeadline = Date.now() + 38_000;
@@ -6544,6 +6547,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.waitForURL("**/dominic/licensing", { timeout: 15_000 });
     assert.deepEqual(errors, []);
   } finally {
+    for (const timer of previewTimers) clearInterval(timer);
     await browser?.close();
     if (job) await admin.from("deliverables").delete().eq("job_id", job.id);
     if (intruder) {

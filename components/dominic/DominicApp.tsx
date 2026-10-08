@@ -7,6 +7,7 @@ import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
 import MappingTab from "@/components/mapper/MappingTab";
 import DominicBrandLockup from "@/components/dominic/DominicBrandLockup";
 import DominicNavigation from "@/components/dominic/DominicNavigation";
+import DominicMobileModules from "@/components/dominic/DominicMobileModules";
 import DominicPreviewEnvironment from "@/components/dominic/DominicPreviewEnvironment";
 import DominicHub from "@/components/dominic/DominicHub";
 import DominicCapturePlanner from "@/components/dominic/DominicCapturePlanner";
@@ -186,6 +187,15 @@ export default function DominicApp() {
 
   const activeMappingModule = mappingModules.has(activeModule);
   const activeLicenseLocked = (activeMappingModule && !featureAccess.mapping) || (activeModule === "DOMINIC HUB" && !featureAccess.hub);
+  const navigateModule = (module: string) => {
+    if ((mappingModules.has(module) && !featureAccess.mapping) || (module === "DOMINIC HUB" && !featureAccess.hub)) {
+      router.push("/dominic/licensing");
+      return;
+    }
+    if (module === "Capture Planner") { setSelectedCapturePlanId(null); setInspectionPlanningContext(null); }
+    openModule(module);
+    if (module === "Projects") setShowProjectsSignal((value) => value + 1);
+  };
 
   return (
     <div style={{ minHeight: "100vh", background: BG, color: TEXT, fontFamily: "Inter, system-ui, sans-serif" }}>
@@ -322,15 +332,7 @@ export default function DominicApp() {
           </div>
 
           <DominicNavigation activeModule={activeModule} hasProject={Boolean(activeProjectId)} collapsed={sidebarCollapsed}
-            onOpen={(module) => {
-              if ((mappingModules.has(module) && !featureAccess.mapping) || (module === "DOMINIC HUB" && !featureAccess.hub)) {
-                router.push("/dominic/licensing");
-                return;
-              }
-              if (module === "Capture Planner") { setSelectedCapturePlanId(null); setInspectionPlanningContext(null); }
-              openModule(module);
-              if (module === "Projects") setShowProjectsSignal((value) => value + 1);
-            }}
+            onOpen={navigateModule}
           />
         </aside>
 
@@ -450,8 +452,8 @@ export default function DominicApp() {
             bottom: "max(8px, env(safe-area-inset-bottom))",
             zIndex: 60,
             display: "grid",
-            gridTemplateColumns: "repeat(5,minmax(0,1fr))",
-            gap: 6,
+            gridTemplateColumns: "repeat(6,minmax(0,1fr))",
+            gap: 4,
             padding: 6,
             border: `1px solid ${LINE}`,
             borderRadius: 14,
@@ -478,14 +480,8 @@ export default function DominicApp() {
                 aria-label={title}
                 disabled={disabled}
                 onClick={() => {
-                  if (licenseLocked) {
-                    router.push("/dominic/licensing");
-                    return;
-                  }
                   if (disabled) return;
-                  if (label === "Capture Planner") { setSelectedCapturePlanId(null); setInspectionPlanningContext(null); }
-                  openModule(label);
-                  if (label === "Projects") setShowProjectsSignal((value) => value + 1);
+                  navigateModule(label);
                 }}
                 style={{
                   minHeight: 48,
@@ -507,6 +503,7 @@ export default function DominicApp() {
               </button>
             );
           })}
+          <DominicMobileModules activeModule={activeModule} hasProject={Boolean(activeProjectId)} onOpen={navigateModule} />
         </nav>
       ) : null}
     </div>

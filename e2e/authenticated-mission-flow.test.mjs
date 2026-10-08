@@ -6129,7 +6129,7 @@ test("DOMINIC maintenance queue includes older urgent work and stays user-owned"
   }
 });
 
-test("DOMINIC keeps the working project across planning and inspection and opens the requested output", { skip: !isolated }, async () => {
+test("DOMINIC keeps the working project across planning and inspection and opens the requested output", { skip: !isolated, timeout: 180_000 }, async () => {
   assert.ok(supabaseURL && anonKey && serviceKey);
   assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
   const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
@@ -6141,6 +6141,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
   const user = created.user;
   let contractor, mission, job, project, browser, intruder;
   const inspectionStoragePaths = [];
+  const previewTimers = new Set();
   try {
     const seed = async (table, row) => {
       const { data, error } = await admin.from(table).insert(row).select("*").single();
@@ -6165,6 +6166,8 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     // WebSocket routing installs an init script, so register it before navigation.
+    page.setDefaultTimeout(15_000);
+    page.setDefaultNavigationTimeout(45_000);
     const fixtureImage = await readFile(new URL("../public/images/dominic-demo/refinery-aerial-v1.webp", import.meta.url));
     const jpeg = await sharp(fixtureImage).resize({ width: 960 }).jpeg({ quality: 80 }).toBuffer();
     const jpegSize = await sharp(jpeg).metadata();
@@ -6190,7 +6193,8 @@ test("DOMINIC keeps the working project across planning and inspection and opens
         socket.send(JSON.stringify({ type: "camera_preview", protocol, sequence: previewSequence, frame: { width: jpegSize.width, height: jpegSize.height, jpegBase64: jpeg.toString("base64"), registration, capture: { id, aircraftId: "preview-aircraft", capturedAtMs: Date.now(), mimeType: "image/jpeg", latitude: 0, longitude: 0, relativeAltitudeFt: 0, headingDeg: 0, gimbalPitchDeg: 0, cameraSource: "wide", zoomRatio: 1, previewFrame: { width: jpegSize.width, height: jpegSize.height, telemetryAvailable: false } } } }));
       }, 500);
       socket.onMessage((raw) => previewCommands.push(JSON.parse(String(raw))));
-      socket.onClose(() => clearInterval(timer));
+      previewTimers.add(timer);
+      socket.onClose(() => { clearInterval(timer); previewTimers.delete(timer); });
     });
     await page.goto(`${baseURL}/dominic`, { waitUntil: "networkidle", timeout: 45_000 });
     await page.locator('summary[title="Operations"]').click();
@@ -6401,7 +6405,8 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await previewCallout.getByRole("button", { name: "Save report note", exact: true }).click();
     await previewCallout.getByText("Report note saved.", { exact: true }).waitFor();
     await previewCallout.getByRole("button", { name: "Close callout", exact: true }).click();
-    await page.getByRole("img", { name: "Current aircraft camera preview", exact: true }).scrollIntoViewIfNeeded();
+    // Camera images are replaced on every frame; scroll a stable control instead.
+    await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: "/tmp/dom-navigation-live-inspection-preview.png" });
     await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).check();
     const sampleDeadline = Date.now() + 38_000;
@@ -6493,8 +6498,59 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.getByRole("button", { name: "Connect Aircraft Bridge", exact: true }).waitFor();
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "Live Flight UI must fit the mobile viewport");
     await page.screenshot({ path: "/tmp/dom-navigation-simulation-mobile.png" });
+    const fieldDock = page.getByRole("navigation", { name: "DOMINIC field navigation", exact: true });
+    const modules = page.getByRole("dialog", { name: "All DOMINIC modules", exact: true });
+    const previousOverflow = await page.evaluate(() => document.body.style.overflow);
+    await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
+    await modules.waitFor();
+    await modules.getByRole("button", { name: "DOMINIC HUB", exact: true }).waitFor();
+    await modules.getByRole("button", { name: "AR View", exact: true }).waitFor();
+    await modules.getByRole("button", { name: "Plans & inspections", exact: true }).waitFor();
+    await modules.getByRole("button", { name: "Close module menu", exact: true }).focus();
+    await page.keyboard.press("Shift+Tab");
+    assert.equal(await modules.getByRole("button", { name: "DOMINIC HUB", exact: true }).evaluate((element) => element === document.activeElement), true, "reverse Tab must wrap to the last module");
+    for (let index = 0; index < 16; index++) {
+      await page.keyboard.press("Tab");
+      assert.ok(await page.evaluate(() => document.activeElement?.closest("dialog")?.open === true), "module menu must keep keyboard focus inside the modal");
+    }
+    await page.keyboard.press("Escape");
+    await modules.waitFor({ state: "hidden" });
+    assert.equal(await page.locator(":focus").getAttribute("aria-label"), "All modules", "Escape must restore focus to the menu trigger");
+    assert.equal(await page.evaluate(() => document.body.style.overflow), previousOverflow);
+    await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
+    await modules.getByRole("button", { name: "AR View", exact: true }).click();
+    await modules.waitFor({ state: "hidden" });
+    await page.getByRole("checkbox", { name: "Show calibrated AR", exact: true }).waitFor();
+    assert.equal(await page.getByRole("checkbox", { name: "Show calibrated AR", exact: true }).isChecked(), true);
+    await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
+    await modules.getByRole("button", { name: "DOMINIC HUB", exact: true }).click();
+    await hub.getByRole("heading", { name: "Working reconstruction", exact: true }).waitFor();
+    await hub.getByRole("button", { name: "Open HUB live capture Workflow capture plan", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('[aria-label="Capture plan name"]')?.value === "Workflow capture plan");
+    assert.equal(previewCommands.filter((message) => message.type === "command").length, 0, "mobile module navigation must not issue aircraft commands");
+    await page.setViewportSize({ width: 320, height: 640 });
+    await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
+    await page.screenshot({ path: "/tmp/dom-navigation-all-modules-small-mobile.png" });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "module menu must fit a 320px viewport");
+    await modules.getByRole("button", { name: "Close module menu", exact: true }).click();
+    await modules.waitFor({ state: "hidden" });
+    assert.equal(await page.evaluate(() => document.body.style.overflow), previousOverflow);
+    // Removing the mobile menu on rotation must also release its scroll lock.
+    await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await modules.waitFor({ state: "detached" });
+    assert.equal(await page.evaluate(() => document.body.style.overflow), previousOverflow);
+    // The same menu must apply existing licensing and project-selection gates.
+    assert.ifError((await admin.from("dominic_profiles").update({ plan: "free" }).eq("user_id", user.id)).error);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${baseURL}/dominic`, { waitUntil: "networkidle" });
+    await fieldDock.getByRole("button", { name: "All modules", exact: true }).click();
+    assert.equal(await modules.getByRole("button", { name: "Plans & inspections", exact: true }).count(), 0, "project-only modules require a selected project");
+    await modules.getByRole("button", { name: "DOMINIC HUB", exact: true }).click();
+    await page.waitForURL("**/dominic/licensing", { timeout: 15_000 });
     assert.deepEqual(errors, []);
   } finally {
+    for (const timer of previewTimers) clearInterval(timer);
     await browser?.close();
     if (job) await admin.from("deliverables").delete().eq("job_id", job.id);
     if (intruder) {
@@ -6534,9 +6590,10 @@ test("public DOMINIC sample uses photorealistic imagery and never mutates accoun
       if (/\/api\/(dominic|pilot)|\/rest\/v1/.test(req.url())) accountRequests.push(req.url());
     });
     page.on("pageerror", (error) => errors.push(error.message));
-    await page.goto(baseURL, { waitUntil: "networkidle" });
+    // Wait for the page content; unrelated background requests need not go idle.
+    await page.goto(baseURL, { waitUntil: "domcontentloaded" });
     assert.equal(await page.getByRole("link", { name: "Explore DOMINIC", exact: true }).getAttribute("href"), "/dominic/demo");
-    await page.goto(`${baseURL}/dominic/demo`, { waitUntil: "networkidle" });
+    await page.goto(`${baseURL}/dominic/demo`, { waitUntil: "domcontentloaded" });
     await page.getByRole("heading", { name: "Demo refinery inspection", exact: true }).waitFor();
     const photograph = page.getByRole("img", { name: "Photorealistic generated sample aerial image of a refinery tank, transfer pipes and industrial building", exact: true });
     await photograph.waitFor();

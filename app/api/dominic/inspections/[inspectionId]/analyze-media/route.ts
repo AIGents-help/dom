@@ -160,7 +160,7 @@ export async function POST(
       .eq("user_id", user.id).eq("inspection_id", inspection.id)
       .eq("review_status", "needs_review").order("observed_at", { ascending: false });
     if (error) return NextResponse.json({ error: "Screening results could not be loaded. Retry to retrieve saved results." }, { status: 500 });
-    return NextResponse.json({ configured: true, mediaId: media.id, ...summary, cached, findings: findings ?? [] },
+    return NextResponse.json({ ...summary, configured: true, mediaId: media.id, cached, findings: findings ?? [] },
       { headers: { "Cache-Control": "no-store" } });
   };
   const busyResponse = (leaseExpiresAt: string) => NextResponse.json({
@@ -463,7 +463,7 @@ export async function POST(
     const summary = {
       provider, model, inspectionProfileId: inspectionProfile.id,
       inspectionProfileLabel: inspectionProfile.label, summary: screening.summary,
-      candidateCount: screening.candidates.length,
+      candidateCount: new Set(candidateRows.map((row) => row.fingerprint)).size,
       limitations: [...screening.limitations, ...comparisonLimitations],
       thermalEvidenceKind, radiometric, baselineCompared: Boolean(baselineSignedUrl),
       baselineFindingId, baselineEvidenceId, baselineSourceMediaId, comparisonComparability,

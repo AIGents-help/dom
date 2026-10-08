@@ -6863,6 +6863,9 @@ test("DOMINIC live findings survive returning to a saved inspection and retain o
     await feed.screenshot({ path: "/tmp/dom-navigation-persisted-live-findings-mobile.png" });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     await page.setViewportSize({ width: 1440, height: 1000 });
+    // Wait for desktop layout to finish before inspecting the Operations menu;
+    // compact mode collapses the sidebar and leaves its menu state intact.
+    await page.getByRole("button", { name: "Expand DOMINIC sidebar", exact: true }).click();
     await openPlan("Forged inspection link");
     await page.getByRole("alert").filter({ hasText: "The saved inspection link is unavailable" }).waitFor();
     assert.equal(await feed.count(), 0);

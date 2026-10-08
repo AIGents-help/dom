@@ -6270,9 +6270,11 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.equal(await page.getByText("512 ppm", { exact: true }).count(), 0, "project operations must not mix in simulated gas readings");
     await page.screenshot({ path: "/tmp/dom-navigation-hub-operations-desktop.png" });
     await page.setViewportSize({ width: 390, height: 844 });
-    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "HUB operations must fit mobile");
+    await page.getByRole("navigation", { name: "DOMINIC field navigation", exact: true }).waitFor({ state: "visible" });
     await page.screenshot({ path: "/tmp/dom-navigation-hub-operations-mobile.png" });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "HUB operations must fit mobile");
     await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.getByRole("navigation", { name: "DOMINIC field navigation", exact: true }).waitFor({ state: "hidden" });
     const hubProjectURL = `${baseURL}/api/pilot/mapping/projects/${project.id}`;
     await page.route(hubProjectURL, (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Fixture operations unavailable" }) }));
     await hub.getByRole("button", { name: "Refresh project operations", exact: true }).click();

@@ -57,7 +57,7 @@ export default function DominicNavigation({ activeModule, hasProject, collapsed,
     </section>}
     {projectOnly ? null : <details>
       <summary title="Operations" style={{ color: V.inkFaint, fontSize: 11, padding: "7px 9px", cursor: "pointer" }}>{collapsed ? "…" : "Operations"}</summary>
-      <NavigationButton item={{ module: "DOMINIC HUB", label: "Refinery simulator", icon: Factory }} active={activeModule === "DOMINIC HUB"} collapsed={collapsed} onOpen={onOpen} />
+      <NavigationButton item={{ module: "DOMINIC HUB", label: demoMode ? "Refinery simulator" : "DOMINIC HUB", icon: Factory }} active={activeModule === "DOMINIC HUB"} collapsed={collapsed} onOpen={onOpen} />
     </details>}
   </nav>;
 }

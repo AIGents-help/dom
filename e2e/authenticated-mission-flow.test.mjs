@@ -6193,6 +6193,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
       socket.onClose(() => clearInterval(timer));
     });
     await page.goto(`${baseURL}/dominic`, { waitUntil: "networkidle", timeout: 45_000 });
+    await page.locator('summary[title="Operations"]').click();
     await page.getByRole("button", { name: "DOMINIC HUB", exact: true }).click();
     await page.getByRole("button", { name: "Choose operations project", exact: true }).click();
     await page.getByRole("button").filter({ hasText: "Working reconstruction" }).click();

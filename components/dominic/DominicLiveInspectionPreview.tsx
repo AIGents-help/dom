@@ -25,7 +25,7 @@ type Props = {
 
 export default function DominicLiveInspectionPreview(props: Props) {
   const [showAr, setShowAr] = useState(Boolean(props.arMode));
-  const [decodedDimensions, setDecodedDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [decodedDimensions, setDecodedDimensions] = useState<{ frameId: string; width: number; height: number } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [automatic, setAutomatic] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -76,7 +76,7 @@ export default function DominicLiveInspectionPreview(props: Props) {
   const ready = Boolean(fresh && props.canSave && failedFrameId !== props.preview?.frame.capture.id);
   const frame = props.preview?.frame;
   const registration = frame ? projectArRegistration(frame.registration, { aircraftId: frame.capture.aircraftId, width: frame.width, height: frame.height, capturedAtMs: frame.capture.capturedAtMs, cameraSource: frame.capture.cameraSource, zoomRatio: frame.capture.zoomRatio }, now) : null;
-  const imageMatches = frame && decodedDimensions?.width === frame.width && decodedDimensions?.height === frame.height;
+  const imageMatches = frame && decodedDimensions?.frameId === frame.capture.id && decodedDimensions.width === frame.width && decodedDimensions.height === frame.height;
   const arMarkers = showAr && fresh && imageMatches && failedFrameId !== frame?.capture.id ? registration?.markers ?? [] : [];
   return <div style={{ padding: 16, color: "#F5F7FA" }}>
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
@@ -91,7 +91,7 @@ export default function DominicLiveInspectionPreview(props: Props) {
     </div>
     <div style={{ background: "#090D12", minHeight: 280, position: "relative", display: "grid", placeItems: "center" }}>
       {props.preview ? <div style={{ position: "relative", width: "100%", maxWidth: 560 * props.preview.frame.width / props.preview.frame.height }}>
-        <img src={previewImageUrl(props.preview.frame)} alt="Current aircraft camera preview" onLoad={(event) => setDecodedDimensions({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} onError={() => setFailedFrameId(props.preview!.frame.capture.id)} style={{ display: "block", width: "100%", opacity: fresh ? 1 : 0.35 }} />
+        <img key={props.preview.frame.capture.id} src={previewImageUrl(props.preview.frame)} alt="Current aircraft camera preview" onLoad={(event) => setDecodedDimensions({ frameId: props.preview!.frame.capture.id, width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight })} onError={() => setFailedFrameId(props.preview!.frame.capture.id)} style={{ display: "block", width: "100%", opacity: fresh ? 1 : 0.35 }} />
         {arMarkers.length ? <DominicArOverlay markers={arMarkers} width={props.preview.frame.width} height={props.preview.frame.height} /> : null}
       </div> : <p style={{ padding: 24, color: "#A7B0BA" }}>Connect your DJI inspection bridge to see the aircraft camera.</p>}
       {props.preview && !fresh ? <strong style={{ position: "absolute", background: "#090D12", padding: 12 }}>Preview paused — frame inspection unavailable</strong> : null}

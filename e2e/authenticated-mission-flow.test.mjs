@@ -6988,6 +6988,23 @@ test("DOMINIC reports include findings beyond the row limit, prioritize urgent w
     assert.equal(await page.getByText("Dismissed critical finding", { exact: true }).count(), 0);
     await page.waitForFunction(() => document.images.length === 2 && [...document.images].every((image) => image.complete && image.naturalWidth > 0));
     assert.equal(await page.getByRole("button", { name: "Print / Save PDF", exact: true }).isEnabled(), true);
+    const consent = page.getByRole("region", { name: "Cookie consent", exact: true });
+    await consent.waitFor();
+    const essentialOnly = consent.getByRole("button", { name: "Essential Only", exact: true });
+    const luminance = await essentialOnly.evaluate((button) => {
+      const channels = getComputedStyle(button).color.match(/[\d.]+/g).slice(0, 3).map(Number).map((channel) => {
+        const value = channel / 255;
+        return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+      });
+      return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+    });
+    assert.ok(1.05 / (luminance + .05) >= 4.5, "essential cookie choice must be readable on the white banner");
+    await page.emulateMedia({ media: "print" });
+    assert.equal(await consent.isVisible(), false, "cookie banners must not cover printed inspection evidence");
+    assert.equal(await summary.isVisible(), true);
+    assert.equal(await page.locator("article").first().isVisible(), true);
+    await page.emulateMedia({ media: "screen" });
+    await essentialOnly.click();
     await page.screenshot({ path: "/tmp/dom-navigation-complete-report-desktop.png" });
     await page.setViewportSize({ width: 390, height: 844 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "report summary must fit mobile");

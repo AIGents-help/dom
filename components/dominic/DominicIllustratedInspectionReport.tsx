@@ -41,7 +41,7 @@ export default function DominicIllustratedInspectionReport({ inspectionId }: { i
   if (error) return <main style={{ padding: 24 }}><p role="alert">{error}</p></main>;
   if (!data || data.inspection.id !== inspectionId) return <main style={{ padding: 24 }}>Generating illustrated report…</main>;
   return <main style={{ background: "white", color: "#172033", minHeight: "100vh", padding: "24px clamp(16px,5vw,64px)", maxWidth: 1100, margin: "auto" }}>
-    <style>{`@media print { .inspection-print-controls { display:none!important } .inspection-report-finding { break-inside:avoid } body { background:white!important } }`}</style>
+    <style>{`@media print { .inspection-print-controls, [aria-label="Cookie consent"], .dom-install-banner, .dom-install-overlay, .skip-link { display:none!important } .inspection-report-finding { break-inside:avoid } body { background:white!important } }`}</style>
     <div className="inspection-print-controls" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 20 }}>
       <button type="button" disabled={pendingImages > 0} onClick={() => window.print()} style={{ padding: "10px 16px", background: "#F45A1E", borderRadius: 8, color: "#111" }}>{pendingImages ? "Preparing images…" : "Print / Save PDF"}</button>
       <a href="/dominic">Return to workspace</a>

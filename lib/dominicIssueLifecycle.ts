@@ -47,6 +47,7 @@ export function deriveVerificationAssessment(input: {
   confirmedCount?: number | null;
   dismissedCount?: number | null;
   comparisonStates?: Array<string | null | undefined>;
+  screening?: { mediaTotal: number; unfinished: number; invalidComparison: number };
 }): DominicVerificationAssessment {
   if (!input.inspectionStatus) {
     return {
@@ -64,6 +65,21 @@ export function deriveVerificationAssessment(input: {
       shouldReopen: false,
       reasons: ["Post-maintenance verification capture or analysis is still in progress."],
     };
+  }
+
+  if (!["review", "complete"].includes(input.inspectionStatus)) {
+    return { status: "insufficient", canVerify: false, shouldReopen: false, reasons: ["The verification inspection is not ready for review."] };
+  }
+  if (input.screening) {
+    if (input.screening.mediaTotal === 0) {
+      return { status: "insufficient", canVerify: false, shouldReopen: false, reasons: ["No saved post-maintenance evidence has been screened."] };
+    }
+    if (input.screening.unfinished > 0) {
+      return { status: "capturing", canVerify: false, shouldReopen: false, reasons: [`${input.screening.unfinished} evidence item${input.screening.unfinished === 1 ? "" : "s"} still require successful screening.`] };
+    }
+    if (input.screening.invalidComparison > 0) {
+      return { status: "insufficient", canVerify: false, shouldReopen: false, reasons: ["Every verification image needs a completed, comparable baseline result before closure."] };
+    }
   }
 
   if (!input.baselineCompared) {
@@ -88,7 +104,7 @@ export function deriveVerificationAssessment(input: {
     };
   }
 
-  if (input.candidateCount === null || input.candidateCount === undefined) {
+  if (!Number.isSafeInteger(input.candidateCount) || Number(input.candidateCount) < 0) {
     return {
       status: "insufficient",
       canVerify: false,
@@ -112,7 +128,18 @@ export function deriveVerificationAssessment(input: {
     .filter((value): value is string => typeof value === "string")
     .map((value) => value.toLowerCase());
 
-  if (candidates === 0) {
+  const confirmed = Number(input.confirmedCount ?? states.length);
+  const dismissed = Number(input.dismissedCount ?? 0);
+  if (states.some((state) => state === "worsening" || state === "unchanged")) {
+    return {
+      status: "failed", canVerify: false, shouldReopen: true,
+      reasons: ["Confirmed post-maintenance evidence shows the issue is unchanged or worsening."],
+    };
+  }
+  if (confirmed + dismissed < candidates) {
+    return { status: "insufficient", canVerify: false, shouldReopen: false, reasons: ["The saved findings do not account for every screened candidate. Refresh or rescreen the evidence before closure."] };
+  }
+  if (candidates === 0 && confirmed === 0 && dismissed === 0) {
     return {
       status: "cleared",
       canVerify: true,
@@ -121,8 +148,6 @@ export function deriveVerificationAssessment(input: {
     };
   }
 
-  const confirmed = Number(input.confirmedCount ?? states.length);
-  const dismissed = Number(input.dismissedCount ?? 0);
   if (confirmed === 0 && dismissed >= candidates) {
     return {
       status: "cleared",
@@ -132,16 +157,7 @@ export function deriveVerificationAssessment(input: {
     };
   }
 
-  if (states.some((state) => state === "worsening" || state === "unchanged")) {
-    return {
-      status: "failed",
-      canVerify: false,
-      shouldReopen: true,
-      reasons: ["Confirmed post-maintenance evidence shows the issue is unchanged or worsening."],
-    };
-  }
-
-  if (states.length > 0 && states.every((state) => state === "improving")) {
+  if (confirmed > 0 && states.length > 0 && states.every((state) => state === "improving")) {
     return {
       status: "improved",
       canVerify: true,

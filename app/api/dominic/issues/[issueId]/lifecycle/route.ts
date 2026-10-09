@@ -31,120 +31,39 @@ async function loadIssueLifecycle(
   userId: string,
   issueId: string,
 ) {
-  const { data: issue, error: issueError } = await admin
-    .from("dominic_issues")
-    .select(
-      "id,asset_id,title,severity,status,recommended_action,resolution_notes,resolved_at,verified_at,metadata,updated_at",
-    )
-    .eq("id", issueId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (issueError) throw issueError;
-  if (!issue) return null;
-
-  const metadata = record(issue.metadata);
-  const verificationInspectionId =
-    typeof metadata.verificationInspectionId === "string"
-      ? metadata.verificationInspectionId
-      : null;
-
-  let verificationInspection: {
-    id: string;
-    status: string;
-    objective: string | null;
-    summary: string | null;
-    ai_summary: Record<string, unknown>;
-    completed_at: string | null;
-    created_at: string;
-  } | null = null;
-  let verificationFindings: Array<{
-    id: string;
-    title: string;
-    severity: string;
-    review_status: string;
-    detector: Record<string, unknown>;
-  }> = [];
-
-  if (verificationInspectionId) {
-    const [{ data: inspection, error: inspectionError }, { data: findings, error: findingError }] =
-      await Promise.all([
-        admin
-          .from("dominic_inspections")
-          .select("id,status,objective,summary,ai_summary,completed_at,created_at")
-          .eq("id", verificationInspectionId)
-          .eq("user_id", userId)
-          .eq("asset_id", issue.asset_id)
-          .maybeSingle(),
-        admin
-          .from("dominic_findings")
-          .select("id,title,severity,review_status,detector")
-          .eq("inspection_id", verificationInspectionId)
-          .eq("user_id", userId)
-          .eq("asset_id", issue.asset_id)
-          .order("observed_at", { ascending: true }),
-      ]);
-
-    if (inspectionError) throw inspectionError;
-    if (findingError) throw findingError;
-
-    if (inspection) {
-      verificationInspection = {
-        ...inspection,
-        ai_summary: record(inspection.ai_summary),
-      };
-    }
-    verificationFindings = (findings ?? []).map((finding) => ({
-      ...finding,
-      detector: record(finding.detector),
-    }));
-  }
-
-  const aiSummary = verificationInspection?.ai_summary ?? {};
-  const candidateCount = Number(aiSummary.candidateCount);
-  const baselineCompared = aiSummary.baselineCompared === true;
-  const comparisonComparability =
-    aiSummary.comparisonComparability &&
-    typeof aiSummary.comparisonComparability === "object"
-      ? (aiSummary.comparisonComparability as Record<string, unknown>)
-      : {};
-  const comparabilityLevel =
-    typeof comparisonComparability.level === "string"
-      ? comparisonComparability.level
-      : null;
-  const pendingReviewCount = verificationFindings.filter(
-    (finding) => finding.review_status === "needs_review",
-  ).length;
-  const confirmed = verificationFindings.filter(
-    (finding) => finding.review_status === "confirmed",
-  );
-  const dismissedCount = verificationFindings.filter(
-    (finding) => finding.review_status === "dismissed",
-  ).length;
-  const comparisonStates = confirmed.map((finding) =>
-    typeof finding.detector.comparisonState === "string"
-      ? finding.detector.comparisonState
-      : null,
-  );
-
-  const assessment = deriveVerificationAssessment({
-    inspectionStatus: verificationInspection?.status ?? null,
-    baselineCompared,
-    candidateCount: Number.isFinite(candidateCount) ? candidateCount : null,
-    comparabilityLevel,
-    pendingReviewCount,
-    confirmedCount: confirmed.length,
-    dismissedCount,
-    comparisonStates,
+  const { data, error } = await admin.rpc("read_dominic_issue_verification", {
+    p_issue_id: issueId, p_user_id: userId,
   });
-
+  if (error) throw error;
+  if (!data) return null;
+  const issue = data.issue as {
+    id: string; asset_id: string; title: string; severity: string; status: string;
+    recommended_action: string | null; resolution_notes: string | null;
+    resolved_at: string | null; verified_at: string | null;
+    metadata: Record<string, unknown>; updated_at: string;
+  };
+  const inspection = data.verificationInspection;
+  const counts = data.verificationCounts as {
+    total: number; pending: number; confirmed: number; dismissed: number;
+    comparisonStates: string[]; mediaTotal: number; unfinished: number;
+    invalidComparison: number; screenedCandidates: number;
+  };
+  // ai_summary describes the latest image, not the complete inspection.
+  // Candidate totals and review outcomes come from all owned rows in one snapshot.
+  const assessment = deriveVerificationAssessment({
+    inspectionStatus: inspection?.status ?? null,
+    baselineCompared: counts.mediaTotal > 0 && counts.invalidComparison === 0,
+    candidateCount: Math.max(counts.screenedCandidates, counts.total),
+    comparabilityLevel: counts.invalidComparison === 0 ? "medium" : "unknown",
+    pendingReviewCount: counts.pending, confirmedCount: counts.confirmed,
+    dismissedCount: counts.dismissed, comparisonStates: counts.comparisonStates,
+    screening: counts,
+  });
   return {
-    issue: {
-      ...issue,
-      metadata,
-    },
-    verificationInspection,
-    verificationFindings,
+    issue: { ...issue, metadata: record(issue.metadata) },
+    verificationInspection: inspection,
+    verificationFindings: data.verificationFindings,
+    verificationCounts: counts,
     assessment,
   };
 }

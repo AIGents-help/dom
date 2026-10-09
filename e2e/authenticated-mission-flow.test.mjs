@@ -7029,7 +7029,7 @@ test("DOMINIC reports and paged review include findings beyond the row limit and
     await page.getByRole("button", { name: "DOMINIC HUB", exact: true }).click();
     await page.getByRole("button", { name: "Choose operations project", exact: true }).click();
     await page.getByRole("button").filter({ hasText: "Large review project" }).click();
-    await page.getByRole("button", { name: "Inspection Copilot", exact: true }).click();
+    await page.getByRole("navigation", { name: "DOMINIC navigation", exact: true }).getByRole("button", { name: "AI Copilot", exact: true }).click();
     const review = page.getByRole("region", { name: "AI Inspection Copilot", exact: true });
     const queue = review.getByRole("region", { name: "Finding review queue", exact: true });
     await queue.getByText("Showing 1–12 of 1008 matching findings · 1008 saved total", { exact: true }).waitFor();

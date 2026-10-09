@@ -1,41 +1,15 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getSupabaseBrowser } from "@/lib/supabaseBrowser";
-import { findingMediaId, isOwnedInspectionStoragePath } from "@/lib/dominicInspectionEvidence";
-import { readAllReportRows, REPORT_PAGE_SIZE } from "@/lib/dominicInspectionReport";
+import { isOwnedInspectionStoragePath } from "@/lib/dominicInspectionEvidence";
 import { abortableRequest } from "@/lib/abortableRequest";
-import { reviewPage } from "@/lib/dominicFindingQueue";
-import { screeningRecoveryState, type ScreeningJob } from "@/lib/dominicScreeningRecovery";
+import { type ScreeningJob } from "@/lib/dominicScreeningRecovery";
 
-export type MediaRow = {
-  id: string;
-  sensor_mode: string;
-  media_type: string;
-  storage_path: string | null;
-  original_filename: string | null;
-  mime_type: string | null;
-  captured_at: string | null;
-  analysis_status: "pending" | "analyzing" | "review" | "complete" | "failed";
-  analysis_summary: Record<string, unknown>;
-  metadata: Record<string, unknown>;
-  created_at: string;
-};
+import type { FindingRow, MediaRow, InspectionReviewPage } from "@/lib/dominicInspectionReview";
+import type { FindingReviewFilter } from "@/lib/dominicFindingQueue";
+export type { FindingRow, MediaRow } from "@/lib/dominicInspectionReview";
 
-export type FindingRow = {
-  id: string;
-  finding_type: string;
-  title: string;
-  description: string | null;
-  severity: "info" | "low" | "medium" | "high" | "critical";
-  review_status: "detected" | "needs_review" | "confirmed" | "dismissed";
-  confidence: number | null;
-  sensor_mode: string | null;
-  spatial_anchor: Record<string, unknown>;
-  detector: Record<string, unknown>;
-  observed_at: string;
-};
-
-export function useInspectionEvidence({ inspectionId, assetId, watchIncoming, onLoaded, onFailed }: {
+export function useInspectionEvidence({ inspectionId, watchIncoming, onLoaded, onFailed }: {
   inspectionId: string; assetId: string; watchIncoming: boolean;
   onLoaded: (media: MediaRow[]) => void; onFailed: () => void;
 }) {
@@ -46,6 +20,11 @@ export function useInspectionEvidence({ inspectionId, assetId, watchIncoming, on
   const [evidenceError, setEvidenceError] = useState("");
   const [evidenceOwnerId, setEvidenceOwnerId] = useState("");
   const [mediaPage, setMediaPage] = useState(0);
+  const [findingPage, setFindingPage] = useState(0);
+  const [findingFilter, setFindingFilter] = useState<FindingReviewFilter>("all");
+  const [findingSearch, setFindingSearch] = useState("");
+  const [pageData, setPageData] = useState<InspectionReviewPage | null>(null);
+  const lastQuery = useRef("");
   const loadChain = useRef<Promise<void>>(Promise.resolve());
   const lifecycle = useRef({ generation: 0, mounted: true, controllers: new Set<AbortController>() });
   const [media, setMedia] = useState<MediaRow[]>([]);
@@ -64,6 +43,11 @@ export function useInspectionEvidence({ inspectionId, assetId, watchIncoming, on
       life.controllers.add(controller);
       const deadline = abortableRequest(controller.signal, 30_000);
       setEvidenceLoading(true);
+      const queryKey = JSON.stringify([mediaPage, findingPage, findingFilter, findingSearch]);
+      if (lastQuery.current !== queryKey) {
+        lastQuery.current = queryKey;
+        setEvidenceLoaded(false); setMedia([]); setFindings([]); setPageData(null); setSignedUrls({});
+      }
       try {
         if (!navigator.onLine) throw new Error("Offline. Reconnect and refresh inspection evidence.");
         const sb = getSupabaseBrowser();
@@ -71,35 +55,20 @@ export function useInspectionEvidence({ inspectionId, assetId, watchIncoming, on
         const userId = session.session?.user.id;
         if (!userId) throw new Error("Sign in to refresh inspection evidence.");
         if (!current()) return;
-        const [nextMedia, nextFindings, nextJobs] = await Promise.all([
-          readAllReportRows<MediaRow>((after) => {
-            let query = sb.from("dominic_inspection_media").select("id,sensor_mode,media_type,storage_path,original_filename,mime_type,captured_at,analysis_status,analysis_summary,metadata,created_at")
-              .eq("user_id", userId).eq("inspection_id", inspectionId).eq("asset_id", assetId).order("id").limit(REPORT_PAGE_SIZE);
-            if (after) query = query.gt("id", after);
-            return query.abortSignal(deadline.signal);
-          }, deadline.signal),
-          readAllReportRows<FindingRow>((after) => {
-            let query = sb.from("dominic_findings").select("id,finding_type,title,description,severity,review_status,confidence,sensor_mode,spatial_anchor,detector,observed_at")
-              .eq("user_id", userId).eq("inspection_id", inspectionId).eq("asset_id", assetId).order("id").limit(REPORT_PAGE_SIZE);
-            if (after) query = query.gt("id", after);
-            return query.abortSignal(deadline.signal);
-          }, deadline.signal),
-          readAllReportRows<ScreeningJob & { id: string }>((after) => {
-            let query = sb.from("dominic_media_screening_jobs").select("id:media_id,media_id,status,lease_expires_at,attempt_count,last_error")
-              .eq("user_id", userId).eq("inspection_id", inspectionId).order("media_id").limit(REPORT_PAGE_SIZE);
-            if (after) query = query.gt("media_id", after);
-            return query.abortSignal(deadline.signal);
-          }, deadline.signal),
-        ]);
+        const params = new URLSearchParams({ mediaPage: String(mediaPage), findingPage: String(findingPage), filter: findingFilter, search: findingSearch });
+        const response = await fetch(`/api/dominic/inspections/${inspectionId}/review?${params}`, {
+          headers: { Authorization: `Bearer ${session.session?.access_token}` }, cache: "no-store", signal: deadline.signal,
+        });
+        const next: InspectionReviewPage & { error?: string } = await response.json();
+        if (!response.ok) throw new Error(next.error ?? "Inspection evidence could not be refreshed.");
         if (!current()) return;
-        nextMedia.sort((a, b) => b.created_at.localeCompare(a.created_at) || a.id.localeCompare(b.id));
-        setMedia(nextMedia); setFindings(nextFindings);
-        setScreeningJobs(Object.fromEntries(nextJobs.map((job) => [job.media_id, job])));
+        setMedia(next.media); setFindings(next.findings); setPageData(next);
+        setScreeningJobs(Object.fromEntries(next.jobs.map((job) => [job.media_id, job])));
         setScreeningClock(Date.now()); setEvidenceLoaded(true); setEvidenceOwnerId(userId); setEvidenceError("");
-        onLoaded(nextMedia);
+        onLoaded(next.media);
       } catch (error) {
         if (current()) {
-          setMedia([]); setFindings([]); setScreeningJobs({}); setEvidenceLoaded(false); setEvidenceOwnerId(""); setSignedUrls({});
+          setMedia([]); setFindings([]); setPageData(null); setScreeningJobs({}); setEvidenceLoaded(false); setEvidenceOwnerId(""); setSignedUrls({});
           onFailed();
           setEvidenceError(error instanceof Error ? error.message : "Inspection evidence could not be refreshed. Retry before reviewing.");
         }
@@ -111,7 +80,7 @@ export function useInspectionEvidence({ inspectionId, assetId, watchIncoming, on
     });
     loadChain.current = task;
     await task;
-  }, [inspectionId, assetId, onLoaded, onFailed]);
+  }, [inspectionId, onLoaded, onFailed, mediaPage, findingPage, findingFilter, findingSearch]);
 
   useEffect(() => {
     const life = lifecycle.current;
@@ -120,17 +89,11 @@ export function useInspectionEvidence({ inspectionId, assetId, watchIncoming, on
     return () => { life.mounted = false; life.generation++; for (const controller of life.controllers) controller.abort(); };
   }, [load]);
 
-  const currentMediaPage = reviewPage(media, mediaPage);
-  const visibleMedia = useMemo(() => reviewPage(media, mediaPage).rows, [media, mediaPage]);
-  const findingsByMedia = useMemo(() => {
-    const byId = new Map<string, FindingRow[]>();
-    for (const finding of findings) {
-      const id = findingMediaId(finding);
-      if (!id) continue;
-      const rows = byId.get(id) ?? []; rows.push(finding); byId.set(id, rows);
-    }
-    return byId;
-  }, [findings]);
+  const mediaTotal = pageData?.mediaTotal ?? 0;
+  const currentMediaPage = { page: pageData?.mediaPage ?? mediaPage, last: Math.max(0, Math.ceil(mediaTotal / 12) - 1), start: (pageData?.mediaPage ?? mediaPage) * 12, rows: media };
+  const visibleMedia = media;
+  const findingsByMedia = useMemo(() => new Map((pageData?.linkedFindings ?? []).map((row) => [row.media_id, row.findings])), [pageData]);
+  const findingCountsByMedia = useMemo(() => new Map((pageData?.linkedFindings ?? []).map((row) => [row.media_id, row.total])), [pageData]);
   useEffect(() => {
     let active = true;
     const sb = getSupabaseBrowser();
@@ -152,7 +115,7 @@ export function useInspectionEvidence({ inspectionId, assetId, watchIncoming, on
   }, [visibleMedia, evidenceOwnerId]);
 
 
-  const hasProcessingJobs = Object.values(screeningJobs).some((job) => screeningRecoveryState(job, screeningClock).active);
+  const hasProcessingJobs = pageData?.hasProcessingJobs ?? false;
   useEffect(() => {
     if (!watchIncoming && !hasProcessingJobs) return;
     let active = true;
@@ -169,6 +132,13 @@ export function useInspectionEvidence({ inspectionId, assetId, watchIncoming, on
     return () => { active = false; clearTimeout(timer); };
   }, [load, watchIncoming, hasProcessingJobs]);
 
-  return { watchError, evidenceLoaded, evidenceLoading, evidenceError, media, findings, screeningJobs, screeningClock, signedUrls, currentMediaPage, visibleMedia, findingsByMedia, setMediaPage, load };
+  const changeFindingQuery = useCallback((filter: FindingReviewFilter, search: string) => { setFindingFilter(filter); setFindingSearch(search); setFindingPage(0); }, []);
+  return { watchError, evidenceLoaded, evidenceLoading, evidenceError, media, findings, screeningJobs, screeningClock, signedUrls, currentMediaPage, visibleMedia, findingsByMedia, findingCountsByMedia, setMediaPage, load,
+    mediaTotal, findingTotal: pageData?.findingTotal ?? 0, matchingTotal: pageData?.matchingTotal ?? 0,
+    needsReview: pageData?.needsReview ?? 0, confirmedTotal: pageData?.confirmedTotal ?? 0,
+    copilotFindings: pageData?.copilotFindings ?? [], copilotMedia: pageData?.copilotMedia ?? [], currentFindingPage: pageData?.findingPage ?? findingPage,
+    findingFilter, findingSearch, setFindingPage,
+    changeFindingQuery,
+  };
 }
 

@@ -6942,7 +6942,7 @@ test("DOMINIC reports and paged review include findings beyond the row limit and
       assert.ifError((await admin.from("dominic_inspection_media").insert(media.slice(start, start + 500))).error);
       assert.ifError((await admin.from("dominic_findings").insert(findings.slice(start, start + 500))).error);
     }
-    for (const [title, review_status, detector] of [["Dismissed critical finding", "dismissed", {}], ["Excluded critical finding", "confirmed", { reportIncluded: false }], ["Excluded candidate", "needs_review", { reportIncluded: false }]]) {
+    for (const [title, review_status, detector] of [["Dismissed critical finding", "dismissed", {}], ["Excluded critical finding", "confirmed", { reportIncluded: false }], ["Excluded candidate", "needs_review", { reportIncluded: false, mediaId: media[1004].id }]]) {
       await seed("dominic_findings", { user_id: users[0].id, asset_id: asset.id, inspection_id: inspection.id, finding_type: "visual_anomaly", title, severity: "critical", review_status, detector });
     }
     await seed("dominic_findings", { user_id: users[1].id, asset_id: foreignAsset.id, inspection_id: foreignInspection.id, finding_type: "visual_anomaly", title: "Outsider private critical defect", severity: "critical", review_status: "needs_review" });
@@ -6967,6 +6967,43 @@ test("DOMINIC reports and paged review include findings beyond the row limit and
       const outsider = await createClient(supabaseURL, anonKey, { auth: { persistSession: false } }).auth.signInWithPassword({ email: users[1].email, password });
       assert.ifError(outsider.error);
       assert.equal((await api.get(url, { headers: { Authorization: `Bearer ${outsider.data.session.access_token}` } })).status(), 404);
+      const reviewURL = `${baseURL}/api/dominic/inspections/${inspection.id}/review`;
+      const headers = { Authorization: `Bearer ${login.session.access_token}` };
+      assert.equal((await api.get(reviewURL)).status(), 401);
+      assert.equal((await api.get(reviewURL, { headers: { Authorization: `Bearer ${outsider.data.session.access_token}` } })).status(), 404);
+      const firstPageResponse = await api.get(reviewURL, { headers });
+      assert.equal(firstPageResponse.status(), 200);
+      assert.equal(firstPageResponse.headers()["cache-control"], "private, no-store");
+      const firstPage = await firstPageResponse.json();
+      assert.equal(firstPage.mediaTotal, 1005); assert.equal(firstPage.findingTotal, 1008);
+      assert.equal(firstPage.needsReview, 1002); assert.equal(firstPage.confirmedTotal, 5);
+      assert.equal(firstPage.media.length, 12); assert.equal(firstPage.findings.length, 12);
+      assert.ok(firstPage.copilotFindings.length <= 12); assert.ok(firstPage.copilotMedia.length <= 24);
+      assert.ok(firstPage.linkedFindings.every((row) => row.findings.length <= 12));
+      assert.equal(firstPage.findings[0].title, "Excluded candidate");
+      assert.equal(firstPage.findings[1].title, "Old high-priority seam candidate");
+      const lastPage = await (await api.get(`${reviewURL}?mediaPage=999999999&findingPage=999999999`, { headers })).json();
+      assert.equal(lastPage.mediaPage, 83); assert.equal(lastPage.findingPage, 83);
+      assert.equal(lastPage.media.length, 9); assert.equal(lastPage.findings.length, 12);
+      assert.equal((await api.get(`${reviewURL}?filter=deleted`, { headers })).status(), 400);
+      assert.equal((await api.get(`${reviewURL}?findingPage=-1`, { headers })).status(), 400);
+      const literalSearch = await (await api.get(`${reviewURL}?search=%25_`, { headers })).json();
+      assert.equal(literalSearch.matchingTotal, 0, "search characters must not become SQL wildcards");
+      assert.equal(literalSearch.findings.length, 0);
+      const foreignRead = await auth.rpc("read_dominic_inspection_review", { p_inspection_id: foreignInspection.id, p_asset_id: foreignAsset.id });
+      assert.ifError(foreignRead.error); assert.equal(foreignRead.data, null, "direct RPC must not expose another owner's inspection");
+      const wrongAsset = await auth.rpc("read_dominic_inspection_review", { p_inspection_id: inspection.id, p_asset_id: foreignAsset.id });
+      assert.ifError(wrongAsset.error); assert.equal(wrongAsset.data, null);
+      const anonymousRead = await createClient(supabaseURL, anonKey, { auth: { persistSession: false } }).rpc("read_dominic_inspection_review", { p_inspection_id: inspection.id, p_asset_id: asset.id });
+      assert.equal(anonymousRead.error?.code, "42501", "anonymous RPC execution must be revoked");
+      const oneFinding = await (await api.get(`${url}?findingId=${findings[1004].id}`, { headers })).json();
+      assert.equal(oneFinding.findings.length, 1); assert.deepEqual(oneFinding.media.map((row) => row.id), [media[1004].id]);
+      assert.equal((await api.get(`${url}?findingId=${foreignMedia.id}`, { headers })).status(), 404);
+      const excluded = firstPage.findings[0];
+      const excludedEvidence = await (await api.get(`${url}?findingId=${excluded.id}`, { headers })).json();
+      assert.equal(excludedEvidence.findings.length, 1);
+      assert.deepEqual(excludedEvidence.media.map((row) => row.id), [media[1004].id], "review must show linked evidence even when excluded from printing");
+
     } finally { await api.dispose(); }
     browser = await chromium.launch({ headless: true });
     const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
@@ -7020,7 +7057,7 @@ test("DOMINIC reports and paged review include findings beyond the row limit and
     const reviewQueries = [];
     let reviewRequests = 0;
     page.on("request", (req) => {
-      if (/\/rest\/v1\/(dominic_findings|dominic_inspection_media|dominic_media_screening_jobs)\?/.test(req.url())) reviewQueries.push(new URL(req.url()));
+      if (new URL(req.url()).pathname === `/api/dominic/inspections/${inspection.id}/review`) reviewQueries.push(new URL(req.url()));
       if (/\/findings\/[^/]+\/review$/.test(req.url()) && req.method() === "POST") reviewRequests++;
     });
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -7057,10 +7094,11 @@ test("DOMINIC reports and paged review include findings beyond the row limit and
     await queue.getByText("No matching findings.", { exact: true }).waitFor();
     const dismissed = await admin.from("dominic_findings").select("review_status").eq("id", findings[1003].id).single();
     assert.ifError(dismissed.error); assert.equal(dismissed.data.review_status, "dismissed"); assert.equal(reviewRequests, 1);
-    assert.ok(reviewQueries.some((url) => url.searchParams.get("id")?.startsWith("gt.")), "review must read past the first database page");
-    assert.ok(reviewQueries.every((url) => url.searchParams.get("user_id") === `eq.${users[0].id}`), "review data queries must explicitly scope ownership");
+    assert.ok(reviewQueries.some((url) => url.searchParams.get("mediaPage") === "83"), "evidence must load its last page from the server");
+    assert.ok(reviewQueries.some((url) => url.searchParams.get("findingPage") === "83"), "findings must load their last page from the server");
+    assert.ok(reviewQueries.some((url) => url.searchParams.get("search") === "Old high-priority"), "search must run on the server, beyond visible findings");
     assert.equal(await review.getByText("Outsider private critical defect", { exact: true }).count(), 0);
-    const findingRoute = /\/rest\/v1\/dominic_findings\?/;
+    const findingRoute = new RegExp(`/api/dominic/inspections/${inspection.id}/review\\?`);
     await page.route(findingRoute, (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Fixture refresh failed" }) }));
     await review.getByRole("button", { name: "Refresh inspection evidence", exact: true }).click();
     await review.getByText("REVIEW COUNT UNAVAILABLE", { exact: true }).waitFor();
@@ -7070,6 +7108,7 @@ test("DOMINIC reports and paged review include findings beyond the row limit and
     await review.getByText("1001 NEED REVIEW", { exact: true }).waitFor();
     await queue.getByRole("textbox", { name: "Search saved findings", exact: true }).fill("");
     await queue.getByRole("combobox", { name: "Finding review status", exact: true }).selectOption("all");
+    await queue.getByText("Showing 1–12 of 1008 matching findings · 1008 saved total", { exact: true }).waitFor();
     await page.screenshot({ path: "/tmp/dom-navigation-paged-review-desktop.png" });
     await page.setViewportSize({ width: 390, height: 844 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "paged review controls must fit mobile");

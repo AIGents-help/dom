@@ -12,6 +12,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ insp
   if (error || !data.user) return NextResponse.json({ error: "Invalid session" }, { status: 401 });
   const userId = data.user.id;
   const { inspectionId } = await params;
+  const findingId = req.nextUrl.searchParams.get("findingId");
+  if (findingId && !/^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i.test(findingId)) {
+    return NextResponse.json({ error: "Invalid finding." }, { status: 400 });
+  }
   const { data: inspection, error: inspectionError } = await admin.from("dominic_inspections")
     .select("id,asset_id,inspection_type,objective,status,summary").eq("id", inspectionId).eq("user_id", userId).maybeSingle();
   if (inspectionError) return NextResponse.json({ error: "Inspection could not be loaded." }, { status: 500 });
@@ -27,12 +31,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ insp
           .lte("created_at", generatedAt)
           .order("id").limit(REPORT_PAGE_SIZE);
         if (after) query = query.gt("id", after);
+        if (findingId) query = query.eq("id", findingId);
         return query.abortSignal(deadline.signal);
       }, deadline.signal),
     ]);
     if (assetResult.error) throw assetResult.error;
     if (!assetResult.data) return NextResponse.json({ error: "Asset not found." }, { status: 404 });
-    const evidenceIds = reportEvidenceIds(findings);
+    if (findingId && !findings.length) return NextResponse.json({ error: "Finding not found." }, { status: 404 });
+    // A review callout needs its source even when that finding is excluded from
+    // the printed report or dismissed. The full report keeps its existing rules.
+    const evidenceIds = reportEvidenceIds(findingId ? findings.map((finding) => ({ ...finding, review_status: "confirmed", detector: { ...finding.detector, reportIncluded: true } })) : findings);
     const mediaColumns = "id,original_filename,captured_at,created_at,sensor_mode,storage_path";
     type MediaRow = { id: string; original_filename: string | null; captured_at: string | null; created_at: string; sensor_mode: string; storage_path: string | null };
     const readMedia = async (ids: string[], current: boolean) => {

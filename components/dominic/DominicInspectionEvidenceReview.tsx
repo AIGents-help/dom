@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- signed private inspection evidence is rendered directly */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -263,7 +263,7 @@ export default function DominicInspectionEvidenceReview({
     setManual((value) => ({ ...value, mediaId: value.mediaId && nextMedia.some((item) => item.id === value.mediaId) ? value.mediaId : nextMedia[0]?.id ?? "" }));
   }, []);
   const onEvidenceFailed = useCallback(() => setCallout(null), []);
-  const { watchError, evidenceLoaded, evidenceLoading, evidenceError, media, findings, screeningJobs, screeningClock, signedUrls, currentMediaPage, visibleMedia, findingsByMedia, setMediaPage, load } = useInspectionEvidence({ inspectionId: inspection.id, assetId: asset.id, watchIncoming, onLoaded: onEvidenceLoaded, onFailed: onEvidenceFailed });
+  const { watchError, evidenceLoaded, evidenceLoading, evidenceError, media, findings, screeningJobs, screeningClock, signedUrls, currentMediaPage, visibleMedia, findingsByMedia, findingCountsByMedia, setMediaPage, load, mediaTotal, findingTotal, matchingTotal, needsReview, confirmedTotal, copilotMedia, copilotFindings, currentFindingPage, findingFilter, setFindingPage, changeFindingQuery } = useInspectionEvidence({ inspectionId: inspection.id, assetId: asset.id, watchIncoming, onLoaded: onEvidenceLoaded, onFailed: onEvidenceFailed });
 
 
   useEffect(() => {
@@ -297,10 +297,7 @@ export default function DominicInspectionEvidenceReview({
     };
   }, []);
 
-  const reviewableCount = useMemo(
-    () => findings.filter((finding) => finding.review_status === "needs_review").length,
-    [findings],
-  );
+  const reviewableCount = needsReview;
 
   const uploadEvidence = async (file: File) => {
     if (!file.type.startsWith("image/")) {
@@ -615,10 +612,10 @@ export default function DominicInspectionEvidenceReview({
         </div>
       </div>
 
-      {copilotMode ? <DominicInspectionCopilot actions={inspectionCopilotActions(media, findings)} evidenceCount={media.length}
-        confirmedCount={findings.filter((finding) => finding.review_status === "confirmed").length}
+      {copilotMode ? <DominicInspectionCopilot actions={inspectionCopilotActions(copilotMedia, copilotFindings)} evidenceCount={mediaTotal}
+        confirmedCount={confirmedTotal}
         loaded={evidenceLoaded} screeningReady={aiReadiness.configured} screeningBusy={Boolean(analysisBusyId)}
-        onReview={(findingId) => { const finding = findings.find((item) => item.id === findingId); if (finding) setCallout(finding); }}
+        onReview={(findingId) => { const finding = copilotFindings.find((item) => item.id === findingId); if (finding) setCallout(finding); }}
         onScreen={(mediaId) => void runScreening(mediaId)} onCapture={() => onCaptureSetup?.()} /> : null}
       {callout ? <DominicInspectionCallout key={callout.id} finding={callout} inspectionId={inspection.id} onClose={() => setCallout(null)} onSaved={load} /> : null}
       <div style={{ padding: "12px", borderBottom: `1px solid ${LINE}`, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
@@ -628,7 +625,7 @@ export default function DominicInspectionEvidenceReview({
       </div>
       {watchIncoming ? <p style={{ padding: "0 12px", color: MUTED, fontSize: 12 }}>This view follows saved capture frames and findings. Aircraft connection and automatic screening run in Capture Planner; continuous live video is not connected here yet.</p> : null}
       {evidenceError ? <p role="alert" style={{ padding: 12, color: AMBER }}>{evidenceError}</p> : null}
-      <DominicFindingReviewQueue findings={findings} loaded={evidenceLoaded} busy={Boolean(reviewBusyId) || evidenceLoading} onOpen={setCallout} onReview={(id, action) => void reviewFinding(id, action)} />
+      <DominicFindingReviewQueue total={findingTotal} matchingTotal={matchingTotal} page={currentFindingPage} filter={findingFilter} onPage={setFindingPage} onQuery={changeFindingQuery} findings={findings} loaded={evidenceLoaded} busy={Boolean(reviewBusyId) || evidenceLoading} onOpen={setCallout} onReview={(id, action) => void reviewFinding(id, action)} />
       {message ? (
         <div
           style={{
@@ -701,12 +698,12 @@ export default function DominicInspectionEvidenceReview({
 
       <div style={{ padding: 11, display: "grid", gap: 10 }}>
         <nav aria-label="Inspection evidence pages" style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", color: TEXT }}>
-          <span role="status">{!evidenceLoaded ? "Evidence unavailable until refresh succeeds." : media.length ? `Showing ${currentMediaPage.start + 1}–${currentMediaPage.start + currentMediaPage.rows.length} of ${media.length} evidence items` : "No saved evidence items."}</span>
-          {media.length > 12 ? <>
-            <button type="button" style={PAGE_BUTTON} disabled={currentMediaPage.page === 0} onClick={() => setMediaPage(0)}>First evidence page</button>
-            <button type="button" style={PAGE_BUTTON} disabled={currentMediaPage.page === 0} onClick={() => setMediaPage(currentMediaPage.page - 1)}>Previous evidence</button>
-            <button type="button" style={PAGE_BUTTON} disabled={currentMediaPage.page === currentMediaPage.last} onClick={() => setMediaPage(currentMediaPage.page + 1)}>Next evidence</button>
-            <button type="button" style={PAGE_BUTTON} disabled={currentMediaPage.page === currentMediaPage.last} onClick={() => setMediaPage(currentMediaPage.last)}>Last evidence page</button>
+          <span role="status">{!evidenceLoaded ? "Evidence unavailable until refresh succeeds." : mediaTotal ? `Showing ${currentMediaPage.start + 1}–${currentMediaPage.start + currentMediaPage.rows.length} of ${mediaTotal} evidence items` : "No saved evidence items."}</span>
+          {mediaTotal > 12 ? <>
+            <button type="button" style={PAGE_BUTTON} disabled={evidenceLoading || currentMediaPage.page === 0} onClick={() => setMediaPage(0)}>First evidence page</button>
+            <button type="button" style={PAGE_BUTTON} disabled={evidenceLoading || currentMediaPage.page === 0} onClick={() => setMediaPage(currentMediaPage.page - 1)}>Previous evidence</button>
+            <button type="button" style={PAGE_BUTTON} disabled={evidenceLoading || currentMediaPage.page === currentMediaPage.last} onClick={() => setMediaPage(currentMediaPage.page + 1)}>Next evidence</button>
+            <button type="button" style={PAGE_BUTTON} disabled={evidenceLoading || currentMediaPage.page === currentMediaPage.last} onClick={() => setMediaPage(currentMediaPage.last)}>Last evidence page</button>
           </> : null}
         </nav>
         {media.length === 0 ? (
@@ -898,7 +895,7 @@ export default function DominicInspectionEvidenceReview({
 
                   {recovery.note ? <div role="status" style={{ color: MUTED, fontSize: 9, marginTop: 7 }}>{recovery.note}</div> : null}
 
-                  {allItemFindings.length > 12 ? <p style={{ color: MUTED, fontSize: 12 }}>Showing 12 of {allItemFindings.length} linked findings. Use the finding review queue to reach every finding.</p> : null}
+                  {(findingCountsByMedia.get(item.id) ?? 0) > 12 ? <p style={{ color: MUTED, fontSize: 12 }}>Showing 12 of {findingCountsByMedia.get(item.id)} linked findings. Use the finding review queue to reach every finding.</p> : null}
                   {itemFindings.length ? (
                     <div style={{ display: "grid", gap: 7, marginTop: 9 }}>
                       {itemFindings.map((finding) => {

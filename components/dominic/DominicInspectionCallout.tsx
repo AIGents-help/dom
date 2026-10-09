@@ -25,13 +25,13 @@ export default function DominicInspectionCallout({ finding, inspectionId, onClos
     let active = true;
     (async () => {
       const { data: session } = await getSupabaseBrowser().auth.getSession();
-      const response = await fetch(`/api/dominic/inspections/${inspectionId}/report`, { headers: { Authorization: `Bearer ${session.session?.access_token ?? ""}` } });
+      const response = await fetch(`/api/dominic/inspections/${inspectionId}/report?findingId=${encodeURIComponent(finding.id)}`, { headers: { Authorization: `Bearer ${session.session?.access_token ?? ""}` }, cache: "no-store" });
       const body = await response.json();
       if (!response.ok) throw new Error(body.error ?? "Evidence unavailable.");
       if (active) setData(body);
     })().catch((error) => { if (active) setMessage(error instanceof Error ? error.message : "Evidence unavailable."); });
     return () => { active = false; };
-  }, [inspectionId]);
+  }, [inspectionId, finding.id]);
   const current = data?.media.find((item) => item.id === findingMediaId(finding));
   const baseline = data?.baselineMedia.find((item) => item.id === finding.detector.baselineSourceMediaId);
   async function save() {

@@ -29,7 +29,7 @@ export default function CookieConsent() {
     >
       <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
         <div className="max-w-2xl">
-          <h2 className="text-base font-bold text-ink">Your privacy matters</h2>
+          <h2 className="text-base font-bold text-slate-900">Your privacy matters</h2>
           <p className="mt-2 text-sm leading-6 text-slate-600">
             DOM uses essential cookies to keep the site and secure portals working. Optional cookies
             will only be used with your permission. Read our{" "}
@@ -43,7 +43,7 @@ export default function CookieConsent() {
           <button
             type="button"
             onClick={() => save("essential")}
-            className="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent"
+            className="rounded-lg border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-900 transition hover:border-accent hover:text-accent"
           >
             Essential Only
           </button>

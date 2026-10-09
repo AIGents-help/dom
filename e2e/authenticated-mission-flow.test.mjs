@@ -6370,6 +6370,7 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     assert.equal((await context.request.patch(`${baseURL}/api/dominic/findings/${coatingFinding.id}/report-note`, { headers: ownerHeaders, data: { note: "x".repeat(2001), included: true } })).status(), 400);
     assert.equal((await context.request.patch(`${baseURL}/api/dominic/findings/${incoming.id}/report-note`, { headers: ownerHeaders, data: { note: "Exclude provisional alert", included: false } })).status(), 200);
     const hiddenMedia = await seed("dominic_inspection_media", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, media_type: "image", sensor_mode: "rgb", storage_path: `${intruder.id}/private.webp` });
+    await seed("dominic_findings", { user_id: user.id, asset_id: inspectedAsset.id, inspection_id: inspection.id, finding_type: "visual_anomaly", title: "Untrusted evidence reference", severity: "low", review_status: "needs_review", detector: { mediaId: hiddenMedia.id } });
     const safeReport = await context.request.get(`${baseURL}/api/dominic/inspections/${inspection.id}/report`, { headers: ownerHeaders });
     assert.equal(safeReport.status(), 200);
     assert.equal((await safeReport.json()).media.find((item) => item.id === hiddenMedia.id).url, null, "forged foreign storage paths must never be signed");
@@ -6890,6 +6891,135 @@ test("DOMINIC live findings survive returning to a saved inspection and retain o
     if (mission) await admin.from("mission_requests").delete().eq("id", mission.id);
     if (contractor) await admin.from("contractors").delete().eq("id", contractor.id);
     for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});
+
+test("DOMINIC reports include findings beyond the row limit, prioritize urgent work and keep evidence private", { skip: !isolated, timeout: 120_000 }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey);
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
+  assert.match(baseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/);
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const { randomUUID } = await import("node:crypto");
+  const stamp = `${Date.now()}-${randomUUID().slice(0, 8)}`;
+  const password = `Dom-Report-${stamp}!Aa1`;
+  const users = [];
+  let browser;
+  const storagePaths = [];
+  try {
+    for (const name of ["owner", "outsider"]) {
+      const { data, error } = await admin.auth.admin.createUser({ email: `report-${name}-${stamp}@e2e.dom.invalid`, password, email_confirm: true });
+      assert.ifError(error); users.push(data.user);
+    }
+    const seed = async (table, row) => {
+      const { data, error } = await admin.from(table).insert(row).select("*").single();
+      assert.ifError(error); return data;
+    };
+    const asset = await seed("dominic_assets", { user_id: users[0].id, name: "Large inspection tank", asset_type: "storage_tank" });
+    const inspection = await seed("dominic_inspections", { user_id: users[0].id, asset_id: asset.id, inspection_type: "visual", sensor_modes: ["rgb"], objective: "Review recorded RGB evidence", status: "review" });
+    const prior = await seed("dominic_inspections", { user_id: users[0].id, asset_id: asset.id, inspection_type: "visual", sensor_modes: ["rgb"] });
+    const foreignAsset = await seed("dominic_assets", { user_id: users[1].id, name: "Private outsider tank", asset_type: "storage_tank" });
+    const foreignInspection = await seed("dominic_inspections", { user_id: users[1].id, asset_id: foreignAsset.id, inspection_type: "visual" });
+    const foreignMedia = await seed("dominic_inspection_media", { user_id: users[1].id, asset_id: foreignAsset.id, inspection_id: foreignInspection.id, media_type: "image", sensor_mode: "rgb", storage_path: `${users[1].id}/private-report.webp` });
+    const image = await readFile(new URL("../public/images/dominic-demo/refinery-aerial-v1.webp", import.meta.url));
+    for (const filename of ["current-report.webp", "previous-report.webp"]) {
+      const path = `${users[0].id}/${filename}`;
+      const { error } = await admin.storage.from("dominic-inspection-evidence").upload(path, image, { contentType: "image/webp" });
+      assert.ifError(error); storagePaths.push(path);
+    }
+    const baseline = await seed("dominic_inspection_media", { user_id: users[0].id, asset_id: asset.id, inspection_id: prior.id, media_type: "image", sensor_mode: "rgb", storage_path: storagePaths[1] });
+    const prefix = randomUUID().slice(0, 24);
+    const media = Array.from({ length: 1005 }, (_, index) => ({ id: `${prefix}${String(index).padStart(12, "0")}`, user_id: users[0].id, asset_id: asset.id, inspection_id: inspection.id, media_type: "image", sensor_mode: "rgb", storage_path: index === 1004 ? storagePaths[0] : null }));
+    const findings = media.map((item, index) => ({
+      id: item.id, user_id: users[0].id, asset_id: asset.id, inspection_id: inspection.id, finding_type: "visual_anomaly",
+      title: index === 1004 ? "Old critical roof defect" : index === 1003 ? "Old high-priority seam candidate" : `Report candidate ${index}`,
+      severity: index === 1004 ? "critical" : index === 1003 ? "high" : "low",
+      review_status: index < 3 || index === 1004 ? "confirmed" : "needs_review", sensor_mode: "rgb",
+      observed_at: index >= 1003 ? "2001-01-01T00:00:00Z" : "2026-01-01T00:00:00Z",
+      detector: index === 1004 ? { mediaId: item.id } : index === 0 ? { mediaId: foreignMedia.id, baselineSourceMediaId: foreignMedia.id } : index === 1 ? { baselineSourceMediaId: baseline.id } : {},
+    }));
+    for (let start = 0; start < media.length; start += 500) {
+      assert.ifError((await admin.from("dominic_inspection_media").insert(media.slice(start, start + 500))).error);
+      assert.ifError((await admin.from("dominic_findings").insert(findings.slice(start, start + 500))).error);
+    }
+    for (const [title, review_status, detector] of [["Dismissed critical finding", "dismissed", {}], ["Excluded critical finding", "confirmed", { reportIncluded: false }], ["Excluded candidate", "needs_review", { reportIncluded: false }]]) {
+      await seed("dominic_findings", { user_id: users[0].id, asset_id: asset.id, inspection_id: inspection.id, finding_type: "visual_anomaly", title, severity: "critical", review_status, detector });
+    }
+    await seed("dominic_findings", { user_id: users[1].id, asset_id: foreignAsset.id, inspection_id: foreignInspection.id, finding_type: "visual_anomaly", title: "Outsider private critical defect", severity: "critical", review_status: "needs_review" });
+    const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const { data: login, error: loginError } = await auth.auth.signInWithPassword({ email: users[0].email, password });
+    assert.ifError(loginError);
+    const api = await request.newContext();
+    try {
+      const url = `${baseURL}/api/dominic/inspections/${inspection.id}/report`;
+      assert.equal((await api.get(url)).status(), 401);
+      const response = await api.get(url, { headers: { Authorization: `Bearer ${login.session.access_token}` } });
+      assert.equal(response.status(), 200);
+      assert.equal(response.headers()["cache-control"], "private, no-store");
+      const body = await response.json();
+      assert.equal(body.findings.length, 1008, "report must not stop at the default 1000-row response limit");
+      assert.equal(new Set(body.findings.map((row) => row.id)).size, 1008);
+      assert.ok(body.findings.some((row) => row.id === findings[1004].id));
+      assert.deepEqual(body.media.map((row) => row.id), [media[1004].id], "only included, owned source evidence should be signed");
+      assert.ok(body.media[0].url);
+      assert.deepEqual(body.baselineMedia.map((row) => row.id), [baseline.id]);
+      assert.ok(body.baselineMedia[0].url);
+      const outsider = await createClient(supabaseURL, anonKey, { auth: { persistSession: false } }).auth.signInWithPassword({ email: users[1].email, password });
+      assert.ifError(outsider.error);
+      assert.equal((await api.get(url, { headers: { Authorization: `Bearer ${outsider.data.session.access_token}` } })).status(), 404);
+    } finally { await api.dispose(); }
+    browser = await chromium.launch({ headless: true });
+    const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+    await context.addInitScript(({ key, session }) => localStorage.setItem(key, JSON.stringify(session)), { key: `sb-${new URL(supabaseURL).hostname.split(".")[0]}-auth-token`, session: login.session });
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`${baseURL}/dominic/inspections/${inspection.id}/report`, { waitUntil: "domcontentloaded" });
+    const summary = page.getByRole("region", { name: "Inspection review summary", exact: true });
+    await summary.waitFor();
+    for (const [label, count] of [["Included findings", "1005"], ["Confirmed findings", "4"], ["Candidates awaiting review", "1001"], ["Critical / high findings", "2"]]) {
+      assert.equal(await summary.locator("dt").filter({ hasText: new RegExp(`^${label}$`) }).locator("..").locator("dd").textContent(), count);
+    }
+    assert.equal(await page.locator("article").count(), 1005);
+    assert.equal(await page.locator("article").nth(0).getAttribute("aria-label"), "Old critical roof defect");
+    assert.equal(await page.locator("article").nth(1).getAttribute("aria-label"), "Old high-priority seam candidate");
+    await page.getByRole("article", { name: "Old high-priority seam candidate", exact: true }).getByText("Candidate — inspector review required", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Outsider private critical defect", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("Excluded critical finding", { exact: true }).count(), 0);
+    assert.equal(await page.getByText("Dismissed critical finding", { exact: true }).count(), 0);
+    await page.waitForFunction(() => document.images.length === 2 && [...document.images].every((image) => image.complete && image.naturalWidth > 0));
+    assert.equal(await page.getByRole("button", { name: "Print / Save PDF", exact: true }).isEnabled(), true);
+    const consent = page.getByRole("region", { name: "Cookie consent", exact: true });
+    await consent.waitFor();
+    const essentialOnly = consent.getByRole("button", { name: "Essential Only", exact: true });
+    const luminance = await essentialOnly.evaluate((button) => {
+      const channels = getComputedStyle(button).color.match(/[\d.]+/g).slice(0, 3).map(Number).map((channel) => {
+        const value = channel / 255;
+        return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+      });
+      return .2126 * channels[0] + .7152 * channels[1] + .0722 * channels[2];
+    });
+    assert.ok(1.05 / (luminance + .05) >= 4.5, "essential cookie choice must be readable on the white banner");
+    await page.emulateMedia({ media: "print" });
+    assert.equal(await consent.isVisible(), false, "cookie banners must not cover printed inspection evidence");
+    assert.equal(await summary.isVisible(), true);
+    assert.equal(await page.locator("article").first().isVisible(), true);
+    await page.emulateMedia({ media: "screen" });
+    await essentialOnly.click();
+    await page.screenshot({ path: "/tmp/dom-navigation-complete-report-desktop.png" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "report summary must fit mobile");
+    await page.screenshot({ path: "/tmp/dom-navigation-complete-report-mobile.png" });
+    assert.deepEqual(errors, []);
+  } finally {
+    await browser?.close();
+    if (storagePaths.length) await admin.storage.from("dominic-inspection-evidence").remove(storagePaths);
+    for (const user of users.reverse()) {
+      await admin.from("dominic_findings").delete().eq("user_id", user.id);
+      await admin.from("dominic_inspection_media").delete().eq("user_id", user.id);
+      await admin.from("dominic_inspections").delete().eq("user_id", user.id);
+      await admin.from("dominic_assets").delete().eq("user_id", user.id);
+      await admin.auth.admin.deleteUser(user.id);
+    }
   }
 });
 

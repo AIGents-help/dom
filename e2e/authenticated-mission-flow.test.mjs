@@ -6894,7 +6894,7 @@ test("DOMINIC live findings survive returning to a saved inspection and retain o
   }
 });
 
-test("DOMINIC reports include findings beyond the row limit, prioritize urgent work and keep evidence private", { skip: !isolated, timeout: 120_000 }, async () => {
+test("DOMINIC reports and paged review include findings beyond the row limit and keep evidence private", { skip: !isolated, timeout: 180_000 }, async () => {
   assert.ok(supabaseURL && anonKey && serviceKey);
   assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
   assert.match(baseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/);
@@ -6904,6 +6904,7 @@ test("DOMINIC reports include findings beyond the row limit, prioritize urgent w
   const password = `Dom-Report-${stamp}!Aa1`;
   const users = [];
   let browser;
+  let reviewMission, reviewJob, reviewProject, reviewContractor;
   const storagePaths = [];
   try {
     for (const name of ["owner", "outsider"]) {
@@ -7009,6 +7010,70 @@ test("DOMINIC reports include findings beyond the row limit, prioritize urgent w
     await page.setViewportSize({ width: 390, height: 844 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "report summary must fit mobile");
     await page.screenshot({ path: "/tmp/dom-navigation-complete-report-mobile.png" });
+    reviewContractor = await seed("contractors", { user_id: users[0].id, full_name: "Large review operator", email: users[0].email, status: "active" });
+    await seed("dominic_profiles", { user_id: users[0].id, plan: "organization", status: "active" });
+    reviewMission = await seed("mission_requests", { requester_name: "Large review client", requester_email: users[0].email, service_type: "aerial_images", location: "Review site", status: "approved" });
+    reviewJob = await seed("jobs", { mission_request_id: reviewMission.id, title: "Large review mission", service_type: "aerial_images", location: "Review site", status: "scheduled" });
+    reviewProject = await seed("mapping_projects", { job_id: reviewJob.id, contractor_id: reviewContractor.id, name: "Large review project", status: "uploaded", image_count: 1005 });
+    assert.ifError((await admin.from("dominic_inspections").update({ mapping_project_id: reviewProject.id }).eq("id", inspection.id)).error);
+    await page.route(`${baseURL}/api/dominic/ai/status`, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ configured: false }) }));
+    const reviewQueries = [];
+    let reviewRequests = 0;
+    page.on("request", (req) => {
+      if (/\/rest\/v1\/(dominic_findings|dominic_inspection_media|dominic_media_screening_jobs)\?/.test(req.url())) reviewQueries.push(new URL(req.url()));
+      if (/\/findings\/[^/]+\/review$/.test(req.url()) && req.method() === "POST") reviewRequests++;
+    });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${baseURL}/dominic`, { waitUntil: "domcontentloaded" });
+    await page.locator('summary[title="Operations"]').click();
+    await page.getByRole("button", { name: "DOMINIC HUB", exact: true }).click();
+    await page.getByRole("button", { name: "Choose operations project", exact: true }).click();
+    await page.getByRole("button").filter({ hasText: "Large review project" }).click();
+    await page.getByRole("navigation", { name: "DOMINIC navigation", exact: true }).getByRole("button", { name: "AI Copilot", exact: true }).click();
+    const review = page.getByRole("region", { name: "AI Inspection Copilot", exact: true });
+    const queue = review.getByRole("region", { name: "Finding review queue", exact: true });
+    await queue.getByText("Showing 1–12 of 1008 matching findings · 1008 saved total", { exact: true }).waitFor();
+    assert.equal(await queue.getByRole("article").count(), 12, "finding cards must remain bounded to one page");
+    assert.equal(await queue.getByRole("article").first().getAttribute("aria-label"), "Excluded candidate", "report exclusion must not hide an urgent unreviewed candidate");
+    assert.equal(await queue.getByRole("article").nth(1).getAttribute("aria-label"), "Old high-priority seam candidate");
+    await review.getByText("1002 NEED REVIEW", { exact: true }).waitFor();
+    const evidencePages = review.getByRole("navigation", { name: "Inspection evidence pages", exact: true });
+    await evidencePages.getByText("Showing 1–12 of 1005 evidence items", { exact: true }).waitFor();
+    await evidencePages.getByRole("button", { name: "Last evidence page", exact: true }).click();
+    await evidencePages.getByText("Showing 997–1005 of 1005 evidence items", { exact: true }).waitFor();
+    assert.equal(await review.locator('[role="article"][aria-label^="Evidence "]').count(), 9);
+    await queue.getByRole("button", { name: "Last finding page", exact: true }).click();
+    await queue.getByText("Showing 997–1008 of 1008 matching findings · 1008 saved total", { exact: true }).waitFor();
+    await queue.getByRole("combobox", { name: "Finding review status", exact: true }).selectOption("confirmed");
+    await queue.getByText("Showing 1–5 of 5 matching findings · 1008 saved total", { exact: true }).waitFor();
+    await queue.getByRole("combobox", { name: "Finding review status", exact: true }).selectOption("pending");
+    await queue.getByRole("textbox", { name: "Search saved findings", exact: true }).fill("Old high-priority");
+    await queue.getByText("Showing 1–1 of 1 matching findings · 1008 saved total", { exact: true }).waitFor();
+    await queue.getByRole("button", { name: "Review saved finding Old high-priority seam candidate", exact: true }).click();
+    const details = review.getByRole("dialog", { name: "Old high-priority seam candidate", exact: true });
+    await details.waitFor();
+    await details.getByRole("button", { name: "Close callout", exact: true }).click();
+    await queue.getByRole("article", { name: "Old high-priority seam candidate", exact: true }).getByRole("button", { name: "Dismiss", exact: true }).click();
+    await queue.getByText("No matching findings.", { exact: true }).waitFor();
+    const dismissed = await admin.from("dominic_findings").select("review_status").eq("id", findings[1003].id).single();
+    assert.ifError(dismissed.error); assert.equal(dismissed.data.review_status, "dismissed"); assert.equal(reviewRequests, 1);
+    assert.ok(reviewQueries.some((url) => url.searchParams.get("id")?.startsWith("gt.")), "review must read past the first database page");
+    assert.ok(reviewQueries.every((url) => url.searchParams.get("user_id") === `eq.${users[0].id}`), "review data queries must explicitly scope ownership");
+    assert.equal(await review.getByText("Outsider private critical defect", { exact: true }).count(), 0);
+    const findingRoute = /\/rest\/v1\/dominic_findings\?/;
+    await page.route(findingRoute, (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ message: "Fixture refresh failed" }) }));
+    await review.getByRole("button", { name: "Refresh inspection evidence", exact: true }).click();
+    await review.getByText("REVIEW COUNT UNAVAILABLE", { exact: true }).waitFor();
+    assert.equal(await queue.getByRole("article").count(), 0, "failed refresh must remove stale review controls");
+    await page.unroute(findingRoute);
+    await review.getByRole("button", { name: "Refresh inspection evidence", exact: true }).click();
+    await review.getByText("1001 NEED REVIEW", { exact: true }).waitFor();
+    await queue.getByRole("textbox", { name: "Search saved findings", exact: true }).fill("");
+    await queue.getByRole("combobox", { name: "Finding review status", exact: true }).selectOption("all");
+    await page.screenshot({ path: "/tmp/dom-navigation-paged-review-desktop.png" });
+    await page.setViewportSize({ width: 390, height: 844 });
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "paged review controls must fit mobile");
+    await queue.screenshot({ path: "/tmp/dom-navigation-paged-review-mobile.png" });
     assert.deepEqual(errors, []);
   } finally {
     await browser?.close();
@@ -7018,6 +7083,11 @@ test("DOMINIC reports include findings beyond the row limit, prioritize urgent w
       await admin.from("dominic_inspection_media").delete().eq("user_id", user.id);
       await admin.from("dominic_inspections").delete().eq("user_id", user.id);
       await admin.from("dominic_assets").delete().eq("user_id", user.id);
+      await admin.from("dominic_profiles").delete().eq("user_id", user.id);
+      if (reviewProject && user.id === reviewContractor.user_id) await admin.from("mapping_projects").delete().eq("id", reviewProject.id);
+      if (reviewJob && user.id === reviewContractor.user_id) await admin.from("jobs").delete().eq("id", reviewJob.id);
+      if (reviewMission && user.id === reviewContractor.user_id) await admin.from("mission_requests").delete().eq("id", reviewMission.id);
+      if (reviewContractor && user.id === reviewContractor.user_id) await admin.from("contractors").delete().eq("id", reviewContractor.id);
       await admin.auth.admin.deleteUser(user.id);
     }
   }

@@ -7201,10 +7201,11 @@ test("DOMINIC finding review commits atomically and concurrent retries preserve 
       user_id: users[0].id, asset_id: asset.id, inspection_id: inspection.id, finding_type: "visual_anomaly",
       title, severity, confidence, observed_at, review_status: "needs_review", sensor_mode: "rgb", detector, spatial_anchor,
     });
+    const read = async (table, id) => { const result = await admin.from(table).select("*").eq("id", id).single(); assert.ifError(result.error); return result.data; };
     const rollback = await finding("Rollback fixture", "critical", { trackingKey: "rollback-fixture", mediaId: media.id });
     const failed = await admin.rpc("commit_dominic_finding_review", {
       p_finding_id: rollback.id, p_user_id: users[0].id, p_action: "confirm",
-      p_plan: { expectedFindingUpdatedAt: rollback.updated_at, expectedInspectionUpdatedAt: inspection.updated_at,
+      p_plan: { expectedFindingUpdatedAt: rollback.updated_at, expectedInspectionUpdatedAt: (await read("dominic_inspections", inspection.id)).updated_at,
         expectedIssueId: null, expectedIssueUpdatedAt: null, issueKey: "rollback_fixture",
         issueValues: { severity: "critical", confidence: .4, recommended_action: null, metadata: {} },
         event: { event_type: "confirmed", summary: null, details: {} } },
@@ -7215,7 +7216,6 @@ test("DOMINIC finding review commits atomically and concurrent retries preserve 
     };
     for (const table of ["dominic_issue_findings", "dominic_issue_events", "dominic_finding_evidence"]) assert.equal(await count(table, "finding_id", rollback.id), 0);
     assert.equal(await count("dominic_issues", "first_finding_id", rollback.id), 0);
-    const read = async (table, id) => { const result = await admin.from(table).select("*").eq("id", id).single(); assert.ifError(result.error); return result.data; };
     assert.equal((await read("dominic_findings", rollback.id)).review_status, "needs_review");
     assert.equal((await read("dominic_assets", asset.id)).condition_state, asset.condition_state, "condition changes must also roll back");
 
@@ -7252,7 +7252,7 @@ test("DOMINIC finding review commits atomically and concurrent retries preserve 
     const repeatRollback = await finding("Repeat rollback fixture", "critical", { trackingKey: "north-coating", mediaId: media.id });
     const failedRepeat = await admin.rpc("commit_dominic_finding_review", {
       p_finding_id: repeatRollback.id, p_user_id: users[0].id, p_action: "confirm",
-      p_plan: { expectedFindingUpdatedAt: repeatRollback.updated_at, expectedInspectionUpdatedAt: inspection.updated_at,
+      p_plan: { expectedFindingUpdatedAt: repeatRollback.updated_at, expectedInspectionUpdatedAt: (await read("dominic_inspections", inspection.id)).updated_at,
         expectedIssueId: issueId, expectedIssueUpdatedAt: beforeRepeat.updated_at, issueKey: beforeRepeat.issue_key,
         issueValues: { severity: "critical", confidence: .9, recommended_action: null, metadata: { recurrenceCount: 999 } },
         event: { event_type: "observed_worsening", summary: null, details: {} } },

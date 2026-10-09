@@ -1267,6 +1267,7 @@ export default function DominicAssetIntelligence({
 
               {selectedReviewInspection ? (
                 <DominicInspectionEvidenceReview
+                  key={`${selectedReviewInspection.id}:${selectedAsset.id}`}
                   inspection={selectedReviewInspection}
                   asset={{
                     id: selectedAsset.id,

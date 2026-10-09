@@ -7111,6 +7111,9 @@ test("DOMINIC reports and paged review include findings beyond the row limit and
     await queue.getByText("Showing 1–12 of 1008 matching findings · 1008 saved total", { exact: true }).waitFor();
     await page.screenshot({ path: "/tmp/dom-navigation-paged-review-desktop.png" });
     await page.setViewportSize({ width: 390, height: 844 });
+    // The workspace responds to matchMedia and animates its sidebar grid for 180ms.
+    // Wait for that resize to settle before measuring the mobile layout.
+    await page.waitForFunction(() => document.documentElement.scrollWidth <= window.innerWidth + 1, null, { timeout: 5000 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "paged review controls must fit mobile");
     await queue.screenshot({ path: "/tmp/dom-navigation-paged-review-mobile.png" });
     assert.deepEqual(errors, []);
@@ -7168,4 +7171,132 @@ test("public DOMINIC sample uses photorealistic imagery and never mutates accoun
     assert.deepEqual(accountRequests, []);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
+});
+
+test("DOMINIC finding review commits atomically and concurrent retries preserve one issue history", { skip: !isolated, timeout: 120_000 }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey);
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
+  assert.match(baseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/);
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const { randomUUID } = await import("node:crypto");
+  const stamp = `${Date.now()}-${randomUUID().slice(0, 8)}`;
+  const password = `Dom-Atomic-${stamp}!Aa1`;
+  const users = [];
+  const api = await request.newContext();
+  try {
+    for (const name of ["owner", "outsider"]) {
+      const created = await admin.auth.admin.createUser({ email: `atomic-${name}-${stamp}@e2e.dom.invalid`, password, email_confirm: true });
+      assert.ifError(created.error); users.push(created.data.user);
+    }
+    const seed = async (table, row) => {
+      const result = await admin.from(table).insert(row).select("*").single(); assert.ifError(result.error); return result.data;
+    };
+    const asset = await seed("dominic_assets", { user_id: users[0].id, name: "Atomic coating tank", asset_type: "storage_tank" });
+    const inspection = await seed("dominic_inspections", { user_id: users[0].id, asset_id: asset.id, inspection_type: "visual" });
+    const media = await seed("dominic_inspection_media", { user_id: users[0].id, asset_id: asset.id, inspection_id: inspection.id, media_type: "image", sensor_mode: "rgb", storage_path: `${users[0].id}/atomic-review.webp` });
+    const foreignAsset = await seed("dominic_assets", { user_id: users[1].id, name: "Private atomic tank", asset_type: "storage_tank" });
+    const foreignInspection = await seed("dominic_inspections", { user_id: users[1].id, asset_id: foreignAsset.id, inspection_type: "visual" });
+    const foreignMedia = await seed("dominic_inspection_media", { user_id: users[1].id, asset_id: foreignAsset.id, inspection_id: foreignInspection.id, media_type: "image", sensor_mode: "rgb", storage_path: `${users[1].id}/private-atomic.webp` });
+    const finding = (title, severity, detector, spatial_anchor = {}, confidence = .4, observed_at = new Date().toISOString()) => seed("dominic_findings", {
+      user_id: users[0].id, asset_id: asset.id, inspection_id: inspection.id, finding_type: "visual_anomaly",
+      title, severity, confidence, observed_at, review_status: "needs_review", sensor_mode: "rgb", detector, spatial_anchor,
+    });
+    const rollback = await finding("Rollback fixture", "critical", { trackingKey: "rollback-fixture", mediaId: media.id });
+    const failed = await admin.rpc("commit_dominic_finding_review", {
+      p_finding_id: rollback.id, p_user_id: users[0].id, p_action: "confirm",
+      p_plan: { expectedFindingUpdatedAt: rollback.updated_at, expectedInspectionUpdatedAt: inspection.updated_at,
+        expectedIssueId: null, expectedIssueUpdatedAt: null, issueKey: "rollback_fixture",
+        issueValues: { severity: "critical", confidence: .4, recommended_action: null, metadata: {} },
+        event: { event_type: "confirmed", summary: null, details: {} } },
+    });
+    assert.equal(failed.error?.code, "23502", "a history failure must abort the whole confirmation transaction");
+    const count = async (table, column, value) => {
+      const result = await admin.from(table).select("*", { count: "exact", head: true }).eq(column, value); assert.ifError(result.error); return result.count;
+    };
+    for (const table of ["dominic_issue_findings", "dominic_issue_events", "dominic_finding_evidence"]) assert.equal(await count(table, "finding_id", rollback.id), 0);
+    assert.equal(await count("dominic_issues", "first_finding_id", rollback.id), 0);
+    const read = async (table, id) => { const result = await admin.from(table).select("*").eq("id", id).single(); assert.ifError(result.error); return result.data; };
+    assert.equal((await read("dominic_findings", rollback.id)).review_status, "needs_review");
+    assert.equal((await read("dominic_assets", asset.id)).condition_state, asset.condition_state, "condition changes must also roll back");
+
+    const auth = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const login = await auth.auth.signInWithPassword({ email: users[0].email, password }); assert.ifError(login.error);
+    const foreignAuth = await createClient(supabaseURL, anonKey, { auth: { persistSession: false } }).auth.signInWithPassword({ email: users[1].email, password }); assert.ifError(foreignAuth.error);
+    const headers = { Authorization: `Bearer ${login.data.session.access_token}` };
+    const reviewURL = (id) => `${baseURL}/api/dominic/findings/${id}/review`;
+    const confirm = async (id) => {
+      const result = await api.post(reviewURL(id), { headers, data: { action: "confirm" } });
+      const body = await result.json(); assert.equal(result.status(), 200, JSON.stringify(body)); return body;
+    };
+    assert.equal((await api.post(reviewURL(rollback.id), { data: { action: "confirm" } })).status(), 401);
+    assert.equal((await api.post(reviewURL(rollback.id), { headers: { Authorization: `Bearer ${foreignAuth.data.session.access_token}` }, data: { action: "confirm" } })).status(), 404);
+    assert.equal((await api.post(reviewURL(rollback.id), { headers, data: null })).status(), 400);
+    const denied = await auth.rpc("commit_dominic_finding_review", { p_finding_id: rollback.id, p_user_id: users[0].id, p_action: "confirm" });
+    assert.equal(denied.error?.code, "42501", "the privileged commit must not be callable directly by authenticated clients");
+    const anonymous = await createClient(supabaseURL, anonKey, { auth: { persistSession: false } }).rpc("commit_dominic_finding_review", { p_finding_id: rollback.id, p_user_id: users[0].id, p_action: "confirm" });
+    assert.equal(anonymous.error?.code, "42501");
+    const recovered = await confirm(rollback.id);
+    assert.equal(await count("dominic_issue_events", "finding_id", rollback.id), 1);
+    assert.equal(await count("dominic_finding_evidence", "finding_id", rollback.id), 1);
+    assert.equal((await read("dominic_assets", asset.id)).condition_state, "critical");
+
+    const first = await finding("North coating damage", "medium", { trackingKey: "north-coating", mediaId: media.id });
+    const replies = await Promise.all(Array.from({ length: 4 }, () => confirm(first.id)));
+    assert.equal(new Set(replies.map((row) => row.issueId)).size, 1);
+    assert.equal(replies.filter((row) => row.alreadyLinked === false).length, 1);
+    assert.equal(await count("dominic_issues", "first_finding_id", first.id), 1);
+    for (const table of ["dominic_issue_findings", "dominic_issue_events", "dominic_finding_evidence"]) assert.equal(await count(table, "finding_id", first.id), 1);
+    const issueId = replies[0].issueId;
+    assert.equal((await read("dominic_issues", issueId)).metadata.recurrenceCount, 0);
+    const beforeRepeat = await read("dominic_issues", issueId);
+    const repeatRollback = await finding("Repeat rollback fixture", "critical", { trackingKey: "north-coating", mediaId: media.id });
+    const failedRepeat = await admin.rpc("commit_dominic_finding_review", {
+      p_finding_id: repeatRollback.id, p_user_id: users[0].id, p_action: "confirm",
+      p_plan: { expectedFindingUpdatedAt: repeatRollback.updated_at, expectedInspectionUpdatedAt: inspection.updated_at,
+        expectedIssueId: issueId, expectedIssueUpdatedAt: beforeRepeat.updated_at, issueKey: beforeRepeat.issue_key,
+        issueValues: { severity: "critical", confidence: .9, recommended_action: null, metadata: { recurrenceCount: 999 } },
+        event: { event_type: "observed_worsening", summary: null, details: {} } },
+    });
+    assert.equal(failedRepeat.error?.code, "23502");
+    const afterRepeat = await read("dominic_issues", issueId);
+    assert.equal(afterRepeat.severity, beforeRepeat.severity); assert.deepEqual(afterRepeat.metadata, beforeRepeat.metadata);
+    assert.equal(afterRepeat.current_finding_id, beforeRepeat.current_finding_id);
+    assert.equal((await read("dominic_findings", repeatRollback.id)).review_status, "needs_review");
+    for (const table of ["dominic_issue_findings", "dominic_issue_events", "dominic_finding_evidence"]) assert.equal(await count(table, "finding_id", repeatRollback.id), 0);
+
+    const worsening = await finding("North coating repeat", "high", { trackingKey: "north-coating", comparisonState: "worsening" }, { mediaId: media.id }, .8, "2001-01-01T00:00:00Z");
+    const unchanged = await finding("North coating unchanged", "medium", { trackingKey: "north-coating", comparisonState: "unchanged", mediaId: foreignMedia.id }, {}, .7, "2002-01-01T00:00:00Z");
+    const repeated = await Promise.all([confirm(worsening.id), confirm(unchanged.id)]);
+    assert.ok(repeated.every((row) => row.issueId === issueId && row.reusedIssue));
+    const updated = await read("dominic_issues", issueId);
+    assert.equal(updated.severity, "high"); assert.equal(updated.confidence, .8);
+    assert.equal(Date.parse(updated.last_seen_at), Date.parse(first.observed_at), "reviewing older evidence must not move last-seen backward");
+    assert.equal(updated.metadata.recurrenceCount, 2); assert.equal(updated.metadata.worseningCount, 1); assert.equal(updated.metadata.unchangedCount, 1);
+    assert.equal(await count("dominic_issue_findings", "issue_id", issueId), 3);
+    assert.equal(await count("dominic_issue_events", "issue_id", issueId), 3);
+    assert.equal(await count("dominic_finding_evidence", "finding_id", worsening.id), 1, "spatial-anchor source evidence must be linked");
+    assert.equal(await count("dominic_finding_evidence", "finding_id", unchanged.id), 0, "foreign source media must never be linked");
+    const retried = await confirm(worsening.id); assert.equal(retried.alreadyLinked, true);
+    assert.equal((await read("dominic_issues", issueId)).metadata.recurrenceCount, 2);
+    assert.equal(await count("dominic_issue_events", "issue_id", issueId), 3);
+    assert.equal((await read("dominic_assets", asset.id)).condition_state, "critical", "a later lower-severity confirmation must not downgrade asset triage");
+
+    assert.ifError((await admin.from("dominic_issues").update({ status: "resolved" }).eq("id", issueId)).error);
+    assert.ifError((await admin.from("dominic_inspections").update({ ai_summary: { purpose: "maintenance_verification", issueId } }).eq("id", inspection.id)).error);
+    const verification = await finding("Repair follow-up", "low", { trackingKey: "different-wording", comparisonState: "improving", mediaId: media.id });
+    const verified = await confirm(verification.id);
+    assert.equal(verified.issueId, issueId); assert.equal(verified.progressionEvent, "observed_improving");
+    assert.equal((await read("dominic_issues", issueId)).status, "resolved", "observing improvement must not automatically verify repair");
+    assert.equal((await read("dominic_issues", issueId)).metadata.recurrenceCount, 3);
+    assert.equal(await count("dominic_issue_events", "issue_id", issueId), 4);
+    assert.notEqual(recovered.issueId, issueId);
+    const events = await admin.from("dominic_issue_events").select("event_type").eq("issue_id", issueId); assert.ifError(events.error);
+    assert.deepEqual(events.data.map((row) => row.event_type).sort(), ["confirmed", "observed_worsening", "observed_unchanged", "observed_improving"].sort());
+  } finally {
+    await api.dispose();
+    for (const user of users) {
+      for (const table of ["dominic_finding_evidence", "dominic_issue_events", "dominic_issue_findings", "dominic_issues", "dominic_findings", "dominic_inspection_media", "dominic_inspections", "dominic_assets"]) await admin.from(table).delete().eq("user_id", user.id);
+      await admin.auth.admin.deleteUser(user.id);
+    }
+  }
 });

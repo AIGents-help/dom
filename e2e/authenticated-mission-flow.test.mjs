@@ -6508,6 +6508,12 @@ test("DOMINIC keeps the working project across planning and inspection and opens
     await page.getByRole("status", { name: "Automatic preview screening status", exact: true }).filter({ hasText: "waiting for a current camera frame" }).waitFor();
     assert.equal(previewScreeningRequests, 4, "stale frames must not reach AI screening");
     await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).uncheck();
+    assert.equal(await page.getByRole("checkbox", { name: "Sample for inspection every 30 seconds", exact: true }).isDisabled(), false, "sampling opt-in must stay available while waiting for a new frame");
+    await cadence.selectOption("5");
+    await fastSampling.check();
+    await new Promise((resolve) => setTimeout(resolve, 6000));
+    assert.equal(previewScreeningRequests, 4, "enabling sampling while frames are stale must still wait for a valid frame");
+    await fastSampling.uncheck();
     await page.getByRole("button", { name: "Disconnect Aircraft Bridge", exact: true }).click();
     await page.getByText("Aircraft disconnected", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Assets & inspections", exact: true }).click();

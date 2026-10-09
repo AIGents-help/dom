@@ -7300,3 +7300,93 @@ test("DOMINIC finding review commits atomically and concurrent retries preserve 
     }
   }
 });
+
+test("maintenance verification assesses every finding and image beyond API row limits", { skip: !isolated, timeout: 120_000 }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey);
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
+  assert.match(baseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const api = await request.newContext({ baseURL });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Verification-${stamp}!Aa1`;
+  const users = [];
+  const insert = async (table, values) => {
+    const result = await admin.from(table).insert(values).select("*");
+    assert.ifError(result.error); return result.data;
+  };
+  const update = async (table, id, values) => {
+    const result = await admin.from(table).update(values).eq("id", id); assert.ifError(result.error);
+  };
+  try {
+    for (const label of ["owner", "outsider"]) {
+      const created = await admin.auth.admin.createUser({ email: `verification-${label}-${stamp}@e2e.dom.invalid`, password, email_confirm: true });
+      assert.ifError(created.error); users.push(created.data.user);
+    }
+    const [owner, outsider] = users;
+    const ownerClient = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const outsiderClient = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const signedOwner = await ownerClient.auth.signInWithPassword({ email: owner.email, password }); assert.ifError(signedOwner.error);
+    const signedOutsider = await outsiderClient.auth.signInWithPassword({ email: outsider.email, password }); assert.ifError(signedOutsider.error);
+    const headers = { Authorization: `Bearer ${signedOwner.data.session.access_token}` };
+    const [asset] = await insert("dominic_assets", { user_id: owner.id, name: "Verification tank", asset_type: "tank" });
+    const summary = (candidateCount) => ({ candidateCount, baselineCompared: true, comparisonComparability: { level: "high" } });
+    const [inspection] = await insert("dominic_inspections", { user_id: owner.id, asset_id: asset.id, inspection_type: "visual", status: "review", ai_summary: summary(0) });
+    const [issue] = await insert("dominic_issues", { user_id: owner.id, asset_id: asset.id, issue_type: "visual_anomaly", title: "Repaired seam", severity: "high", status: "resolved", resolved_at: new Date().toISOString(), metadata: { verificationInspectionId: inspection.id, verificationRequired: true } });
+    const media = await insert("dominic_inspection_media", [1005, 0].map((count, index) => ({ user_id: owner.id, asset_id: asset.id, inspection_id: inspection.id, sensor_mode: "rgb", media_type: "image", mime_type: "image/jpeg", original_filename: `verification-${index}.jpg`, analysis_status: "review", analysis_summary: summary(count) })));
+    const rows = Array.from({ length: 1005 }, (_, index) => ({ user_id: owner.id, asset_id: asset.id, inspection_id: inspection.id, finding_type: "visual_anomaly", title: `Verification candidate ${index}`, severity: "medium", review_status: index === 1000 ? "detected" : index === 1001 ? "needs_review" : index === 1004 ? "dismissed" : "confirmed", detector: { comparisonState: index === 1002 ? "worsening" : index === 1003 ? "unknown" : "improving" }, observed_at: new Date(946684800000 + index * 1000).toISOString() }));
+    for (let start = 0; start < rows.length; start += 250) await insert("dominic_findings", rows.slice(start, start + 250));
+    const tail = await admin.from("dominic_findings").select("id,title").eq("inspection_id", inspection.id).gte("observed_at", rows[1000].observed_at).order("observed_at"); assert.ifError(tail.error); assert.equal(tail.data.length, 5);
+    const path = `/api/dominic/issues/${issue.id}/lifecycle`;
+    const get = async () => { const response = await api.get(path, { headers }); assert.equal(response.status(), 200, await response.text()); assert.equal(response.headers()["cache-control"], "no-store"); return response.json(); };
+    const blocked = async (expectedStatus) => {
+      const lifecycle = await get(); assert.equal(lifecycle.assessment.status, expectedStatus); assert.equal(lifecycle.assessment.canVerify, false);
+      const response = await api.post(path, { headers, data: { action: "verify", verificationNotes: "Operator checked evidence" } });
+      assert.equal(response.status(), 409, await response.text());
+      const saved = await admin.from("dominic_issues").select("status,verified_at").eq("id", issue.id).single(); assert.ifError(saved.error); assert.equal(saved.data.status, "resolved"); assert.equal(saved.data.verified_at, null);
+      const events = await admin.from("dominic_issue_events").select("id", { count: "exact", head: true }).eq("issue_id", issue.id); assert.ifError(events.error); assert.equal(events.count, 0);
+      return lifecycle;
+    };
+    assert.equal((await api.get(path)).status(), 401);
+    assert.equal((await api.get(path, { headers: { Authorization: `Bearer ${signedOutsider.data.session.access_token}` } })).status(), 404);
+    for (const client of [ownerClient, createClient(supabaseURL, anonKey, { auth: { persistSession: false } })]) {
+      const result = await client.rpc("read_dominic_issue_verification", { p_issue_id: issue.id, p_user_id: owner.id }); assert.equal(result.error?.code, "42501");
+    }
+    const initial = await blocked("needs_review");
+    assert.equal(initial.verificationCounts.total, 1005); assert.equal(initial.verificationCounts.pending, 2); assert.equal(initial.verificationCounts.confirmed, 1002);
+    assert.equal(initial.verificationCounts.screenedCandidates, 1005); assert.equal(initial.verificationCounts.mediaTotal, 2); assert.equal(initial.verificationFindings.length, 12);
+    assert.equal(initial.verificationFindings[0].id, tail.data[0].id, "detected findings beyond the first 1000 must be prioritized");
+    await update("dominic_findings", tail.data[0].id, { review_status: "dismissed" });
+    await update("dominic_findings", tail.data[1].id, { review_status: "dismissed" });
+    await blocked("failed");
+    await update("dominic_findings", tail.data[2].id, { detector: { comparisonState: "improving" } });
+    await blocked("needs_review");
+    await update("dominic_findings", tail.data[3].id, { detector: { comparisonState: "improving" } });
+    assert.equal((await get()).assessment.canVerify, true);
+    for (const analysis_status of ["pending", "analyzing", "failed"]) {
+      await update("dominic_inspection_media", media[0].id, { analysis_status }); await blocked("capturing");
+    }
+    await update("dominic_inspection_media", media[0].id, { analysis_status: "review", analysis_summary: { ...summary(1005), comparisonComparability: { level: "low" } } }); await blocked("insufficient");
+    await update("dominic_inspection_media", media[0].id, { analysis_summary: { ...summary(1005), baselineCompared: false } }); await blocked("insufficient");
+    await update("dominic_inspection_media", media[0].id, { analysis_summary: summary("1005") }); await blocked("insufficient");
+    await update("dominic_inspection_media", media[0].id, { analysis_summary: summary(1006) }); await blocked("insufficient");
+    await update("dominic_inspection_media", media[0].id, { analysis_summary: summary(1005) });
+    const ready = await get(); assert.equal(ready.assessment.status, "improved"); assert.equal(ready.assessment.canVerify, true);
+    const verified = await api.post(path, { headers, data: { action: "verify", verificationNotes: "Operator accepts reviewed improvement" } }); assert.equal(verified.status(), 200, await verified.text()); assert.equal((await verified.json()).issue.status, "verified");
+    const events = await admin.from("dominic_issue_events").select("event_type").eq("issue_id", issue.id); assert.ifError(events.error); assert.deepEqual(events.data.map((event) => event.event_type), ["maintenance_verified"]);
+
+    // Zero candidates require actual completed evidence, not just a summary flag.
+    const [emptyInspection] = await insert("dominic_inspections", { user_id: owner.id, asset_id: asset.id, inspection_type: "visual", status: "review", ai_summary: summary(0) });
+    await update("dominic_issues", issue.id, { status: "resolved", verified_at: null, metadata: { verificationInspectionId: emptyInspection.id } });
+    assert.equal((await get()).assessment.canVerify, false);
+    await insert("dominic_inspection_media", { user_id: owner.id, asset_id: asset.id, inspection_id: emptyInspection.id, sensor_mode: "rgb", media_type: "image", analysis_status: "complete", analysis_summary: summary(0) });
+    assert.equal((await get()).assessment.status, "cleared"); assert.equal((await get()).assessment.canVerify, true);
+    await update("dominic_inspections", emptyInspection.id, { status: "cancelled" }); assert.equal((await get()).assessment.canVerify, false);
+    const foreignRead = await admin.rpc("read_dominic_issue_verification", { p_issue_id: issue.id, p_user_id: outsider.id }); assert.ifError(foreignRead.error); assert.equal(foreignRead.data, null);
+  } finally {
+    await api.dispose();
+    for (const user of users) {
+      for (const table of ["dominic_issue_events", "dominic_issues", "dominic_findings", "dominic_inspection_media", "dominic_inspections", "dominic_assets"]) { const result = await admin.from(table).delete().eq("user_id", user.id); assert.ifError(result.error); }
+      await admin.auth.admin.deleteUser(user.id);
+    }
+  }
+});

@@ -7390,3 +7390,105 @@ test("maintenance verification assesses every finding and image beyond API row l
     }
   }
 });
+
+test("maintenance lifecycle rolls back failed history and rejects stale issue or evidence plans", { skip: !isolated, timeout: 120_000 }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey);
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
+  assert.match(baseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const api = await request.newContext({ baseURL });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-Lifecycle-${stamp}!Aa1`;
+  const users = [];
+  const insert = async (table, values) => { const result = await admin.from(table).insert(values).select("*"); assert.ifError(result.error); return result.data; };
+  const update = async (table, id, values) => { const result = await admin.from(table).update(values).eq("id", id); assert.ifError(result.error); };
+  try {
+    for (const label of ["owner", "outsider"]) {
+      const created = await admin.auth.admin.createUser({ email: `lifecycle-${label}-${stamp}@e2e.dom.invalid`, password, email_confirm: true }); assert.ifError(created.error); users.push(created.data.user);
+    }
+    const [owner, outsider] = users;
+    const client = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const session = await client.auth.signInWithPassword({ email: owner.email, password }); assert.ifError(session.error);
+    const foreignClient = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const foreignSession = await foreignClient.auth.signInWithPassword({ email: outsider.email, password }); assert.ifError(foreignSession.error);
+    const headers = { Authorization: `Bearer ${session.data.session.access_token}` };
+    const [asset] = await insert("dominic_assets", { user_id: owner.id, name: "Lifecycle tank", asset_type: "tank" });
+    const [foreignAsset] = await insert("dominic_assets", { user_id: outsider.id, name: "Foreign tank", asset_type: "tank" });
+    const [foreignInspection] = await insert("dominic_inspections", { user_id: outsider.id, asset_id: foreignAsset.id, inspection_type: "visual", status: "review" });
+    const [inspection] = await insert("dominic_inspections", { user_id: owner.id, asset_id: asset.id, inspection_type: "visual", status: "review" });
+    const summary = { candidateCount: 0, baselineCompared: true, comparisonComparability: { level: "high" } };
+    const [media] = await insert("dominic_inspection_media", { user_id: owner.id, asset_id: asset.id, inspection_id: inspection.id, sensor_mode: "rgb", media_type: "image", analysis_status: "review", analysis_summary: summary });
+    const [issue] = await insert("dominic_issues", { user_id: owner.id, asset_id: asset.id, issue_type: "visual_anomaly", title: "Lifecycle seam", status: "open" });
+    const path = `/api/dominic/issues/${issue.id}/lifecycle`;
+    const get = async () => { const response = await api.get(path, { headers }); assert.equal(response.status(), 200, await response.text()); return response.json(); };
+    const post = async (data) => api.post(path, { headers, data });
+    const snapshot = async () => { const result = await admin.rpc("read_dominic_issue_verification", { p_issue_id: issue.id, p_user_id: owner.id }); assert.ifError(result.error); return result.data; };
+    const commit = async (action, plan, userId = owner.id) => admin.rpc("commit_dominic_issue_lifecycle", { p_issue_id: issue.id, p_user_id: userId, p_action: action, p_plan: plan });
+    const planFor = (s, action, overrides = {}) => ({ expectedIssueUpdatedAt: s.issue.updated_at,
+      issueValues: { status: action === "verify" ? "verified" : action === "start_maintenance" || action === "verification_failed" ? "in_progress" : "resolved", metadata: { ...s.issue.metadata, rollbackAttempt: action }, ...overrides },
+      event: { eventType: action === "verify" ? "maintenance_verified" : action === "start_maintenance" ? "maintenance_started" : action === "complete_maintenance" ? "maintenance_completed" : action, summary: "Controlled lifecycle test", inspectionId: ["verify", "verification_failed", "verification_started"].includes(action) ? inspection.id : null },
+      expectedVerification: { inspection: s.verificationInspection, counts: s.verificationCounts },
+    });
+    const eventCount = async () => { const result = await admin.from("dominic_issue_events").select("id", { count: "exact", head: true }).eq("issue_id", issue.id); assert.ifError(result.error); return result.count; };
+    for (const action of ["start_maintenance", "complete_maintenance", "verification_started", "verify", "verification_failed"]) {
+      await update("dominic_issues", issue.id, { status: action === "start_maintenance" ? "open" : action === "complete_maintenance" ? "in_progress" : "resolved", metadata: { verificationInspectionId: inspection.id }, resolved_at: null, verified_at: null });
+      const before = await snapshot(); const plan = planFor(before, action); plan.event.summary = null;
+      const result = await commit(action, plan); assert.equal(result.error?.code, "23502", `${action} must fail at history insertion`);
+      assert.deepEqual((await snapshot()).issue, before.issue, `${action} must roll the complete issue update back`); assert.equal(await eventCount(), 0);
+    }
+    await update("dominic_issues", issue.id, { status: "open", metadata: {} });
+    assert.equal((await api.post(path, { data: { action: "start_maintenance" } })).status(), 401);
+    assert.equal((await api.post(path, { headers: { Authorization: `Bearer ${foreignSession.data.session.access_token}` }, data: { action: "start_maintenance" } })).status(), 404);
+    assert.equal((await api.post(path, { headers: { ...headers, "Content-Type": "application/json" }, data: "null" })).status(), 400);
+    assert.equal((await post({ action: "start_maintenance", note: {} })).status(), 400);
+    for (const rpcClient of [client, createClient(supabaseURL, anonKey, { auth: { persistSession: false } })]) {
+      const result = await rpcClient.rpc("commit_dominic_issue_lifecycle", { p_issue_id: issue.id, p_user_id: owner.id, p_action: "start_maintenance", p_plan: planFor(await snapshot(), "start_maintenance") }); assert.equal(result.error?.code, "42501");
+    }
+    const foreignCommit = await commit("start_maintenance", planFor(await snapshot(), "start_maintenance"), outsider.id); assert.ifError(foreignCommit.error); assert.equal(foreignCommit.data.notFound, true);
+    const parallel = async (data) => {
+      const responses = await Promise.all(Array.from({ length: 4 }, () => post(data)));
+      for (const response of responses) assert.ok([200, 409].includes(response.status()), await response.text());
+      assert.ok(responses.some((response) => response.status() === 200));
+    };
+    await parallel({ action: "start_maintenance", note: "Start controlled repair", workOrder: "WO-ATOMIC" });
+    assert.equal((await get()).issue.status, "in_progress"); assert.equal(await eventCount(), 1);
+    await parallel({ action: "complete_maintenance", resolutionNotes: "Coating repair completed", workOrder: "WO-ATOMIC" });
+    assert.equal((await get()).issue.status, "resolved"); assert.equal(await eventCount(), 2);
+    assert.equal((await post({ action: "verification_started", inspectionId: foreignInspection.id })).status(), 404); assert.equal(await eventCount(), 2);
+    assert.equal((await post({ action: "verification_started", inspectionId: inspection.id })).status(), 200); assert.equal(await eventCount(), 3);
+    assert.equal((await get()).assessment.canVerify, true);
+
+    const staleIssue = await snapshot(); await update("dominic_issues", issue.id, { metadata: { ...staleIssue.issue.metadata, maintenanceWorkOrder: "WO-NEW" } });
+    const staleResult = await commit("verify", planFor(staleIssue, "verify")); assert.ifError(staleResult.error); assert.equal(staleResult.data.conflict, true); assert.equal(await eventCount(), 3);
+    const rejectChanged = async (mutate) => {
+      const before = await snapshot(); assert.equal((await get()).assessment.canVerify, true);
+      await mutate(); const after = await snapshot(); assert.ok(after.verificationInspection.verification_revision > before.verificationInspection.verification_revision);
+      assert.equal(after.issue.updated_at, before.issue.updated_at, "evidence freshness must be checked independently of issue version");
+      const result = await commit("verify", planFor(before, "verify")); assert.ifError(result.error); assert.equal(result.data.conflict, true);
+      assert.equal((await snapshot()).issue.status, "resolved"); assert.equal(await eventCount(), 3);
+    };
+    await rejectChanged(() => update("dominic_inspection_media", media.id, { analysis_status: "failed" }));
+    await update("dominic_inspection_media", media.id, { analysis_status: "review" });
+    let finding;
+    await rejectChanged(async () => { [finding] = await insert("dominic_findings", { user_id: owner.id, asset_id: asset.id, inspection_id: inspection.id, finding_type: "visual_anomaly", title: "New comparison candidate", review_status: "needs_review" }); });
+    await update("dominic_findings", finding.id, { review_status: "dismissed" });
+    await rejectChanged(async () => { const result = await client.from("dominic_findings").update({ title: "Owner edited candidate" }).eq("id", finding.id); assert.ifError(result.error); });
+    await rejectChanged(async () => { const result = await admin.from("dominic_findings").delete().eq("id", finding.id); assert.ifError(result.error); });
+    await rejectChanged(() => update("dominic_inspections", inspection.id, { summary: "Changed inspection notes" }));
+    const ownMediaEdit = await client.from("dominic_inspection_media").update({ original_filename: "owner-renamed.jpg" }).eq("id", media.id); assert.ifError(ownMediaEdit.error);
+    await parallel({ action: "verify", verificationNotes: "Operator accepts comparable clean evidence" });
+    assert.equal((await get()).issue.status, "verified"); assert.equal(await eventCount(), 4);
+    const types = await admin.from("dominic_issue_events").select("event_type").eq("issue_id", issue.id); assert.ifError(types.error); assert.deepEqual(types.data.map((event) => event.event_type).sort(), ["maintenance_started", "maintenance_completed", "verification_started", "maintenance_verified"].sort());
+
+    // Failed verification also commits the reopen and its history together.
+    await update("dominic_issues", issue.id, { status: "resolved", verified_at: null, metadata: { verificationInspectionId: inspection.id } });
+    assert.equal((await post({ action: "verification_failed", verificationNotes: "Operator requires another repair" })).status(), 200);
+    assert.equal((await get()).issue.status, "in_progress"); assert.equal(await eventCount(), 5);
+  } finally {
+    await api.dispose();
+    for (const user of users) {
+      for (const table of ["dominic_issue_events", "dominic_issues", "dominic_findings", "dominic_inspection_media", "dominic_inspections", "dominic_assets"]) { const result = await admin.from(table).delete().eq("user_id", user.id); assert.ifError(result.error); }
+      await admin.auth.admin.deleteUser(user.id);
+    }
+  }
+});

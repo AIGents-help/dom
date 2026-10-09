@@ -64,7 +64,7 @@ begin
     reused := true;
     update public.dominic_issues set current_finding_id = f.id,
       severity = issue_values->>'severity', confidence = (issue_values->>'confidence')::numeric,
-      recommended_action = issue_values->>'recommended_action', last_seen_at = f.observed_at,
+      recommended_action = issue_values->>'recommended_action', last_seen_at = greatest(i.last_seen_at, f.observed_at),
       metadata = issue_values->'metadata'
       where id = i.id and user_id = p_user_id;
   else

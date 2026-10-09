@@ -7194,9 +7194,9 @@ test("DOMINIC finding review commits atomically and concurrent retries preserve 
     const foreignAsset = await seed("dominic_assets", { user_id: users[1].id, name: "Private atomic tank", asset_type: "storage_tank" });
     const foreignInspection = await seed("dominic_inspections", { user_id: users[1].id, asset_id: foreignAsset.id, inspection_type: "visual" });
     const foreignMedia = await seed("dominic_inspection_media", { user_id: users[1].id, asset_id: foreignAsset.id, inspection_id: foreignInspection.id, media_type: "image", sensor_mode: "rgb", storage_path: `${users[1].id}/private-atomic.webp` });
-    const finding = (title, severity, detector, spatial_anchor = {}, confidence = .4) => seed("dominic_findings", {
+    const finding = (title, severity, detector, spatial_anchor = {}, confidence = .4, observed_at = new Date().toISOString()) => seed("dominic_findings", {
       user_id: users[0].id, asset_id: asset.id, inspection_id: inspection.id, finding_type: "visual_anomaly",
-      title, severity, confidence, review_status: "needs_review", sensor_mode: "rgb", detector, spatial_anchor,
+      title, severity, confidence, observed_at, review_status: "needs_review", sensor_mode: "rgb", detector, spatial_anchor,
     });
     const rollback = await finding("Rollback fixture", "critical", { trackingKey: "rollback-fixture", mediaId: media.id });
     const failed = await admin.rpc("commit_dominic_finding_review", {
@@ -7261,12 +7261,13 @@ test("DOMINIC finding review commits atomically and concurrent retries preserve 
     assert.equal((await read("dominic_findings", repeatRollback.id)).review_status, "needs_review");
     for (const table of ["dominic_issue_findings", "dominic_issue_events", "dominic_finding_evidence"]) assert.equal(await count(table, "finding_id", repeatRollback.id), 0);
 
-    const worsening = await finding("North coating repeat", "high", { trackingKey: "north-coating", comparisonState: "worsening" }, { mediaId: media.id }, .8);
-    const unchanged = await finding("North coating unchanged", "medium", { trackingKey: "north-coating", comparisonState: "unchanged", mediaId: foreignMedia.id }, {}, .7);
+    const worsening = await finding("North coating repeat", "high", { trackingKey: "north-coating", comparisonState: "worsening" }, { mediaId: media.id }, .8, "2001-01-01T00:00:00Z");
+    const unchanged = await finding("North coating unchanged", "medium", { trackingKey: "north-coating", comparisonState: "unchanged", mediaId: foreignMedia.id }, {}, .7, "2002-01-01T00:00:00Z");
     const repeated = await Promise.all([confirm(worsening.id), confirm(unchanged.id)]);
     assert.ok(repeated.every((row) => row.issueId === issueId && row.reusedIssue));
     const updated = await read("dominic_issues", issueId);
     assert.equal(updated.severity, "high"); assert.equal(updated.confidence, .8);
+    assert.equal(Date.parse(updated.last_seen_at), Date.parse(first.observed_at), "reviewing older evidence must not move last-seen backward");
     assert.equal(updated.metadata.recurrenceCount, 2); assert.equal(updated.metadata.worseningCount, 1); assert.equal(updated.metadata.unchangedCount, 1);
     assert.equal(await count("dominic_issue_findings", "issue_id", issueId), 3);
     assert.equal(await count("dominic_issue_events", "issue_id", issueId), 3);

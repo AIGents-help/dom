@@ -68,28 +68,6 @@ async function loadIssueLifecycle(
   };
 }
 
-async function addEvent(
-  admin: ReturnType<typeof getSupabaseAdmin>,
-  input: {
-    userId: string;
-    issueId: string;
-    inspectionId?: string | null;
-    eventType: string;
-    summary: string;
-    details?: Record<string, unknown>;
-  },
-) {
-  const { error } = await admin.from("dominic_issue_events").insert({
-    user_id: input.userId,
-    issue_id: input.issueId,
-    inspection_id: input.inspectionId ?? null,
-    event_type: input.eventType,
-    summary: input.summary,
-    details: input.details ?? {},
-  });
-  if (error) throw error;
-}
-
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ issueId: string }> },
@@ -137,6 +115,10 @@ export async function POST(
   };
   try {
     body = (await req.json()) as typeof body;
+    if (!body || typeof body !== "object" || Array.isArray(body) ||
+      ["action", "note", "workOrder", "resolutionNotes", "verificationNotes", "inspectionId"].some((key) => {
+        const value = (body as Record<string, unknown>)[key]; return value !== undefined && typeof value !== "string";
+      })) throw new Error("Invalid body");
   } catch {
     return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
   }
@@ -151,6 +133,8 @@ export async function POST(
     const metadata = record(issue.metadata);
     const now = new Date().toISOString();
     const action = body.action;
+    let issueValues: Record<string, unknown> = {};
+    let event: Record<string, unknown> = {};
 
     if (action === "start_maintenance") {
       if (!["open", "monitoring", "in_progress"].includes(issue.status)) {
@@ -173,14 +157,9 @@ export async function POST(
         verificationStatus: "not_required_yet",
       };
 
-      const { error } = await auth.admin
-        .from("dominic_issues")
-        .update({ status: "in_progress", metadata: nextMetadata })
-        .eq("id", issue.id)
-        .eq("user_id", auth.user.id);
-      if (error) throw error;
+      issueValues = { status: "in_progress", metadata: nextMetadata };
 
-      await addEvent(auth.admin, {
+      event = {
         userId: auth.user.id,
         issueId: issue.id,
         eventType: "maintenance_started",
@@ -189,7 +168,7 @@ export async function POST(
           note: body.note?.trim() || null,
           workOrder: body.workOrder?.trim() || null,
         },
-      });
+      };
     } else if (action === "complete_maintenance") {
       const resolutionNotes = body.resolutionNotes?.trim() ?? "";
       if (resolutionNotes.length < 5) {
@@ -223,20 +202,15 @@ export async function POST(
         verificationAssessment: null,
       };
 
-      const { error } = await auth.admin
-        .from("dominic_issues")
-        .update({
+      issueValues = {
           status: "resolved",
           resolved_at: now,
           verified_at: null,
           resolution_notes: resolutionNotes.slice(0, 2000),
           metadata: nextMetadata,
-        })
-        .eq("id", issue.id)
-        .eq("user_id", auth.user.id);
-      if (error) throw error;
+        };
 
-      await addEvent(auth.admin, {
+      event = {
         userId: auth.user.id,
         issueId: issue.id,
         eventType: "maintenance_completed",
@@ -245,7 +219,7 @@ export async function POST(
           resolutionNotes: resolutionNotes.slice(0, 2000),
           workOrder: nextMetadata.maintenanceWorkOrder,
         },
-      });
+      };
     } else if (action === "verification_started") {
       const inspectionId = body.inspectionId?.trim();
       if (!inspectionId) {
@@ -283,21 +257,16 @@ export async function POST(
         verificationInspectionId: inspection.id,
         verificationStartedAt: now,
       };
-      const { error } = await auth.admin
-        .from("dominic_issues")
-        .update({ metadata: nextMetadata })
-        .eq("id", issue.id)
-        .eq("user_id", auth.user.id);
-      if (error) throw error;
+      issueValues = { metadata: nextMetadata };
 
-      await addEvent(auth.admin, {
+      event = {
         userId: auth.user.id,
         issueId: issue.id,
         inspectionId: inspection.id,
         eventType: "verification_started",
         summary: "Post-maintenance verification inspection started.",
         details: { inspectionId: inspection.id },
-      });
+      };
     } else if (action === "verify") {
       if (issue.status !== "resolved") {
         return NextResponse.json(
@@ -336,18 +305,13 @@ export async function POST(
         verificationAssessment: lifecycle.assessment.status,
       };
 
-      const { error } = await auth.admin
-        .from("dominic_issues")
-        .update({
+      issueValues = {
           status: "verified",
           verified_at: now,
           metadata: nextMetadata,
-        })
-        .eq("id", issue.id)
-        .eq("user_id", auth.user.id);
-      if (error) throw error;
+        };
 
-      await addEvent(auth.admin, {
+      event = {
         userId: auth.user.id,
         issueId: issue.id,
         inspectionId: verificationInspectionId,
@@ -360,7 +324,7 @@ export async function POST(
           assessment: lifecycle.assessment.status,
           notes: notes.slice(0, 1200),
         },
-      });
+      };
     } else if (action === "verification_failed") {
       if (issue.status !== "resolved") {
         return NextResponse.json(
@@ -393,19 +357,14 @@ export async function POST(
         maintenanceRestartedAt: now,
       };
 
-      const { error } = await auth.admin
-        .from("dominic_issues")
-        .update({
+      issueValues = {
           status: "in_progress",
           resolved_at: null,
           verified_at: null,
           metadata: nextMetadata,
-        })
-        .eq("id", issue.id)
-        .eq("user_id", auth.user.id);
-      if (error) throw error;
+        };
 
-      await addEvent(auth.admin, {
+      event = {
         userId: auth.user.id,
         issueId: issue.id,
         inspectionId: verificationInspectionId,
@@ -415,10 +374,25 @@ export async function POST(
           assessment: lifecycle.assessment.status,
           notes: notes.slice(0, 1200),
         },
-      });
+      };
     } else {
       return NextResponse.json({ error: "Unsupported lifecycle action." }, { status: 400 });
     }
+
+    const { data: committed, error: commitError } = await auth.admin.rpc("commit_dominic_issue_lifecycle", {
+      p_issue_id: issue.id, p_user_id: auth.user.id, p_action: action,
+      p_plan: {
+        expectedIssueUpdatedAt: issue.updated_at, issueValues, event,
+        expectedVerification: ["verify", "verification_failed"].includes(action ?? "") ? {
+          inspection: lifecycle.verificationInspection, counts: lifecycle.verificationCounts,
+        } : null,
+      },
+    });
+    if (commitError || !committed) {
+      return NextResponse.json({ error: "The result could not be verified. Refresh the issue before retrying." }, { status: 500 });
+    }
+    if (committed.notFound) return NextResponse.json({ error: "Issue not found." }, { status: 404 });
+    if (committed.conflict) return NextResponse.json({ error: "The issue or verification evidence changed. Refresh and review it before retrying." }, { status: 409 });
 
     const updated = await loadIssueLifecycle(auth.admin, auth.user.id, issueId);
     return NextResponse.json(updated, {

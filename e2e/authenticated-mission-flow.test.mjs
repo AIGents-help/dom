@@ -7111,6 +7111,9 @@ test("DOMINIC reports and paged review include findings beyond the row limit and
     await queue.getByText("Showing 1–12 of 1008 matching findings · 1008 saved total", { exact: true }).waitFor();
     await page.screenshot({ path: "/tmp/dom-navigation-paged-review-desktop.png" });
     await page.setViewportSize({ width: 390, height: 844 });
+    // The workspace responds to matchMedia and animates its sidebar grid for 180ms.
+    // Wait for that resize to settle before measuring the mobile layout.
+    await page.waitForFunction(() => document.documentElement.scrollWidth <= window.innerWidth + 1, null, { timeout: 5000 });
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "paged review controls must fit mobile");
     await queue.screenshot({ path: "/tmp/dom-navigation-paged-review-mobile.png" });
     assert.deepEqual(errors, []);

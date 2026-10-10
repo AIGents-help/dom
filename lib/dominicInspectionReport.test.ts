@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { includedReportFindings, inspectionReportSummary, readAllReportRows, reportEvidenceIds } from "./dominicInspectionReport";
+import { includedReportFindings, inspectionReportSummary, readAllReportRows, readAllReportBatches, reportEvidenceIds } from "./dominicInspectionReport";
 import type { InspectionFinding } from "./dominicInspectionEvidence";
 
 function finding(id: string, severity: string, status = "needs_review", observed = "2026-01-01T00:00:00Z"): InspectionFinding {
@@ -34,6 +34,27 @@ describe("inspection report", () => {
     const controller = new AbortController();
     await expect(readAllReportRows(async () => { controller.abort(); return { data: [], error: null }; }, controller.signal)).rejects.toThrow("cancelled");
     await expect(readAllReportRows(async () => ({ data: [{ id: "001" }], error: null }), new AbortController().signal)).rejects.toThrow("did not advance");
+  });
+
+  it("bounds ID filters and fully pages every batch even with a smaller server cap", async () => {
+    const ids = Array.from({ length: 205 }, (_, i) => String(i).padStart(4, "0"));
+    const rows = ids.flatMap((key) => [0, 1].map((i) => ({ id: `${key}-${i}`, key })));
+    const batches: string[][] = [];
+    const result = await readAllReportBatches([...ids, ids[0]], async (batch, after) => {
+      batches.push(batch);
+      return { data: rows.filter((row) => batch.includes(row.key) && (!after || row.id > after)).slice(0, 17), error: null };
+    }, new AbortController().signal);
+    expect(result).toEqual(rows);
+    expect(Math.max(...batches.map((batch) => batch.length))).toBe(100);
+    expect(new Set(batches.map((batch) => batch[0])).size).toBe(3);
+  });
+
+  it("rejects a failure in a later ID batch instead of publishing a partial report", async () => {
+    const ids = Array.from({ length: 101 }, (_, i) => String(i).padStart(4, "0"));
+    await expect(readAllReportBatches(ids, async (batch, after) => batch[0] === "0100"
+      ? { data: null, error: new Error("later batch failed") }
+      : { data: after ? [] : [{ id: batch[0] }], error: null }, new AbortController().signal))
+      .rejects.toThrow("later batch failed");
   });
 
   it("requests only valid, deduplicated evidence references from included findings", () => {

@@ -7538,3 +7538,100 @@ test("maintenance lifecycle rolls back failed history and rejects stale issue or
     }
   }
 });
+
+test("maintenance packages retain complete observation, evidence, and repair history", { skip: !isolated, timeout: 180_000 }, async () => {
+  assert.ok(supabaseURL && anonKey && serviceKey);
+  assert.match(supabaseURL, /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/);
+  const admin = createClient(supabaseURL, serviceKey, { auth: { persistSession: false } });
+  const api = await request.newContext({ baseURL });
+  const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const password = `Dom-History-${stamp}!Aa1`;
+  const users = [];
+  const seed = async (table, rows) => {
+    const values = Array.isArray(rows) ? rows : [rows];
+    for (let from = 0; from < values.length; from += 250) {
+      const result = await admin.from(table).insert(values.slice(from, from + 250)); assert.ifError(result.error);
+    }
+  };
+  const uuid = () => crypto.randomUUID();
+  let storagePath;
+  try {
+    for (const role of ["owner", "outsider"]) {
+      const created = await admin.auth.admin.createUser({ email: `history-${role}-${stamp}@e2e.dom.invalid`, password, email_confirm: true });
+      assert.ifError(created.error); users.push(created.data.user);
+    }
+    const [owner, outsider] = users;
+    const ownerClient = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const session = await ownerClient.auth.signInWithPassword({ email: owner.email, password }); assert.ifError(session.error);
+    const outsiderClient = createClient(supabaseURL, anonKey, { auth: { persistSession: false } });
+    const outsiderSession = await outsiderClient.auth.signInWithPassword({ email: outsider.email, password }); assert.ifError(outsiderSession.error);
+    const assetId = uuid(), otherAssetId = uuid(), foreignAssetId = uuid(), issueId = uuid();
+    await seed("dominic_assets", [{ id: assetId, user_id: owner.id, name: "Complete history tank", asset_type: "tank" },
+      { id: otherAssetId, user_id: owner.id, name: "Other owner asset", asset_type: "tank" },
+      { id: foreignAssetId, user_id: outsider.id, name: "Foreign asset", asset_type: "tank" }]);
+    await seed("dominic_issues", { id: issueId, user_id: owner.id, asset_id: assetId, title: "Complete seam history", issue_type: "visual_anomaly", severity: "high", status: "open" });
+    const rows = Array.from({ length: 1005 }, (_, index) => ({ index, inspection: uuid(), finding: uuid(), media: uuid(), time: new Date(946684800000 + index * 1000).toISOString() }));
+    await seed("dominic_inspections", rows.map((row) => ({ id: row.inspection, user_id: owner.id, asset_id: assetId, inspection_type: "visual", status: "complete", objective: `History inspection ${row.index}` })));
+    await seed("dominic_findings", rows.map((row) => ({ id: row.finding, user_id: owner.id, asset_id: assetId, inspection_id: row.inspection,
+      finding_type: "visual_anomaly", title: `History observation ${row.index}`, severity: "medium", review_status: "confirmed", observed_at: row.time, detector: { mediaId: row.media } })));
+    await seed("dominic_issue_findings", rows.map((row) => ({ issue_id: issueId, user_id: owner.id, finding_id: row.finding, inspection_id: row.inspection, linked_at: row.time })));
+    await seed("dominic_inspection_media", rows.map((row) => ({ id: row.media, user_id: owner.id, asset_id: assetId, inspection_id: row.inspection, media_type: "image", sensor_mode: "rgb", captured_at: row.time, original_filename: `history-${row.index}.jpg` })));
+    // A single inspection and a single finding can themselves exceed a response cap.
+    const extraMedia = Array.from({ length: 1004 }, (_, index) => ({ id: uuid(), user_id: owner.id, asset_id: assetId, inspection_id: rows[0].inspection, media_type: "image", sensor_mode: "rgb", captured_at: new Date(946684800000 + index * 1000).toISOString(), original_filename: `extra-${index}.jpg` }));
+    extraMedia[1003].captured_at = "2026-01-01T00:00:00Z";
+    storagePath = `${owner.id}/${rows[0].inspection}/history-tail-${stamp}.png`;
+    const image = await sharp({ create: { width: 8, height: 8, channels: 3, background: "#F45A1E" } }).png().toBuffer();
+    const upload = await admin.storage.from("dominic-inspection-evidence").upload(storagePath, image, { contentType: "image/png" }); assert.ifError(upload.error);
+    extraMedia[1003].storage_path = storagePath; extraMedia[1003].mime_type = "image/png";
+    await seed("dominic_inspection_media", extraMedia);
+    const selectedTail = await admin.from("dominic_findings").update({ detector: { mediaId: extraMedia[1003].id } }).eq("id", rows[0].finding); assert.ifError(selectedTail.error);
+    await seed("dominic_finding_evidence", Array.from({ length: 1005 }, (_, index) => ({ user_id: owner.id, finding_id: rows[0].finding, evidence_type: "rgb", metadata: { label: `Evidence ${index}` } })));
+    await seed("dominic_finding_evidence", { user_id: owner.id, finding_id: rows[1004].finding, evidence_type: "rgb", metadata: { label: "Tail evidence" } });
+    await seed("dominic_issue_events", rows.map((row) => ({ user_id: owner.id, issue_id: issueId, inspection_id: row.inspection, finding_id: row.finding, event_type: "observed", summary: `History event ${row.index}`, created_at: row.time })));
+    const junk = [{ user: owner.id, asset: otherAssetId }, { user: outsider.id, asset: foreignAssetId }].map((item) => ({ ...item, inspection: uuid(), finding: uuid() }));
+    await seed("dominic_inspections", junk.map((row) => ({ id: row.inspection, user_id: row.user, asset_id: row.asset, inspection_type: "visual", status: "complete" })));
+    await seed("dominic_findings", junk.map((row) => ({ id: row.finding, user_id: row.user, asset_id: row.asset, inspection_id: row.inspection, finding_type: "visual_anomaly", title: "Excluded observation", severity: "high", review_status: "confirmed" })));
+    await seed("dominic_issue_findings", junk.map((row) => ({ user_id: owner.id, issue_id: issueId, finding_id: row.finding, inspection_id: row.inspection })));
+    await seed("dominic_finding_evidence", { user_id: outsider.id, finding_id: rows[0].finding, evidence_type: "rgb", storage_path: `${outsider.id}/foreign.png`, mime_type: "image/png" });
+    await seed("dominic_issue_events", { user_id: outsider.id, issue_id: issueId, event_type: "observed", summary: "Excluded event" });
+    const path = `/api/dominic/issues/${issueId}/maintenance-package`;
+    assert.equal((await api.get(path)).status(), 401);
+    assert.equal((await api.get(path, { headers: { Authorization: `Bearer ${outsiderSession.data.session.access_token}` } })).status(), 404);
+    const response = await api.get(path, { headers: { Authorization: `Bearer ${session.data.session.access_token}` } });
+    assert.equal(response.status(), 200, await response.text());
+    const report = await response.json(); assert.equal(report.observations.length, 1005); assert.equal(report.events.length, 1005);
+    assert.equal(report.trend.observationCount, 1005);
+    assert.deepEqual(report.observations.map((item) => item.finding.id), rows.map((row) => row.finding));
+    assert.equal(report.observations.every((item) => item.inspection?.id === item.finding.inspection_id), true);
+    assert.equal(report.observations[0].evidence.filter((item) => item.source === "finding_evidence").length, 1005);
+    assert.equal(report.observations[1004].evidence.filter((item) => item.source === "finding_evidence").length, 1);
+    const imageEvidence = report.observations[0].evidence.find((item) => item.id === extraMedia[1003].id); assert.ok(imageEvidence?.signedUrl);
+    assert.equal((await api.get(imageEvidence.signedUrl)).status(), 200);
+    assert.deepEqual(report.events.map((item) => item.summary), rows.map((row) => `History event ${row.index}`));
+    assert.equal(report.verification, null);
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const context = await browser.newContext();
+      await context.addInitScript(({ key, session }) => localStorage.setItem(key, JSON.stringify(session)), { key: `sb-${new URL(supabaseURL).hostname.split(".")[0]}-auth-token`, session: session.data.session });
+      const page = await context.newPage(); const errors = []; page.on("pageerror", (error) => errors.push(error.message));
+      await page.goto(`${baseURL}/dominic/issues/${issueId}/maintenance-package`);
+      await page.getByText("History observation 1004", { exact: true }).first().waitFor();
+      await page.getByText("History event 1004", { exact: true }).waitFor();
+      assert.equal(await page.getByText("Excluded observation", { exact: true }).count(), 0);
+      assert.equal(await page.getByText("Excluded event", { exact: true }).count(), 0);
+      await page.emulateMedia({ media: "print" });
+      assert.equal(await page.getByText("History observation 1004", { exact: true }).first().isVisible(), true);
+      assert.equal(await page.getByText("History event 1004", { exact: true }).isVisible(), true);
+      assert.deepEqual(errors, []); await context.close();
+    } finally { await browser.close(); }
+  } finally {
+    if (storagePath) await admin.storage.from("dominic-inspection-evidence").remove([storagePath]);
+    await api.dispose();
+    for (const table of ["dominic_finding_evidence", "dominic_issue_events", "dominic_issue_findings", "dominic_issues", "dominic_findings", "dominic_inspection_media", "dominic_inspections", "dominic_assets"]) {
+      for (const user of users) {
+        const result = await admin.from(table).delete().eq("user_id", user.id); assert.ifError(result.error);
+      }
+    }
+    for (const user of users) await admin.auth.admin.deleteUser(user.id);
+  }
+});

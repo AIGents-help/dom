@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { loadDominicMaintenancePackage } from "@/lib/dominicMaintenancePackageServer";
+import { abortableRequest } from "@/lib/abortableRequest";
 
 export const runtime = "nodejs";
 
@@ -22,10 +23,12 @@ export async function GET(
 
   const { issueId } = await context.params;
 
+  const deadline = abortableRequest(req.signal, 30_000);
   try {
     const maintenancePackage = await loadDominicMaintenancePackage(
       data.user.id,
       issueId,
+      deadline.signal,
     );
     if (!maintenancePackage) {
       return NextResponse.json(
@@ -40,8 +43,10 @@ export async function GET(
   } catch (loadError) {
     console.error("DOMINIC maintenance package load failed", loadError);
     return NextResponse.json(
-      { error: "DOMINIC could not assemble this maintenance package." },
+      { error: "DOMINIC could not assemble the maintenance package. Retry before printing." },
       { status: 500 },
     );
+  } finally {
+    deadline.dispose();
   }
 }

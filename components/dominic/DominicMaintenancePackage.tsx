@@ -155,8 +155,8 @@ type PackagePayload = {
       title: string;
       severity: string;
       review_status: string;
-      observed_at: string;
     }>;
+    counts: { total: number; confirmed: number; dismissed: number; pending: number; mediaTotal: number } | null;
     evidence: Evidence[];
   } | null;
   events: Array<{
@@ -780,9 +780,9 @@ export default function DominicMaintenancePackage({ issueId }: { issueId: string
                     <div style={{ fontSize: 10, lineHeight: 1.55, color: "#3D4955" }}>
                       {data.verification.assessment.reasons.join(" ")}
                     </div>
-                    {data.verification.findings.length > 0 ? (
+                    {data.verification.counts && data.verification.counts.total > 0 ? (
                       <div style={{ marginTop: 8, fontSize: 9, color: "#65717E" }}>
-                        Verification review: {data.verification.findings.filter((finding) => finding.review_status === "confirmed").length} confirmed · {data.verification.findings.filter((finding) => finding.review_status === "dismissed").length} dismissed · {data.verification.findings.filter((finding) => finding.review_status === "needs_review").length} pending
+                        Verification review: {data.verification.counts.confirmed} confirmed · {data.verification.counts.dismissed} dismissed · {data.verification.counts.pending} pending
                       </div>
                     ) : data.verification.assessment.status === "cleared" ? (
                       <div style={{ marginTop: 8, fontSize: 9, color: "#1F7A52" }}>
@@ -790,7 +790,7 @@ export default function DominicMaintenancePackage({ issueId }: { issueId: string
                       </div>
                     ) : (
                       <div style={{ marginTop: 8, fontSize: 9, color: "#65717E" }}>
-                        No verification findings have been recorded yet.
+                        No current verification findings have been recorded yet.
                       </div>
                     )}
                     {typeof data.issue.metadata?.verificationNotes === "string" && data.issue.metadata.verificationNotes ? (

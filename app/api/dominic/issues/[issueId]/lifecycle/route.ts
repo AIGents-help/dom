@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { deriveVerificationAssessment } from "@/lib/dominicIssueLifecycle";
+import { loadDominicIssueVerification } from "@/lib/dominicIssueVerificationServer";
 
 export const runtime = "nodejs";
 
@@ -26,48 +26,6 @@ async function authenticate(req: NextRequest) {
   return { admin, user: data.user } as const;
 }
 
-async function loadIssueLifecycle(
-  admin: ReturnType<typeof getSupabaseAdmin>,
-  userId: string,
-  issueId: string,
-) {
-  const { data, error } = await admin.rpc("read_dominic_issue_verification", {
-    p_issue_id: issueId, p_user_id: userId,
-  });
-  if (error) throw error;
-  if (!data) return null;
-  const issue = data.issue as {
-    id: string; asset_id: string; title: string; severity: string; status: string;
-    recommended_action: string | null; resolution_notes: string | null;
-    resolved_at: string | null; verified_at: string | null;
-    metadata: Record<string, unknown>; updated_at: string;
-  };
-  const inspection = data.verificationInspection;
-  const counts = data.verificationCounts as {
-    total: number; pending: number; confirmed: number; dismissed: number;
-    comparisonStates: string[]; mediaTotal: number; unfinished: number;
-    invalidComparison: number; screenedCandidates: number;
-  };
-  // ai_summary describes the latest image, not the complete inspection.
-  // Candidate totals and review outcomes come from all owned rows in one snapshot.
-  const assessment = deriveVerificationAssessment({
-    inspectionStatus: inspection?.status ?? null,
-    baselineCompared: counts.mediaTotal > 0 && counts.invalidComparison === 0,
-    candidateCount: Math.max(counts.screenedCandidates, counts.total),
-    comparabilityLevel: counts.invalidComparison === 0 ? "medium" : "unknown",
-    pendingReviewCount: counts.pending, confirmedCount: counts.confirmed,
-    dismissedCount: counts.dismissed, comparisonStates: counts.comparisonStates,
-    screening: counts,
-  });
-  return {
-    issue: { ...issue, metadata: record(issue.metadata) },
-    verificationInspection: inspection,
-    verificationFindings: data.verificationFindings,
-    verificationCounts: counts,
-    assessment,
-  };
-}
-
 export async function GET(
   req: NextRequest,
   context: { params: Promise<{ issueId: string }> },
@@ -79,7 +37,7 @@ export async function GET(
 
   const { issueId } = await context.params;
   try {
-    const lifecycle = await loadIssueLifecycle(auth.admin, auth.user.id, issueId);
+    const lifecycle = await loadDominicIssueVerification(auth.admin, auth.user.id, issueId);
     if (!lifecycle) {
       return NextResponse.json({ error: "Issue not found." }, { status: 404 });
     }
@@ -124,7 +82,7 @@ export async function POST(
   }
 
   try {
-    const lifecycle = await loadIssueLifecycle(auth.admin, auth.user.id, issueId);
+    const lifecycle = await loadDominicIssueVerification(auth.admin, auth.user.id, issueId);
     if (!lifecycle) {
       return NextResponse.json({ error: "Issue not found." }, { status: 404 });
     }
@@ -394,7 +352,7 @@ export async function POST(
     if (committed.notFound) return NextResponse.json({ error: "Issue not found." }, { status: 404 });
     if (committed.conflict) return NextResponse.json({ error: "The issue or verification evidence changed. Refresh and review it before retrying." }, { status: 409 });
 
-    const updated = await loadIssueLifecycle(auth.admin, auth.user.id, issueId);
+    const updated = await loadDominicIssueVerification(auth.admin, auth.user.id, issueId);
     return NextResponse.json(updated, {
       headers: { "Cache-Control": "no-store" },
     });

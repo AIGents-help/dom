@@ -7344,15 +7344,29 @@ test("maintenance verification assesses every finding and image beyond API row l
     const tail = await admin.from("dominic_findings").select("id,title").eq("inspection_id", inspection.id).gte("observed_at", rows[1000].observed_at).order("observed_at"); assert.ifError(tail.error); assert.equal(tail.data.length, 5);
     const path = `/api/dominic/issues/${issue.id}/lifecycle`;
     const get = async () => { const response = await api.get(path, { headers }); assert.equal(response.status(), 200, await response.text()); assert.equal(response.headers()["cache-control"], "no-store"); return response.json(); };
+    const packagePath = `/api/dominic/issues/${issue.id}/maintenance-package`;
+    const report = async (lifecycle) => {
+      const response = await api.get(packagePath, { headers });
+      assert.equal(response.status(), 200, await response.text());
+      assert.equal(response.headers()["cache-control"], "no-store");
+      const body = await response.json();
+      assert.deepEqual(body.verification.assessment, lifecycle.assessment, "report and maintenance controls must agree");
+      assert.deepEqual(body.verification.counts, lifecycle.verificationCounts);
+      assert.equal(body.verification.findings.length, Math.min(12, lifecycle.verificationCounts.total));
+      return body;
+    };
     const blocked = async (expectedStatus) => {
       const lifecycle = await get(); assert.equal(lifecycle.assessment.status, expectedStatus); assert.equal(lifecycle.assessment.canVerify, false);
       const response = await api.post(path, { headers, data: { action: "verify", verificationNotes: "Operator checked evidence" } });
       assert.equal(response.status(), 409, await response.text());
       const saved = await admin.from("dominic_issues").select("status,verified_at").eq("id", issue.id).single(); assert.ifError(saved.error); assert.equal(saved.data.status, "resolved"); assert.equal(saved.data.verified_at, null);
       const events = await admin.from("dominic_issue_events").select("id", { count: "exact", head: true }).eq("issue_id", issue.id); assert.ifError(events.error); assert.equal(events.count, 0);
+      await report(lifecycle);
       return lifecycle;
     };
     assert.equal((await api.get(path)).status(), 401);
+    assert.equal((await api.get(packagePath)).status(), 401);
+    assert.equal((await api.get(packagePath, { headers: { Authorization: `Bearer ${signedOutsider.data.session.access_token}` } })).status(), 404);
     assert.equal((await api.get(path, { headers: { Authorization: `Bearer ${signedOutsider.data.session.access_token}` } })).status(), 404);
     for (const client of [ownerClient, createClient(supabaseURL, anonKey, { auth: { persistSession: false } })]) {
       const result = await client.rpc("read_dominic_issue_verification", { p_issue_id: issue.id, p_user_id: owner.id }); assert.equal(result.error?.code, "42501");
@@ -7377,15 +7391,41 @@ test("maintenance verification assesses every finding and image beyond API row l
     await update("dominic_inspection_media", media[0].id, { analysis_summary: summary(1006) }); await blocked("insufficient");
     await update("dominic_inspection_media", media[0].id, { analysis_summary: summary(1005) });
     const ready = await get(); assert.equal(ready.assessment.status, "improved"); assert.equal(ready.assessment.canVerify, true);
+    const readyReport = await report(ready); assert.equal(readyReport.verification.evidence.length, 2);
+    const browser = await chromium.launch({ headless: true });
+    try {
+      const context = await browser.newContext();
+      await context.addInitScript(({ key, session }) => localStorage.setItem(key, JSON.stringify(session)), {
+        key: `sb-${new URL(supabaseURL).hostname.split(".")[0]}-auth-token`, session: signedOwner.data.session,
+      });
+      const page = await context.newPage();
+      const errors = []; page.on("pageerror", (error) => errors.push(error.message));
+      await page.goto(`${baseURL}/dominic/issues/${issue.id}/maintenance-package`);
+      await page.getByText("Verification review: 1002 confirmed · 3 dismissed · 0 pending", { exact: true }).waitFor();
+      assert.deepEqual(errors, []); await context.close();
+    } finally { await browser.close(); }
     const verified = await api.post(path, { headers, data: { action: "verify", verificationNotes: "Operator accepts reviewed improvement" } }); assert.equal(verified.status(), 200, await verified.text()); assert.equal((await verified.json()).issue.status, "verified");
     const events = await admin.from("dominic_issue_events").select("event_type").eq("issue_id", issue.id); assert.ifError(events.error); assert.deepEqual(events.data.map((event) => event.event_type), ["maintenance_verified"]);
 
     // Zero candidates require actual completed evidence, not just a summary flag.
     const [emptyInspection] = await insert("dominic_inspections", { user_id: owner.id, asset_id: asset.id, inspection_type: "visual", status: "review", ai_summary: summary(0) });
     await update("dominic_issues", issue.id, { status: "resolved", verified_at: null, metadata: { verificationInspectionId: emptyInspection.id } });
-    assert.equal((await get()).assessment.canVerify, false);
+    const noEvidence = await get(); assert.equal(noEvidence.assessment.canVerify, false); await report(noEvidence);
     await insert("dominic_inspection_media", { user_id: owner.id, asset_id: asset.id, inspection_id: emptyInspection.id, sensor_mode: "rgb", media_type: "image", analysis_status: "complete", analysis_summary: summary(0) });
-    assert.equal((await get()).assessment.status, "cleared"); assert.equal((await get()).assessment.canVerify, true);
+    const cleared = await get(); assert.equal(cleared.assessment.status, "cleared"); assert.equal(cleared.assessment.canVerify, true); await report(cleared);
+    // The report pages every owned verification image and excludes another asset.
+    const moreMedia = Array.from({ length: 1004 }, () => ({ user_id: owner.id, asset_id: asset.id, inspection_id: emptyInspection.id, sensor_mode: "rgb", media_type: "image", analysis_status: "complete", analysis_summary: summary(0) }));
+    for (let start = 0; start < moreMedia.length; start += 250) await insert("dominic_inspection_media", moreMedia.slice(start, start + 250));
+    const [otherAsset] = await insert("dominic_assets", { user_id: owner.id, name: "Unrelated report asset", asset_type: "tank" });
+    const [unrelatedMedia] = await insert("dominic_inspection_media", { user_id: owner.id, asset_id: otherAsset.id, inspection_id: emptyInspection.id, sensor_mode: "rgb", media_type: "image", analysis_status: "pending" });
+    const largeReport = await report(await get()); assert.equal(largeReport.verification.evidence.length, 1005);
+    assert.equal(largeReport.verification.evidence.some((item) => item.id === unrelatedMedia.id), false);
+    await update("dominic_issues", issue.id, { status: "in_progress", metadata: { lastVerificationInspectionId: emptyInspection.id, verificationRequired: true } });
+    const historicalResponse = await api.get(packagePath, { headers }); assert.equal(historicalResponse.status(), 200, await historicalResponse.text());
+    const historical = await historicalResponse.json(); assert.equal(historical.verification.assessment.status, "previous_verification");
+    assert.equal(historical.verification.assessment.canVerify, false); assert.equal(historical.verification.counts, null);
+    assert.equal(historical.verification.evidence.length, 1005);
+    await update("dominic_issues", issue.id, { status: "resolved", metadata: { verificationInspectionId: emptyInspection.id } });
     await update("dominic_inspections", emptyInspection.id, { status: "cancelled" }); assert.equal((await get()).assessment.canVerify, false);
     const foreignRead = await admin.rpc("read_dominic_issue_verification", { p_issue_id: issue.id, p_user_id: outsider.id }); assert.ifError(foreignRead.error); assert.equal(foreignRead.data, null);
   } finally {

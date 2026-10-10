@@ -10,7 +10,8 @@ import {
   maintenanceEvidenceSequenceId,
   selectMaintenancePackageMedia,
 } from "@/lib/dominicMaintenancePackage";
-import { deriveVerificationAssessment } from "@/lib/dominicIssueLifecycle";
+import { loadDominicIssueVerification } from "@/lib/dominicIssueVerificationServer";
+import { readAllReportRows, REPORT_PAGE_SIZE } from "@/lib/dominicInspectionReport";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -44,8 +45,10 @@ function targetFromFinding(finding: {
   };
 }
 
-export async function loadDominicMaintenancePackage(userId: string, issueId: string) {
+export async function loadDominicMaintenancePackage(userId: string, issueId: string, signal: AbortSignal) {
   const admin = getSupabaseAdmin();
+  const verificationSnapshot = await loadDominicIssueVerification(admin, userId, issueId, signal);
+  if (!verificationSnapshot) return null;
   const { data: issue, error: issueError } = await admin
     .from("dominic_issues")
     .select(
@@ -53,10 +56,14 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
     )
     .eq("id", issueId)
     .eq("user_id", userId)
+    .abortSignal(signal)
     .maybeSingle();
 
   if (issueError) throw issueError;
   if (!issue) return null;
+  if (issue.updated_at !== verificationSnapshot.issue.updated_at) {
+    throw new Error("The issue changed while assembling its maintenance package. Retry.");
+  }
 
   const [{ data: asset, error: assetError }, { data: linkRows, error: linkError }] =
     await Promise.all([
@@ -67,13 +74,13 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
         )
         .eq("id", issue.asset_id)
         .eq("user_id", userId)
-        .maybeSingle(),
+        .abortSignal(signal).maybeSingle(),
       admin
         .from("dominic_issue_findings")
         .select("finding_id,inspection_id,relation_type,linked_at")
         .eq("issue_id", issue.id)
         .eq("user_id", userId)
-        .order("linked_at", { ascending: true }),
+        .order("linked_at", { ascending: true }).abortSignal(signal),
     ]);
 
   if (assetError) throw assetError;
@@ -88,11 +95,17 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
       : typeof issueMetadata.lastVerificationInspectionId === "string"
         ? issueMetadata.lastVerificationInspectionId
         : null;
+  const verificationInspectionResult = verificationInspectionId
+    ? await admin.from("dominic_inspections")
+        .select("id,inspection_type,objective,status,capture_source,sensor_modes,started_at,completed_at,summary,ai_summary,environmental_context,created_at,verification_revision")
+        .eq("id", verificationInspectionId).eq("user_id", userId).eq("asset_id", issue.asset_id)
+        .abortSignal(signal).maybeSingle()
+    : { data: null, error: null };
+  if (verificationInspectionResult.error) throw verificationInspectionResult.error;
   const findingIds = links.map((item) => item.finding_id);
   const inspectionIds = Array.from(
     new Set([
       ...links.map((item) => item.inspection_id),
-      ...(verificationInspectionId ? [verificationInspectionId] : []),
     ]),
   );
 
@@ -102,7 +115,7 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
     evidenceResult,
     mediaResult,
     eventResult,
-    verificationFindingResult,
+    verificationMedia,
   ] = await Promise.all([
       findingIds.length
         ? admin
@@ -111,8 +124,9 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
               "id,inspection_id,finding_type,title,description,severity,review_status,confidence,sensor_mode,latitude,longitude,spatial_anchor,measurement,detector,observed_at,created_at",
             )
             .eq("user_id", userId)
+            .eq("asset_id", issue.asset_id)
             .in("id", findingIds)
-            .order("observed_at", { ascending: true })
+            .order("observed_at", { ascending: true }).abortSignal(signal)
         : Promise.resolve({ data: [], error: null }),
       inspectionIds.length
         ? admin
@@ -121,7 +135,8 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
               "id,inspection_type,objective,status,capture_source,sensor_modes,started_at,completed_at,summary,ai_summary,environmental_context,created_at",
             )
             .eq("user_id", userId)
-            .in("id", inspectionIds)
+            .eq("asset_id", issue.asset_id)
+            .in("id", inspectionIds).abortSignal(signal)
         : Promise.resolve({ data: [], error: null }),
       findingIds.length
         ? admin
@@ -131,7 +146,7 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
             )
             .eq("user_id", userId)
             .in("finding_id", findingIds)
-            .order("created_at", { ascending: true })
+            .order("created_at", { ascending: true }).abortSignal(signal)
         : Promise.resolve({ data: [], error: null }),
       inspectionIds.length
         ? admin
@@ -140,24 +155,27 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
               "id,inspection_id,asset_id,sensor_mode,media_type,storage_path,original_filename,mime_type,captured_at,latitude,longitude,relative_altitude_ft,source_capture_id,source_aircraft_id,analysis_status,analysis_summary,metadata,created_at",
             )
             .eq("user_id", userId)
+            .eq("asset_id", issue.asset_id)
             .in("inspection_id", inspectionIds)
-            .order("captured_at", { ascending: true })
+            .order("captured_at", { ascending: true }).abortSignal(signal)
         : Promise.resolve({ data: [], error: null }),
       admin
         .from("dominic_issue_events")
         .select("id,inspection_id,finding_id,event_type,summary,details,created_at")
         .eq("issue_id", issue.id)
         .eq("user_id", userId)
-        .order("created_at", { ascending: true }),
-      verificationInspectionId
-        ? admin
-            .from("dominic_findings")
-            .select("id,title,severity,review_status,detector,observed_at")
-            .eq("user_id", userId)
-            .eq("asset_id", issue.asset_id)
-            .eq("inspection_id", verificationInspectionId)
-            .order("observed_at", { ascending: true })
-        : Promise.resolve({ data: [], error: null }),
+        .order("created_at", { ascending: true }).abortSignal(signal),
+      verificationInspectionResult.data
+        ? readAllReportRows((after) => {
+            let query = admin.from("dominic_inspection_media")
+              .select("id,inspection_id,asset_id,sensor_mode,media_type,storage_path,original_filename,mime_type,captured_at,latitude,longitude,relative_altitude_ft,source_capture_id,source_aircraft_id,analysis_status,analysis_summary,metadata,created_at")
+              .eq("user_id", userId).eq("asset_id", issue.asset_id)
+              .eq("inspection_id", verificationInspectionId)
+              .order("id").limit(REPORT_PAGE_SIZE);
+            if (after) query = query.gt("id", after);
+            return query.abortSignal(signal);
+          }, signal)
+        : Promise.resolve([]),
     ]);
 
   if (findingResult.error) throw findingResult.error;
@@ -165,7 +183,6 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
   if (evidenceResult.error) throw evidenceResult.error;
   if (mediaResult.error) throw mediaResult.error;
   if (eventResult.error) throw eventResult.error;
-  if (verificationFindingResult.error) throw verificationFindingResult.error;
 
   const findings = (findingResult.data ?? []).map((finding) => ({
     ...finding,
@@ -190,10 +207,10 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
     ...item,
     details: record(item.details),
   }));
-  const verificationFindings = (verificationFindingResult.data ?? []).map((finding) => ({
-    ...finding,
-    detector: record(finding.detector),
-  }));
+  const verificationFindings = verificationSnapshot.verificationFindings;
+  const verificationMediaRows = verificationMedia.map((item) => ({
+    ...item, metadata: record(item.metadata), analysis_summary: record(item.analysis_summary),
+  })).sort((a, b) => String(a.captured_at).localeCompare(String(b.captured_at)) || a.id.localeCompare(b.id));
 
   const selectedMediaByFinding = new Map(
     findings.map((finding) => {
@@ -232,7 +249,7 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
     }
   }
   if (verificationInspectionId) {
-    for (const item of inspectionMedia) {
+    for (const item of verificationMediaRows) {
       if (
         item.inspection_id === verificationInspectionId &&
         item.storage_path &&
@@ -243,14 +260,15 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
     }
   }
 
-  const signedEntries = await Promise.all(
-    Array.from(storagePaths).filter((path) => isOwnedInspectionStoragePath(path, userId)).map(async (storagePath) => {
-      const { data } = await admin.storage
-        .from("dominic-inspection-evidence")
-        .createSignedUrl(storagePath, 3600);
+  const signedEntries: Array<readonly [string, string | null]> = [];
+  const ownedPaths = Array.from(storagePaths).filter((path) => isOwnedInspectionStoragePath(path, userId));
+  for (let start = 0; start < ownedPaths.length; start += 8) {
+    if (signal.aborted) throw new Error("Maintenance package request cancelled.");
+    signedEntries.push(...await Promise.all(ownedPaths.slice(start, start + 8).map(async (storagePath) => {
+      const { data } = await admin.storage.from("dominic-inspection-evidence").createSignedUrl(storagePath, 3600);
       return [storagePath, data?.signedUrl ?? null] as const;
-    }),
-  );
+    })));
+  }
   const signedUrls = new Map(
     signedEntries.filter((entry): entry is readonly [string, string] => Boolean(entry[1])),
   );
@@ -349,47 +367,22 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
     };
   });
 
-  const verificationInspection = verificationInspectionId
-    ? inspections.find((item) => item.id === verificationInspectionId) ?? null
+  const verificationInspection = verificationInspectionResult.data
+    ? { ...verificationInspectionResult.data, ai_summary: record(verificationInspectionResult.data.ai_summary) }
     : null;
-  const verificationSummary = verificationInspection?.ai_summary ?? {};
-  const verificationCandidateCount = Number(verificationSummary.candidateCount);
-  const verificationComparability =
-    verificationSummary.comparisonComparability &&
-    typeof verificationSummary.comparisonComparability === "object"
-      ? (verificationSummary.comparisonComparability as JsonRecord)
-      : {};
-  const verificationComparabilityLevel =
-    typeof verificationComparability.level === "string"
-      ? verificationComparability.level
-      : null;
-  const verificationConfirmed = verificationFindings.filter(
-    (finding) => finding.review_status === "confirmed",
-  );
-  const verificationAssessment = verificationInspection
-    ? deriveVerificationAssessment({
-        inspectionStatus: verificationInspection.status,
-        baselineCompared: verificationSummary.baselineCompared === true,
-        candidateCount: Number.isFinite(verificationCandidateCount)
-          ? verificationCandidateCount
-          : null,
-        comparabilityLevel: verificationComparabilityLevel,
-        pendingReviewCount: verificationFindings.filter(
-          (finding) => finding.review_status === "needs_review",
-        ).length,
-        confirmedCount: verificationConfirmed.length,
-        dismissedCount: verificationFindings.filter(
-          (finding) => finding.review_status === "dismissed",
-        ).length,
-        comparisonStates: verificationConfirmed.map((finding) =>
-          typeof finding.detector.comparisonState === "string"
-            ? finding.detector.comparisonState
-            : null,
-        ),
-      })
-    : null;
+  const currentVerification = verificationSnapshot.verificationInspection;
+  const isCurrentVerification = Boolean(currentVerification && currentVerification.id === verificationInspectionId);
+  const verificationAssessment = isCurrentVerification
+    ? verificationSnapshot.assessment
+    : verificationInspection ? {
+        status: "previous_verification", canVerify: false, shouldReopen: false,
+        reasons: ["Evidence from the previous verification inspection. Its recorded outcome is in the issue history; a new inspection is required to verify this issue."],
+      } : null;
+  if (isCurrentVerification && verificationInspection) {
+    Object.assign(verificationInspection, currentVerification);
+  }
   const verificationEvidence = verificationInspectionId
-    ? inspectionMedia
+    ? verificationMediaRows
         .filter(
           (item) =>
             item.inspection_id === verificationInspectionId &&
@@ -414,6 +407,16 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
         }))
     : [];
 
+  // Reject a mixed report if issue linkage or source evidence changed while its
+  // images were paged/signed. This is a report-time check, not a closure action.
+  const finalSnapshot = await loadDominicIssueVerification(admin, userId, issueId, signal);
+  if (signal.aborted || !finalSnapshot ||
+      finalSnapshot.issue.updated_at !== verificationSnapshot.issue.updated_at ||
+      finalSnapshot.verificationInspection?.id !== currentVerification?.id ||
+      finalSnapshot.verificationInspection?.verification_revision !== currentVerification?.verification_revision) {
+    throw new Error("Verification evidence changed while assembling the report. Retry.");
+  }
+
   return {
     generatedAt: new Date().toISOString(),
     asset,
@@ -434,7 +437,8 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
       ? {
           inspection: verificationInspection,
           assessment: verificationAssessment,
-          findings: verificationFindings,
+          findings: isCurrentVerification ? verificationFindings : [],
+          counts: isCurrentVerification ? verificationSnapshot.verificationCounts : null,
           evidence: verificationEvidence,
         }
       : null,

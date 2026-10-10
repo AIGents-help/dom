@@ -25,6 +25,22 @@ export async function readAllReportRows<T extends { id: string }>(
   throw new Error("Report request timed out or was cancelled.");
 }
 
+// Bound REST filter URLs as well as response sizes. Every batch must finish;
+// a failed later batch rejects the report rather than returning partial rows.
+export async function readAllReportBatches<T extends { id: string }>(
+  ids: string[],
+  page: (ids: string[], after: string | null) => PromiseLike<{ data: T[] | null; error: unknown }>,
+  signal: AbortSignal,
+): Promise<T[]> {
+  const uniqueIds = [...new Set(ids)];
+  const rows: T[] = [];
+  for (let start = 0; start < uniqueIds.length; start += 100) {
+    const batch = uniqueIds.slice(start, start + 100);
+    rows.push(...await readAllReportRows((after) => page(batch, after), signal));
+  }
+  return rows;
+}
+
 export function includedReportFindings(findings: InspectionFinding[]) {
   return findings.filter((finding) => finding.review_status !== "dismissed" && finding.detector?.reportIncluded !== false)
     .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 5) - (SEVERITY_ORDER[b.severity] ?? 5)

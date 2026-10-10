@@ -11,7 +11,7 @@ import {
   selectMaintenancePackageMedia,
 } from "@/lib/dominicMaintenancePackage";
 import { loadDominicIssueVerification } from "@/lib/dominicIssueVerificationServer";
-import { readAllReportRows, REPORT_PAGE_SIZE } from "@/lib/dominicInspectionReport";
+import { readAllReportRows, readAllReportBatches, REPORT_PAGE_SIZE } from "@/lib/dominicInspectionReport";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -47,6 +47,7 @@ function targetFromFinding(finding: {
 
 export async function loadDominicMaintenancePackage(userId: string, issueId: string, signal: AbortSignal) {
   const admin = getSupabaseAdmin();
+  const generatedAt = new Date().toISOString();
   const verificationSnapshot = await loadDominicIssueVerification(admin, userId, issueId, signal);
   if (!verificationSnapshot) return null;
   const { data: issue, error: issueError } = await admin
@@ -65,7 +66,7 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
     throw new Error("The issue changed while assembling its maintenance package. Retry.");
   }
 
-  const [{ data: asset, error: assetError }, { data: linkRows, error: linkError }] =
+  const [{ data: asset, error: assetError }, linkRows] =
     await Promise.all([
       admin
         .from("dominic_assets")
@@ -75,16 +76,17 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
         .eq("id", issue.asset_id)
         .eq("user_id", userId)
         .abortSignal(signal).maybeSingle(),
-      admin
-        .from("dominic_issue_findings")
-        .select("finding_id,inspection_id,relation_type,linked_at")
-        .eq("issue_id", issue.id)
-        .eq("user_id", userId)
-        .order("linked_at", { ascending: true }).abortSignal(signal),
+      readAllReportRows((after) => {
+        let query = admin.from("dominic_issue_findings")
+          .select("id:finding_id,finding_id,inspection_id,relation_type,linked_at")
+          .eq("issue_id", issue.id).eq("user_id", userId).lte("linked_at", generatedAt)
+          .order("finding_id").limit(REPORT_PAGE_SIZE);
+        if (after) query = query.gt("finding_id", after);
+        return query.abortSignal(signal);
+      }, signal),
     ]);
 
   if (assetError) throw assetError;
-  if (linkError) throw linkError;
   if (!asset) return null;
 
   const links = linkRows ?? [];
@@ -102,120 +104,90 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
         .abortSignal(signal).maybeSingle()
     : { data: null, error: null };
   if (verificationInspectionResult.error) throw verificationInspectionResult.error;
-  const findingIds = links.map((item) => item.finding_id);
-  const inspectionIds = Array.from(
-    new Set([
-      ...links.map((item) => item.inspection_id),
-    ]),
-  );
-
-  const [
-    findingResult,
-    inspectionResult,
-    evidenceResult,
-    mediaResult,
-    eventResult,
-    verificationMedia,
-  ] = await Promise.all([
-      findingIds.length
-        ? admin
-            .from("dominic_findings")
-            .select(
-              "id,inspection_id,finding_type,title,description,severity,review_status,confidence,sensor_mode,latitude,longitude,spatial_anchor,measurement,detector,observed_at,created_at",
-            )
-            .eq("user_id", userId)
-            .eq("asset_id", issue.asset_id)
-            .in("id", findingIds)
-            .order("observed_at", { ascending: true }).abortSignal(signal)
-        : Promise.resolve({ data: [], error: null }),
-      inspectionIds.length
-        ? admin
-            .from("dominic_inspections")
-            .select(
-              "id,inspection_type,objective,status,capture_source,sensor_modes,started_at,completed_at,summary,ai_summary,environmental_context,created_at",
-            )
-            .eq("user_id", userId)
-            .eq("asset_id", issue.asset_id)
-            .in("id", inspectionIds).abortSignal(signal)
-        : Promise.resolve({ data: [], error: null }),
-      findingIds.length
-        ? admin
-            .from("dominic_finding_evidence")
-            .select(
-              "id,finding_id,evidence_type,storage_path,source_table,source_id,mime_type,captured_at,metadata,created_at",
-            )
-            .eq("user_id", userId)
-            .in("finding_id", findingIds)
-            .order("created_at", { ascending: true }).abortSignal(signal)
-        : Promise.resolve({ data: [], error: null }),
-      inspectionIds.length
-        ? admin
-            .from("dominic_inspection_media")
-            .select(
-              "id,inspection_id,asset_id,sensor_mode,media_type,storage_path,original_filename,mime_type,captured_at,latitude,longitude,relative_altitude_ft,source_capture_id,source_aircraft_id,analysis_status,analysis_summary,metadata,created_at",
-            )
-            .eq("user_id", userId)
-            .eq("asset_id", issue.asset_id)
-            .in("inspection_id", inspectionIds)
-            .order("captured_at", { ascending: true }).abortSignal(signal)
-        : Promise.resolve({ data: [], error: null }),
-      admin
-        .from("dominic_issue_events")
+  const linkedInspectionByFinding = new Map(links.map((link) => [link.finding_id, link.inspection_id]));
+  const findingRows = await readAllReportBatches(links.map((link) => link.finding_id), (ids, after) => {
+    let query = admin.from("dominic_findings")
+      .select("id,inspection_id,finding_type,title,description,severity,review_status,confidence,sensor_mode,latitude,longitude,spatial_anchor,measurement,detector,observed_at,created_at")
+      .eq("user_id", userId).eq("asset_id", issue.asset_id).in("id", ids)
+      .lte("created_at", generatedAt).order("id").limit(REPORT_PAGE_SIZE);
+    if (after) query = query.gt("id", after);
+    return query.abortSignal(signal);
+  }, signal);
+  const findings = findingRows
+    .filter((finding) => linkedInspectionByFinding.get(finding.id) === finding.inspection_id)
+    .map((finding) => ({ ...finding, spatial_anchor: record(finding.spatial_anchor),
+      measurement: record(finding.measurement), detector: record(finding.detector) }))
+    .sort((a, b) => a.observed_at.localeCompare(b.observed_at) || a.id.localeCompare(b.id));
+  const findingIds = findings.map((finding) => finding.id);
+  const inspectionIds = [...new Set(findings.map((finding) => finding.inspection_id))];
+  const mediaColumns = "id,inspection_id,asset_id,sensor_mode,media_type,storage_path,original_filename,mime_type,captured_at,latitude,longitude,relative_altitude_ft,source_capture_id,source_aircraft_id,analysis_status,analysis_summary,metadata,created_at";
+  const [inspectionRows, evidenceRows, mediaRows, eventRows, verificationMedia] = await Promise.all([
+    readAllReportBatches(inspectionIds, (ids, after) => {
+      let query = admin.from("dominic_inspections")
+        .select("id,inspection_type,objective,status,capture_source,sensor_modes,started_at,completed_at,summary,ai_summary,environmental_context,created_at")
+        .eq("user_id", userId).eq("asset_id", issue.asset_id).in("id", ids)
+        .order("id").limit(REPORT_PAGE_SIZE);
+      if (after) query = query.gt("id", after);
+      return query.abortSignal(signal);
+    }, signal),
+    readAllReportBatches(findingIds, (ids, after) => {
+      let query = admin.from("dominic_finding_evidence")
+        .select("id,finding_id,evidence_type,storage_path,source_table,source_id,mime_type,captured_at,metadata,created_at")
+        .eq("user_id", userId).in("finding_id", ids).lte("created_at", generatedAt)
+        .order("id").limit(REPORT_PAGE_SIZE);
+      if (after) query = query.gt("id", after);
+      return query.abortSignal(signal);
+    }, signal),
+    readAllReportBatches(inspectionIds, (ids, after) => {
+      let query = admin.from("dominic_inspection_media").select(mediaColumns)
+        .eq("user_id", userId).eq("asset_id", issue.asset_id).in("inspection_id", ids)
+        .lte("created_at", generatedAt).order("id").limit(REPORT_PAGE_SIZE);
+      if (after) query = query.gt("id", after);
+      return query.abortSignal(signal);
+    }, signal),
+    readAllReportRows((after) => {
+      let query = admin.from("dominic_issue_events")
         .select("id,inspection_id,finding_id,event_type,summary,details,created_at")
-        .eq("issue_id", issue.id)
-        .eq("user_id", userId)
-        .order("created_at", { ascending: true }).abortSignal(signal),
-      verificationInspectionResult.data
-        ? readAllReportRows((after) => {
-            let query = admin.from("dominic_inspection_media")
-              .select("id,inspection_id,asset_id,sensor_mode,media_type,storage_path,original_filename,mime_type,captured_at,latitude,longitude,relative_altitude_ft,source_capture_id,source_aircraft_id,analysis_status,analysis_summary,metadata,created_at")
-              .eq("user_id", userId).eq("asset_id", issue.asset_id)
-              .eq("inspection_id", verificationInspectionId)
-              .order("id").limit(REPORT_PAGE_SIZE);
-            if (after) query = query.gt("id", after);
-            return query.abortSignal(signal);
-          }, signal)
-        : Promise.resolve([]),
-    ]);
-
-  if (findingResult.error) throw findingResult.error;
-  if (inspectionResult.error) throw inspectionResult.error;
-  if (evidenceResult.error) throw evidenceResult.error;
-  if (mediaResult.error) throw mediaResult.error;
-  if (eventResult.error) throw eventResult.error;
-
-  const findings = (findingResult.data ?? []).map((finding) => ({
-    ...finding,
-    spatial_anchor: record(finding.spatial_anchor),
-    measurement: record(finding.measurement),
-    detector: record(finding.detector),
-  }));
-  const inspections = (inspectionResult.data ?? []).map((inspection) => ({
-    ...inspection,
-    ai_summary: record(inspection.ai_summary),
-  }));
-  const findingEvidence = (evidenceResult.data ?? []).map((item) => ({
-    ...item,
-    metadata: record(item.metadata),
-  }));
-  const inspectionMedia = (mediaResult.data ?? []).map((item) => ({
-    ...item,
-    metadata: record(item.metadata),
-    analysis_summary: record(item.analysis_summary),
-  }));
-  const events = (eventResult.data ?? []).map((item) => ({
-    ...item,
-    details: record(item.details),
-  }));
+        .eq("issue_id", issue.id).eq("user_id", userId).lte("created_at", generatedAt)
+        .order("id").limit(REPORT_PAGE_SIZE);
+      if (after) query = query.gt("id", after);
+      return query.abortSignal(signal);
+    }, signal),
+    verificationInspectionResult.data ? readAllReportRows((after) => {
+      let query = admin.from("dominic_inspection_media").select(mediaColumns)
+        .eq("user_id", userId).eq("asset_id", issue.asset_id).eq("inspection_id", verificationInspectionId)
+        .order("id").limit(REPORT_PAGE_SIZE);
+      if (after) query = query.gt("id", after);
+      return query.abortSignal(signal);
+    }, signal) : Promise.resolve([]),
+  ]);
+  const inspections = inspectionRows.map((inspection) => ({ ...inspection, ai_summary: record(inspection.ai_summary) }));
+  const findingEvidence = evidenceRows.map((item) => ({ ...item, metadata: record(item.metadata) }))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
+  const inspectionMedia = mediaRows.map((item) => ({ ...item, metadata: record(item.metadata), analysis_summary: record(item.analysis_summary) }))
+    .sort((a, b) => String(a.captured_at).localeCompare(String(b.captured_at)) || a.id.localeCompare(b.id));
+  const events = eventRows.map((item) => ({ ...item, details: record(item.details) }))
+    .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id));
   const verificationFindings = verificationSnapshot.verificationFindings;
   const verificationMediaRows = verificationMedia.map((item) => ({
     ...item, metadata: record(item.metadata), analysis_summary: record(item.analysis_summary),
   })).sort((a, b) => String(a.captured_at).localeCompare(String(b.captured_at)) || a.id.localeCompare(b.id));
 
+  const evidenceByFinding = new Map<string, typeof findingEvidence>();
+  for (const item of findingEvidence) {
+    const group = evidenceByFinding.get(item.finding_id) ?? [];
+    group.push(item); evidenceByFinding.set(item.finding_id, group);
+  }
+  const mediaByInspection = new Map<string, typeof inspectionMedia>();
+  for (const item of inspectionMedia) {
+    const group = mediaByInspection.get(item.inspection_id) ?? [];
+    group.push(item); mediaByInspection.set(item.inspection_id, group);
+  }
+  const inspectionsById = new Map(inspections.map((item) => [item.id, item]));
+  const linksByFinding = new Map(links.map((item) => [item.finding_id, item]));
   const selectedMediaByFinding = new Map(
     findings.map((finding) => {
-      const explicitEvidence = findingEvidence
-        .filter((item) => item.finding_id === finding.id)
+      const explicitEvidence = (evidenceByFinding.get(finding.id) ?? [])
         .map((item) => ({
           source_id: item.source_id,
           storage_path: item.storage_path,
@@ -228,7 +200,7 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
             spatial_anchor: finding.spatial_anchor,
             detector: finding.detector,
           },
-          inspectionMedia,
+          mediaByInspection.get(finding.inspection_id) ?? [],
           explicitEvidence,
         ),
       ] as const;
@@ -290,13 +262,11 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
 
   const observations = findings.map((finding) => {
     const inspection =
-      inspections.find((item) => item.id === finding.inspection_id) ?? null;
+      inspectionsById.get(finding.inspection_id) ?? null;
     const link =
-      links.find((item) => item.finding_id === finding.id) ?? null;
+      linksByFinding.get(finding.id) ?? null;
     const selectedMedia = selectedMediaByFinding.get(finding.id) ?? [];
-    const explicitEvidence = findingEvidence.filter(
-      (item) => item.finding_id === finding.id,
-    );
+    const explicitEvidence = evidenceByFinding.get(finding.id) ?? [];
     const selectedMediaIds = new Set(selectedMedia.map((item) => item.id));
     const selectedStoragePaths = new Set(
       selectedMedia.map((item) => item.storage_path).filter(Boolean),
@@ -418,7 +388,7 @@ export async function loadDominicMaintenancePackage(userId: string, issueId: str
   }
 
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     asset,
     issue: {
       ...issue,

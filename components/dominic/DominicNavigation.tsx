@@ -49,9 +49,10 @@ export default function DominicNavigation({ activeModule, hasProject, collapsed,
         { module: "AI Copilot", label: demoMode ? "AI Copilot preview" : "AI Copilot", icon: BrainCircuit },
       ])}
     </section>}
+    {/* Keep the native open/closed choice; navigation must not close this menu. */}
     {!projectOnly && (operationsExpanded ? <section aria-label="Operations tools">
       <p className={styles.label}>Operations</p><NavigationButton item={{ module: "DOMINIC HUB", label: "DOMINIC HUB", icon: Factory }} active={activeModule === "DOMINIC HUB"} collapsed={false} onOpen={onOpen} />
-    </section> : <details className={styles.operations} open={activeModule === "DOMINIC HUB" || undefined}>
+    </section> : <details className={styles.operations}>
       <summary title="Operations">{collapsed ? "..." : "Operations"}</summary>
       <NavigationButton item={{ module: "DOMINIC HUB", label: demoMode ? "Refinery simulator" : "DOMINIC HUB", icon: Factory }} active={activeModule === "DOMINIC HUB"} collapsed={collapsed} onOpen={onOpen} />
     </details>)}

@@ -73,6 +73,11 @@ jobs:
         env:
           E2E_ISOLATED_SUPABASE: "true"
           E2E_BASE_URL: http://127.0.0.1:3000
+      - name: Walk through capture planning on desktop and phones
+        run: node --test e2e/capture-planner.test.mjs
+        env:
+          E2E_ISOLATED_SUPABASE: "true"
+          E2E_BASE_URL: http://127.0.0.1:3000
       - name: Check inspection workspace on desktop and phone
         run: node --test e2e/inspection-workspace.test.mjs
         env:
@@ -103,5 +108,6 @@ jobs:
             /tmp/dom-inspection-workspace-*.png
             /tmp/dom-photo-review-*.png
             /tmp/dom-project-home-*.png
+            /tmp/dom-capture-planner-*.png
           if-no-files-found: ignore
           retention-days: 7

@@ -2,7 +2,7 @@
 
 /* eslint-disable @next/next/no-img-element -- interactive raster map tiles are rendered directly */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 type LatLng = { latitude: number; longitude: number };
 
@@ -68,6 +68,9 @@ export default function CapturePlanningMap({
   onWaypointMove,
 }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const helpId = useId();
+  const [imageryError, setImageryError] = useState(false);
+  const [imageryRevision, setImageryRevision] = useState(0);
   const [size, setSize] = useState({ width: 1200, height: 480 });
   const [zoom, setZoom] = useState(INITIAL_ZOOM);
   const [viewCenter, setViewCenter] = useState<LatLng>({
@@ -146,6 +149,20 @@ export default function CapturePlanningMap({
 
   const boundaryScreen = boundary.map(project);
   const routeScreen = route.map((point) => ({ ...point, ...project(point) }));
+  const fitRoute = () => {
+    const points = [...boundary, ...route];
+    if (!points.length) return;
+    for (let candidate = MAX_ZOOM; candidate >= MIN_ZOOM; candidate -= 1) {
+      const projected = points.map((point) => latLngToWorld(point.latitude, point.longitude, candidate));
+      const x = projected.map((point) => point.x), y = projected.map((point) => point.y);
+      const left = Math.min(...x), right = Math.max(...x), top = Math.min(...y), bottom = Math.max(...y);
+      if ((right - left <= size.width - 100 && bottom - top <= size.height - 80) || candidate === MIN_ZOOM) {
+        setZoom(candidate);
+        setViewCenter(worldToLatLng((left + right) / 2, (top + bottom) / 2, candidate));
+        return;
+      }
+    }
+  };
 
   const finishPointer = (clientX: number, clientY: number) => {
     if (dragWaypointId) {
@@ -170,8 +187,30 @@ export default function CapturePlanningMap({
   };
 
   return (
+    <>
+    <p id={helpId} style={{ margin: "0 18px 12px", color: "#60707b", fontSize: 13 }}>
+      Drag to pan; use the zoom buttons for a closer view. Keyboard: arrow keys pan, Enter adds a corner while drawing. Select a waypoint and use arrow keys to adjust it.
+    </p>
+    {imageryError && <div role="alert" style={{ padding: 12, background: "#fff3e9", color: "#89370c", fontSize: 13 }}>
+      Satellite imagery could not load. Confirm the site using reliable imagery before planning a flight.
+      <button type="button" onClick={() => { setImageryError(false); setImageryRevision((value) => value + 1); }} style={{ marginLeft: 8, padding: 10, borderRadius: 8, background: "white", border: "1px solid #cbd3d9" }}>Retry satellite imagery</button>
+    </div>}
     <div
       ref={containerRef}
+      role="region"
+      tabIndex={0}
+      aria-describedby={helpId}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
+        const delta = { ArrowLeft: [-40, 0], ArrowRight: [40, 0], ArrowUp: [0, -40], ArrowDown: [0, 40] }[event.key];
+        if (delta) {
+          event.preventDefault();
+          setViewCenter(worldToLatLng(centerWorld.x + delta[0], centerWorld.y + delta[1], zoom));
+        } else if (event.key === "Enter" && drawing) {
+          event.preventDefault();
+          onBoundaryPoint({ ...viewCenter, xPct: 50, yPct: 50 });
+        }
+      }}
       onPointerDown={(event) => {
         if (dragWaypointId) return;
         const world = latLngToWorld(viewCenter.latitude, viewCenter.longitude, zoom);
@@ -224,7 +263,7 @@ export default function CapturePlanningMap({
       }}
       style={{
         position: "relative",
-        height: 480,
+        height: "clamp(320px, 50vh, 520px)",
         overflow: "hidden",
         background: "#10161C",
         cursor: drawing ? "crosshair" : pointerState?.moved ? "grabbing" : "grab",
@@ -235,8 +274,9 @@ export default function CapturePlanningMap({
     >
       {tiles.map((tile) => (
         <img
-          key={tile.key}
+          key={`${imageryRevision}-${tile.key}`}
           alt=""
+          onError={() => setImageryError(true)}
           draggable={false}
           src={`https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${zoom}/${tile.y}/${tile.urlX}`}
           style={{
@@ -307,7 +347,19 @@ export default function CapturePlanningMap({
               <button
                 key={point.id}
                 type="button"
+                data-waypoint={index + 1}
+                aria-label={`Waypoint ${index + 1}`}
+                aria-pressed={selected}
                 title={`Waypoint ${index + 1} — drag to edit`}
+                onClick={() => onWaypointSelect(point.id)}
+                onKeyDown={(event) => {
+                  const delta = { ArrowLeft: [-4, 0], ArrowRight: [4, 0], ArrowUp: [0, -4], ArrowDown: [0, 4] }[event.key];
+                  if (!delta) return;
+                  event.preventDefault(); event.stopPropagation();
+                  const world = latLngToWorld(point.latitude, point.longitude, zoom);
+                  const next = worldToLatLng(world.x + delta[0], world.y + delta[1], zoom);
+                  onWaypointMove(point.id, next.latitude, next.longitude);
+                }}
                 onPointerDown={(event) => {
                   event.stopPropagation();
                   event.currentTarget.setPointerCapture(event.pointerId);
@@ -330,18 +382,18 @@ export default function CapturePlanningMap({
                   position: "absolute",
                   left: point.x,
                   top: point.y,
-                  width: selected ? 18 : 14,
-                  height: selected ? 18 : 14,
-                  marginLeft: selected ? -9 : -7,
-                  marginTop: selected ? -9 : -7,
+                  width: 28,
+                  height: 28,
+                  marginLeft: -14,
+                  marginTop: -14,
                   borderRadius: "50%",
-                  border: "2px solid #F45A1E",
-                  background: selected ? "#70D6A0" : "white",
+                  border: 0,
+                  background: "transparent",
                   cursor: "grab",
                   zIndex: selected ? 8 : 6,
                   padding: 0,
                 }}
-              />
+              ><span aria-hidden="true" style={{ display: "block", width: selected ? 18 : 14, height: selected ? 18 : 14, margin: "auto", border: "2px solid #F45A1E", borderRadius: "50%", background: selected ? "#70D6A0" : "white", pointerEvents: "none" }} /></button>
             );
           })
         : null}
@@ -355,12 +407,23 @@ export default function CapturePlanningMap({
           borderRadius: 5,
           background: "rgba(8,12,16,.72)",
           color: "#D7DEE5",
-          fontSize: 9,
+          fontSize: 12,
           pointerEvents: "none",
         }}
       >
         Satellite imagery © Esri · Zoom {zoom}
       </div>
+      <div onPointerDown={(event) => event.stopPropagation()} onPointerUp={(event) => event.stopPropagation()}
+        style={{ position: "absolute", right: 12, top: 12, display: "grid", gap: 8, zIndex: 20 }}>
+        {([
+          ["Zoom in", zoom >= MAX_ZOOM, () => setZoom((value) => Math.min(MAX_ZOOM, value + 1))],
+          ["Zoom out", zoom <= MIN_ZOOM, () => setZoom((value) => Math.max(MIN_ZOOM, value - 1))],
+          ["Recenter site", false, () => setViewCenter({ latitude: focusLatitude, longitude: focusLongitude })],
+          ["Fit flight path", !routeVisible || !route.length, fitRoute],
+        ] as const).map(([label, disabled, action]) => <button key={label} type="button" aria-label={label} title={label} disabled={disabled} onClick={action}
+          style={{ width: 44, height: 44, padding: 0, border: "1px solid #cbd3d9", borderRadius: 8, background: "white", color: "#25313a", fontSize: 22 }}><span aria-hidden="true">{label === "Zoom in" ? "+" : label === "Zoom out" ? "−" : label === "Fit flight path" ? "⛶" : "◎"}</span></button>)}
+      </div>
     </div>
+    </>
   );
 }

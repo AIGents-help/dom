@@ -1,0 +1,71 @@
+{
+  "schema_version": 1,
+  "dataset": {
+    "id": "synthetic-scoring-example",
+    "revision": "1",
+    "source": "synthetic",
+    "split": "development",
+    "labeler": "synthetic-fixture-not-a-human-inspection"
+  },
+  "run": {
+    "id": "synthetic-example-run",
+    "model": "synthetic-no-model-executed",
+    "prompt_revision": "none"
+  },
+  "samples": [
+    {
+      "id": "synthetic-defect-frame",
+      "capture_group": "synthetic-session",
+      "media_sha256": "fed4324b27e72653062d3d381930e6dd6575ec6fda3ba0dceb88f4fa25f8f270",
+      "annotation_complete": true,
+      "ground_truth": [
+        {
+          "id": "coating-1",
+          "finding_type": "coating_loss",
+          "region": {
+            "x": 0.1,
+            "y": 0.2,
+            "width": 0.3,
+            "height": 0.4
+          }
+        }
+      ],
+      "screening": {
+        "status": "completed",
+        "candidates": [
+          {
+            "finding_type": "coating_loss",
+            "confidence": 0.9,
+            "region": {
+              "x": 0.1,
+              "y": 0.2,
+              "width": 0.3,
+              "height": 0.4
+            }
+          },
+          {
+            "finding_type": "coating_loss",
+            "confidence": 0.8,
+            "region": {
+              "x": 0.1,
+              "y": 0.2,
+              "width": 0.3,
+              "height": 0.4
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "synthetic-clean-frame",
+      "capture_group": "synthetic-session",
+      "media_sha256": "7b12cba3c84d1ca920bb37bbfad4f3831dea19ef648d0c51c726ce8c0ccece5e",
+      "annotation_complete": true,
+      "ground_truth": [],
+      "screening": {
+        "status": "completed",
+        "candidates": []
+      }
+    }
+  ]
+}

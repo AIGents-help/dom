@@ -261,9 +261,9 @@ function Field({
           max={max}
           step={step}
           onChange={(event) => onChange(Number(event.target.value))}
-          style={{ width: "100%", border: 0, outline: 0, background: "transparent", color: V.text, fontSize: 13, fontWeight: 700 }}
+          style={{ width: "100%", border: 0, background: "transparent", color: V.text, fontSize: 13, fontWeight: 700 }}
         />
-        {suffix ? <span style={{ color: V.muted, fontSize: 12 }}>{suffix}</span> : null}
+        {suffix ? <span style={{ color: V.muted, fontSize: 12, flexShrink: 0, whiteSpace: "nowrap" }}>{suffix}</span> : null}
       </div>
     </label>
   );
@@ -3675,7 +3675,7 @@ export default function DominicCapturePlanner({
                 {inspectionContext.objective ?? "No inspection objective recorded."}
               </div>
             </div>
-            <div style={{ minWidth: 230, textAlign: "right" }}>
+            <div style={{ minWidth: 0, flex: "1 1 230px", textAlign: "right" }}>
               <div style={{ color: inspectionEquipmentReady ? V.green : V.amber, fontSize: 12, fontWeight: 650, textTransform: "uppercase" }}>
                 {inspectionEquipmentReady ? "Equipment compatible" : "Equipment not execution-ready"}
               </div>
@@ -4050,7 +4050,7 @@ export default function DominicCapturePlanner({
                     if (event.key === "Enter") void searchMapLocation();
                   }}
                   placeholder="Enter address, e.g. 123 Main St, Linwood, PA"
-                  style={{ minWidth: 0, border: `1px solid ${V.line}`, background: "#ffffff", color: V.text, borderRadius: 8, padding: "9px 10px", fontSize: 12, outline: 0 }}
+                  style={{ minWidth: 0, border: `1px solid ${V.line}`, background: "#ffffff", color: V.text, borderRadius: 8, padding: "9px 10px", fontSize: 12 }}
                 />
                 <button
                   type="button"
@@ -4281,7 +4281,7 @@ export default function DominicCapturePlanner({
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 14, marginTop: 14 }}>
                 <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: V.panel, padding: 12 }}>
                   <div style={{ color: V.text, fontSize: 12, fontWeight: 650 }}>Object size & capture quality</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 9 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8, marginTop: 9 }}>
                     <Field label="Width / diameter" value={objectDiameterFt} min={1} max={1000} suffix="ft" onChange={setObjectDiameterFt} />
                     <Field label="Height" value={objectHeightFt} min={1} max={1000} suffix="ft" onChange={setObjectHeightFt} />
                     <Field label="Stand-off" value={standoffFt} min={2} max={500} suffix="ft" onChange={setStandoffFt} />
@@ -4558,7 +4558,7 @@ export default function DominicCapturePlanner({
               ))}
             </select>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, flex: "0 1 310px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 7, flex: "0 1 310px" }}>
             <Field label="Horizontal FOV" value={horizontalFovDeg} min={25} max={140} step={0.1} suffix="deg" onChange={(value) => { setSelectedAircraftId(""); setHorizontalFovDeg(value); setCameraProfileMessage("Manual camera geometry active."); }} />
             <Field label="Vertical FOV" value={verticalFovDeg} min={20} max={120} step={0.1} suffix="deg" onChange={(value) => { setSelectedAircraftId(""); setVerticalFovDeg(value); setCameraProfileMessage("Manual camera geometry active."); }} />
           </div>
@@ -4574,7 +4574,7 @@ export default function DominicCapturePlanner({
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 14 }}>
               <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".12em", textTransform: "uppercase" }}>{activeProfile.label} geometry</div>
               <p style={{ color: V.muted, fontSize: 12, lineHeight: 1.5 }}>{activeProfile.summary}</p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8 }}>
                 <Field label="Length" value={patternLengthFt} min={4} max={20000} suffix="ft" onChange={setPatternLengthFt} />
                 <Field label="Width" value={patternWidthFt} min={4} max={2000} suffix="ft" onChange={setPatternWidthFt} />
                 <Field label="Height" value={patternHeightFt} min={4} max={1000} suffix="ft" onChange={setPatternHeightFt} />
@@ -4599,7 +4599,7 @@ export default function DominicCapturePlanner({
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 14 }}>
               <div style={{ color: V.text, fontSize: 12, fontWeight: 650 }}>Mission origin & aircraft</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 9 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8, marginTop: 9 }}>
                 <Field label="Center latitude" value={centerLatitude} min={-90} max={90} step={0.000001} onChange={setCenterLatitude} />
                 <Field label="Center longitude" value={centerLongitude} min={-180} max={180} step={0.000001} onChange={setCenterLongitude} />
               </div>
@@ -4775,7 +4775,7 @@ export default function DominicCapturePlanner({
                         <div style={{ color: V.muted, fontSize: 12, marginTop: 3 }}>
                           {currentSecondaryCheckpoint.passId} · {currentSecondaryCheckpoint.relativeAltitudeFt.toFixed(1)} ft · camera {currentSecondaryCheckpoint.cameraAngle}°
                         </div>
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5, marginTop: 7 }}>
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 5, marginTop: 7 }}>
                           <button type="button" disabled={activeSecondaryIndex === 0} onClick={() => setSecondaryIndex((index) => Math.max(0, index - 1))} style={{ border: `1px solid ${V.line}`, background: "#f0f3f5", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 12, fontWeight: 650 }}>Previous</button>
                           <button type="button" onClick={(event) => markSecondaryCaptured(Math.round(event.timeStamp))} style={{ border: 0, background: V.orange, color: "#ffffff", borderRadius: 6, padding: "6px 5px", fontSize: 12, fontWeight: 650 }}>Mark captured</button>
                           <button type="button" disabled={activeSecondaryIndex >= effectiveSecondaryGeographicCheckpoints.length - 1} onClick={() => setSecondaryIndex((index) => Math.min(effectiveSecondaryGeographicCheckpoints.length - 1, index + 1))} style={{ border: `1px solid ${V.line}`, background: "#f0f3f5", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 12, fontWeight: 650 }}>Next</button>
@@ -4930,7 +4930,7 @@ export default function DominicCapturePlanner({
           <aside style={{ display: "grid", gap: 12 }}>
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
               <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".1em", textTransform: "uppercase" }}>Object geometry</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginTop: 12 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 9, marginTop: 12 }}>
                 <Field label="Diameter" value={objectDiameterFt} min={1} max={500} suffix="ft" onChange={setObjectDiameterFt} />
                 <Field label="Height" value={objectHeightFt} min={1} max={500} suffix="ft" onChange={setObjectHeightFt} />
                 <Field label="Stand-off" value={standoffFt} min={3} max={500} suffix="ft" onChange={setStandoffFt} />
@@ -4945,7 +4945,7 @@ export default function DominicCapturePlanner({
               <p style={{ margin: "6px 0 10px", color: V.muted, fontSize: 12, lineHeight: 1.45 }}>
                 Georeference the object once. DOMINIC projects every ring checkpoint into latitude/longitude for the future autonomous mission layer.
               </p>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8 }}>
                 <Field label="Latitude" value={centerLatitude} min={-90} max={90} step={0.000001} onChange={setCenterLatitude} />
                 <Field label="Longitude" value={centerLongitude} min={-180} max={180} step={0.000001} onChange={setCenterLongitude} />
               </div>
@@ -4967,7 +4967,7 @@ export default function DominicCapturePlanner({
                 </span>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 8, marginTop: 10 }}>
                 <Field label="Home latitude" value={homeLatitude} min={-90} max={90} step={0.000001} onChange={(value) => { setMissionArmed(false); setHomeLatitude(value); }} />
                 <Field label="Home longitude" value={homeLongitude} min={-180} max={180} step={0.000001} onChange={(value) => { setMissionArmed(false); setHomeLongitude(value); }} />
                 <Field label="Min altitude" value={minRelativeAltitudeFt} min={-200} max={2000} suffix="ft" onChange={(value) => { setMissionArmed(false); setMinRelativeAltitudeFt(value); }} />
@@ -4997,7 +4997,7 @@ export default function DominicCapturePlanner({
                           <Trash2 size={12} />
                         </button>
                       </div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 7 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 7, marginTop: 7 }}>
                         <Field label="Start bearing" value={sector.startBearingDeg} min={0} max={359} suffix="deg" onChange={(value) => updateNoFlySector(sector.id, { startBearingDeg: value })} />
                         <Field label="End bearing" value={sector.endBearingDeg} min={0} max={359} suffix="deg" onChange={(value) => updateNoFlySector(sector.id, { endBearingDeg: value })} />
                       </div>
@@ -5026,7 +5026,7 @@ export default function DominicCapturePlanner({
                 disabled={bridgeStatus === "connected" || bridgeStatus === "connecting"}
                 onChange={(event) => setBridgeUrl(event.target.value)}
                 placeholder="ws://127.0.0.1:8787"
-                style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 8, padding: "8px 9px", fontSize: 12, outline: 0 }}
+                style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 8, padding: "8px 9px", fontSize: 12 }}
               />
               <button
                 type="button"
@@ -5246,13 +5246,10 @@ export default function DominicCapturePlanner({
                       </>
                     );
                   })()}
-                  <text x="50" y="3.8" textAnchor="middle" fill="#8F9CAA" fontSize="3">N</text>
-                  <text x="96" y="51" textAnchor="middle" fill="#8F9CAA" fontSize="3">E</text>
-                  <text x="50" y="99" textAnchor="middle" fill="#8F9CAA" fontSize="3">S</text>
-                  <text x="4" y="51" textAnchor="middle" fill="#8F9CAA" fontSize="3">W</text>
                 </svg>
 
                 <div style={{ position: "absolute", left: 13, bottom: 11, display: "grid", gap: 4, color: V.muted, fontSize: 12 }}>
+                  <div>North is up · East is right</div>
                   <div><span style={{ color: V.green }}>●</span> Home · {homeVector.distanceFt.toFixed(0)} ft · {homeVector.bearingDeg.toFixed(0)}°</div>
                   <div><span style={{ color: V.orange }}>○</span> Planned capture rings · {plan.totalShots} frames</div>
                   <div><span style={{ color: "#982d21" }}>◢</span> Blocked sectors · {noFlySectors.length}</div>
@@ -5380,7 +5377,7 @@ export default function DominicCapturePlanner({
                     <Crosshair size={36} color={V.orange} />
                   </div>
 
-                  <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "minmax(210px,.85fr) minmax(0,1.15fr)", gap: 10 }}>
+                  <div className={styles.telemetryColumns}>
                     <div style={{ border: `1px solid ${guidance?.ready ? "rgba(112,214,160,.45)" : V.line}`, borderRadius: 10, background: guidance?.ready ? "rgba(112,214,160,.07)" : V.panel, padding: 11 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, color: V.text, fontSize: 12, fontWeight: 650 }}>
@@ -5643,7 +5640,7 @@ export default function DominicCapturePlanner({
               {autonomousRunning && autonomousSnapshot ? (
                 <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 10, paddingTop: 10 }}>
                   <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".08em", textTransform: "uppercase" }}>Live mission controls</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 7 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 6, marginTop: 7 }}>
                     <button
                       type="button"
                       disabled={
@@ -5689,7 +5686,7 @@ export default function DominicCapturePlanner({
 
               {autonomousSnapshot ? (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 9 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 7, marginTop: 9 }}>
                     <div style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#f7f8f9", padding: 8 }}>
                       <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase" }}>Checkpoints</div>
                       <div style={{ color: V.text, fontSize: 13, fontWeight: 650, marginTop: 3 }}>{autonomousSnapshot.completedCheckpointIds.length}/{autonomousSnapshot.checkpointCount}</div>

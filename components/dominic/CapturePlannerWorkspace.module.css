@@ -1,7 +1,7 @@
 .workspace { min-width:0; border-radius:16px; padding:clamp(12px,2vw,24px); font-family:Inter,system-ui,sans-serif; line-height:1.6; overflow-wrap:anywhere; }
 .workspace * { box-sizing:border-box; }
 .workspace :is(button,input,select,textarea,summary) { font-family:inherit; }
-.workspace :is(button,input,select,textarea):focus-visible,.workspace [tabindex='-1']:focus-visible { outline:3px solid #a43809; outline-offset:3px; }
+.workspace :is(button,input,select,textarea):focus-visible,.workspace [tabindex]:focus-visible { outline:3px solid #a43809; outline-offset:3px; }
 .workspace button:disabled { opacity:.6; cursor:not-allowed; }
 .workspace button:not([data-waypoint]) { min-height:44px; }
 .workspace :is(input:not([type='checkbox']):not([type='file']),select,textarea) { min-height:44px; }
@@ -36,10 +36,11 @@
 .waypointFields label { display:grid; gap:5px; color:#60707b; font-size:13px; }
 .waypointFields input { border:1px solid #cbd3d9; background:white; border-radius:8px; padding:10px; color:#25313a; width:100%; }
 .mapToolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.telemetryColumns { display:grid; grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr); gap:10px; margin-top:12px; }
 @media(max-width:700px) {
   .header { grid-template-columns:minmax(0,1fr); gap:18px; }
   .progress { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .sourceChoices,.routeSummary { grid-template-columns:minmax(0,1fr); }
+  .sourceChoices,.routeSummary,.telemetryColumns { grid-template-columns:minmax(0,1fr); }
   .reviewMetrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .searchRow { grid-template-columns:minmax(0,1fr); }
   .workspace input:not([type='checkbox']),.workspace select,.workspace textarea { font-size:16px !important; }

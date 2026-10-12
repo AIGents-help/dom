@@ -111,6 +111,7 @@ for (const width of [1440,390,320]) test(`capture planner: location → boundary
     }
     await workspace.getByRole('button',{name:'Zoom out',exact:true}).click();
     await workspace.getByRole('button',{name:'Recenter site',exact:true}).click();
+    await workspace.getByRole('button',{name:'Fit flight path',exact:true}).click();
     await workspace.getByLabel('Select waypoint to edit').selectOption({index:1});
     const lat = workspace.getByLabel('Waypoint latitude'), lon = workspace.getByLabel('Waypoint longitude');
     const editedLatitude = Number(await lat.inputValue()) + .00001;
@@ -178,9 +179,15 @@ for (const width of [1440,390,320]) test(`capture planner: location → boundary
     await workspace.getByText('Capture plan saved.',{exact:true}).waitFor();
     assert.deepEqual((await readPlan(`${name} updated`)).plan_state.waypointOverrides,{});
     await workspace.getByRole('button',{name:'Back to Edit Plan',exact:true}).click();
+    await workspace.getByRole('button',{name:'Aircraft & advanced settings',exact:true}).click();
+    await fits(page,workspace,width,'map-advanced');
+    await workspace.getByRole('button',{name:'Hide aircraft & advanced settings',exact:true}).click();
     await workspace.getByRole('button',{name:/Local Object/}).click();
     await workspace.getByRole('img',{name:'Local object capture path',exact:true}).waitFor();
     await fits(page,workspace,width,'local');
+    await workspace.getByRole('button',{name:'Aircraft & advanced settings',exact:true}).click();
+    await fits(page,workspace,width,'object-advanced');
+    await workspace.getByRole('button',{name:'Hide aircraft & advanced settings',exact:true}).click();
     await workspace.getByRole('button',{name:/Map \/ Satellite/}).click();
     assert.equal(await workspace.getByText('Draft route calculated',{exact:true}).count(),0,'Switching sources clears the boundary-ready flag');
     await workspace.getByRole('button',{name:/Live Drone/}).click();

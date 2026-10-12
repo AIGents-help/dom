@@ -149,6 +149,20 @@ export default function CapturePlanningMap({
 
   const boundaryScreen = boundary.map(project);
   const routeScreen = route.map((point) => ({ ...point, ...project(point) }));
+  const fitRoute = () => {
+    const points = [...boundary, ...route];
+    if (!points.length) return;
+    for (let candidate = MAX_ZOOM; candidate >= MIN_ZOOM; candidate -= 1) {
+      const projected = points.map((point) => latLngToWorld(point.latitude, point.longitude, candidate));
+      const x = projected.map((point) => point.x), y = projected.map((point) => point.y);
+      const left = Math.min(...x), right = Math.max(...x), top = Math.min(...y), bottom = Math.max(...y);
+      if ((right - left <= size.width - 100 && bottom - top <= size.height - 80) || candidate === MIN_ZOOM) {
+        setZoom(candidate);
+        setViewCenter(worldToLatLng((left + right) / 2, (top + bottom) / 2, candidate));
+        return;
+      }
+    }
+  };
 
   const finishPointer = (clientX: number, clientY: number) => {
     if (dragWaypointId) {
@@ -373,13 +387,13 @@ export default function CapturePlanningMap({
                   marginLeft: -14,
                   marginTop: -14,
                   borderRadius: "50%",
-                  border: "2px solid #F45A1E",
-                  background: selected ? "#70D6A0" : "white",
+                  border: 0,
+                  background: "transparent",
                   cursor: "grab",
                   zIndex: selected ? 8 : 6,
                   padding: 0,
                 }}
-              />
+              ><span aria-hidden="true" style={{ display: "block", width: selected ? 18 : 14, height: selected ? 18 : 14, margin: "auto", border: "2px solid #F45A1E", borderRadius: "50%", background: selected ? "#70D6A0" : "white", pointerEvents: "none" }} /></button>
             );
           })
         : null}
@@ -405,8 +419,9 @@ export default function CapturePlanningMap({
           ["Zoom in", zoom >= MAX_ZOOM, () => setZoom((value) => Math.min(MAX_ZOOM, value + 1))],
           ["Zoom out", zoom <= MIN_ZOOM, () => setZoom((value) => Math.max(MIN_ZOOM, value - 1))],
           ["Recenter site", false, () => setViewCenter({ latitude: focusLatitude, longitude: focusLongitude })],
+          ["Fit flight path", !routeVisible || !route.length, fitRoute],
         ] as const).map(([label, disabled, action]) => <button key={label} type="button" aria-label={label} title={label} disabled={disabled} onClick={action}
-          style={{ width: 44, height: 44, padding: 0, border: "1px solid #cbd3d9", borderRadius: 8, background: "white", color: "#25313a", fontSize: 22 }}><span aria-hidden="true">{label === "Zoom in" ? "+" : label === "Zoom out" ? "−" : "◎"}</span></button>)}
+          style={{ width: 44, height: 44, padding: 0, border: "1px solid #cbd3d9", borderRadius: 8, background: "white", color: "#25313a", fontSize: 22 }}><span aria-hidden="true">{label === "Zoom in" ? "+" : label === "Zoom out" ? "−" : label === "Fit flight path" ? "⛶" : "◎"}</span></button>)}
       </div>
     </div>
     </>

@@ -9,6 +9,27 @@ const db=process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anon=process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const service=process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+// The shell responds to matchMedia through React state. A resize alone does
+// not establish that the mobile controls and layout have finished appearing.
+async function checkPhoneLayout(page, width, screen) {
+  await page.setViewportSize({width,height:844});
+  await page.getByRole('navigation',{name:'DOMINIC field navigation',exact:true}).waitFor({state:'visible'});
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  // Retain the actual failing layout as well as useful geometry. No CSS is
+  // injected and no overflow is hidden or tolerated to satisfy this check.
+  await page.screenshot({path:`/tmp/dom-project-home-${screen}-${width}.png`});
+  const layout=await page.evaluate(()=>({
+    viewport:innerWidth,
+    pageWidth:document.documentElement.scrollWidth,
+    overflow:[...document.querySelectorAll('body *')].flatMap(element=>{
+      const rect=element.getBoundingClientRect();
+      if(!rect.width||!rect.height||rect.right<=innerWidth+1) return [];
+      return [{tag:element.tagName,id:element.id,className:element.getAttribute('class'),left:rect.left,right:rect.right,width:rect.width}];
+    }).slice(0,20),
+  }));
+  assert.ok(layout.pageWidth<=layout.viewport+1,`${screen} fits ${width}px: ${JSON.stringify(layout)}`);
+}
+
 test('project home reaches the correct saved inspections, plans and exports on desktop and phone', {skip:!enabled,timeout:180000},async()=>{
   assert.ok(db&&anon&&service);
   for(const host of [db,base]) assert.match(host,/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/,'Disposable local environment only');
@@ -105,16 +126,13 @@ test('project home reaches the correct saved inspections, plans and exports on d
     await home.getByRole('button',{name:'Try again',exact:true}).click();
     await home.getByText('13 matching projects / page 1 of 2',{exact:true}).waitFor();
 
-    for(const width of [390,320]) {
-      await page.setViewportSize({width,height:844});
-      assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`Project home fits ${width}px`);
-    }
-    await page.setViewportSize({width:390,height:844});
+    for(const width of [390,320]) await checkPhoneLayout(page,width,'home');
+    await checkPhoneLayout(page,390,'home-restored');
     await page.screenshot({path:'/tmp/dom-project-home-phone.png'});
     await card(names[1]).getByRole('button',{name:'Inspections',exact:true}).click();
     await inspection.getByRole('heading',{name:assetB.name,exact:true}).waitFor();
+    await checkPhoneLayout(page,390,'navigation');
     await page.screenshot({path:'/tmp/dom-project-home-phone-navigation.png'});
-    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Project navigation fits phone');
     await back();
     await page.route(url,route=>route.fulfill({status:200,contentType:'application/json',body:'{"projects":[]}'}),{times:1});
     await home.getByRole('button',{name:'Refresh projects',exact:true}).click();

@@ -62,13 +62,18 @@ test('photo review displays private images and saves decisions and report notes'
     await page.getByRole('button',{name:'Plans & inspections',exact:true}).click();
     await page.getByRole('region',{name:'Project plans and inspections',exact:true}).getByRole('button',{name:'Review inspection of Photo Review Tank',exact:true}).click();
     const workspace=page.getByRole('region',{name:'Intelligent Inspection',exact:true});
-    const open=async(title)=>{
-      await workspace.getByRole('button',{name:`Open callout ${title}`,exact:true}).click();
+    const open=async(title, fromMarker=false)=>{
+      // Only localized findings have image markers. The saved-finding queue
+      // also opens unlocalized findings and findings without a source image.
+      const opener=fromMarker
+        ? workspace.getByRole('button',{name:`Open callout ${title}`,exact:true})
+        : workspace.getByRole('region',{name:'Finding review queue',exact:true}).getByRole('button',{name:`Review saved finding ${title}`,exact:true});
+      await opener.click();
       const dialog=page.getByRole('dialog',{name:title,exact:true});
       await dialog.waitFor(); return dialog;
     };
     const close=async(dialog)=>{await dialog.getByRole('button',{name:'Close callout',exact:true}).click();await dialog.waitFor({state:'hidden'});};
-    let dialog=await open(finding.title);
+    let dialog=await open(finding.title,true);
     const photo=dialog.getByRole('img',{name:'Current inspection evidence',exact:true});
     await photo.waitFor();
     await page.waitForFunction(()=>[...document.images].some(image=>image.alt==='Current inspection evidence' && image.complete && image.naturalWidth>0));
@@ -125,6 +130,7 @@ test('photo review displays private images and saves decisions and report notes'
     await page.screenshot({path:'/tmp/dom-photo-review-phone-actions.png'});
     await close(dialog);
     await page.setViewportSize({width:1440,height:1000});
+    assert.equal(await workspace.getByRole('button',{name:`Open callout ${second.title}`,exact:true}).count(),0,'Do not invent a marker for an unlocalized finding');
     dialog=await open(second.title);
     await dialog.getByRole('button',{name:'Dismiss',exact:true}).click();
     await dialog.getByRole('status').filter({hasText:'Finding dismissed.'}).waitFor();
@@ -134,6 +140,7 @@ test('photo review displays private images and saves decisions and report notes'
     await dialog.getByRole('button',{name:'Close callout',exact:true}).click();
     await dialog.getByRole('button',{name:'Discard unsaved note',exact:true}).click();
     await dialog.waitFor({state:'hidden'});
+    assert.equal(await workspace.getByRole('button',{name:`Open callout ${unlinked.title}`,exact:true}).count(),0,'A finding without a photo must still open through the queue');
     dialog=await open(unlinked.title);
     await dialog.getByRole('heading',{name:'No linked photograph',exact:true}).waitFor();
     assert.equal(await dialog.getByRole('button',{name:'Confirm issue',exact:true}).isDisabled(),true);

@@ -1,6 +1,7 @@
 "use client";
 
 import { Activity, Crosshair, Factory, FolderKanban, Image, Layers3, Map, Radar, ScanSearch, BrainCircuit, type LucideIcon } from "lucide-react";
+import Link from "next/link";
 import { V } from "@/components/mapper/theme";
 
 type Item = { module: string; label: string; icon: LucideIcon };
@@ -39,6 +40,13 @@ export default function DominicNavigation({ activeModule, hasProject, collapsed,
       <NavigationButton item={{ module: "Projects", label: "Projects", icon: FolderKanban }} active={activeModule === "Projects"} collapsed={collapsed} onOpen={onOpen} />
       <div style={{ borderLeft: collapsed ? undefined : `1px solid ${V.line}`, marginLeft: collapsed ? 0 : 17 }}>
         {library.map((item) => <NavigationButton key={item.module} item={item} active={activeModule === item.module} nested collapsed={collapsed} onOpen={onOpen} />)}
+        {!demoMode && <Link href="/dominic/evaluation" target="_blank" rel="noopener noreferrer" prefetch={false}
+          aria-label="Accuracy Lab (opens in a new tab)" title="Accuracy Lab (opens in a new tab)" className="hover:bg-white/5"
+          style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "flex-start", gap: 9,
+            minHeight: 40, padding: collapsed ? "10px 0" : "9px 9px 9px 18px", borderRadius: 7,
+            color: V.inkDim, fontSize: 12, textDecoration: "none" }}>
+          <ScanSearch size={17} style={{ flexShrink: 0 }} />{collapsed ? null : "Accuracy Lab"}
+        </Link>}
       </div>
     </section>}
     {hasProject ? <section aria-label="Current project">
@@ -59,7 +67,7 @@ export default function DominicNavigation({ activeModule, hasProject, collapsed,
       <div style={{ color: V.inkFaint, fontSize: 10, padding: "0 9px 7px" }}>OPERATIONS</div>
       <NavigationButton item={{ module: "DOMINIC HUB", label: "DOMINIC HUB", icon: Factory }} active={activeModule === "DOMINIC HUB"} collapsed={false} onOpen={onOpen} />
     </section> : <details>
-      <summary title="Operations" style={{ color: V.inkFaint, fontSize: 11, padding: "7px 9px", cursor: "pointer" }}>{collapsed ? "…" : "Operations"}</summary>
+      <summary title="Operations" style={{ color: V.inkFaint, fontSize: 11, padding: "7px 9px", cursor: "pointer" }}>{collapsed ? "\u2026" : "Operations"}</summary>
       <NavigationButton item={{ module: "DOMINIC HUB", label: demoMode ? "Refinery simulator" : "DOMINIC HUB", icon: Factory }} active={activeModule === "DOMINIC HUB"} collapsed={collapsed} onOpen={onOpen} />
     </details>}
   </nav>;

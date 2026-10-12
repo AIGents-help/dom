@@ -68,6 +68,11 @@ jobs:
           done
           cat /tmp/dom-e2e.log
           exit 1
+      - name: Run browser accuracy lab
+        run: node --test e2e/vision-evaluation.test.mjs
+        env:
+          E2E_ISOLATED_SUPABASE: "true"
+          E2E_BASE_URL: http://127.0.0.1:3000
       - name: Run isolated mission lifecycle
         run: node --test e2e/authenticated-mission-flow.test.mjs
         env:
@@ -85,5 +90,6 @@ jobs:
           path: |
             /tmp/dom-maintenance-queue-*.png
             /tmp/dom-navigation-*.png
+            /tmp/dom-accuracy-lab-*.png
           if-no-files-found: ignore
           retention-days: 7

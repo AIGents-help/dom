@@ -210,17 +210,17 @@ export async function runBenchReadiness(adapter: DominicAircraftAdapter,
     try {
       // Each run has a new token. Late events from earlier or concurrent runs cannot satisfy it.
       const checkpointId = "bench-readiness-" + crypto.randomUUID();
-      let captureStartedAtMs: number | undefined;
+      const captureTiming: { startedAtMs?: number } = {};
       let resolveMedia!: (media: UniversalMediaCapture) => void;
       const mediaPromise = new Promise<UniversalMediaCapture>((resolve) => { resolveMedia = resolve; });
       unsubscribeMedia = adapter.subscribeMedia((capture) => {
-        if (captureStartedAtMs === undefined || capture.aircraftId !== state.aircraftId ||
+        if (captureTiming.startedAtMs === undefined || capture.aircraftId !== state.aircraftId ||
           capture.checkpointId !== checkpointId || !capture.id?.trim() ||
           !capture.mimeType?.startsWith("image/") || !Number.isFinite(capture.capturedAtMs) ||
-          capture.capturedAtMs < captureStartedAtMs || capture.capturedAtMs > Date.now()) return;
+          capture.capturedAtMs < captureTiming.startedAtMs || capture.capturedAtMs > Date.now()) return;
         resolveMedia(capture);
       });
-      captureStartedAtMs = Date.now();
+      captureTiming.startedAtMs = Date.now();
       const result = await withTimeout(adapter.send({ type: "capturePhoto", checkpointId }), commandTimeoutMs, "Capture command timed out.");
       const acknowledgement = commandCheck(result, "media_roundtrip", "Photo/media round-trip", "capturePhoto");
       if (acknowledgement.status !== "pass") {

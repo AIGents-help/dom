@@ -49,7 +49,7 @@ export default function DominicIntelligentInspection({ projectId, accessToken, i
       if (!active) return;
       const rows: ProjectInspection[] = body.inspections;
       setRecords({ projectId, rows });
-      setSelectedId((current) => rows.some((row) => row.id === initialInspectionId) ? initialInspectionId! : rows.some((row) => row.id === current) ? current : rows[0]?.id ?? "");
+      setSelectedId((current) => rows.some((row) => row.id === current) ? current : rows.some((row) => row.id === initialInspectionId) ? initialInspectionId! : rows[0]?.id ?? "");
       setLoading(false);
     })().catch((failure) => {
       if (active) { setListError(failure instanceof Error ? failure.message : "Your inspections could not be loaded."); setLoading(false); }
@@ -77,7 +77,7 @@ export default function DominicIntelligentInspection({ projectId, accessToken, i
   }, [selectedId, inspections, projectId, view, contextReload]);
 
   const selected = inspections.find((row) => row.id === selectedId);
-  const selectedContext = context?.projectId === projectId && context.inspection.id === selectedId ? context : null;
+  const selectedContext = !loading && !listError && !contextError && selected && context?.projectId === projectId && context.inspection.id === selectedId ? context : null;
   const displayStatus = inspectionDisplayStatus(selectedContext?.inspection.status ?? selected?.status ?? "");
   const matches = useMemo(() => visibleProjectInspections(inspections, query, filter), [inspections, query, filter]);
   const pageCount = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));

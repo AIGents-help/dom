@@ -1,0 +1,50 @@
+.workspace { min-width:0; border-radius:16px; padding:clamp(12px,2vw,24px); font-family:Inter,system-ui,sans-serif; line-height:1.6; overflow-wrap:anywhere; }
+.workspace * { box-sizing:border-box; }
+.workspace :is(button,input,select,textarea,summary) { font-family:inherit; }
+.workspace :is(button,input,select,textarea):focus-visible,.workspace [tabindex='-1']:focus-visible { outline:3px solid #a43809; outline-offset:3px; }
+.workspace button:disabled { opacity:.6; cursor:not-allowed; }
+.workspace button:not([data-waypoint]) { min-height:44px; }
+.workspace :is(input:not([type='checkbox']):not([type='file']),select,textarea) { min-height:44px; }
+.workspace input[type='number'] { min-width:0; }
+.workspace input[type='checkbox'] { width:18px; height:18px; accent-color:#b63d0f; }
+.workspace h1 { letter-spacing:-.035em; }
+.header { display:grid; grid-template-columns:minmax(0,1fr) minmax(280px,380px); gap:24px; padding:8px 0 24px; border-bottom:1px solid #d9dfe3; }
+.header p { margin:10px 0 0; color:#60707b; font-size:14px; max-width:580px; }
+.eyebrow { margin:0 0 8px; color:#60707b; font-size:12px; font-weight:650; }
+.saveRow { display:grid; grid-template-columns:minmax(0,1fr) auto auto; gap:8px; }
+.progress { list-style:none; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; padding:0; margin:22px 0 16px; }
+.progress button { width:100%; display:flex; align-items:flex-start; gap:10px; border:1px solid #d9dfe3; border-radius:10px; background:#f7f8f9; color:#25313a; padding:14px; text-align:left; }
+.progress button[aria-current='step'] { border-color:#b63d0f; background:#fff4ec; }
+.progress b { display:grid; place-items:center; width:28px; height:28px; flex-shrink:0; background:#e7ecef; border-radius:8px; font-size:12px; }
+.progress strong { display:block; font-size:13px; }
+.progress small { display:block; color:#60707b; font-size:12px; margin-top:3px; }
+.next { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; background:white; border:1px solid #d9dfe3; border-radius:12px; padding:18px; margin-bottom:20px; }
+.next h2 { margin:0; color:#25313a; font-size:18px; }
+.next p { margin:6px 0 0; color:#60707b; font-size:13px; max-width:760px; }
+.workspace .primary { background:#b63d0f; color:white; border:1px solid #b63d0f; border-radius:8px; padding:10px 14px; font-size:13px; font-weight:650; }
+.workspace .secondary { background:white; color:#25313a; border:1px solid #cbd3d9; border-radius:8px; padding:10px 14px; font-size:13px; font-weight:600; }
+.sourceChoices { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:16px; }
+.searchRow { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:10px; margin-top:10px; }
+.sectionHeading { margin:0; font-size:19px; font-weight:650; color:#25313a; }
+.help { color:#60707b; font-size:13px; margin:5px 0 10px; }
+.message { border:1px solid #d9dfe3; background:#f7f8f9; color:#43535f; padding:12px; border-radius:8px; font-size:13px; margin-top:10px; }
+.error { border-color:#d4a78a; background:#fff3e9; color:#89370c; }
+.routeSummary { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; padding:18px; align-items:center; border-top:1px solid #d9dfe3; }
+.reviewMetrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:12px; }
+.waypointEditor { padding:16px; border-top:1px solid #d9dfe3; background:#f7f8f9; }
+.waypointFields { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; }
+.waypointFields label { display:grid; gap:5px; color:#60707b; font-size:13px; }
+.waypointFields input { border:1px solid #cbd3d9; background:white; border-radius:8px; padding:10px; color:#25313a; width:100%; }
+.mapToolbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+@media(max-width:700px) {
+  .header { grid-template-columns:minmax(0,1fr); gap:18px; }
+  .progress { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .sourceChoices,.routeSummary { grid-template-columns:minmax(0,1fr); }
+  .reviewMetrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .searchRow { grid-template-columns:minmax(0,1fr); }
+  .workspace input:not([type='checkbox']),.workspace select,.workspace textarea { font-size:16px !important; }
+  .waypointFields { grid-template-columns:minmax(0,1fr); }
+  .mapToolbar { align-items:stretch; }
+  .mapToolbar>* { flex:1 1 160px; max-width:100%; }
+}
+@media(prefers-reduced-motion:reduce) { .workspace * { scroll-behavior:auto; } }

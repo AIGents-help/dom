@@ -1,6 +1,7 @@
 "use client";
 
-import { V as workspaceTheme } from "@/components/mapper/theme";
+import styles from "./CapturePlannerWorkspace.module.css";
+import { capturePlanSignature } from "@/lib/capturePlanPresentation";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -187,9 +188,9 @@ type RecentFlightRun = {
 };
 
 const V = {
-  bg: workspaceTheme.surface, panel: workspaceTheme.surface, panel2: workspaceTheme.raised,
-  line: workspaceTheme.line, text: workspaceTheme.ink, muted: workspaceTheme.inkDim,
-  orange: workspaceTheme.signal, orangeDark: "#D9480F", green: workspaceTheme.telemetry, amber: workspaceTheme.warn,
+  bg: "#eef0f2", panel: "#ffffff", panel2: "#f7f8f9",
+  line: "#d9dfe3", text: "#25313a", muted: "#60707b",
+  orange: "#b63d0f", orangeDark: "#943009", green: "#28654d", amber: "#89370c",
 };
 
 const safetyItems = [
@@ -251,8 +252,8 @@ function Field({
 }) {
   return (
     <label style={{ display: "grid", gap: 5 }}>
-      <span style={{ color: V.muted, fontSize: 10, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase" }}>{label}</span>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, border: `1px solid ${V.line}`, background: "#0D1319", borderRadius: 8, padding: "6px 8px" }}>
+      <span style={{ color: V.muted, fontSize: 12, fontWeight: 650, letterSpacing: ".06em", textTransform: "uppercase" }}>{label}</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, border: `1px solid ${V.line}`, background: "#f7f8f9", borderRadius: 8, padding: "6px 8px" }}>
         <input
           type="number"
           value={value}
@@ -262,7 +263,7 @@ function Field({
           onChange={(event) => onChange(Number(event.target.value))}
           style={{ width: "100%", border: 0, outline: 0, background: "transparent", color: V.text, fontSize: 13, fontWeight: 700 }}
         />
-        {suffix ? <span style={{ color: V.muted, fontSize: 10 }}>{suffix}</span> : null}
+        {suffix ? <span style={{ color: V.muted, fontSize: 12 }}>{suffix}</span> : null}
       </div>
     </label>
   );
@@ -305,6 +306,7 @@ export default function DominicCapturePlanner({
   const [projectOptions, setProjectOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [projectOptionsError, setProjectOptionsError] = useState<string | null>(null);
   const [savedInspectionLink, setSavedInspectionLink] = useState<Pick<PersistedCapturePlanState, "inspectionId" | "assetId" | "assetName" | "inspectionType">>({});
+  const [selectedSavedPlanId, setSelectedSavedPlanId] = useState<string>("");
   const [savedPlanLoaded, setSavedPlanLoaded] = useState(false);
   const [restoredInspection, setRestoredInspection] = useState<{ key: string; context: DominicInspectionPlanningContext | null; error: string | null } | null>(null);
   const savedInspectionKey = `${savedInspectionLink.inspectionId ?? ""}:${savedInspectionLink.assetId ?? ""}`;
@@ -349,6 +351,14 @@ export default function DominicCapturePlanner({
   const [missionType, setMissionType] = useState<CaptureMissionType>("roof");
   const [planningSource, setPlanningSource] = useState<"map" | "live" | "local">(initialPlanningSource ?? "map");
   const [showAdvancedPlanner, setShowAdvancedPlanner] = useState(false);
+  const workspaceRef = useRef<HTMLDivElement | null>(null);
+  const locationRef = useRef<HTMLDivElement | null>(null);
+  const areaRef = useRef<HTMLDivElement | null>(null);
+  const routeRef = useRef<HTMLDivElement | null>(null);
+  const saveRef = useRef<HTMLDivElement | null>(null);
+  const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(null);
+  const [planPersistenceError, setPlanPersistenceError] = useState(false);
+  const [mapSearchError, setMapSearchError] = useState<string | null>(null);
   const [plannerView, setPlannerView] = useState<"plan" | "review">("plan");
   const [reviewPreflightRan, setReviewPreflightRan] = useState(false);
   const [reviewFlightConfirmed, setReviewFlightConfirmed] = useState(false);
@@ -680,9 +690,11 @@ export default function DominicCapturePlanner({
   };
 
   const saveCapturePlan = async () => {
+    setPlanPersistenceError(false);
     const cleanName = planName.trim();
     if (!cleanName) {
-      setPlanPersistenceStatus("Give this capture plan a name before saving.");
+      setPlanPersistenceError(true);
+      setPlanPersistenceStatus("Give this capture plan a name before saving. Your edits are still here.");
       return;
     }
     setPlanPersistenceBusy(true);
@@ -751,6 +763,7 @@ export default function DominicCapturePlanner({
         if (inspectionError) throw inspectionError;
       }
 
+      setLastSavedSignature(capturePlanSignature(payload));
       await refreshSavedPlans();
       setPlanPersistenceStatus("Capture plan saved.");
       setReviewPreflightRan(false);
@@ -758,7 +771,9 @@ export default function DominicCapturePlanner({
       setShowAdvancedPlanner(false);
       setPlannerView("review");
     } catch (error) {
-      setPlanPersistenceStatus(error instanceof Error ? error.message : "Capture plan could not be saved.");
+      setPlanPersistenceError(true);
+      const detail = error instanceof Error ? error.message : "Check your connection and try again.";
+      setPlanPersistenceStatus(`The save could not be completed. ${detail} Your edits are still here; try Save again.`);
     } finally {
       setPlanPersistenceBusy(false);
     }
@@ -766,10 +781,13 @@ export default function DominicCapturePlanner({
 
   const openCapturePlan = useCallback((saved: SavedCapturePlan) => {
     if (saved.schema_version !== 1) {
+      setPlanPersistenceError(true);
       setPlanPersistenceStatus("This saved plan uses an unsupported planner version.");
       return;
     }
     const state = saved.plan_state;
+    setPlanPersistenceError(false);
+    setLastSavedSignature(capturePlanSignature({ name: saved.name, mission_type: saved.mission_type, schema_version: saved.schema_version, plan_state: state }));
     setSavedPlanLoaded(true);
     setLinkedProjectId(state.mappingProjectId ?? null);
     setSavedInspectionLink({ inspectionId: state.inspectionId, assetId: state.assetId, assetName: state.assetName, inspectionType: state.inspectionType });
@@ -822,6 +840,7 @@ export default function DominicCapturePlanner({
     setAutonomousSnapshot(null);
     setAutonomousRunning(false);
     setActiveSavedPlanId(saved.id);
+    setSelectedSavedPlanId(saved.id);
     setPlanName(saved.name);
     setPlanPersistenceStatus("Saved geometry loaded. Review the plan before flight.");
     setReviewPreflightRan(false);
@@ -841,7 +860,8 @@ export default function DominicCapturePlanner({
         .limit(50);
       if (!active) return;
       if (error) {
-        setPlanPersistenceStatus("Saved plans could not be loaded.");
+        setPlanPersistenceError(true);
+        setPlanPersistenceStatus("Saved plans could not be loaded. Use Reload saved plans to try again.");
         return;
       }
       const plans = (data ?? []) as SavedCapturePlan[];
@@ -852,6 +872,7 @@ export default function DominicCapturePlanner({
           const result = await sb.from("dominic_capture_plans").select("id,name,mission_type,schema_version,plan_state,updated_at").eq("id", initialSavedPlanId).maybeSingle();
           if (!active) return;
           if (result.error || !result.data) {
+            setPlanPersistenceError(true);
             setPlanPersistenceStatus("This saved plan is no longer available.");
             return;
           }
@@ -3211,25 +3232,32 @@ export default function DominicCapturePlanner({
     Boolean(flightValidationStatus?.productionUnlocked);
 
   const searchMapLocation = async () => {
+    setMapSearchError(null);
     const query = mapSearch.trim();
     if (query.length < 3) {
-      setMapAreaMessage("Enter a street address, city, business, or place name.");
+      setMapSearchError("Enter at least 3 characters: a street address, city, business or place.");
       return;
     }
     setMapSearchBusy(true);
     setMapSearchResults([]);
     setMapAreaMessage("Searching for that location…");
+    const deadline = abortableRequest(new AbortController().signal, 15_000);
     try {
-      const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
+      const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`, { signal: deadline.signal });
       const payload = (await response.json()) as {
         results?: Array<{ latitude: number; longitude: number; label: string }>;
         error?: string;
       };
       if (!response.ok) throw new Error(payload.error || "Location search failed.");
-      const results = payload.results ?? [];
+      if (!Array.isArray(payload.results) || payload.results.some((result) => !result ||
+        !Number.isFinite(result.latitude) || Math.abs(result.latitude) > 90 ||
+        !Number.isFinite(result.longitude) || Math.abs(result.longitude) > 180 || typeof result.label !== "string")) {
+        throw new Error("The location response was incomplete. Try searching again.");
+      }
+      const results = payload.results;
       setMapSearchResults(results);
       if (!results.length) {
-        setMapAreaMessage("No matching location found. Try a more complete street address.");
+        setMapSearchError("No matching location found. Add the street number, city and state, then try again.");
         return;
       }
       if (results.length === 1) {
@@ -3253,8 +3281,11 @@ export default function DominicCapturePlanner({
         setMapAreaMessage("Choose the correct location from the search results.");
       }
     } catch (error) {
-      setMapAreaMessage(error instanceof Error ? error.message : "Location search failed.");
+      setMapSearchError(deadline.signal.aborted
+        ? "Location search took too long. Check your connection and try Find location again."
+        : `Location search could not finish. ${error instanceof Error ? error.message : "Check your connection."} Try Find location again.`);
     } finally {
+      deadline.dispose();
       setMapSearchBusy(false);
     }
   };
@@ -3282,6 +3313,7 @@ export default function DominicCapturePlanner({
   const choosePlanningSource = (source: "map" | "live" | "local") => {
     setPlanningSource(source);
     setMapAreaPoints([]);
+    setMapAreaDefined(false);
     setMapDrawing(false);
     setWaypointOverrides({});
     setSelectedWaypointId(null);
@@ -3469,35 +3501,65 @@ export default function DominicCapturePlanner({
       })
     : null;
 
+  const currentSignature = capturePlanSignature({ name: planName.trim().slice(0, 120), mission_type: missionType, schema_version: 1, plan_state: persistedPlanState() });
+  const currentPlanSaved = Boolean(activeSavedPlanId && lastSavedSignature === currentSignature);
+  const mapPlan = planningSource === "map";
+  const progressStep = plannerView === "review" ? 3 : mapPlan ? (!mapLocationLabel ? 0 : !mapAreaDefined || mapDrawing ? 1 : 2) : 1;
+  const jumpTo = (step: number) => {
+    if (step < 3) setPlannerView("plan");
+    requestAnimationFrame(() => {
+      const target = [locationRef, areaRef, routeRef, saveRef][step].current ?? areaRef.current ?? locationRef.current;
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: "start", behavior: "auto" });
+    });
+  };
+  const selectedWaypoint = activeSimpleCheckpoints.find((point) => point.id === selectedWaypointId);
+  const adjustWaypoint = (id: string, latitude: number, longitude: number) => {
+    setWaypointOverrides((current) => ({ ...current, [id]: { latitude, longitude } }));
+    setSelectedWaypointId(id);
+    setSecondaryFlightApprovalSignature(null);
+    setReviewPreflightRan(false);
+    setReviewFlightConfirmed(false);
+    setMapAreaMessage("Waypoint adjusted. Review the route and save the updated plan.");
+  };
+
   return (
-    <div style={{ minHeight: 650, background: V.bg, color: V.text }}>
-      <div style={{ padding: "18px 18px 12px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 20, flexWrap: "wrap" }}>
+    <div ref={workspaceRef} role="region" aria-label="Capture planning workspace" className={styles.workspace} style={{ minHeight: 650, background: V.bg, color: V.text }}>
+      <div className={styles.header}>
         <div>
-          <h1 style={{ margin: "0 0 5px", fontSize: 24, fontWeight: 700 }}>Capture plans</h1>
+          <div className={styles.eyebrow}>DOMINIC / Capture planning</div>
+          <h1 style={{ margin: "0 0 5px", fontSize: 32, fontWeight: 700 }}>Capture plans</h1>
           <p style={{ margin: 0, color: V.muted, maxWidth: 620, fontSize: 13, lineHeight: 1.55 }}>
-            Choose a capture type, set the area or object, and review the route before flying.
+            Find the site, outline what you want to inspect, and adjust the route. Save it for a careful review before flight.
           </p>
         </div>
-        <div style={{ minWidth: 0, width: 320, maxWidth: "100%" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto auto", gap: 6, marginTop: 10 }}>
+        <div ref={saveRef} tabIndex={-1}>
+          <label htmlFor="capture-plan-name" className={styles.help}>Plan name</label>
+          <div className={styles.saveRow}>
             <input
+              id="capture-plan-name"
+              maxLength={120}
               aria-label="Capture plan name"
               value={planName}
               onChange={(event) => setPlanName(event.target.value)}
-              style={{ minWidth: 0, border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9 }}
+              style={{ minWidth: 0, border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 12 }}
             />
             <button
               type="button"
               onClick={() => void saveCapturePlan()}
               disabled={planPersistenceBusy}
-              style={{ border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.10)", color: "#FFD3C0", borderRadius: 7, padding: "7px 8px", fontSize: 9, fontWeight: 900, cursor: planPersistenceBusy ? "wait" : "pointer", display: "inline-flex", gap: 5, alignItems: "center" }}
+              style={{ border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.10)", color: "#9c3713", borderRadius: 7, padding: "7px 8px", fontSize: 12, fontWeight: 650, cursor: planPersistenceBusy ? "wait" : "pointer", display: "inline-flex", gap: 5, alignItems: "center" }}
             >
-              <Save size={11} /> {activeSavedPlanId ? "Update" : "Save"}
+              <Save size={16} aria-hidden="true" /> {planPersistenceBusy ? "Saving…" : activeSavedPlanId ? "Update" : "Save"}
             </button>
             <button
               type="button"
+              disabled={planPersistenceBusy}
               onClick={() => {
                 setActiveSavedPlanId(null);
+                setSelectedSavedPlanId("");
+                setLastSavedSignature(null);
+                setPlanPersistenceError(false);
                 setLinkedProjectId(projectId);
                 setSavedInspectionLink({});
                 setPlanName("Untitled Capture Plan");
@@ -3512,28 +3574,28 @@ export default function DominicCapturePlanner({
                 setDjiMissionValidation({ status: "idle", errors: [] });
                 setPlannerView("plan");
               }}
-              style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9, fontWeight: 800, cursor: "pointer" }}
+              style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
             >
               New
             </button>
           </div>
-          <label style={{ display: "grid", gap: 5, marginTop: 9, color: V.muted, fontSize: 11 }}>
+          <label style={{ display: "grid", gap: 5, marginTop: 9, color: V.muted, fontSize: 12 }}>
             Project
             <select aria-label="Capture plan project" value={linkedProjectId ?? ""} onChange={(event) => setLinkedProjectId(event.target.value || null)}
-              style={{ minWidth: 0, width: "100%", border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 11 }}>
+              style={{ minWidth: 0, width: "100%", border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 12 }}>
               <option value="">Standalone plan</option>
               {linkedProjectId && !projectOptions.some((project) => project.id === linkedProjectId) ? <option value={linkedProjectId}>Linked project · loading or unavailable</option> : null}
               {projectOptions.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
             </select>
           </label>
-          {projectOptionsError ? <p role="alert" style={{ color: V.amber, fontSize: 11 }}>{projectOptionsError}</p> : null}
+          {projectOptionsError ? <p role="alert" style={{ color: V.amber, fontSize: 12 }}>{projectOptionsError}</p> : null}
           {savedPlans.length ? (
             <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 6, marginTop: 6 }}>
               <select
                 aria-label="Saved capture plans"
-                value={activeSavedPlanId ?? ""}
-                onChange={(event) => setActiveSavedPlanId(event.target.value || null)}
-                style={{ minWidth: 0, border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9 }}
+                value={selectedSavedPlanId}
+                onChange={(event) => setSelectedSavedPlanId(event.target.value)}
+                style={{ minWidth: 0, border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 12 }}
               >
                 <option value="">Saved plans…</option>
                 {savedPlans.map((saved) => (
@@ -3544,39 +3606,78 @@ export default function DominicCapturePlanner({
               </select>
               <button
                 type="button"
-                disabled={!activeSavedPlanId}
+                disabled={!selectedSavedPlanId || planPersistenceBusy}
                 onClick={() => {
-                  const saved = savedPlans.find((item) => item.id === activeSavedPlanId);
+                  const saved = savedPlans.find((item) => item.id === selectedSavedPlanId);
                   if (saved) openCapturePlan(saved);
                 }}
-                style={{ border: `1px solid ${V.line}`, background: V.panel2, color: activeSavedPlanId ? V.green : V.muted, borderRadius: 7, padding: "7px 8px", fontSize: 9, fontWeight: 900, cursor: activeSavedPlanId ? "pointer" : "not-allowed", display: "inline-flex", gap: 5, alignItems: "center" }}
+                style={{ border: `1px solid ${V.line}`, background: V.panel2, color: activeSavedPlanId ? V.green : V.muted, borderRadius: 7, padding: "7px 8px", fontSize: 12, fontWeight: 650, cursor: activeSavedPlanId ? "pointer" : "not-allowed", display: "inline-flex", gap: 5, alignItems: "center" }}
               >
                 <FolderOpen size={11} /> Open
               </button>
             </div>
           ) : null}
-          {planPersistenceStatus ? <div style={{ color: V.muted, fontSize: 8, marginTop: 6, lineHeight: 1.35 }}>{planPersistenceStatus}</div> : null}
+          <p className={styles.help} role="status">{planPersistenceBusy ? "Saving your plan…" : currentPlanSaved ? "All planning changes saved" : activeSavedPlanId ? "Changes need saving" : "Unsaved draft"}</p>
+          {planPersistenceStatus ? <div role={planPersistenceError ? "alert" : "status"} className={`${styles.message} ${planPersistenceError ? styles.error : ""}`}>{planPersistenceStatus}</div> : null}
+          <button type="button" className={styles.secondary} disabled={planPersistenceBusy} onClick={() => {
+            setPlanPersistenceBusy(true);
+            void refreshSavedPlans().then(() => { setPlanPersistenceError(false); setPlanPersistenceStatus("Saved plans reloaded."); })
+              .catch(() => { setPlanPersistenceError(true); setPlanPersistenceStatus("Saved plans could not be loaded. Check your connection and try Reload saved plans again."); })
+              .finally(() => setPlanPersistenceBusy(false));
+          }}>Reload saved plans</button>
           {!providedContextForPlan && restoredInspection?.key === savedInspectionKey && restoredInspection.error ? <p role="alert" style={{ color: V.amber, fontSize: 12 }}>{restoredInspection.error}</p> : null}
         </div>
       </div>
+
+      <nav aria-label="Capture planning steps">
+        <ol className={styles.progress}>
+          {(mapPlan ? [
+            ["Find a location", mapLocationLabel ? "Location selected" : "Address or aircraft position"],
+            ["Define the area", mapDrawing ? `${mapAreaPoints.length} corners placed` : mapAreaDefined ? "Boundary defined" : "Outline the subject"],
+            ["Review the route", mapAreaDefined && !mapDrawing ? `${activeSimplePlan.checkpointCount} capture points` : "Generated after the area"],
+            ["Save & next steps", currentPlanSaved ? "Changes saved" : "Save, then check flight readiness"],
+          ] : [
+            ["Choose a source", planningSource === "local" ? "Local object" : "Live aircraft camera"],
+            ["Set up the subject", planningSource === "local" ? "Size, stand-off and overlap" : "Connect your aircraft"],
+            ["Review the route", "Review geometry and safety"],
+            ["Save & next steps", currentPlanSaved ? "Changes saved" : "Save, then check flight readiness"],
+          ]).map(([label, detail], index) => <li key={label}>
+            <button type="button" aria-current={progressStep === index ? "step" : undefined} onClick={() => jumpTo(index)}>
+              <b aria-hidden="true">{index + 1}</b><span><strong>{label}</strong><small>{detail}</small></span>
+            </button>
+          </li>)}
+        </ol>
+      </nav>
+      <section className={styles.next} aria-label="Next planning step">
+        <div>
+          <h2>{plannerView === "review" ? "Review your plan before flight." : mapPlan ? !mapLocationLabel ? "Start with the inspection location" : mapDrawing ? "Place each corner of the inspection area" : !mapAreaDefined ? "Outline the area you want to inspect" : "Check the route, then save your plan" : planningSource === "local" ? "Plan around your object" : "Plan from the aircraft camera"}</h2>
+          <p>{plannerView === "review" ? "Export the mission or connect the aircraft and run preflight. Saving never unlocks flight controls." : mapPlan ? !mapLocationLabel ? "Search by address or place. If an aircraft is connected, you can use its position instead." : mapDrawing ? "Tap or click at least three corners, then finish the area. Pan the map by dragging. Undo removes the last corner." : !mapAreaDefined ? "Check the satellite location, choose a capture type and mark the boundary. DOMINIC will calculate the flight path." : "Select or drag a waypoint to adjust it. Check altitude, overlap and obstacles before saving. The generated route is a draft, not a flight clearance." : planningSource === "local" ? "Enter the object dimensions and stand-off. A map is not required. Review the generated rings before saving." : "Connect the controller to review its camera view. Camera capture and autonomous flight have separate readiness checks."}</p>
+        </div>
+        <button type="button" className={styles.secondary} aria-expanded={showAdvancedPlanner} aria-controls="capture-advanced-settings" onClick={() => setShowAdvancedPlanner((value) => !value)}>{showAdvancedPlanner ? "Hide aircraft & advanced settings" : "Aircraft & advanced settings"}</button>
+        {plannerView === "plan" && <button type="button" className={styles.primary} disabled={false} onClick={() => {
+          if (mapPlan && mapLocationLabel && !mapAreaDefined && !mapDrawing) jumpTo(1);
+          else if (mapDrawing) jumpTo(1);
+          else jumpTo(mapPlan && !mapLocationLabel ? 0 : mapPlan && mapAreaDefined ? 2 : 1);
+        }}>{mapPlan ? !mapLocationLabel ? "Go to location search" : mapDrawing ? "Go to area controls" : !mapAreaDefined ? "Go to area controls" : "Review flight path" : "Go to subject setup"}</button>}
+      </section>
 
       {inspectionContext ? (
         <section style={{ margin: "14px 14px 0", border: `1px solid ${inspectionEquipmentReady ? "rgba(112,214,160,.38)" : "rgba(255,184,107,.42)"}`, borderRadius: 12, background: inspectionEquipmentReady ? "rgba(112,214,160,.06)" : "rgba(255,184,107,.06)", padding: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
             <div>
-              <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".09em", textTransform: "uppercase" }}>Asset inspection</div>
-              <div style={{ color: V.text, fontSize: 17, fontWeight: 900, marginTop: 3 }}>
+              <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".09em", textTransform: "uppercase" }}>Asset inspection</div>
+              <div style={{ color: V.text, fontSize: 17, fontWeight: 650, marginTop: 3 }}>
                 {inspectionContext.assetName} · {inspectionContext.inspectionType.replaceAll("_", " ")}
               </div>
-              <div style={{ color: V.muted, fontSize: 9, lineHeight: 1.45, marginTop: 4 }}>
+              <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.45, marginTop: 4 }}>
                 {inspectionContext.objective ?? "No inspection objective recorded."}
               </div>
             </div>
             <div style={{ minWidth: 230, textAlign: "right" }}>
-              <div style={{ color: inspectionEquipmentReady ? V.green : V.amber, fontSize: 9, fontWeight: 900, textTransform: "uppercase" }}>
+              <div style={{ color: inspectionEquipmentReady ? V.green : V.amber, fontSize: 12, fontWeight: 650, textTransform: "uppercase" }}>
                 {inspectionEquipmentReady ? "Equipment compatible" : "Equipment not execution-ready"}
               </div>
-              <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>
+              <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.45, marginTop: 4 }}>
                 {inspectionContext.equipment
                   ? `${[inspectionContext.equipment.manufacturer, inspectionContext.equipment.model, inspectionContext.equipment.displayName].filter(Boolean).join(" · ") || "Assigned aircraft"}${inspectionEquipmentReady ? "" : ` · missing ${inspectionContext.equipment.missingRequired.join(", ")}`}`
                   : "No aircraft assigned to this inspection."}
@@ -3588,16 +3689,16 @@ export default function DominicCapturePlanner({
               marginTop: 10,
               border: `1px solid ${inspectionWatchEnabled ? "rgba(112,214,160,.38)" : V.line}`,
               borderRadius: 9,
-              background: inspectionWatchEnabled ? "rgba(112,214,160,.055)" : "#0D1319",
+              background: inspectionWatchEnabled ? "rgba(112,214,160,.055)" : "#f7f8f9",
               padding: 10,
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
               <div>
-                <div style={{ color: inspectionWatchEnabled ? V.green : V.text, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em" }}>
+                <div style={{ color: inspectionWatchEnabled ? V.green : V.text, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em" }}>
                   Inspection Watch
                 </div>
-                <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 3, maxWidth: 720 }}>
+                <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.45, marginTop: 3, maxWidth: 720 }}>
                   While you fly manually, DOMINIC can periodically capture full-resolution still evidence, save it to this asset inspection, screen it, and surface candidate anomalies. This is sampled live inspection, not continuous video-frame inference.
                 </div>
               </div>
@@ -3607,7 +3708,7 @@ export default function DominicCapturePlanner({
                   value={inspectionWatchIntervalSec}
                   disabled={inspectionWatchEnabled}
                   onChange={(event) => setInspectionWatchIntervalSec(normalizeInspectionWatchInterval(Number(event.target.value)))}
-                  style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8 }}
+                  style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 12 }}
                 >
                   <option value={10}>Every 10 sec</option>
                   <option value={15}>Every 15 sec</option>
@@ -3646,8 +3747,8 @@ export default function DominicCapturePlanner({
                     color: inspectionWatchEnabled ? V.amber : V.green,
                     borderRadius: 7,
                     padding: "7px 10px",
-                    fontSize: 8,
-                    fontWeight: 900,
+                    fontSize: 12,
+                    fontWeight: 650,
                     cursor: "pointer",
                   }}
                 >
@@ -3655,7 +3756,7 @@ export default function DominicCapturePlanner({
                 </button>
               </div>
             </div>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 7, color: V.muted, fontSize: 8 }}>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 7, color: V.muted, fontSize: 12 }}>
               <span>{inspectionWatchEnabled ? "ACTIVE" : "STOPPED"}</span>
               <span>Samples requested: {inspectionWatchCaptureCount}</span>
               <span>{inspectionWatchReasonLabel(watchReadiness.reason)}</span>
@@ -3672,13 +3773,13 @@ export default function DominicCapturePlanner({
                 padding: 10,
               }}
             >
-              <div style={{ color: V.green, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em" }}>
+              <div style={{ color: V.green, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em" }}>
                 Repeat baseline capture
               </div>
-              <div style={{ color: V.text, fontSize: 11, fontWeight: 900, marginTop: 3 }}>
+              <div style={{ color: V.text, fontSize: 12, fontWeight: 650, marginTop: 3 }}>
                 Reproduce the prior evidence camera setup
               </div>
-              <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.5, marginTop: 5 }}>
+              <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.5, marginTop: 5 }}>
                 DOMINIC restores supported camera settings automatically. Altitude, heading, and gimbal remain pilot-guided reference targets.
               </div>
               {repeatabilityAlignment ? (
@@ -3694,14 +3795,14 @@ export default function DominicCapturePlanner({
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    <div style={{ color: repeatabilityAlignment.ready ? V.green : V.amber, fontSize: 9, fontWeight: 900 }}>
+                    <div style={{ color: repeatabilityAlignment.ready ? V.green : V.amber, fontSize: 12, fontWeight: 650 }}>
                       Live viewpoint match · {repeatabilityAlignment.score}%
                     </div>
-                    <div style={{ color: V.muted, fontSize: 8 }}>
+                    <div style={{ color: V.muted, fontSize: 12 }}>
                       {repeatabilityAlignment.ready ? "Within repeat-capture tolerance" : "Pilot alignment needed"}
                     </div>
                   </div>
-                  <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginTop: 5, color: V.muted, fontSize: 8 }}>
+                  <div style={{ display: "flex", gap: 9, flexWrap: "wrap", marginTop: 5, color: V.muted, fontSize: 12 }}>
                     {repeatabilityAlignment.altitudeDeltaFt !== null ? (
                       <span>Δ altitude {repeatabilityAlignment.altitudeDeltaFt.toFixed(1)} ft</span>
                     ) : null}
@@ -3715,7 +3816,7 @@ export default function DominicCapturePlanner({
                   {repeatabilityAlignment.guidance.length ? (
                     <div style={{ display: "grid", gap: 2, marginTop: 5 }}>
                       {repeatabilityAlignment.guidance.map((line, index) => (
-                        <div key={index} style={{ color: V.muted, fontSize: 8, lineHeight: 1.4 }}>
+                        <div key={index} style={{ color: V.muted, fontSize: 12, lineHeight: 1.4 }}>
                           {line}
                         </div>
                       ))}
@@ -3725,37 +3826,37 @@ export default function DominicCapturePlanner({
               ) : null}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 7 }}>
                 {inspectionContext.repeatCapturePreset.cameraSource ? (
-                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 12 }}>
                     Lens · {inspectionContext.repeatCapturePreset.cameraSource}
                   </span>
                 ) : null}
                 {typeof inspectionContext.repeatCapturePreset.zoomRatio === "number" ? (
-                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 12 }}>
                     Zoom · {inspectionContext.repeatCapturePreset.zoomRatio.toFixed(1)}x
                   </span>
                 ) : null}
                 {typeof inspectionContext.repeatCapturePreset.relativeAltitudeFt === "number" ? (
-                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 12 }}>
                     Altitude ref · {inspectionContext.repeatCapturePreset.relativeAltitudeFt.toFixed(1)} ft
                   </span>
                 ) : null}
                 {typeof inspectionContext.repeatCapturePreset.headingDeg === "number" ? (
-                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 12 }}>
                     Heading ref · {inspectionContext.repeatCapturePreset.headingDeg.toFixed(1)}°
                   </span>
                 ) : null}
                 {typeof inspectionContext.repeatCapturePreset.gimbalPitchDeg === "number" ? (
-                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 12 }}>
                     Gimbal ref · {inspectionContext.repeatCapturePreset.gimbalPitchDeg.toFixed(1)}°
                   </span>
                 ) : null}
                 {inspectionContext.repeatCapturePreset.focusTarget ? (
-                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 12 }}>
                     Focus · {(inspectionContext.repeatCapturePreset.focusTarget.x * 100).toFixed(0)}%, {(inspectionContext.repeatCapturePreset.focusTarget.y * 100).toFixed(0)}%
                   </span>
                 ) : null}
                 {typeof inspectionContext.repeatCapturePreset.aeLocked === "boolean" ? (
-                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 8 }}>
+                  <span style={{ border: `1px solid ${V.line}`, borderRadius: 999, padding: "4px 7px", color: V.text, fontSize: 12 }}>
                     AE · {inspectionContext.repeatCapturePreset.aeLocked ? "locked" : "unlocked"}
                   </span>
                 ) : null}
@@ -3772,27 +3873,27 @@ export default function DominicCapturePlanner({
                 padding: 10,
               }}
             >
-              <div style={{ color: "#FFD3C0", fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".06em" }}>
+              <div style={{ color: "#9c3713", fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".06em" }}>
                 Follow-up capture task
               </div>
-              <div style={{ color: V.text, fontSize: 12, fontWeight: 900, marginTop: 3 }}>
+              <div style={{ color: V.text, fontSize: 12, fontWeight: 650, marginTop: 3 }}>
                 {inspectionContext.followUpCapture.findingTitle}
               </div>
-              <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>
+              <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.45, marginTop: 4 }}>
                 Target framing: about {inspectionContext.followUpCapture.estimatedOpticalZoomMultiplier.toFixed(1)}x tighter than the source evidence.
                 {inspectionContext.targetLocation
                   ? ` Target: ${inspectionContext.targetLocation.latitude.toFixed(6)}, ${inspectionContext.targetLocation.longitude.toFixed(6)}.`
                   : " Re-center the marked image region before capture."}
               </div>
               {inspectionContext.followUpCapture.reasons.length ? (
-                <div style={{ color: V.amber, fontSize: 8, lineHeight: 1.45, marginTop: 5 }}>
+                <div style={{ color: V.amber, fontSize: 12, lineHeight: 1.45, marginTop: 5 }}>
                   {inspectionContext.followUpCapture.reasons.join(" ")}
                 </div>
               ) : null}
               {inspectionContext.followUpCapture.guidance.length ? (
                 <div style={{ display: "grid", gap: 3, marginTop: 6 }}>
                   {inspectionContext.followUpCapture.guidance.map((line, index) => (
-                    <div key={index} style={{ color: V.muted, fontSize: 8, lineHeight: 1.4 }}>
+                    <div key={index} style={{ color: V.muted, fontSize: 12, lineHeight: 1.4 }}>
                       {index + 1}. {line}
                     </div>
                   ))}
@@ -3806,20 +3907,20 @@ export default function DominicCapturePlanner({
       <section style={{ margin: "14px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 12, display: plannerView === "plan" ? "block" : "none" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <div>
-            <div style={{ color: V.text, fontSize: 18, fontWeight: 900 }}>Create a capture plan</div>
-            <div style={{ color: V.muted, fontSize: 9, marginTop: 3 }}>
-              Choose how you want to plan the mission. DOMINIC handles the route calculations.
+            <div style={{ color: V.text, fontSize: 18, fontWeight: 650 }}>Create a capture plan</div>
+            <div style={{ color: V.muted, fontSize: 12, marginTop: 3 }}>
+              Choose a source. DOMINIC handles the route calculations. Changing sources clears the current area and waypoint edits; save first if you need to keep them.
             </div>
           </div>
           <button
             type="button"
             onClick={() => setShowAdvancedPlanner((value) => !value)}
-            style={{ border: `1px solid ${V.line}`, background: showAdvancedPlanner ? "rgba(244,90,30,.12)" : "#0D1319", color: showAdvancedPlanner ? "#FFD3C0" : V.muted, borderRadius: 8, padding: "7px 10px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+            style={{ border: `1px solid ${V.line}`, background: showAdvancedPlanner ? "rgba(244,90,30,.12)" : "#f7f8f9", color: showAdvancedPlanner ? "#9c3713" : V.muted, borderRadius: 8, padding: "7px 10px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
           >
             {showAdvancedPlanner ? "Hide Advanced Settings" : "Advanced Settings"}
           </button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 7, marginTop: 10 }}>
+        <div ref={locationRef} tabIndex={-1} className={styles.sourceChoices}>
           {([
             ["map", "Map / Satellite", "Find a property and draw the area."],
             ["live", "Live Drone", "Plan from what the drone sees now."],
@@ -3828,18 +3929,19 @@ export default function DominicCapturePlanner({
             <button
               key={value}
               type="button"
+              aria-pressed={planningSource === value}
               onClick={() => choosePlanningSource(value)}
-              style={{ border: planningSource === value ? `1px solid ${V.orange}` : `1px solid ${V.line}`, background: planningSource === value ? "rgba(244,90,30,.12)" : "#0D1319", color: V.text, borderRadius: 9, padding: "9px 10px", textAlign: "left", cursor: "pointer" }}
+              style={{ border: planningSource === value ? `1px solid ${V.orange}` : `1px solid ${V.line}`, background: planningSource === value ? "rgba(244,90,30,.12)" : "#f7f8f9", color: V.text, borderRadius: 9, padding: "9px 10px", textAlign: "left", cursor: "pointer" }}
             >
-              <div style={{ fontSize: 10, fontWeight: 900 }}>{label}</div>
-              <div style={{ color: V.muted, fontSize: 8, marginTop: 3, lineHeight: 1.35 }}>{description}</div>
+              <div style={{ fontSize: 12, fontWeight: 650 }}>{label}</div>
+              <div style={{ color: V.muted, fontSize: 12, marginTop: 3, lineHeight: 1.35 }}>{description}</div>
             </button>
           ))}
         </div>
       </section>
 
       {inspectionContext ? <details ref={inspectionEvidenceRef} open={showInspectionEvidence} onToggle={(event) => setShowInspectionEvidence(event.currentTarget.open)} style={{ margin: "10px 14px", color: V.text }}>
-        <summary style={{ cursor: "pointer", padding: "10px 0", fontSize: 13, fontWeight: 800 }}>Inspection images, callouts & report</summary>
+        <summary style={{ cursor: "pointer", padding: "10px 0", fontSize: 13, fontWeight: 650 }}>Inspection images, callouts & report</summary>
         {showInspectionEvidence ? <DominicInspectionEvidenceReview key={inspectionContext.inspectionId}
           inspection={{ id: inspectionContext.inspectionId, asset_id: inspectionContext.assetId, inspection_type: inspectionContext.inspectionType, objective: inspectionContext.objective, status: "capturing", sensor_modes: inspectionContext.sensorModes }}
           asset={{ id: inspectionContext.assetId, name: inspectionContext.assetName, asset_type: inspectionContext.assetType }} watchIncoming /> : null}
@@ -3849,24 +3951,24 @@ export default function DominicCapturePlanner({
         <section aria-label="Live inspection findings" style={{ margin: "10px 14px 0", border: `1px solid rgba(255,184,107,.38)`, borderRadius: 12, background: "rgba(255,184,107,.055)", overflow: "hidden" }}>
           <div style={{ padding: "10px 12px", borderBottom: `1px solid rgba(255,184,107,.22)`, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <div>
-              <div style={{ color: V.amber, fontSize: 9, fontWeight: 900, letterSpacing: ".09em", textTransform: "uppercase" }}>
+              <div style={{ color: V.amber, fontSize: 12, fontWeight: 650, letterSpacing: ".09em", textTransform: "uppercase" }}>
                 Live Inspection Intelligence
               </div>
-              <div style={{ color: V.text, fontSize: 13, fontWeight: 900, marginTop: 3 }}>
+              <div style={{ color: V.text, fontSize: 13, fontWeight: 650, marginTop: 3 }}>
                 Saved findings for this inspection
               </div>
-              <div style={{ color: V.muted, fontSize: 8, marginTop: 3 }}>
+              <div style={{ color: V.muted, fontSize: 12, marginTop: 3 }}>
                 {inspectionContext.assetName} · candidates are visual screening only until you confirm them.
               </div>
             </div>
-            <div style={{ color: V.amber, fontSize: 9, fontWeight: 900 }}>
+            <div style={{ color: V.amber, fontSize: 12, fontWeight: 650 }}>
               {liveFeed.total === null ? "REVIEW COUNT UNAVAILABLE" : `${liveFeed.total} NEED REVIEW`}
             </div>
-            <button type="button" disabled={liveFeed.refreshing} onClick={() => void liveFeed.refresh()} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, padding: "8px 10px", borderRadius: 7, fontSize: 10 }}>Refresh findings</button>
+            <button type="button" disabled={liveFeed.refreshing} onClick={() => void liveFeed.refresh()} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, padding: "8px 10px", borderRadius: 7, fontSize: 12 }}>Refresh findings</button>
             <button type="button" onClick={() => {
               setShowInspectionEvidence(true);
               requestAnimationFrame(() => inspectionEvidenceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-            }} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, padding: "8px 10px", borderRadius: 7, fontSize: 10 }}>Review all saved findings</button>
+            }} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, padding: "8px 10px", borderRadius: 7, fontSize: 12 }}>Review all saved findings</button>
           </div>
           <div style={{ display: "grid", gap: 7, padding: 10 }}>
             {liveFeed.error ? <p role="alert" style={{ color: V.amber, fontSize: 12 }}>{liveFeed.error}</p>
@@ -3879,22 +3981,22 @@ export default function DominicCapturePlanner({
                 <article key={finding.id} aria-label={finding.title} style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: V.panel, padding: 9 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start" }}>
                     <div>
-                      <div style={{ color: V.text, fontSize: 10, fontWeight: 900 }}>{finding.title}</div>
+                      <div style={{ color: V.text, fontSize: 12, fontWeight: 650 }}>{finding.title}</div>
                       {finding.description ? (
-                        <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 3 }}>{finding.description}</div>
+                        <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.45, marginTop: 3 }}>{finding.description}</div>
                       ) : null}
-                      <div style={{ color: V.muted, fontSize: 7, marginTop: 5 }}>
+                      <div style={{ color: V.muted, fontSize: 12, marginTop: 5 }}>
                         {finding.finding_type.replaceAll("_", " ")}
                         {finding.sensor_mode ? ` · ${finding.sensor_mode.toUpperCase()}` : ""}
                         {finding.confidence !== null ? ` · ${Math.round(finding.confidence * 100)}% model confidence` : ""}
                       </div>
                     </div>
-                    <span style={{ color: finding.severity === "high" || finding.severity === "critical" ? "#FF9A86" : finding.severity === "medium" ? V.amber : V.green, fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>
+                    <span style={{ color: finding.severity === "high" || finding.severity === "critical" ? "#982d21" : finding.severity === "medium" ? V.amber : V.green, fontSize: 12, fontWeight: 650, textTransform: "uppercase" }}>
                       {finding.severity}
                     </span>
                   </div>
                   {followUpFindingId === finding.id ? (
-                    <div style={{ marginTop: 7, border: `1px solid rgba(244,90,30,.28)`, borderRadius: 7, background: "rgba(244,90,30,.07)", color: "#FFD3C0", padding: "7px 8px", fontSize: 8, lineHeight: 1.4 }}>
+                    <div style={{ marginTop: 7, border: `1px solid rgba(244,90,30,.28)`, borderRadius: 7, background: "rgba(244,90,30,.07)", color: "#9c3713", padding: "7px 8px", fontSize: 12, lineHeight: 1.4 }}>
                       Follow-up requested: capture a closer or alternate-angle RGB/zoom image of this same visible condition while you are still on site. DOMINIC will screen the new evidence automatically.
                     </div>
                   ) : null}
@@ -3903,14 +4005,14 @@ export default function DominicCapturePlanner({
                       type="button"
                       disabled={Boolean(liveFindingReviewBusyId) || liveFeed.refreshing}
                       onClick={() => void reviewLiveInspectionFinding(finding.id, "confirm")}
-                      style={{ border: `1px solid rgba(112,214,160,.35)`, background: "rgba(112,214,160,.09)", color: V.green, borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: liveFindingReviewBusyId === finding.id ? "wait" : "pointer" }}
+                      style={{ border: `1px solid rgba(112,214,160,.35)`, background: "rgba(112,214,160,.09)", color: V.green, borderRadius: 7, padding: "6px 8px", fontSize: 12, fontWeight: 650, cursor: liveFindingReviewBusyId === finding.id ? "wait" : "pointer" }}
                     >
                       Confirm Issue
                     </button>
                     <button
                       type="button"
                       onClick={() => setFollowUpFindingId((current) => current === finding.id ? null : finding.id)}
-                      style={{ border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.08)", color: "#FFD3C0", borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                      style={{ border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.08)", color: "#9c3713", borderRadius: 7, padding: "6px 8px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
                     >
                       {followUpFindingId === finding.id ? "Cancel Follow-up" : "Capture Another View"}
                     </button>
@@ -3918,7 +4020,7 @@ export default function DominicCapturePlanner({
                       type="button"
                       disabled={Boolean(liveFindingReviewBusyId) || liveFeed.refreshing}
                       onClick={() => void reviewLiveInspectionFinding(finding.id, "dismiss")}
-                      style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.muted, borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: liveFindingReviewBusyId === finding.id ? "wait" : "pointer" }}
+                      style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.muted, borderRadius: 7, padding: "6px 8px", fontSize: 12, fontWeight: 650, cursor: liveFindingReviewBusyId === finding.id ? "wait" : "pointer" }}
                     >
                       Dismiss
                     </button>
@@ -3929,30 +4031,35 @@ export default function DominicCapturePlanner({
         </section>
       ) : null}
 
-      <section style={{ margin: "10px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: "#0D1319", overflow: "hidden", display: plannerView === "plan" ? "block" : "none" }}>
+      <section style={{ margin: "10px 14px 0", border: `1px solid ${V.line}`, borderRadius: 12, background: "#f7f8f9", overflow: "hidden", display: plannerView === "plan" ? "block" : "none" }}>
         {planningSource === "map" ? (
           <div>
-            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${V.line}`, background: V.panel }}>
-              <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) auto", gap: 7 }}>
+            <div style={{ padding: "18px", borderBottom: `1px solid ${V.line}`, background: V.panel }}>
+              <h2 className={styles.sectionHeading}>1. Find your inspection location</h2>
+              <p className={styles.help}>Enter an address or place, then confirm the site on the satellite map.</p>
+              <div className={styles.searchRow}>
                 <input
                   aria-label="Search address or place"
+                  aria-invalid={Boolean(mapSearchError)}
+                  aria-describedby={mapSearchError ? "capture-search-error" : undefined}
                   value={mapSearch}
                   onChange={(event) => setMapSearch(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter") void searchMapLocation();
                   }}
                   placeholder="Enter address, e.g. 123 Main St, Linwood, PA"
-                  style={{ minWidth: 0, border: `1px solid ${V.line}`, background: "#0B1117", color: V.text, borderRadius: 8, padding: "9px 10px", fontSize: 10, outline: 0 }}
+                  style={{ minWidth: 0, border: `1px solid ${V.line}`, background: "#ffffff", color: V.text, borderRadius: 8, padding: "9px 10px", fontSize: 12, outline: 0 }}
                 />
                 <button
                   type="button"
                   onClick={() => void searchMapLocation()}
                   disabled={mapSearchBusy}
-                  style={{ border: `1px solid rgba(244,90,30,.45)`, background: "rgba(244,90,30,.13)", color: "#FFD3C0", borderRadius: 8, padding: "9px 12px", fontSize: 9, fontWeight: 900, cursor: mapSearchBusy ? "wait" : "pointer" }}
+                  style={{ border: `1px solid rgba(244,90,30,.45)`, background: "rgba(244,90,30,.13)", color: "#9c3713", borderRadius: 8, padding: "9px 12px", fontSize: 12, fontWeight: 650, cursor: mapSearchBusy ? "wait" : "pointer" }}
                 >
                   {mapSearchBusy ? "Searching…" : "Find location"}
                 </button>
               </div>
+              {mapSearchError && <p id="capture-search-error" role="alert" className={`${styles.message} ${styles.error}`}>{mapSearchError}</p>}
               {mapSearchResults.length > 1 ? (
                 <div style={{ display: "grid", gap: 5, marginTop: 7 }}>
                   {mapSearchResults.map((result, index) => (
@@ -3960,28 +4067,28 @@ export default function DominicCapturePlanner({
                       key={`${result.latitude}-${result.longitude}-${index}`}
                       type="button"
                       onClick={() => selectMapSearchResult(result)}
-                      style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", textAlign: "left", fontSize: 8, lineHeight: 1.35, cursor: "pointer" }}
+                      style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 7, padding: "7px 8px", textAlign: "left", fontSize: 12, lineHeight: 1.35, cursor: "pointer" }}
                     >
                       {result.label}
                     </button>
                   ))}
                 </div>
               ) : null}
-              <div style={{ color: mapLocationLabel ? V.green : V.muted, fontSize: 8, marginTop: 6, lineHeight: 1.4 }}>
-                {mapLocationLabel ? `Planning location: ${mapLocationLabel}` : "Search first. DOMINIC uses this location as the authoritative map center so the plan cannot jump back to an old default."}
+              <div style={{ color: mapLocationLabel ? V.green : V.muted, fontSize: 12, marginTop: 6, lineHeight: 1.4 }}>
+                {mapLocationLabel ? `Planning location: ${mapLocationLabel}` : "No location selected yet. Search above to begin."}
               </div>
             </div>
-            <div style={{ padding: "10px 12px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <div ref={areaRef} tabIndex={-1} style={{ padding: "18px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
               <div>
-                <div style={{ color: V.orange, fontSize: 9, fontWeight: 900 }}>MAP PLAN</div>
-                <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>Search, outline the subject, and review the route.</div>
+                <h2 className={styles.sectionHeading}>2. Define the inspection area</h2>
+                <div style={{ color: V.muted, fontSize: 12, marginTop: 2 }}>Search, outline the subject, and review the route.</div>
               </div>
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              <div className={styles.mapToolbar}>
                 <select
                   aria-label="Map mission type"
                   value={missionType === "object" || missionType === "interior" ? "roof" : missionType}
                   onChange={(event) => { setMissionType(event.target.value as CaptureMissionType); setWaypointOverrides({}); setSelectedWaypointId(null); }}
-                  style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900 }}
+                  style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 12, fontWeight: 650 }}
                 >
                   <option value="roof">Roof</option>
                   <option value="building">Building / 3D Structure</option>
@@ -3995,7 +4102,7 @@ export default function DominicCapturePlanner({
                       type="button"
                       onClick={startMapAreaDrawing}
                       disabled={!mapLocationLabel}
-                      style={{ border: `1px solid rgba(244,90,30,.55)`, background: mapLocationLabel ? "rgba(244,90,30,.16)" : "#20272E", color: mapLocationLabel ? "#FFD3C0" : V.muted, borderRadius: 7, padding: "7px 10px", fontSize: 8, fontWeight: 900, cursor: mapLocationLabel ? "pointer" : "not-allowed" }}
+                      style={{ border: `1px solid rgba(244,90,30,.55)`, background: mapLocationLabel ? "rgba(244,90,30,.16)" : "#e9edf0", color: mapLocationLabel ? "#9c3713" : V.muted, borderRadius: 7, padding: "7px 10px", fontSize: 12, fontWeight: 650, cursor: mapLocationLabel ? "pointer" : "not-allowed" }}
                     >
                       {mapAreaDefined ? "Redraw Mapping Area" : "Define Mapping Area"}
                     </button>
@@ -4008,7 +4115,7 @@ export default function DominicCapturePlanner({
                           setMapDrawing(false);
                           setMapAreaMessage("Plan cleared. Move/zoom the map, then define a new mapping area.");
                         }}
-                        style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                        style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
                       >
                         Move Map / Clear Plan
                       </button>
@@ -4016,11 +4123,12 @@ export default function DominicCapturePlanner({
                   </>
                 ) : (
                   <>
+                    <button type="button" className={styles.secondary} disabled={!mapAreaPoints.length} onClick={() => setMapAreaPoints((points) => points.slice(0, -1))}>Undo last corner</button>
                     <button
                       type="button"
                       disabled={mapAreaPoints.length < 3}
                       onClick={finishMapAreaDrawing}
-                      style={{ border: `1px solid rgba(112,214,160,.45)`, background: "rgba(112,214,160,.10)", color: mapAreaPoints.length >= 3 ? V.green : V.muted, borderRadius: 7, padding: "7px 10px", fontSize: 8, fontWeight: 900, cursor: mapAreaPoints.length >= 3 ? "pointer" : "not-allowed" }}
+                      style={{ border: `1px solid rgba(112,214,160,.45)`, background: "rgba(112,214,160,.10)", color: mapAreaPoints.length >= 3 ? V.green : V.muted, borderRadius: 7, padding: "7px 10px", fontSize: 12, fontWeight: 650, cursor: mapAreaPoints.length >= 3 ? "pointer" : "not-allowed" }}
                     >
                       Finish Area ({mapAreaPoints.length})
                     </button>
@@ -4032,7 +4140,7 @@ export default function DominicCapturePlanner({
                         setMapDrawing(false);
                         setMapAreaMessage("Mapping area cleared. Move/zoom the map or define a new area.");
                       }}
-                      style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                      style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 7, padding: "7px 9px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
                     >
                       Cancel
                     </button>
@@ -4055,7 +4163,7 @@ export default function DominicCapturePlanner({
                     setSelectedWaypointId(null);
                     setMapAreaMessage("Map centered on the connected aircraft. Pan/zoom if needed, then define the mapping area.");
                   }}
-                  style={{ border: `1px solid ${V.line}`, background: V.panel2, color: aircraftTelemetry ? V.green : V.muted, borderRadius: 7, padding: "7px 9px", fontSize: 8, fontWeight: 900, cursor: aircraftTelemetry ? "pointer" : "not-allowed" }}
+                  style={{ border: `1px solid ${V.line}`, background: V.panel2, color: aircraftTelemetry ? V.green : V.muted, borderRadius: 7, padding: "7px 9px", fontSize: 12, fontWeight: 650, cursor: aircraftTelemetry ? "pointer" : "not-allowed" }}
                 >
                   Use aircraft location
                 </button>
@@ -4076,53 +4184,67 @@ export default function DominicCapturePlanner({
                   setMapAreaMessage("Keep clicking around the boundary. Choose Finish Area when the subject is enclosed.");
                 }}
                 onWaypointSelect={setSelectedWaypointId}
-                onWaypointMove={(id, latitude, longitude) => {
-                  setWaypointOverrides((current) => ({
-                    ...current,
-                    [id]: { latitude, longitude },
-                  }));
-                  setSelectedWaypointId(id);
-                  setSecondaryFlightApprovalSignature(null);
-                  setMapAreaMessage("Waypoint adjusted. Review the route and save the updated plan.");
-                }}
+                onWaypointMove={adjustWaypoint}
               />
-              <div style={{ position: "absolute", left: 10, top: 10, zIndex: 20, maxWidth: 520, background: mapDrawing ? "rgba(60,22,8,.94)" : "rgba(11,17,23,.9)", border: `1px solid ${mapDrawing ? "rgba(244,90,30,.55)" : V.line}`, color: mapDrawing ? "#FFD3C0" : "#DCE3EA", borderRadius: 8, padding: "8px 10px", fontSize: 9, lineHeight: 1.45, pointerEvents: "none" }}>
-                {mapDrawing ? <strong>DRAWING AREA · </strong> : null}{mapAreaMessage}
-              </div>
-              <div style={{ position: "absolute", left: 10, bottom: 10, zIndex: 20, background: "rgba(11,17,23,.88)", border: `1px solid ${V.line}`, borderRadius: 8, padding: "7px 9px", color: "#DCE3EA", fontSize: 9, pointerEvents: "none" }}>
-                {mapAreaDefined ? `${activeSimplePlan.checkpointCount} checkpoints · ${activeSimplePlan.passCount} passes · ~${activeSimplePlan.estimatedMinutes} min` : "Pan/zoom freely, then define the mapping area"}
-              </div>
+            </div>
+            <div role="status" className={styles.message} style={{ margin: "12px 18px" }}>
+              {mapDrawing ? <strong>Drawing area · </strong> : null}{mapAreaMessage}
+            </div>
+            <div ref={routeRef} tabIndex={-1} style={{ padding: "0 18px 12px" }}>
+              <h2 className={styles.sectionHeading}>3. Review and adjust the flight path</h2>
+              <p className={styles.help}>{mapAreaDefined && !mapDrawing ? "Select a waypoint to edit its coordinates, use arrow keys to move it, or drag it on the map. Check obstacles beyond the outlined area too." : "Finish the inspection area to see the generated flight path."}</p>
             </div>
             {mapAreaDefined && !mapDrawing ? (
-              <div style={{ borderTop: `1px solid ${V.line}`, background: V.panel, padding: "10px 12px", display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 10, alignItems: "center" }}>
+              <div className={styles.routeSummary} style={{ background: V.panel }}>
                 <div>
-                  <div style={{ color: V.green, fontSize: 9, fontWeight: 900 }}>PLAN READY</div>
-                  <div style={{ color: V.text, fontSize: 11, fontWeight: 800, marginTop: 2 }}>
+                  <div style={{ color: V.green, fontSize: 12, fontWeight: 650 }}>Draft route calculated</div>
+                  <div style={{ color: V.text, fontSize: 12, fontWeight: 650, marginTop: 2 }}>
                     {missionProfiles[missionType].label} · {activeSimplePlan.checkpointCount} capture points · ~{activeSimplePlan.estimatedMinutes} min
                   </div>
-                  <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>
+                  <div style={{ color: V.muted, fontSize: 12, marginTop: 2 }}>
                     {patternLengthFt.toFixed(0)} × {patternWidthFt.toFixed(0)} ft · {patternAltitudeFt.toFixed(0)} ft altitude · {patternOverlapPct}% overlap{Object.keys(waypointOverrides).length ? ` · ${Object.keys(waypointOverrides).length} waypoint edit(s)` : ""}
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-                  <span style={{ color: V.muted, fontSize: 8 }}>Drag any white waypoint to fine-tune the route.</span>
+<span style={{ color: V.muted, fontSize: 12 }}>Drag a white waypoint or use the coordinate editor below.</span>
                   {Object.keys(waypointOverrides).length ? (
-                    <button type="button" onClick={resetWaypointEdits} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.amber, borderRadius: 8, padding: "8px 10px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}>
+                    <button type="button" onClick={resetWaypointEdits} style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.amber, borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}>
                       Reset Waypoints
                     </button>
                   ) : null}
-                  <button type="button" onClick={startMapAreaDrawing} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 8, padding: "8px 10px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}>
+                  <button type="button" onClick={startMapAreaDrawing} style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}>
                     Redraw Area
                   </button>
-                  <button type="button" onClick={() => void saveCapturePlan()} disabled={planPersistenceBusy} style={{ border: 0, background: V.orange, color: "#160901", borderRadius: 8, padding: "8px 13px", fontSize: 9, fontWeight: 900, cursor: planPersistenceBusy ? "wait" : "pointer" }}>
+                  <button type="button" onClick={() => void saveCapturePlan()} disabled={planPersistenceBusy} style={{ border: 0, background: V.orange, color: "#ffffff", borderRadius: 8, padding: "8px 13px", fontSize: 12, fontWeight: 650, cursor: planPersistenceBusy ? "wait" : "pointer" }}>
                     {planPersistenceBusy ? "Saving…" : "Save Plan"}
                   </button>
                 </div>
               </div>
             ) : null}
+            {mapAreaDefined && !mapDrawing && <div className={styles.waypointEditor}>
+              <div className={styles.waypointFields} style={{ marginBottom: 16 }}>
+                <Field label="Flight altitude" value={patternAltitudeFt} min={5} max={400} suffix="ft" onChange={setPatternAltitudeFt} />
+                <Field label="Image overlap" value={patternOverlapPct} min={40} max={95} suffix="%" onChange={setPatternOverlapPct} />
+              </div>
+              <label className={styles.help}>Waypoint
+                <select aria-label="Select waypoint to edit" value={selectedWaypointId ?? ""} onChange={(event) => setSelectedWaypointId(event.target.value || null)} style={{ width: "100%", color: V.text, background: V.panel, border: `1px solid ${V.line}`, borderRadius: 8, padding: 10 }}>
+                  <option value="">Choose a waypoint</option>
+                  {activeSimpleCheckpoints.map((point, index) => <option key={point.id} value={point.id}>Waypoint {index + 1}</option>)}
+                </select>
+              </label>
+              {selectedWaypoint && <div className={styles.waypointFields}>
+                {(["latitude", "longitude"] as const).map((axis) => <label key={axis}>{axis === "latitude" ? "Latitude" : "Longitude"}
+                  <input key={`${selectedWaypoint.id}-${selectedWaypoint[axis]}`} aria-label={`Waypoint ${axis}`} type="number" step="0.000001" min={axis === "latitude" ? -90 : -180} max={axis === "latitude" ? 90 : 180} defaultValue={selectedWaypoint[axis].toFixed(6)} onBlur={(event) => {
+                    const value = event.currentTarget.valueAsNumber;
+                    if (Number.isFinite(value) && Math.abs(value) <= (axis === "latitude" ? 90 : 180)) adjustWaypoint(selectedWaypoint.id, axis === "latitude" ? value : selectedWaypoint.latitude, axis === "longitude" ? value : selectedWaypoint.longitude);
+                    else { event.currentTarget.value = selectedWaypoint[axis].toFixed(6); setMapAreaMessage("Enter a valid waypoint coordinate: latitude −90 to 90, longitude −180 to 180."); }
+                  }} onKeyDown={(event) => { if (event.key === "Enter") event.currentTarget.blur(); }} />
+                </label>)}
+              </div>}
+            </div>}
           </div>
         ) : planningSource === "live" ? (
-          <DominicLiveInspectionPreview
+          <div ref={areaRef} tabIndex={-1}><DominicLiveInspectionPreview
             key={`${inspectionContext?.inspectionId ?? "unlinked"}-${bridgeStatus}`}
             arMode={initialArMode}
             preview={cameraPreview}
@@ -4139,42 +4261,42 @@ export default function DominicCapturePlanner({
               requestAnimationFrame(() => inspectionEvidenceRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
             }}
             screeningStatus={automaticMediaStatus}
-          />
+          /></div>
         ) : (
-          <div style={{ padding: 18 }}>
+          <div ref={areaRef} tabIndex={-1} style={{ padding: 18 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", flexWrap: "wrap" }}>
               <div>
-                <div style={{ color: V.orange, fontSize: 9, fontWeight: 900 }}>LOCAL OBJECT WORKSPACE</div>
-                <div style={{ color: V.text, fontSize: 17, fontWeight: 900, marginTop: 3 }}>No map required.</div>
-                <div style={{ color: V.muted, fontSize: 9, lineHeight: 1.5, marginTop: 4 }}>Use this for chairs, machinery, vehicles, equipment and indoor objects. The subject is treated as the local origin and DOMINIC builds the capture path around it.</div>
+                <div style={{ color: V.orange, fontSize: 12, fontWeight: 650 }}>LOCAL OBJECT WORKSPACE</div>
+                <div style={{ color: V.text, fontSize: 17, fontWeight: 650, marginTop: 3 }}>No map required.</div>
+                <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.5, marginTop: 4 }}>Use this for chairs, machinery, vehicles, equipment and indoor objects. The subject is treated as the local origin and DOMINIC builds the capture path around it.</div>
               </div>
               {missionType !== "object" ? (
-                <button type="button" onClick={() => setMissionType("object")} style={{ border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.10)", color: "#FFD3C0", borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}>Switch to Object Scan</button>
+                <button type="button" onClick={() => setMissionType("object")} style={{ border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.10)", color: "#9c3713", borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}>Switch to Object Scan</button>
               ) : null}
             </div>
             {missionType === "object" ? (
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 14, marginTop: 14 }}>
                 <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: V.panel, padding: 12 }}>
-                  <div style={{ color: V.text, fontSize: 11, fontWeight: 900 }}>Object size & capture quality</div>
+                  <div style={{ color: V.text, fontSize: 12, fontWeight: 650 }}>Object size & capture quality</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 9 }}>
                     <Field label="Width / diameter" value={objectDiameterFt} min={1} max={1000} suffix="ft" onChange={setObjectDiameterFt} />
                     <Field label="Height" value={objectHeightFt} min={1} max={1000} suffix="ft" onChange={setObjectHeightFt} />
                     <Field label="Stand-off" value={standoffFt} min={2} max={500} suffix="ft" onChange={setStandoffFt} />
                     <Field label="Overlap" value={overlapPct} min={40} max={95} suffix="%" onChange={setOverlapPct} />
                   </div>
-                  <div style={{ marginTop: 10, color: V.green, fontSize: 9, fontWeight: 900 }}>{geographicCheckpoints.length} capture positions generated</div>
+                  <div style={{ marginTop: 10, color: V.green, fontSize: 12, fontWeight: 650 }}>{geographicCheckpoints.length} capture positions generated</div>
                 </div>
-                <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#090D12", minHeight: 300, display: "grid", placeItems: "center", padding: 12 }}>
+                <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#edf1f4", minHeight: 300, display: "grid", placeItems: "center", padding: 12 }}>
                   <svg viewBox="0 0 100 100" style={{ width: "100%", maxHeight: 330 }} role="img" aria-label="Local object capture path">
                     <circle cx="50" cy="50" r="5" fill="rgba(244,90,30,.16)" stroke={V.orange} strokeWidth=".7" />
                     {plan.rings.map((ring, ringIndex) => {
                       const radius = 22 + ringIndex * 11;
-                      return <circle key={ring.label} cx="50" cy="50" r={radius} fill="none" stroke={ringIndex === 1 ? V.orange : "rgba(245,247,250,.45)"} strokeWidth=".6" strokeDasharray={ringIndex === 1 ? "0" : "2 2"} />;
+                      return <circle key={ring.label} cx="50" cy="50" r={radius} fill="none" stroke={ringIndex === 1 ? V.orange : "rgba(37,49,58,.45)"} strokeWidth=".6" strokeDasharray={ringIndex === 1 ? "0" : "2 2"} />;
                     })}
                     {sequence.map((shot, index) => {
                       const ringIndex = Math.max(0, plan.rings.findIndex((ring) => ring.label === shot.ringLabel));
                       const p = polarPoint(shot.bearingDeg, 22 + ringIndex * 11);
-                      return <circle key={shot.id} cx={p.x} cy={p.y} r={index === currentIndex ? 1.35 : .7} fill={index === currentIndex ? V.green : "#FFF"} stroke={V.orange} strokeWidth=".25" />;
+                      return <circle key={shot.id} cx={p.x} cy={p.y} r={index === currentIndex ? 1.35 : .7} fill={index === currentIndex ? V.green : V.text} stroke={V.orange} strokeWidth=".25" />;
                     })}
                   </svg>
                 </div>
@@ -4188,14 +4310,14 @@ export default function DominicCapturePlanner({
         <section style={{ margin: "14px", border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, overflow: "hidden" }}>
           <div style={{ padding: "14px 16px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <div>
-              <div style={{ color: V.green, fontSize: 9, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>Saved plan</div>
-              <div style={{ color: V.text, fontSize: 20, fontWeight: 900, marginTop: 3 }}>{planName}</div>
-              <div style={{ color: V.muted, fontSize: 9, marginTop: 4 }}>Review the mission, connect the aircraft, run preflight, then export or fly when control is unlocked.</div>
+              <div style={{ color: V.green, fontSize: 12, fontWeight: 650 }}>4. Plan review & next steps</div>
+              <div style={{ color: V.text, fontSize: 20, fontWeight: 650, marginTop: 3 }}>{planName}</div>
+              <div style={{ color: V.muted, fontSize: 12, marginTop: 4 }}>Review the mission, connect the aircraft, run preflight, then export or fly when control is unlocked.</div>
             </div>
             <button
               type="button"
               onClick={() => { setReviewPreflightRan(false); setReviewFlightConfirmed(false); setPlannerView("plan"); }}
-              style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 8, padding: "8px 11px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+              style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 8, padding: "8px 11px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
             >
               Back to Edit Plan
             </button>
@@ -4203,9 +4325,9 @@ export default function DominicCapturePlanner({
 
           <div style={{ padding: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 12 }}>
             <div style={{ display: "grid", gap: 10 }}>
-              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", padding: 12 }}>
-                <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Mission summary</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", gap: 8, marginTop: 10 }}>
+              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#f7f8f9", padding: 12 }}>
+                <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em" }}>Mission summary</div>
+                <div className={styles.reviewMetrics}>
                   {[
                     ["Mission", missionProfiles[missionType].label],
                     ["Capture points", String(activeSimplePlan.checkpointCount)],
@@ -4217,21 +4339,21 @@ export default function DominicCapturePlanner({
                     ["Waypoint edits", String(Object.keys(waypointOverrides).length)],
                   ].map(([label, value]) => (
                     <div key={label} style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: V.panel, padding: "8px 9px" }}>
-                      <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>{label}</div>
-                      <div style={{ color: V.text, fontSize: 11, fontWeight: 900, marginTop: 3 }}>{value}</div>
+                      <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase" }}>{label}</div>
+                      <div style={{ color: V.text, fontSize: 12, fontWeight: 650, marginTop: 3 }}>{value}</div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", padding: 12 }}>
+              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#f7f8f9", padding: 12 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                   <div>
-                    <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Aircraft</div>
-                    <div style={{ color: V.text, fontSize: 13, fontWeight: 900, marginTop: 3 }}>
+                    <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em" }}>Aircraft</div>
+                    <div style={{ color: V.text, fontSize: 13, fontWeight: 650, marginTop: 3 }}>
                       {bridgeStatus === "connected" ? `${bridgeInfo?.vendor?.toUpperCase() ?? "Aircraft"} ${bridgeInfo?.model ?? ""}`.trim() : "No aircraft connected"}
                     </div>
-                    <div style={{ color: V.muted, fontSize: 8, marginTop: 3 }}>
+                    <div style={{ color: V.muted, fontSize: 12, marginTop: 3 }}>
                       {bridgeStatus === "connected"
                         ? `Flight Bridge connected · ${bridgeInfo?.aircraftId ?? "aircraft ID unavailable"}`
                         : "Connect the DJI controller/bridge to validate this plan against the real aircraft."}
@@ -4241,7 +4363,7 @@ export default function DominicCapturePlanner({
                     <button
                       type="button"
                       onClick={() => void disconnectAircraftBridge()}
-                      style={{ border: `1px solid ${V.line}`, background: V.panel, color: V.text, borderRadius: 8, padding: "8px 10px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                      style={{ border: `1px solid ${V.line}`, background: V.panel, color: V.text, borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
                     >
                       Disconnect
                     </button>
@@ -4250,7 +4372,7 @@ export default function DominicCapturePlanner({
                       type="button"
                       onClick={() => void connectAircraftBridge()}
                       disabled={bridgeStatus === "connecting"}
-                      style={{ border: 0, background: V.orange, color: "#160901", borderRadius: 8, padding: "8px 12px", fontSize: 9, fontWeight: 900, cursor: bridgeStatus === "connecting" ? "wait" : "pointer" }}
+                      style={{ border: 0, background: V.orange, color: "#ffffff", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 650, cursor: bridgeStatus === "connecting" ? "wait" : "pointer" }}
                     >
                       {bridgeStatus === "connecting" ? "Connecting…" : "Connect Aircraft"}
                     </button>
@@ -4261,7 +4383,7 @@ export default function DominicCapturePlanner({
                     <button
                       type="button"
                       onClick={() => void captureConnectedInspectionPhoto()}
-                      style={{ border: `1px solid rgba(112,214,160,.38)`, background: "rgba(112,214,160,.10)", color: V.green, borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
+                      style={{ border: `1px solid rgba(112,214,160,.38)`, background: "rgba(112,214,160,.10)", color: V.green, borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
                     >
                       {inspectionContext?.followUpCapture
                         ? "Capture Context + Detail Pair"
@@ -4269,23 +4391,23 @@ export default function DominicCapturePlanner({
                           ? "Capture Repeat Baseline Photo"
                           : "Capture Inspection Photo"}
                     </button>
-                    <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45 }}>
+                    <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.45 }}>
                       Camera-only inspection capture is available without enabling aircraft movement.
                       {inspectionContext ? ` Captures are saved to ${inspectionContext.assetName} inspection evidence automatically.` : ""}
                     </div>
                   </div>
                 ) : null}
                 {automaticMediaStatus ? (
-                  <div style={{ color: automaticMediaStatus.includes("failed") || automaticMediaStatus.includes("rejected") ? "#FFB6AA" : V.muted, fontSize: 8, marginTop: 7, lineHeight: 1.45 }}>
+                  <div style={{ color: automaticMediaStatus.includes("failed") || automaticMediaStatus.includes("rejected") ? "#982d21" : V.muted, fontSize: 12, marginTop: 7, lineHeight: 1.45 }}>
                     {automaticMediaStatus}
                     {automaticMediaCount > 0 ? ` · ${automaticMediaCount} capture(s) received` : ""}
                   </div>
                 ) : null}
-                {bridgeError ? <div style={{ color: "#FFB6AA", fontSize: 8, marginTop: 7 }}>{bridgeError}</div> : null}
+                {bridgeError ? <div style={{ color: "#982d21", fontSize: 12, marginTop: 7 }}>{bridgeError}</div> : null}
               </div>
 
-              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", padding: 12 }}>
-                <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Preflight</div>
+              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#f7f8f9", padding: 12 }}>
+                <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em" }}>Preflight</div>
                 <div style={{ display: "grid", gap: 6, marginTop: 9 }}>
                   {[
                     ["Plan saved", Boolean(activeSavedPlanId), activeSavedPlanId ? "Saved mission record is available." : "Save the plan before flight."],
@@ -4307,10 +4429,10 @@ export default function DominicCapturePlanner({
                     ["Control authority", productionFlightUnlocked, productionFlightUnlocked ? "DOMINIC connected-flight validation is unlocked." : "Connected flight remains locked until bench/simulation/controlled-field validation is complete."],
                   ].map(([label, ok, detail]) => (
                     <div key={String(label)} style={{ display: "grid", gridTemplateColumns: "18px minmax(0,1fr)", gap: 7, alignItems: "start", padding: "7px 8px", border: `1px solid ${V.line}`, borderRadius: 7, background: V.panel }}>
-                      <div style={{ color: ok ? V.green : V.amber, fontWeight: 900 }}>{ok ? "✓" : "!"}</div>
+                      <div style={{ color: ok ? V.green : V.amber, fontWeight: 650 }}>{ok ? "✓" : "!"}</div>
                       <div>
-                        <div style={{ color: V.text, fontSize: 9, fontWeight: 900 }}>{label}</div>
-                        <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>{detail}</div>
+                        <div style={{ color: V.text, fontSize: 12, fontWeight: 650 }}>{label}</div>
+                        <div style={{ color: V.muted, fontSize: 12, marginTop: 2 }}>{detail}</div>
                       </div>
                     </div>
                   ))}
@@ -4319,12 +4441,12 @@ export default function DominicCapturePlanner({
                   type="button"
                   onClick={() => void runReviewPreflight()}
                   disabled={reviewPreflightRunning}
-                  style={{ width: "100%", marginTop: 9, border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.10)", color: "#FFD3C0", borderRadius: 8, padding: "8px 10px", fontSize: 9, fontWeight: 900, cursor: reviewPreflightRunning ? "wait" : "pointer" }}
+                  style={{ width: "100%", marginTop: 9, border: `1px solid rgba(244,90,30,.35)`, background: "rgba(244,90,30,.10)", color: "#9c3713", borderRadius: 8, padding: "8px 10px", fontSize: 12, fontWeight: 650, cursor: reviewPreflightRunning ? "wait" : "pointer" }}
                 >
                   {reviewPreflightRunning ? "Running Preflight…" : "Run Preflight Check"}
                 </button>
                 {reviewPreflightRan ? (
-                  <div style={{ color: productionFlightUnlocked && bridgeStatus === "connected" && inspectionEquipmentReady && djiStaticValidationPassed ? V.green : V.amber, fontSize: 8, marginTop: 7, lineHeight: 1.45 }}>
+                  <div style={{ color: productionFlightUnlocked && bridgeStatus === "connected" && inspectionEquipmentReady && djiStaticValidationPassed ? V.green : V.amber, fontSize: 12, marginTop: 7, lineHeight: 1.45 }}>
                     {productionFlightUnlocked && bridgeStatus === "connected" && inspectionEquipmentReady && djiStaticValidationPassed
                       ? "Preflight review is clear for the current validated aircraft, inspection capabilities and plan."
                       : !inspectionEquipmentReady
@@ -4334,8 +4456,8 @@ export default function DominicCapturePlanner({
                 ) : null}
                 {djiMissionValidation.status === "invalid" || djiMissionValidation.status === "error" ? (
                   <div style={{ marginTop: 7, border: "1px solid rgba(255,184,107,.28)", background: "rgba(255,184,107,.07)", borderRadius: 7, padding: 8 }}>
-                    <div style={{ color: V.amber, fontSize: 8, fontWeight: 900 }}>DJI mission validation requires attention</div>
-                    <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>
+                    <div style={{ color: V.amber, fontSize: 12, fontWeight: 650 }}>DJI mission validation requires attention</div>
+                    <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.45, marginTop: 4 }}>
                       {djiMissionValidation.errors.length
                         ? djiMissionValidation.errors.join(" · ")
                         : "DJI returned an invalid mission result without a detailed message."}
@@ -4346,19 +4468,19 @@ export default function DominicCapturePlanner({
             </div>
 
             <aside style={{ display: "grid", gap: 10, alignContent: "start" }}>
-              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", padding: 12 }}>
-                <div style={{ color: V.text, fontSize: 13, fontWeight: 900 }}>Next action</div>
-                <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.5, marginTop: 4 }}>
-                  The plan is saved. You can export it now, or connect the aircraft and complete preflight validation.
+              <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#f7f8f9", padding: 12 }}>
+                <div style={{ color: V.text, fontSize: 13, fontWeight: 650 }}>Next action</div>
+                <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.5, marginTop: 4 }}>
+                  Export a DOMINIC mission file for controller handoff, or connect the aircraft and complete preflight validation. The Android host converts this file to DJI KMZ; this download is not a ready-to-fly DJI file. Confirm the route, home point, airspace and obstacles before any flight.
                 </div>
                 <button
                   type="button"
                   onClick={exportDjiMissionPackage}
-                  style={{ width: "100%", marginTop: 10, border: `1px solid ${V.line}`, background: V.panel, color: V.text, borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: "pointer" }}
+                  style={{ width: "100%", marginTop: 10, border: `1px solid ${V.line}`, background: V.panel, color: V.text, borderRadius: 8, padding: "9px 10px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
                 >
                   Export Mission
                 </button>
-                <label style={{ display: "grid", gridTemplateColumns: "16px minmax(0,1fr)", gap: 7, alignItems: "start", color: bridgeStatus === "connected" ? "#DCE3EA" : V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 9 }}>
+                <label style={{ display: "grid", gridTemplateColumns: "16px minmax(0,1fr)", gap: 7, alignItems: "start", color: bridgeStatus === "connected" ? "#25313a" : V.muted, fontSize: 12, lineHeight: 1.45, marginTop: 9 }}>
                   <input
                     type="checkbox"
                     checked={reviewFlightConfirmed}
@@ -4379,33 +4501,33 @@ export default function DominicCapturePlanner({
                   type="button"
                   disabled={!productionFlightUnlocked || bridgeStatus !== "connected" || !reviewPreflightRan || !reviewFlightConfirmed || !inspectionEquipmentReady || !djiStaticValidationPassed}
                   onClick={() => missionType === "object" ? void runConnectedAircraftMission("full") : void runSecondaryConnectedMission("full")}
-                  style={{ width: "100%", marginTop: 7, border: `1px solid ${productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && inspectionEquipmentReady && djiStaticValidationPassed ? "rgba(112,214,160,.38)" : V.line}`, background: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && inspectionEquipmentReady && djiStaticValidationPassed ? "rgba(112,214,160,.10)" : "#1B222A", color: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && inspectionEquipmentReady && djiStaticValidationPassed ? V.green : "#6F7A84", borderRadius: 8, padding: "9px 10px", fontSize: 9, fontWeight: 900, cursor: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && inspectionEquipmentReady && djiStaticValidationPassed ? "pointer" : "not-allowed" }}
+                  style={{ width: "100%", marginTop: 7, border: `1px solid ${productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && inspectionEquipmentReady && djiStaticValidationPassed ? "rgba(112,214,160,.38)" : V.line}`, background: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && inspectionEquipmentReady && djiStaticValidationPassed ? "rgba(112,214,160,.10)" : "#e9edf0", color: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && inspectionEquipmentReady && djiStaticValidationPassed ? V.green : "#60707b", borderRadius: 8, padding: "9px 10px", fontSize: 12, fontWeight: 650, cursor: productionFlightUnlocked && bridgeStatus === "connected" && reviewPreflightRan && reviewFlightConfirmed && inspectionEquipmentReady && djiStaticValidationPassed ? "pointer" : "not-allowed" }}
                 >
                   Fly Mission
                 </button>
                 {!inspectionEquipmentReady ? (
-                  <div style={{ color: V.amber, fontSize: 8, lineHeight: 1.45, marginTop: 7 }}>
+                  <div style={{ color: V.amber, fontSize: 12, lineHeight: 1.45, marginTop: 7 }}>
                     Flight is blocked for this inspection because the assigned aircraft/payload does not satisfy the required sensor capabilities.
                   </div>
                 ) : !productionFlightUnlocked ? (
-                  <div style={{ color: V.amber, fontSize: 8, lineHeight: 1.45, marginTop: 7 }}>
+                  <div style={{ color: V.amber, fontSize: 12, lineHeight: 1.45, marginTop: 7 }}>
                     Flight is intentionally locked. The current DJI bridge is not yet cleared for autonomous aircraft control.
                   </div>
                 ) : null}
               </div>
 
               <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: V.panel, padding: 12 }}>
-                <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>Saved mission</div>
-                <div style={{ color: V.text, fontSize: 10, fontWeight: 900, marginTop: 5 }}>{mapLocationLabel ?? "Local object / saved subject"}</div>
+                <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, textTransform: "uppercase" }}>Saved mission</div>
+                <div style={{ color: V.text, fontSize: 12, fontWeight: 650, marginTop: 5 }}>{mapLocationLabel ?? "Local object / saved subject"}</div>
                 {inspectionContext ? (
-                  <div style={{ color: V.orange, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>
+                  <div style={{ color: V.orange, fontSize: 12, lineHeight: 1.45, marginTop: 4 }}>
                     Linked to {inspectionContext.assetName} · inspection {inspectionContext.inspectionId.slice(0, 8)}
                   </div>
                 ) : null}
-                <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 4 }}>
+                <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.45, marginTop: 4 }}>
                   Center: {centerLatitude.toFixed(6)}, {centerLongitude.toFixed(6)}
                 </div>
-                <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 2 }}>
+                <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.45, marginTop: 2 }}>
                   {Object.keys(waypointOverrides).length ? `${Object.keys(waypointOverrides).length} manually adjusted waypoint(s) are included.` : "Route uses DOMINIC-generated waypoint positions."}
                 </div>
               </div>
@@ -4414,16 +4536,16 @@ export default function DominicCapturePlanner({
         </section>
       ) : null}
 
-      <div style={{ display: showAdvancedPlanner ? "block" : "none" }}>
+      <div id="capture-advanced-settings" style={{ display: showAdvancedPlanner ? "block" : "none" }}>
       <section style={{ margin: "12px 14px 0", border: `1px solid ${V.line}`, borderRadius: 10, background: V.panel, padding: 11 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "end", gap: 10, flexWrap: "wrap" }}>
           <div style={{ minWidth: 220, flex: "1 1 260px" }}>
-            <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, letterSpacing: ".09em", textTransform: "uppercase" }}>Aircraft / camera geometry</div>
+            <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".09em", textTransform: "uppercase" }}>Aircraft / camera geometry</div>
             <select
               aria-label="Capture aircraft camera"
               value={selectedAircraftId}
               onChange={(event) => applyAircraftCamera(event.target.value)}
-              style={{ width: "100%", marginTop: 6, border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 9 }}
+              style={{ width: "100%", marginTop: 6, border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 12 }}
             >
               <option value="">Manual / custom camera</option>
               {pilotAircraft.map((aircraft) => (
@@ -4438,7 +4560,7 @@ export default function DominicCapturePlanner({
             <Field label="Vertical FOV" value={verticalFovDeg} min={20} max={120} step={0.1} suffix="deg" onChange={(value) => { setSelectedAircraftId(""); setVerticalFovDeg(value); setCameraProfileMessage("Manual camera geometry active."); }} />
           </div>
         </div>
-        <p style={{ margin: "7px 0 0", color: V.muted, fontSize: 8, lineHeight: 1.4 }}>
+        <p style={{ margin: "7px 0 0", color: V.muted, fontSize: 12, lineHeight: 1.4 }}>
           {cameraProfileMessage ?? (pilotAircraft.length ? "Select an aircraft from your Pilot Profile to apply its cataloged camera geometry, or leave Manual selected." : "No active Pilot Profile aircraft found. Enter camera field of view manually.")}
         </p>
       </section>
@@ -4447,8 +4569,8 @@ export default function DominicCapturePlanner({
         <div style={{ padding: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 14, alignItems: "start" }}>
           <aside style={{ display: "grid", gap: 12 }}>
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 14 }}>
-              <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".12em", textTransform: "uppercase" }}>{activeProfile.label} geometry</div>
-              <p style={{ color: V.muted, fontSize: 10, lineHeight: 1.5 }}>{activeProfile.summary}</p>
+              <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".12em", textTransform: "uppercase" }}>{activeProfile.label} geometry</div>
+              <p style={{ color: V.muted, fontSize: 12, lineHeight: 1.5 }}>{activeProfile.summary}</p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 <Field label="Length" value={patternLengthFt} min={4} max={20000} suffix="ft" onChange={setPatternLengthFt} />
                 <Field label="Width" value={patternWidthFt} min={4} max={2000} suffix="ft" onChange={setPatternWidthFt} />
@@ -4461,11 +4583,11 @@ export default function DominicCapturePlanner({
             </section>
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 14 }}>
-              <div style={{ color: V.text, fontSize: 11, fontWeight: 900 }}>Capture logic</div>
+              <div style={{ color: V.text, fontSize: 12, fontWeight: 650 }}>Capture logic</div>
               <div style={{ display: "grid", gap: 7, marginTop: 9 }}>
                 {manualGuidance[missionType as Exclude<CaptureMissionType, "object">].map((item, index) => (
-                  <div key={item} style={{ display: "grid", gridTemplateColumns: "24px 1fr", gap: 7, alignItems: "start", color: "#DCE3EA", fontSize: 10, lineHeight: 1.45 }}>
-                    <span style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(244,90,30,.15)", border: `1px solid rgba(244,90,30,.3)`, color: V.orange, display: "grid", placeItems: "center", fontWeight: 900 }}>{index + 1}</span>
+                  <div key={item} style={{ display: "grid", gridTemplateColumns: "24px 1fr", gap: 7, alignItems: "start", color: "#25313a", fontSize: 12, lineHeight: 1.45 }}>
+                    <span style={{ width: 22, height: 22, borderRadius: "50%", background: "rgba(244,90,30,.15)", border: `1px solid rgba(244,90,30,.3)`, color: V.orange, display: "grid", placeItems: "center", fontWeight: 650 }}>{index + 1}</span>
                     <span>{item}</span>
                   </div>
                 ))}
@@ -4473,16 +4595,16 @@ export default function DominicCapturePlanner({
             </section>
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 14 }}>
-              <div style={{ color: V.text, fontSize: 11, fontWeight: 900 }}>Mission origin & aircraft</div>
+              <div style={{ color: V.text, fontSize: 12, fontWeight: 650 }}>Mission origin & aircraft</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 9 }}>
                 <Field label="Center latitude" value={centerLatitude} min={-90} max={90} step={0.000001} onChange={setCenterLatitude} />
                 <Field label="Center longitude" value={centerLongitude} min={-180} max={180} step={0.000001} onChange={setCenterLongitude} />
               </div>
-              <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 7 }}>
+              <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.4, marginTop: 7 }}>
                 {effectiveSecondaryGeographicCheckpoints.length} geographic checkpoints generated · route heading {patternHeadingDeg}°.
               </div>
               <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 9, paddingTop: 9 }}>
-                <div style={{ color: bridgeStatus === "connected" ? V.green : V.muted, fontSize: 8, fontWeight: 900, textTransform: "uppercase" }}>
+                <div style={{ color: bridgeStatus === "connected" ? V.green : V.muted, fontSize: 12, fontWeight: 650, textTransform: "uppercase" }}>
                   Aircraft bridge · {bridgeStatus}
                 </div>
                 {bridgeStatus !== "connected" ? (
@@ -4490,19 +4612,19 @@ export default function DominicCapturePlanner({
                     <input
                       value={bridgeUrl}
                       onChange={(event) => setBridgeUrl(event.target.value)}
-                      style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8, marginTop: 7 }}
+                      style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 12, marginTop: 7 }}
                     />
                     <button
                       type="button"
                       disabled={bridgeStatus === "connecting"}
                       onClick={() => void connectAircraftBridge()}
-                      style={{ width: "100%", marginTop: 6, border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                      style={{ width: "100%", marginTop: 6, border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
                     >
                       {bridgeStatus === "connecting" ? "Connecting..." : "Connect Aircraft Bridge"}
                     </button>
                   </>
                 ) : (
-                  <div style={{ color: V.muted, fontSize: 8, marginTop: 5 }}>
+                  <div style={{ color: V.muted, fontSize: 12, marginTop: 5 }}>
                     {bridgeInfo?.vendor.toUpperCase()} · {bridgeInfo?.model ?? bridgeInfo?.aircraftId}
                   </div>
                 )}
@@ -4514,11 +4636,11 @@ export default function DominicCapturePlanner({
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, overflow: "hidden" }}>
               <div style={{ padding: "12px 14px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
                 <div>
-                  <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>Calculated capture pattern</div>
-                  <div style={{ color: V.muted, fontSize: 10, marginTop: 3 }}>DOMINIC is generating real checkpoints for this mission type—not just instructions.</div>
+                  <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".1em", textTransform: "uppercase" }}>Calculated capture pattern</div>
+                  <div style={{ color: V.muted, fontSize: 12, marginTop: 3 }}>DOMINIC is generating real checkpoints for this mission type—not just instructions.</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ color: secondaryCalibrationValidation.ready ? V.green : V.amber, fontSize: 9, fontWeight: 900 }}>
+                  <div style={{ color: secondaryCalibrationValidation.ready ? V.green : V.amber, fontSize: 12, fontWeight: 650 }}>
                     {secondaryCalibrationValidation.ready ? "GEOMETRY ACTIVE" : "SAFETY BLOCKED"}
                   </div>
                   <button
@@ -4526,7 +4648,7 @@ export default function DominicCapturePlanner({
                     onClick={downloadSecondaryCheckpointPayload}
                     disabled={!secondaryPlan || !effectiveSecondaryGeographicCheckpoints.length}
                     title="Export this DOMINIC pattern as a portable waypoint payload"
-                    style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 8, padding: "6px 8px", display: "flex", alignItems: "center", gap: 5, cursor: secondaryPlan ? "pointer" : "not-allowed", fontSize: 9, fontWeight: 800 }}
+                    style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 8, padding: "6px 8px", display: "flex", alignItems: "center", gap: 5, cursor: secondaryPlan ? "pointer" : "not-allowed", fontSize: 12, fontWeight: 650 }}
                   >
                     <Download size={12} /> Export checkpoints
                   </button>
@@ -4540,9 +4662,9 @@ export default function DominicCapturePlanner({
                   ["Est. time", `${secondaryPlan?.estimatedMinutes ?? 0} min`],
                   ["Warnings", secondaryPlan?.warnings.length ?? 0],
                 ].map(([label, value]) => (
-                  <div key={String(label)} style={{ border: `1px solid ${V.line}`, background: "#0D1319", borderRadius: 8, padding: 10 }}>
-                    <div style={{ color: V.muted, fontSize: 8, textTransform: "uppercase" }}>{label}</div>
-                    <div style={{ color: V.text, fontSize: 16, fontWeight: 900, marginTop: 4 }}>{value}</div>
+                  <div key={String(label)} style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", borderRadius: 8, padding: 10 }}>
+                    <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase" }}>{label}</div>
+                    <div style={{ color: V.text, fontSize: 16, fontWeight: 650, marginTop: 4 }}>{value}</div>
                   </div>
                 ))}
               </div>
@@ -4555,10 +4677,10 @@ export default function DominicCapturePlanner({
                       style={{
                         border: `1px solid ${issue.severity === "blocker" ? "rgba(255,139,122,.35)" : "rgba(255,184,107,.3)"}`,
                         background: issue.severity === "blocker" ? "rgba(255,139,122,.06)" : "rgba(255,184,107,.05)",
-                        color: issue.severity === "blocker" ? "#FFB6AA" : "#FFD0A0",
+                        color: issue.severity === "blocker" ? "#982d21" : "#89370c",
                         borderRadius: 8,
                         padding: "8px 10px",
-                        fontSize: 9,
+                        fontSize: 12,
                         lineHeight: 1.45,
                       }}
                     >
@@ -4571,7 +4693,7 @@ export default function DominicCapturePlanner({
               ) : null}
 
               <div style={{ padding: "0 14px 14px", display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 12 }}>
-                <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", minHeight: 310, position: "relative", overflow: "hidden" }}>
+                <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: "#f7f8f9", minHeight: 310, position: "relative", overflow: "hidden" }}>
                   <svg viewBox="0 0 100 70" style={{ width: "100%", height: "100%" }} role="img" aria-label={`${activeProfile.label} calculated capture pattern`}>
                     <rect x="20" y="14" width="60" height="42" rx="2" fill="rgba(244,90,30,.05)" stroke="rgba(244,90,30,.35)" strokeWidth=".6" />
                     {(secondaryPlan?.checkpoints ?? []).map((point, index, all) => {
@@ -4590,41 +4712,41 @@ export default function DominicCapturePlanner({
                       return (
                         <g key={point.id}>
                           {previous ? <line x1={px} y1={py} x2={x} y2={y} stroke="rgba(244,90,30,.28)" strokeWidth=".35" /> : null}
-                          <circle cx={x} cy={y} r=".75" fill={point.cameraAngle <= -80 ? "#F5F7FA" : V.orange} />
+                          <circle cx={x} cy={y} r=".75" fill={point.cameraAngle <= -80 ? V.text : V.orange} />
                         </g>
                       );
                     })}
                   </svg>
-                  <div style={{ position: "absolute", left: 10, bottom: 8, color: V.muted, fontSize: 8 }}>
+                  <div style={{ position: "absolute", left: 10, bottom: 8, color: V.muted, fontSize: 12 }}>
                     White = nadir · Orange = oblique / horizontal capture
                   </div>
                 </div>
 
                 <div style={{ display: "grid", gap: 8, alignContent: "start" }}>
-                  <div style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: "#0D1319", padding: 10 }}>
-                    <div style={{ color: V.muted, fontSize: 8, textTransform: "uppercase" }}>Pattern metrics</div>
+                  <div style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: "#f7f8f9", padding: 10 }}>
+                    <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase" }}>Pattern metrics</div>
                     {Object.entries(secondaryPlan?.metrics ?? {}).map(([key, value]) => (
-                      <div key={key} style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, color: "#DCE3EA", fontSize: 9 }}>
+                      <div key={key} style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, color: "#25313a", fontSize: 12 }}>
                         <span>{key}</span><strong>{value.toFixed(1)}</strong>
                       </div>
                     ))}
                   </div>
                   {(secondaryPlan?.warnings ?? []).map((warning) => (
-                    <div key={warning} style={{ border: `1px solid rgba(255,184,107,.22)`, background: "rgba(255,184,107,.05)", color: "#FFD0A0", borderRadius: 8, padding: 9, fontSize: 9, lineHeight: 1.45 }}>
+                    <div key={warning} style={{ border: `1px solid rgba(255,184,107,.22)`, background: "rgba(255,184,107,.05)", color: "#89370c", borderRadius: 8, padding: 9, fontSize: 12, lineHeight: 1.45 }}>
                       <AlertTriangle size={12} style={{ marginRight: 5, verticalAlign: "text-bottom" }} /> {warning}
                     </div>
                   ))}
-                  <div style={{ border: `1px solid rgba(112,214,160,.18)`, background: "rgba(112,214,160,.04)", color: "#BFEBD2", borderRadius: 8, padding: 9, fontSize: 9, lineHeight: 1.45 }}>
+                  <div style={{ border: `1px solid rgba(112,214,160,.18)`, background: "rgba(112,214,160,.04)", color: "#28654d", borderRadius: 8, padding: 9, fontSize: 12, lineHeight: 1.45 }}>
                     This pattern uses the same checkpoint concept as Object Scan and can be georeferenced for manual guidance or passed to the universal mission engine.
                   </div>
 
-                  <div style={{ border: `1px solid ${secondaryCoverage.missing ? "rgba(255,184,107,.25)" : "rgba(112,214,160,.25)"}`, background: "#0D1319", borderRadius: 9, padding: 10 }}>
+                  <div style={{ border: `1px solid ${secondaryCoverage.missing ? "rgba(255,184,107,.25)" : "rgba(112,214,160,.25)"}`, background: "#f7f8f9", borderRadius: 9, padding: 10 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
                       <div>
-                        <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Capture QA · did I get everything?</div>
-                        <div style={{ color: V.muted, fontSize: 8, marginTop: 3 }}>Pose + image quality checked against every planned view.</div>
+                        <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em" }}>Capture QA · did I get everything?</div>
+                        <div style={{ color: V.muted, fontSize: 12, marginTop: 3 }}>Pose + image quality checked against every planned view.</div>
                       </div>
-                      <div style={{ color: secondaryCoverage.coveragePct >= 90 ? V.green : secondaryCoverage.coveragePct >= 70 ? V.amber : "#FF8B7A", fontSize: 18, fontWeight: 900 }}>
+                      <div style={{ color: secondaryCoverage.coveragePct >= 90 ? V.green : secondaryCoverage.coveragePct >= 70 ? V.amber : "#982d21", fontSize: 18, fontWeight: 650 }}>
                         {secondaryCoverage.coveragePct}%
                       </div>
                     </div>
@@ -4633,27 +4755,27 @@ export default function DominicCapturePlanner({
                       {[
                         ["Good", secondaryCoverage.covered, V.green],
                         ["Weak", secondaryCoverage.weak, V.amber],
-                        ["Missing", secondaryCoverage.missing, "#FF8B7A"],
+                        ["Missing", secondaryCoverage.missing, "#982d21"],
                       ].map(([label, value, color]) => (
                         <div key={String(label)} style={{ border: `1px solid ${V.line}`, borderRadius: 7, padding: 6 }}>
-                          <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>{label}</div>
-                          <div style={{ color: String(color), fontSize: 13, fontWeight: 900, marginTop: 2 }}>{value}</div>
+                          <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase" }}>{label}</div>
+                          <div style={{ color: String(color), fontSize: 13, fontWeight: 650, marginTop: 2 }}>{value}</div>
                         </div>
                       ))}
                     </div>
 
                     {currentSecondaryCheckpoint ? (
                       <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 8, paddingTop: 8 }}>
-                        <div style={{ color: V.text, fontSize: 9, fontWeight: 900 }}>
+                        <div style={{ color: V.text, fontSize: 12, fontWeight: 650 }}>
                           Checkpoint {activeSecondaryIndex + 1}/{effectiveSecondaryGeographicCheckpoints.length}
                         </div>
-                        <div style={{ color: V.muted, fontSize: 8, marginTop: 3 }}>
+                        <div style={{ color: V.muted, fontSize: 12, marginTop: 3 }}>
                           {currentSecondaryCheckpoint.passId} · {currentSecondaryCheckpoint.relativeAltitudeFt.toFixed(1)} ft · camera {currentSecondaryCheckpoint.cameraAngle}°
                         </div>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5, marginTop: 7 }}>
-                          <button type="button" disabled={activeSecondaryIndex === 0} onClick={() => setSecondaryIndex((index) => Math.max(0, index - 1))} style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 800 }}>Previous</button>
-                          <button type="button" onClick={(event) => markSecondaryCaptured(Math.round(event.timeStamp))} style={{ border: 0, background: V.orange, color: "#180A02", borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 900 }}>Mark captured</button>
-                          <button type="button" disabled={activeSecondaryIndex >= effectiveSecondaryGeographicCheckpoints.length - 1} onClick={() => setSecondaryIndex((index) => Math.min(effectiveSecondaryGeographicCheckpoints.length - 1, index + 1))} style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 8, fontWeight: 800 }}>Next</button>
+                          <button type="button" disabled={activeSecondaryIndex === 0} onClick={() => setSecondaryIndex((index) => Math.max(0, index - 1))} style={{ border: `1px solid ${V.line}`, background: "#f0f3f5", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 12, fontWeight: 650 }}>Previous</button>
+                          <button type="button" onClick={(event) => markSecondaryCaptured(Math.round(event.timeStamp))} style={{ border: 0, background: V.orange, color: "#ffffff", borderRadius: 6, padding: "6px 5px", fontSize: 12, fontWeight: 650 }}>Mark captured</button>
+                          <button type="button" disabled={activeSecondaryIndex >= effectiveSecondaryGeographicCheckpoints.length - 1} onClick={() => setSecondaryIndex((index) => Math.min(effectiveSecondaryGeographicCheckpoints.length - 1, index + 1))} style={{ border: `1px solid ${V.line}`, background: "#f0f3f5", color: V.text, borderRadius: 6, padding: "6px 5px", fontSize: 12, fontWeight: 650 }}>Next</button>
                         </div>
                         <input
                           type="file"
@@ -4664,19 +4786,19 @@ export default function DominicCapturePlanner({
                             if (file) void analyzeSecondaryImage(file, Math.round(event.timeStamp));
                             event.currentTarget.value = "";
                           }}
-                          style={{ width: "100%", marginTop: 7, color: V.muted, fontSize: 8 }}
+                          style={{ width: "100%", marginTop: 7, color: V.muted, fontSize: 12 }}
                         />
                         {secondaryImageMessage ? (
-                          <div style={{ color: secondaryImageStatus === "error" ? "#FF8B7A" : V.green, fontSize: 8, lineHeight: 1.4, marginTop: 5 }}>{secondaryImageMessage}</div>
+                          <div style={{ color: secondaryImageStatus === "error" ? "#982d21" : V.green, fontSize: 12, lineHeight: 1.4, marginTop: 5 }}>{secondaryImageMessage}</div>
                         ) : null}
                       </div>
                     ) : null}
 
                     <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 8, paddingTop: 8 }}>
-                      <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>Coverage by pass</div>
+                      <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase" }}>Coverage by pass</div>
                       <div style={{ display: "grid", gap: 4, maxHeight: 92, overflowY: "auto", marginTop: 5 }}>
                         {Object.entries(secondaryCoverageByPass).map(([pass, stats]) => (
-                          <div key={pass} style={{ display: "flex", justifyContent: "space-between", gap: 7, color: "#DCE3EA", fontSize: 8 }}>
+                          <div key={pass} style={{ display: "flex", justifyContent: "space-between", gap: 7, color: "#25313a", fontSize: 12 }}>
                             <span>{pass}</span>
                             <span style={{ color: V.muted }}>{stats.covered} good · {stats.weak} weak · {stats.missing} missing</span>
                           </div>
@@ -4686,10 +4808,10 @@ export default function DominicCapturePlanner({
 
                     <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 8, paddingTop: 8 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                        <div style={{ color: secondaryRepairPlan.length ? V.amber : V.green, fontSize: 8, fontWeight: 900 }}>
+                        <div style={{ color: secondaryRepairPlan.length ? V.amber : V.green, fontSize: 12, fontWeight: 650 }}>
                           {secondaryRepairPlan.length ? `${secondaryRepairPlan.length} views need repair` : "Capture set passes current QA"}
                         </div>
-                        <button type="button" onClick={resetSecondaryCaptureQa} style={{ border: 0, background: "transparent", color: V.muted, fontSize: 8, textDecoration: "underline", cursor: "pointer" }}>Reset QA</button>
+                        <button type="button" onClick={resetSecondaryCaptureQa} style={{ border: 0, background: "transparent", color: V.muted, fontSize: 12, textDecoration: "underline", cursor: "pointer" }}>Reset QA</button>
                       </div>
                       {secondaryRepairPlan.length ? (
                         <div style={{ display: "grid", gap: 4, maxHeight: 92, overflowY: "auto", marginTop: 5 }}>
@@ -4701,7 +4823,7 @@ export default function DominicCapturePlanner({
                                 const index = effectiveSecondaryGeographicCheckpoints.findIndex((point) => point.id === repair.sourceCheckpointId);
                                 if (index >= 0) setSecondaryIndex(index);
                               }}
-                              style={{ border: `1px solid ${repair.priority === 2 ? "rgba(255,139,122,.2)" : "rgba(255,184,107,.2)"}`, background: "transparent", color: repair.priority === 2 ? "#FFB6AA" : "#FFD0A0", borderRadius: 6, padding: "5px 6px", textAlign: "left", fontSize: 7, cursor: "pointer" }}
+                              style={{ border: `1px solid ${repair.priority === 2 ? "rgba(255,139,122,.2)" : "rgba(255,184,107,.2)"}`, background: "transparent", color: repair.priority === 2 ? "#982d21" : "#89370c", borderRadius: 6, padding: "5px 6px", textAlign: "left", fontSize: 12, cursor: "pointer" }}
                             >
                               {repair.priority === 2 ? "MISSING" : "WEAK"} · {"passId" in repair ? repair.passId : "capture"} · #{repair.sequence}
                             </button>
@@ -4714,7 +4836,7 @@ export default function DominicCapturePlanner({
                             type="button"
                             disabled={autonomousRunning}
                             onClick={() => void runSecondarySimulation("repair")}
-                            style={{ border: `1px solid rgba(255,184,107,.28)`, background: "rgba(255,184,107,.06)", color: "#FFD0A0", borderRadius: 6, padding: "6px 7px", fontSize: 8, fontWeight: 900, cursor: autonomousRunning ? "not-allowed" : "pointer" }}
+                            style={{ border: `1px solid rgba(255,184,107,.28)`, background: "rgba(255,184,107,.06)", color: "#89370c", borderRadius: 6, padding: "6px 7px", fontSize: 12, fontWeight: 650, cursor: autonomousRunning ? "not-allowed" : "pointer" }}
                           >
                             Simulate repair pass
                           </button>
@@ -4723,7 +4845,7 @@ export default function DominicCapturePlanner({
                               type="button"
                               disabled={!secondaryFlightApproved || bridgeStatus !== "connected" || !productionFlightUnlocked || !benchReport?.readyForPropOnFieldTest || autonomousRunning}
                               onClick={() => void runSecondaryConnectedMission("repair")}
-                              style={{ border: `1px solid rgba(112,214,160,.28)`, background: "rgba(112,214,160,.06)", color: V.green, borderRadius: 6, padding: "6px 7px", fontSize: 8, fontWeight: 900, cursor: secondaryFlightApproved && bridgeStatus === "connected" && productionFlightUnlocked && benchReport?.readyForPropOnFieldTest && !autonomousRunning ? "pointer" : "not-allowed", opacity: secondaryFlightApproved && bridgeStatus === "connected" && productionFlightUnlocked && benchReport?.readyForPropOnFieldTest ? 1 : .5 }}
+                              style={{ border: `1px solid rgba(112,214,160,.28)`, background: "rgba(112,214,160,.06)", color: V.green, borderRadius: 6, padding: "6px 7px", fontSize: 12, fontWeight: 650, cursor: secondaryFlightApproved && bridgeStatus === "connected" && productionFlightUnlocked && benchReport?.readyForPropOnFieldTest && !autonomousRunning ? "pointer" : "not-allowed", opacity: secondaryFlightApproved && bridgeStatus === "connected" && productionFlightUnlocked && benchReport?.readyForPropOnFieldTest ? 1 : .5 }}
                             >
                               Fly repair pass
                             </button>
@@ -4733,28 +4855,28 @@ export default function DominicCapturePlanner({
                     </div>
                   </div>
                   <div style={{ border: `1px solid rgba(244,90,30,.24)`, background: "rgba(244,90,30,.04)", borderRadius: 9, padding: 9 }}>
-                    <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
+                    <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em" }}>
                       Universal mission execution
                     </div>
-                    <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 4 }}>
+                    <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.4, marginTop: 4 }}>
                       Run this calculated {activeProfile.label.toLowerCase()} pattern through the same safety-supervised mission engine used by Object Scan.
                     </div>
                     <button
                       type="button"
                       disabled={autonomousRunning || !effectiveSecondaryGeographicCheckpoints.length}
                       onClick={() => void runSecondarySimulation()}
-                      style={{ width: "100%", marginTop: 7, border: 0, background: autonomousRunning ? "#39424B" : `linear-gradient(90deg,${V.orangeDark},${V.orange})`, color: autonomousRunning ? "#88939E" : "#180A02", borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: autonomousRunning ? "not-allowed" : "pointer" }}
+                      style={{ width: "100%", marginTop: 7, border: 0, background: autonomousRunning ? "#39424B" : `linear-gradient(90deg,${V.orangeDark},${V.orange})`, color: autonomousRunning ? "#88939E" : "#ffffff", borderRadius: 7, padding: "7px 8px", fontSize: 12, fontWeight: 650, cursor: autonomousRunning ? "not-allowed" : "pointer" }}
                     >
                       Run {activeProfile.label} Simulation
                     </button>
 
                     {missionType === "interior" ? (
-                      <div style={{ color: V.amber, fontSize: 8, lineHeight: 1.4, marginTop: 7 }}>
+                      <div style={{ color: V.amber, fontSize: 12, lineHeight: 1.4, marginTop: 7 }}>
                         Connected autonomous Interior execution remains locked until a supported local-positioning / SLAM navigation source is available.
                       </div>
                     ) : (
                       <>
-                        <label style={{ display: "grid", gridTemplateColumns: "16px 1fr", gap: 6, alignItems: "start", color: bridgeStatus === "connected" ? "#DCE3EA" : V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 8 }}>
+                        <label style={{ display: "grid", gridTemplateColumns: "16px 1fr", gap: 6, alignItems: "start", color: bridgeStatus === "connected" ? "#25313a" : V.muted, fontSize: 12, lineHeight: 1.4, marginTop: 8 }}>
                           <input
                             type="checkbox"
                             disabled={
@@ -4782,7 +4904,7 @@ export default function DominicCapturePlanner({
                             autonomousRunning
                           }
                           onClick={() => void runSecondaryConnectedMission()}
-                          style={{ width: "100%", marginTop: 7, border: `1px solid ${secondaryFlightApproved ? "rgba(112,214,160,.35)" : V.line}`, background: secondaryFlightApproved ? "rgba(112,214,160,.1)" : "#1B222A", color: secondaryFlightApproved ? V.green : "#6F7A84", borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: secondaryFlightApproved ? "pointer" : "not-allowed" }}
+                          style={{ width: "100%", marginTop: 7, border: `1px solid ${secondaryFlightApproved ? "rgba(112,214,160,.35)" : V.line}`, background: secondaryFlightApproved ? "rgba(112,214,160,.1)" : "#e9edf0", color: secondaryFlightApproved ? V.green : "#60707b", borderRadius: 7, padding: "7px 8px", fontSize: 12, fontWeight: 650, cursor: secondaryFlightApproved ? "pointer" : "not-allowed" }}
                         >
                           Execute {activeProfile.label} on Connected Aircraft
                         </button>
@@ -4790,7 +4912,7 @@ export default function DominicCapturePlanner({
                     )}
 
                     {autonomousSnapshot ? (
-                      <div style={{ marginTop: 7, color: autonomousSnapshot.phase === "COMPLETE" ? V.green : autonomousSnapshot.phase === "ABORTED" || autonomousSnapshot.phase === "FAILED" ? "#FFB6AA" : V.muted, fontSize: 8, lineHeight: 1.4 }}>
+                      <div style={{ marginTop: 7, color: autonomousSnapshot.phase === "COMPLETE" ? V.green : autonomousSnapshot.phase === "ABORTED" || autonomousSnapshot.phase === "FAILED" ? "#982d21" : V.muted, fontSize: 12, lineHeight: 1.4 }}>
                         {autonomousSnapshot.phase} · {autonomousSnapshot.completedCheckpointIds.length}/{autonomousSnapshot.checkpointCount} checkpoints
                         {autonomousSnapshot.safetyIssues.length ? ` · ${autonomousSnapshot.safetyIssues[0].message}` : ""}
                       </div>
@@ -4804,7 +4926,7 @@ export default function DominicCapturePlanner({
         <div style={{ padding: 14, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,320px),1fr))", gap: 12, alignItems: "start" }}>
           <aside style={{ display: "grid", gap: 12 }}>
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
-              <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>Object geometry</div>
+              <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".1em", textTransform: "uppercase" }}>Object geometry</div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 9, marginTop: 12 }}>
                 <Field label="Diameter" value={objectDiameterFt} min={1} max={500} suffix="ft" onChange={setObjectDiameterFt} />
                 <Field label="Height" value={objectHeightFt} min={1} max={500} suffix="ft" onChange={setObjectHeightFt} />
@@ -4814,10 +4936,10 @@ export default function DominicCapturePlanner({
             </section>
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.text, fontSize: 12, fontWeight: 900 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.text, fontSize: 12, fontWeight: 650 }}>
                 <MapPinned size={16} color={V.orange} /> Subject center
               </div>
-              <p style={{ margin: "6px 0 10px", color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
+              <p style={{ margin: "6px 0 10px", color: V.muted, fontSize: 12, lineHeight: 1.45 }}>
                 Georeference the object once. DOMINIC projects every ring checkpoint into latitude/longitude for the future autonomous mission layer.
               </p>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -4827,17 +4949,17 @@ export default function DominicCapturePlanner({
               <div style={{ marginTop: 8 }}>
                 <Field label="Base relative altitude" value={baseRelativeAltitudeFt} min={-200} max={2000} step={1} suffix="ft" onChange={setBaseRelativeAltitudeFt} />
               </div>
-              <div style={{ marginTop: 9, border: `1px solid rgba(112,214,160,.18)`, background: "rgba(112,214,160,.05)", borderRadius: 8, padding: 8, color: "#BFEBD2", fontSize: 9, lineHeight: 1.45 }}>
+              <div style={{ marginTop: 9, border: `1px solid rgba(112,214,160,.18)`, background: "rgba(112,214,160,.05)", borderRadius: 8, padding: 8, color: "#28654d", fontSize: 12, lineHeight: 1.45 }}>
                 {geographicCheckpoints.length} geographic checkpoints generated. First point: {geographicCheckpoints[0]?.latitude.toFixed(6)}, {geographicCheckpoints[0]?.longitude.toFixed(6)}.
               </div>
             </section>
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.text, fontSize: 12, fontWeight: 900 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.text, fontSize: 12, fontWeight: 650 }}>
                   <Home size={16} color={V.orange} /> Mission calibration
                 </div>
-                <span style={{ color: calibrationValidation.ready ? V.green : V.amber, fontSize: 8, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
+                <span style={{ color: calibrationValidation.ready ? V.green : V.amber, fontSize: 12, fontWeight: 650, letterSpacing: ".08em", textTransform: "uppercase" }}>
                   {calibrationValidation.ready ? "Geometry clear" : "Action required"}
                 </span>
               </div>
@@ -4853,8 +4975,8 @@ export default function DominicCapturePlanner({
 
               <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 12, paddingTop: 10 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                  <div style={{ color: V.muted, fontSize: 9, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>Obstacle / no-fly sectors</div>
-                  <button type="button" onClick={addNoFlySector} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "5px 7px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 8 }}>
+                  <div style={{ color: V.muted, fontSize: 12, fontWeight: 650, letterSpacing: ".08em", textTransform: "uppercase" }}>Obstacle / no-fly sectors</div>
+                  <button type="button" onClick={addNoFlySector} style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 7, padding: "5px 7px", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 12 }}>
                     <Plus size={11} /> Add sector
                   </button>
                 </div>
@@ -4866,9 +4988,9 @@ export default function DominicCapturePlanner({
                         <input
                           value={sector.label}
                           onChange={(event) => updateNoFlySector(sector.id, { label: event.target.value })}
-                          style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 6, padding: "6px 7px", fontSize: 9 }}
+                          style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 6, padding: "6px 7px", fontSize: 12 }}
                         />
-                        <button type="button" onClick={() => removeNoFlySector(sector.id)} aria-label={`Remove ${sector.label}`} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: "#FF8B7A", borderRadius: 6, width: 30, cursor: "pointer", display: "grid", placeItems: "center" }}>
+                        <button type="button" onClick={() => removeNoFlySector(sector.id)} aria-label={`Remove ${sector.label}`} style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: "#982d21", borderRadius: 6, width: 30, cursor: "pointer", display: "grid", placeItems: "center" }}>
                           <Trash2 size={12} />
                         </button>
                       </div>
@@ -4878,7 +5000,7 @@ export default function DominicCapturePlanner({
                       </div>
                     </div>
                   )) : (
-                    <div style={{ color: V.muted, fontSize: 9, lineHeight: 1.45 }}>No blocked sectors defined. Add sectors for roads, wires, structures, people, or any direction the planned orbit must not enter.</div>
+                    <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.45 }}>No blocked sectors defined. Add sectors for roads, wires, structures, people, or any direction the planned orbit must not enter.</div>
                   )}
                 </div>
               </div>
@@ -4886,14 +5008,14 @@ export default function DominicCapturePlanner({
 
             <section style={{ border: `1px solid rgba(244,90,30,.28)`, borderRadius: 12, background: V.panel, padding: 13 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.text, fontSize: 12, fontWeight: 900 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.text, fontSize: 12, fontWeight: 650 }}>
                   <Radio size={16} color={V.orange} /> Aircraft bridge
                 </div>
-                <span style={{ color: bridgeStatus === "connected" ? V.green : bridgeStatus === "error" ? "#FF8B7A" : V.muted, fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
+                <span style={{ color: bridgeStatus === "connected" ? V.green : bridgeStatus === "error" ? "#982d21" : V.muted, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em" }}>
                   {bridgeStatus}
                 </span>
               </div>
-              <p style={{ margin: "6px 0 9px", color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
+              <p style={{ margin: "6px 0 9px", color: V.muted, fontSize: 12, lineHeight: 1.45 }}>
                 Connect DOMINIC to a local Flight Bridge. The bridge can represent DJI, MAVLink/PX4/ArduPilot, Autel, or another supported adapter.
               </p>
               <input
@@ -4901,7 +5023,7 @@ export default function DominicCapturePlanner({
                 disabled={bridgeStatus === "connected" || bridgeStatus === "connecting"}
                 onChange={(event) => setBridgeUrl(event.target.value)}
                 placeholder="ws://127.0.0.1:8787"
-                style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 8, padding: "8px 9px", fontSize: 10, outline: 0 }}
+                style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 8, padding: "8px 9px", fontSize: 12, outline: 0 }}
               />
               <button
                 type="button"
@@ -4911,29 +5033,29 @@ export default function DominicCapturePlanner({
                   width: "100%",
                   marginTop: 8,
                   border: bridgeStatus === "connected" ? `1px solid ${V.line}` : 0,
-                  background: bridgeStatus === "connected" ? "#0D1319" : bridgeStatus === "connecting" ? "#39424B" : `linear-gradient(90deg,${V.orangeDark},${V.orange})`,
-                  color: bridgeStatus === "connected" ? V.text : bridgeStatus === "connecting" ? "#88939E" : "#180A02",
+                  background: bridgeStatus === "connected" ? "#f7f8f9" : bridgeStatus === "connecting" ? "#39424B" : `linear-gradient(90deg,${V.orangeDark},${V.orange})`,
+                  color: bridgeStatus === "connected" ? V.text : bridgeStatus === "connecting" ? "#88939E" : "#ffffff",
                   borderRadius: 8,
                   padding: "8px 9px",
-                  fontWeight: 900,
+                  fontWeight: 650,
                   cursor: bridgeStatus === "connecting" ? "not-allowed" : "pointer",
-                  fontSize: 9,
+                  fontSize: 12,
                 }}
               >
                 {bridgeStatus === "connected" ? "Disconnect Aircraft Bridge" : bridgeStatus === "connecting" ? "Connecting..." : "Connect Aircraft Bridge"}
               </button>
-              {bridgeError ? <div style={{ color: "#FF9A86", fontSize: 8, lineHeight: 1.4, marginTop: 7 }}>{bridgeError}</div> : null}
+              {bridgeError ? <div style={{ color: "#982d21", fontSize: 12, lineHeight: 1.4, marginTop: 7 }}>{bridgeError}</div> : null}
               {bridgeInfo ? (
                 <div style={{ marginTop: 9, border: `1px solid rgba(112,214,160,.18)`, background: "rgba(112,214,160,.05)", borderRadius: 8, padding: 8 }}>
-                  <div style={{ color: V.green, fontSize: 9, fontWeight: 900 }}>{bridgeInfo.vendor.toUpperCase()} · {bridgeInfo.model ?? bridgeInfo.aircraftId}</div>
-                  <div style={{ color: V.muted, fontSize: 8, marginTop: 4, lineHeight: 1.4 }}>
+                  <div style={{ color: V.green, fontSize: 12, fontWeight: 650 }}>{bridgeInfo.vendor.toUpperCase()} · {bridgeInfo.model ?? bridgeInfo.aircraftId}</div>
+                  <div style={{ color: V.muted, fontSize: 12, marginTop: 4, lineHeight: 1.4 }}>
                     {Object.entries(bridgeInfo.capabilities).filter(([, enabled]) => enabled).map(([name]) => name).join(" · ")}
                   </div>
                   <div style={{ borderTop: `1px solid rgba(112,214,160,.16)`, marginTop: 7, paddingTop: 7 }}>
-                    <div style={{ color: "#BFEBD2", fontSize: 8, fontWeight: 900 }}>
+                    <div style={{ color: "#28654d", fontSize: 12, fontWeight: 650 }}>
                       Automatic inspection ingestion · {automaticMediaCount} captured · {automaticScreeningCount} AI-screened
                     </div>
-                    <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 3 }}>
+                    <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.4, marginTop: 3 }}>
                       {automaticMediaStatus ?? (inspectionContext
                         ? "Waiting for aircraft capture events. Eligible RGB/zoom inspection images are quality-checked, saved to the active asset, and queued for DOMINIC screening automatically."
                         : "Waiting for aircraft capture events. Photos are quality-checked and added to coverage automatically. Start from Asset Intelligence to attach them to an inspection.")}
@@ -4941,10 +5063,10 @@ export default function DominicCapturePlanner({
                   </div>
                   <div style={{ borderTop: `1px solid rgba(112,214,160,.16)`, marginTop: 8, paddingTop: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                      <div style={{ color: V.text, fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
+                      <div style={{ color: V.text, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em" }}>
                         Bench / HITL readiness
                       </div>
-                      <span style={{ color: benchReport?.readyForPropOnFieldTest ? V.green : benchReport?.readyForPropsOffBench ? V.amber : V.muted, fontSize: 8, fontWeight: 900 }}>
+                      <span style={{ color: benchReport?.readyForPropOnFieldTest ? V.green : benchReport?.readyForPropsOffBench ? V.amber : V.muted, fontSize: 12, fontWeight: 650 }}>
                         {benchReport
                           ? benchReport.readyForPropOnFieldTest
                             ? "FIELD READY"
@@ -4954,7 +5076,7 @@ export default function DominicCapturePlanner({
                           : "NOT RUN"}
                       </span>
                     </div>
-                    <label style={{ display: "flex", gap: 6, alignItems: "center", color: V.muted, fontSize: 8, marginTop: 6 }}>
+                    <label style={{ display: "flex", gap: 6, alignItems: "center", color: V.muted, fontSize: 12, marginTop: 6 }}>
                       <input
                         type="checkbox"
                         checked={benchRequireRtk}
@@ -4970,14 +5092,14 @@ export default function DominicCapturePlanner({
                       type="button"
                       disabled={benchRunning}
                       onClick={() => void runConnectedBenchReadiness()}
-                      style={{ width: "100%", marginTop: 7, border: `1px solid ${V.line}`, background: "#0D1319", color: benchRunning ? "#6F7A84" : V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: benchRunning ? "not-allowed" : "pointer" }}
+                      style={{ width: "100%", marginTop: 7, border: `1px solid ${V.line}`, background: "#f7f8f9", color: benchRunning ? "#60707b" : V.text, borderRadius: 7, padding: "7px 8px", fontSize: 12, fontWeight: 650, cursor: benchRunning ? "not-allowed" : "pointer" }}
                     >
                       {benchRunning ? "Running Bench Checks..." : "Run Bench / HITL Readiness"}
                     </button>
                     {benchReport ? (
                       <div style={{ display: "grid", gap: 4, marginTop: 7 }}>
                         {benchReport.checks.map((check) => (
-                          <div key={check.id} style={{ display: "grid", gridTemplateColumns: "12px 1fr", gap: 5, alignItems: "start", color: check.status === "pass" ? "#BFEBD2" : check.status === "fail" ? "#FFB6AA" : check.status === "warn" ? "#FFD0A0" : V.muted, fontSize: 8, lineHeight: 1.35 }}>
+                          <div key={check.id} style={{ display: "grid", gridTemplateColumns: "12px 1fr", gap: 5, alignItems: "start", color: check.status === "pass" ? "#28654d" : check.status === "fail" ? "#982d21" : check.status === "warn" ? "#89370c" : V.muted, fontSize: 12, lineHeight: 1.35 }}>
                             <span>{check.status === "pass" ? "✓" : check.status === "fail" ? "×" : check.status === "warn" ? "!" : "–"}</span>
                             <span><strong>{check.label}</strong> · {check.message}</span>
                           </div>
@@ -4987,10 +5109,10 @@ export default function DominicCapturePlanner({
 
                     <div style={{ borderTop: `1px solid rgba(112,214,160,.16)`, marginTop: 9, paddingTop: 9 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                        <div style={{ color: V.text, fontSize: 8, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
+                        <div style={{ color: V.text, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em" }}>
                           Flight validation ladder
                         </div>
-                        <span style={{ color: productionFlightUnlocked ? V.green : V.amber, fontSize: 8, fontWeight: 900 }}>
+                        <span style={{ color: productionFlightUnlocked ? V.green : V.amber, fontSize: 12, fontWeight: 650 }}>
                           {productionFlightUnlocked
                             ? "PRODUCTION UNLOCKED"
                             : (flightValidationStatus?.currentStage ?? "simulation").replace("_", " ").toUpperCase()}
@@ -5002,13 +5124,13 @@ export default function DominicCapturePlanner({
                           ["Bench / HITL", Boolean(flightValidation?.benchVerifiedAtMs)],
                           ["Controlled field", Boolean(flightValidation?.controlledFieldVerifiedAtMs)],
                         ].map(([label, done]) => (
-                          <div key={String(label)} style={{ display: "flex", justifyContent: "space-between", gap: 8, color: done ? "#BFEBD2" : V.muted, fontSize: 8 }}>
+                          <div key={String(label)} style={{ display: "flex", justifyContent: "space-between", gap: 8, color: done ? "#28654d" : V.muted, fontSize: 12 }}>
                             <span>{done ? "✓" : "○"} {label}</span>
                             <span>{done ? "verified" : "required"}</span>
                           </div>
                         ))}
                       </div>
-                      <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 7 }}>
+                      <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.4, marginTop: 7 }}>
                         Full simulation and Bench/HITL are recorded automatically for this exact aircraft and capture plan. Controlled field validation is a pilot attestation after a supervised proving flight.
                       </div>
                       <textarea
@@ -5016,7 +5138,7 @@ export default function DominicCapturePlanner({
                         disabled={!flightValidation?.simulationVerifiedAtMs || !flightValidation?.benchVerifiedAtMs || productionFlightUnlocked}
                         onChange={(event) => setControlledFieldNotes(event.target.value)}
                         placeholder="Controlled field test notes: location, short route, result, anomalies..."
-                        style={{ width: "100%", boxSizing: "border-box", minHeight: 54, marginTop: 7, border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8, resize: "vertical" }}
+                        style={{ width: "100%", boxSizing: "border-box", minHeight: 54, marginTop: 7, border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 12, resize: "vertical" }}
                       />
                       <button
                         type="button"
@@ -5026,19 +5148,19 @@ export default function DominicCapturePlanner({
                           productionFlightUnlocked
                         }
                         onClick={recordControlledFieldValidation}
-                        style={{ width: "100%", marginTop: 6, border: `1px solid ${V.line}`, background: productionFlightUnlocked ? "rgba(112,214,160,.08)" : "#0D1319", color: productionFlightUnlocked ? V.green : V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: productionFlightUnlocked ? "default" : "pointer" }}
+                        style={{ width: "100%", marginTop: 6, border: `1px solid ${V.line}`, background: productionFlightUnlocked ? "rgba(112,214,160,.08)" : "#f7f8f9", color: productionFlightUnlocked ? V.green : V.text, borderRadius: 7, padding: "7px 8px", fontSize: 12, fontWeight: 650, cursor: productionFlightUnlocked ? "default" : "pointer" }}
                       >
                         {productionFlightUnlocked ? "Controlled Field Validation Recorded" : "Record Controlled Field Validation"}
                       </button>
                       {validationMessage ? (
-                        <div style={{ color: productionFlightUnlocked ? V.green : V.amber, fontSize: 8, lineHeight: 1.4, marginTop: 6 }}>
+                        <div style={{ color: productionFlightUnlocked ? V.green : V.amber, fontSize: 12, lineHeight: 1.4, marginTop: 6 }}>
                           {validationMessage}
                         </div>
                       ) : null}
                       {flightValidationStatus?.blockers.length ? (
                         <div style={{ display: "grid", gap: 3, marginTop: 6 }}>
                           {flightValidationStatus.blockers.slice(0, 4).map((blocker) => (
-                            <div key={blocker} style={{ color: V.muted, fontSize: 8, lineHeight: 1.35 }}>
+                            <div key={blocker} style={{ color: V.muted, fontSize: 12, lineHeight: 1.35 }}>
                               • {blocker}
                             </div>
                           ))}
@@ -5051,16 +5173,16 @@ export default function DominicCapturePlanner({
             </section>
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.text, fontSize: 12, fontWeight: 900 }}><ShieldCheck size={16} color={V.orange} /> Safety gate</div>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, color: V.text, fontSize: 12, fontWeight: 650 }}><ShieldCheck size={16} color={V.orange} /> Safety gate</div>
               <div style={{ display: "grid", gap: 8, marginTop: 11 }}>
                 {safetyItems.map((item, index) => (
-                  <label key={item} style={{ display: "grid", gridTemplateColumns: "18px 1fr", gap: 7, alignItems: "start", color: safety[index] ? "#DCE3EA" : V.muted, fontSize: 10, lineHeight: 1.45, cursor: "pointer" }}>
+                  <label key={item} style={{ display: "grid", gridTemplateColumns: "18px 1fr", gap: 7, alignItems: "start", color: safety[index] ? "#25313a" : V.muted, fontSize: 12, lineHeight: 1.45, cursor: "pointer" }}>
                     <input type="checkbox" checked={Boolean(safety[index])} onChange={(event) => setSafety((state) => ({ ...state, [index]: event.target.checked }))} />
                     <span>{item}</span>
                   </label>
                 ))}
               </div>
-              <div style={{ marginTop: 10, color: safetyReady ? V.green : V.amber, fontSize: 10, fontWeight: 800 }}>
+              <div style={{ marginTop: 10, color: safetyReady ? V.green : V.amber, fontSize: 12, fontWeight: 650 }}>
                 {safetyReady ? "Safety gate acknowledged." : "Acknowledge all items before beginning the guided run."}
               </div>
             </section>
@@ -5070,10 +5192,10 @@ export default function DominicCapturePlanner({
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, overflow: "hidden" }}>
               <div style={{ padding: "11px 13px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                 <div>
-                  <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>Preflight flight envelope</div>
-                  <div style={{ color: V.muted, fontSize: 10, marginTop: 3 }}>Subject center, three capture rings, home direction and blocked sectors.</div>
+                  <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".1em", textTransform: "uppercase" }}>Preflight flight envelope</div>
+                  <div style={{ color: V.muted, fontSize: 12, marginTop: 3 }}>Subject center, three capture rings, home direction and blocked sectors.</div>
                 </div>
-                <div style={{ color: preflightReady ? V.green : V.amber, fontSize: 9, fontWeight: 900 }}>
+                <div style={{ color: preflightReady ? V.green : V.amber, fontSize: 12, fontWeight: 650 }}>
                   {preflightReady ? "PREFLIGHT CLEAR" : "PREFLIGHT BLOCKED"}
                 </div>
               </div>
@@ -5106,7 +5228,7 @@ export default function DominicCapturePlanner({
                       const bearing = ((shot.bearingDeg % 360) + 360) % 360;
                       return start < end ? bearing >= start && bearing <= end : start > end ? bearing >= start || bearing <= end : false;
                     });
-                    return <circle key={shot.id} cx={point.x} cy={point.y} r="0.75" fill={blocked ? "#FF8B7A" : "#F5F7FA"} opacity={blocked ? .95 : .72} />;
+                    return <circle key={shot.id} cx={point.x} cy={point.y} r="0.75" fill={blocked ? "#982d21" : V.text} opacity={blocked ? .95 : .72} />;
                   })}
                   <circle cx="50" cy="50" r="5.2" fill="#1C252D" stroke={V.orange} strokeWidth="0.8" />
                   <circle cx="50" cy="50" r="1.2" fill={V.orange} />
@@ -5117,7 +5239,7 @@ export default function DominicCapturePlanner({
                     return (
                       <>
                         <line x1="50" y1="50" x2={home.x} y2={home.y} stroke="rgba(112,214,160,.55)" strokeWidth="0.5" strokeDasharray="1.5 1.5" />
-                        <circle cx={home.x} cy={home.y} r="2.2" fill={V.green} stroke="#0B1117" strokeWidth="0.8" />
+                        <circle cx={home.x} cy={home.y} r="2.2" fill={V.green} stroke="#ffffff" strokeWidth="0.8" />
                       </>
                     );
                   })()}
@@ -5127,10 +5249,10 @@ export default function DominicCapturePlanner({
                   <text x="4" y="51" textAnchor="middle" fill="#8F9CAA" fontSize="3">W</text>
                 </svg>
 
-                <div style={{ position: "absolute", left: 13, bottom: 11, display: "grid", gap: 4, color: V.muted, fontSize: 9 }}>
+                <div style={{ position: "absolute", left: 13, bottom: 11, display: "grid", gap: 4, color: V.muted, fontSize: 12 }}>
                   <div><span style={{ color: V.green }}>●</span> Home · {homeVector.distanceFt.toFixed(0)} ft · {homeVector.bearingDeg.toFixed(0)}°</div>
                   <div><span style={{ color: V.orange }}>○</span> Planned capture rings · {plan.totalShots} frames</div>
-                  <div><span style={{ color: "#FF8B7A" }}>◢</span> Blocked sectors · {noFlySectors.length}</div>
+                  <div><span style={{ color: "#982d21" }}>◢</span> Blocked sectors · {noFlySectors.length}</div>
                 </div>
               </div>
             </section>
@@ -5138,10 +5260,10 @@ export default function DominicCapturePlanner({
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, overflow: "hidden" }}>
               <div style={{ padding: "11px 13px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
                 <div>
-                  <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>3-ring capture path</div>
-                  <div style={{ color: V.muted, fontSize: 10, marginTop: 3 }}>Fly each ring continuously in one direction while keeping the subject centered.</div>
+                  <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".1em", textTransform: "uppercase" }}>3-ring capture path</div>
+                  <div style={{ color: V.muted, fontSize: 12, marginTop: 3 }}>Fly each ring continuously in one direction while keeping the subject centered.</div>
                 </div>
-                <button type="button" onClick={resetRun} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 8, padding: "7px 8px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 9 }}>
+                <button type="button" onClick={resetRun} style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.muted, borderRadius: 8, padding: "7px 8px", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
                   <RotateCcw size={12} /> Reset
                 </button>
               </div>
@@ -5158,7 +5280,7 @@ export default function DominicCapturePlanner({
                 </div>
                 <div style={{ position: "absolute", left: 14, bottom: 12, display: "grid", gap: 5 }}>
                   {plan.rings.map((ring) => (
-                    <div key={ring.id} style={{ display: "flex", alignItems: "center", gap: 6, color: V.muted, fontSize: 9 }}>
+                    <div key={ring.id} style={{ display: "flex", alignItems: "center", gap: 6, color: V.muted, fontSize: 12 }}>
                       <CircleDot size={11} color={ring.id === "mid" ? V.orange : "#8A95A7"} />
                       {ring.label}: {ring.shots} frames · camera {ring.cameraAngle}°
                     </div>
@@ -5173,9 +5295,9 @@ export default function DominicCapturePlanner({
                   ["Image step", `${plan.stepWidthFt.toFixed(1)} ft`],
                   ["Stand-off", `${standoffFt} ft`],
                 ].map(([label, value]) => (
-                  <div key={label} style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#0D1319", padding: "8px 9px" }}>
-                    <div style={{ color: V.muted, fontSize: 8, letterSpacing: ".08em", textTransform: "uppercase" }}>{label}</div>
-                    <div style={{ marginTop: 4, fontSize: 14, fontWeight: 900 }}>{value}</div>
+                  <div key={label} style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#f7f8f9", padding: "8px 9px" }}>
+                    <div style={{ color: V.muted, fontSize: 12, letterSpacing: ".08em", textTransform: "uppercase" }}>{label}</div>
+                    <div style={{ marginTop: 4, fontSize: 14, fontWeight: 650 }}>{value}</div>
                   </div>
                 ))}
               </div>
@@ -5183,13 +5305,13 @@ export default function DominicCapturePlanner({
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 900 }}><Navigation size={15} color={V.orange} /> Live guided capture</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 650 }}><Navigation size={15} color={V.orange} /> Live guided capture</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <div style={{ color: V.muted, fontSize: 9 }}>{capturedCount}/{plan.totalShots} captured</div>
+                  <div style={{ color: V.muted, fontSize: 12 }}>{capturedCount}/{plan.totalShots} captured</div>
                   <button
                     type="button"
                     onClick={downloadCheckpointPayload}
-                    style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 8, padding: "6px 8px", display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 9, fontWeight: 800 }}
+                    style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 8, padding: "6px 8px", display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 12, fontWeight: 650 }}
                     title="Export DOMINIC checkpoint payload for future autonomous translation"
                   >
                     <Download size={12} /> Export checkpoints
@@ -5200,10 +5322,10 @@ export default function DominicCapturePlanner({
               <div style={{ marginTop: 11, border: `1px solid ${preflightReady ? "rgba(112,214,160,.35)" : "rgba(255,184,107,.28)"}`, borderRadius: 10, background: preflightReady ? "rgba(112,214,160,.05)" : "rgba(255,184,107,.05)", padding: 11 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                   <div>
-                    <div style={{ color: preflightReady ? V.green : V.amber, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>
+                    <div style={{ color: preflightReady ? V.green : V.amber, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em" }}>
                       {missionArmed ? "Guided capture armed" : preflightReady ? "Preflight ready" : "Preflight blocked"}
                     </div>
-                    <div style={{ color: V.muted, fontSize: 9, marginTop: 3 }}>
+                    <div style={{ color: V.muted, fontSize: 12, marginTop: 3 }}>
                       {preflightReady
                         ? "Safety acknowledgements and calibration constraints are clear."
                         : "Resolve safety acknowledgements and calibration blockers before starting."}
@@ -5216,15 +5338,15 @@ export default function DominicCapturePlanner({
                     style={{
                       border: 0,
                       background: preflightReady ? (missionArmed ? "#23312C" : `linear-gradient(90deg,${V.orangeDark},${V.orange})`) : "#39424B",
-                      color: preflightReady ? (missionArmed ? V.green : "#180A02") : "#88939E",
+                      color: preflightReady ? (missionArmed ? V.green : "#ffffff") : "#88939E",
                       borderRadius: 8,
                       padding: "9px 11px",
-                      fontWeight: 900,
+                      fontWeight: 650,
                       cursor: preflightReady ? "pointer" : "not-allowed",
                       display: "flex",
                       alignItems: "center",
                       gap: 6,
-                      fontSize: 10,
+                      fontSize: 12,
                     }}
                   >
                     <Play size={13} /> {missionArmed ? "Disarm capture" : "Start Guided Capture"}
@@ -5234,7 +5356,7 @@ export default function DominicCapturePlanner({
                 {calibrationValidation.issues.length ? (
                   <div style={{ display: "grid", gap: 5, marginTop: 8 }}>
                     {calibrationValidation.issues.map((issue) => (
-                      <div key={issue.code} style={{ color: issue.severity === "blocker" ? "#FFB6AA" : "#FFD0A0", fontSize: 9, lineHeight: 1.4 }}>
+                      <div key={issue.code} style={{ color: issue.severity === "blocker" ? "#982d21" : "#89370c", fontSize: 12, lineHeight: 1.4 }}>
                         {issue.severity === "blocker" ? "BLOCKER" : "WARNING"} · {issue.message}
                       </div>
                     ))}
@@ -5243,12 +5365,12 @@ export default function DominicCapturePlanner({
               </div>
 
               {current ? (
-                <div style={{ marginTop: 11, border: `1px solid ${V.line}`, borderRadius: 10, background: "#0D1319", padding: 13 }}>
+                <div style={{ marginTop: 11, border: `1px solid ${V.line}`, borderRadius: 10, background: "#f7f8f9", padding: 13 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "start" }}>
                     <div>
-                      <div style={{ color: V.orange, fontSize: 10, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>{current.ringLabel}</div>
-                      <div style={{ fontSize: 20, fontWeight: 900, marginTop: 4 }}>Frame {current.shotNumber} of {current.totalInRing}</div>
-                      <div style={{ color: V.muted, fontSize: 11, marginTop: 6, lineHeight: 1.5 }}>
+                      <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".08em", textTransform: "uppercase" }}>{current.ringLabel}</div>
+                      <div style={{ fontSize: 20, fontWeight: 650, marginTop: 4 }}>Frame {current.shotNumber} of {current.totalInRing}</div>
+                      <div style={{ color: V.muted, fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>
                         Move to bearing <strong style={{ color: V.text }}>{current.bearingDeg}°</strong>, hold about <strong style={{ color: V.text }}>{current.radiusFt.toFixed(1)} ft</strong> from subject center, aim camera <strong style={{ color: V.text }}>{current.cameraAngle}°</strong>, center the subject, then capture.
                       </div>
                     </div>
@@ -5258,17 +5380,17 @@ export default function DominicCapturePlanner({
                   <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "minmax(210px,.85fr) minmax(0,1.15fr)", gap: 10 }}>
                     <div style={{ border: `1px solid ${guidance?.ready ? "rgba(112,214,160,.45)" : V.line}`, borderRadius: 10, background: guidance?.ready ? "rgba(112,214,160,.07)" : V.panel, padding: 11 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, color: V.text, fontSize: 10, fontWeight: 900 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, color: V.text, fontSize: 12, fontWeight: 650 }}>
                           <Radio size={13} color={telemetryTrusted ? V.green : V.orange} /> Flight telemetry
                         </div>
                         <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
-                          <button type="button" onClick={() => setTelemetryMode("simulator")} style={{ border: `1px solid ${telemetryMode === "simulator" ? V.orange : V.line}`, background: "#0D1319", color: telemetryMode === "simulator" ? "#FFD3C0" : V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: "pointer" }}>
+                          <button type="button" onClick={() => setTelemetryMode("simulator")} style={{ border: `1px solid ${telemetryMode === "simulator" ? V.orange : V.line}`, background: "#f7f8f9", color: telemetryMode === "simulator" ? "#9c3713" : V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 12, cursor: "pointer" }}>
                             Manual
                           </button>
-                          <button type="button" onClick={simulateAircraftAtCheckpoint} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: "pointer" }}>
+                          <button type="button" onClick={simulateAircraftAtCheckpoint} style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 12, cursor: "pointer" }}>
                             Sim aircraft
                           </button>
-                          <button type="button" onClick={useBrowserAircraftPosition} style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: "pointer" }}>
+                          <button type="button" onClick={useBrowserAircraftPosition} style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 12, cursor: "pointer" }}>
                             Device GPS
                           </button>
                         </div>
@@ -5280,7 +5402,7 @@ export default function DominicCapturePlanner({
                             <Field label="Radius" value={telemetryDistanceFt} min={1} max={500} step={0.5} suffix="ft" onChange={setTelemetryDistanceFt} />
                             <Field label="Camera" value={telemetryCameraAngle} min={-90} max={30} suffix="deg" onChange={setTelemetryCameraAngle} />
                           </div>
-                          <button type="button" onClick={snapTelemetryToCheckpoint} style={{ marginTop: 8, border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: "pointer" }}>
+                          <button type="button" onClick={snapTelemetryToCheckpoint} style={{ marginTop: 8, border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 12, cursor: "pointer" }}>
                             Snap manual telemetry to checkpoint
                           </button>
                         </>
@@ -5292,20 +5414,20 @@ export default function DominicCapturePlanner({
                               ["Radius", relativeAircraftTelemetry ? `${relativeAircraftTelemetry.distanceFt.toFixed(1)} ft` : "—"],
                               ["Gimbal", relativeAircraftTelemetry ? `${relativeAircraftTelemetry.cameraAngle.toFixed(0)}°` : "—"],
                             ].map(([label, value]) => (
-                              <div key={label} style={{ border: `1px solid ${V.line}`, background: "#0D1319", borderRadius: 7, padding: 7 }}>
-                                <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>{label}</div>
-                                <div style={{ color: V.text, fontSize: 11, fontWeight: 900, marginTop: 2 }}>{value}</div>
+                              <div key={label} style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", borderRadius: 7, padding: 7 }}>
+                                <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase" }}>{label}</div>
+                                <div style={{ color: V.text, fontSize: 12, fontWeight: 650, marginTop: 2 }}>{value}</div>
                               </div>
                             ))}
                           </div>
-                          <div style={{ color: telemetryTrusted ? V.green : V.amber, fontSize: 8, lineHeight: 1.45 }}>
+                          <div style={{ color: telemetryTrusted ? V.green : V.amber, fontSize: 12, lineHeight: 1.45 }}>
                             {relativeAircraftTelemetry
                               ? `${relativeAircraftTelemetry.source.toUpperCase()} feed · ${relativeAircraftTelemetry.ageMs} ms old${relativeAircraftTelemetry.stale ? " · STALE — capture locked" : " · LIVE"}`
                               : "No aircraft telemetry received. Capture is locked in aircraft mode."}
                           </div>
                         </div>
                       )}
-                      <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 8 }}>
+                      <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.45, marginTop: 8 }}>
                         DOMINIC now accepts aircraft latitude/longitude, relative altitude, heading and gimbal pitch through one normalized telemetry model. Device GPS and the simulator exercise the same adapter that a DJI bridge can feed next.
                       </div>
                     </div>
@@ -5313,10 +5435,10 @@ export default function DominicCapturePlanner({
                     <div style={{ border: `1px solid ${guidance?.ready ? "rgba(112,214,160,.45)" : "rgba(244,90,30,.25)"}`, borderRadius: 10, background: guidance?.ready ? "rgba(112,214,160,.07)" : "rgba(244,90,30,.05)", padding: 11 }}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
                         <div>
-                          <div style={{ color: guidance?.ready ? V.green : V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>
+                          <div style={{ color: guidance?.ready ? V.green : V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".1em", textTransform: "uppercase" }}>
                             {guidance?.ready ? "Capture ready" : "Guidance correction"}
                           </div>
-                          <div style={{ color: V.text, fontSize: 14, fontWeight: 900, marginTop: 4 }}>
+                          <div style={{ color: V.text, fontSize: 14, fontWeight: 650, marginTop: 4 }}>
                             {guidance?.instruction ?? "Waiting for checkpoint"}
                           </div>
                         </div>
@@ -5328,13 +5450,13 @@ export default function DominicCapturePlanner({
                           ["Distance", guidance?.distanceReady, guidance ? `${Math.abs(guidance.distanceErrorFt).toFixed(1)} ft` : "—"],
                           ["Camera", guidance?.cameraReady, guidance ? `${Math.abs(guidance.cameraAngleError).toFixed(0)}°` : "—"],
                         ].map(([label, ready, error]) => (
-                          <div key={String(label)} style={{ border: `1px solid ${ready ? "rgba(112,214,160,.25)" : V.line}`, borderRadius: 8, background: "#0D1319", padding: "7px 8px" }}>
-                            <div style={{ color: V.muted, fontSize: 8, textTransform: "uppercase" }}>{label}</div>
-                            <div style={{ marginTop: 3, color: ready ? V.green : V.amber, fontSize: 11, fontWeight: 900 }}>{ready ? "IN RANGE" : error}</div>
+                          <div key={String(label)} style={{ border: `1px solid ${ready ? "rgba(112,214,160,.25)" : V.line}`, borderRadius: 8, background: "#f7f8f9", padding: "7px 8px" }}>
+                            <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase" }}>{label}</div>
+                            <div style={{ marginTop: 3, color: ready ? V.green : V.amber, fontSize: 12, fontWeight: 650 }}>{ready ? "IN RANGE" : error}</div>
                           </div>
                         ))}
                       </div>
-                      <label style={{ display: "flex", alignItems: "center", gap: 7, color: V.muted, fontSize: 9, marginTop: 9, cursor: "pointer" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: 7, color: V.muted, fontSize: 12, marginTop: 9, cursor: "pointer" }}>
                         <input type="checkbox" checked={guidanceLock} onChange={(event) => setGuidanceLock(event.target.checked)} />
                         Guidance lock: require position/camera tolerance before capture confirmation.
                       </label>
@@ -5343,9 +5465,9 @@ export default function DominicCapturePlanner({
 
                   <div style={{ display: "grid", gridTemplateColumns: "auto auto 1fr auto auto", gap: 7, alignItems: "center", marginTop: 12 }}>
                     <button type="button" onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 8, width: 36, height: 36, display: "grid", placeItems: "center", cursor: "pointer" }}><ChevronLeft size={16} /></button>
-                    <button type="button" disabled={!captureAllowed} onClick={markCaptured} style={{ border: "none", background: captureAllowed ? `linear-gradient(90deg,${V.orangeDark},${V.orange})` : "#39424B", color: captureAllowed ? "#180A02" : "#88939E", borderRadius: 8, padding: "10px 13px", fontWeight: 900, cursor: captureAllowed ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: 6 }}><Check size={15} /> Captured</button>
+                    <button type="button" disabled={!captureAllowed} onClick={markCaptured} style={{ border: "none", background: captureAllowed ? `linear-gradient(90deg,${V.orangeDark},${V.orange})` : "#39424B", color: captureAllowed ? "#ffffff" : "#88939E", borderRadius: 8, padding: "10px 13px", fontWeight: 650, cursor: captureAllowed ? "pointer" : "not-allowed", display: "flex", alignItems: "center", gap: 6 }}><Check size={15} /> Captured</button>
                     <div style={{ height: 5, background: "#222C35", borderRadius: 99, overflow: "hidden" }}><div style={{ width: `${Math.round((capturedCount / plan.totalShots) * 100)}%`, height: "100%", background: V.orange }} /></div>
-                    <button type="button" disabled={!safetyReady} onClick={markSkipped} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.amber, borderRadius: 8, padding: "9px 10px", fontSize: 10, fontWeight: 800, cursor: safetyReady ? "pointer" : "not-allowed" }}>Skip / gap</button>
+                    <button type="button" disabled={!safetyReady} onClick={markSkipped} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.amber, borderRadius: 8, padding: "9px 10px", fontSize: 12, fontWeight: 650, cursor: safetyReady ? "pointer" : "not-allowed" }}>Skip / gap</button>
                     <button type="button" onClick={() => setCurrentIndex((index) => Math.min(sequence.length - 1, index + 1))} style={{ border: `1px solid ${V.line}`, background: V.panel2, color: V.text, borderRadius: 8, width: 36, height: 36, display: "grid", placeItems: "center", cursor: "pointer" }}><ChevronRight size={16} /></button>
                   </div>
                 </div>
@@ -5357,8 +5479,8 @@ export default function DominicCapturePlanner({
             <section style={{ border: `1px solid rgba(244,90,30,.28)`, borderRadius: 12, background: "rgba(244,90,30,.055)", padding: 13 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <div>
-                  <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}>Autonomous mission engine</div>
-                  <div style={{ color: V.text, fontSize: 12, fontWeight: 900, marginTop: 3 }}>
+                  <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".1em", textTransform: "uppercase" }}>Autonomous mission engine</div>
+                  <div style={{ color: V.text, fontSize: 12, fontWeight: 650, marginTop: 3 }}>
                     {autonomousTarget === "connected"
                       ? autonomousMode === "repair"
                         ? "Connected-aircraft repair mission"
@@ -5369,47 +5491,47 @@ export default function DominicCapturePlanner({
                   </div>
                 </div>
                 <div style={{ display: "grid", justifyItems: "end", gap: 3 }}>
-                  <span style={{ color: autonomousSnapshot?.phase === "COMPLETE" ? V.green : autonomousSnapshot?.phase === "FAILED" ? "#FF8B7A" : V.muted, fontSize: 9, fontWeight: 900 }}>
+                  <span style={{ color: autonomousSnapshot?.phase === "COMPLETE" ? V.green : autonomousSnapshot?.phase === "FAILED" ? "#982d21" : V.muted, fontSize: 12, fontWeight: 650 }}>
                     {autonomousSnapshot?.phase ?? "IDLE"}
                   </span>
-                  <span style={{ color: flightAuditStatus === "saved" ? V.green : flightAuditStatus === "error" ? V.amber : V.muted, fontSize: 7, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".07em" }}>
+                  <span style={{ color: flightAuditStatus === "saved" ? V.green : flightAuditStatus === "error" ? V.amber : V.muted, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".07em" }}>
                     Audit {flightAuditStatus}{lastFlightRunId ? ` · ${lastFlightRunId.slice(0, 8)}` : ""}
                   </span>
                 </div>
               </div>
-              <p style={{ color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
+              <p style={{ color: V.muted, fontSize: 12, lineHeight: 1.45 }}>
                 Runs this exact Object Scan through DOMINIC's universal aircraft interface: connect, preflight, arm, takeoff, fly every checkpoint, aim, capture, return home and land.
               </p>
               <div style={{ border: `1px solid ${autonomousSnapshot?.safetyIssues.length ? "rgba(255,184,107,.28)" : "rgba(112,214,160,.18)"}`, background: autonomousSnapshot?.safetyIssues.length ? "rgba(255,184,107,.05)" : "rgba(112,214,160,.04)", borderRadius: 8, padding: 8, marginBottom: 9 }}>
-                <div style={{ color: autonomousSnapshot?.safetyIssues.length ? V.amber : V.green, fontSize: 8, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
+                <div style={{ color: autonomousSnapshot?.safetyIssues.length ? V.amber : V.green, fontSize: 12, fontWeight: 650, letterSpacing: ".08em", textTransform: "uppercase" }}>
                   Flight safety supervisor · {autonomousSnapshot?.safetyIssues.length ? `${autonomousSnapshot.safetyIssues.length} active issue${autonomousSnapshot.safetyIssues.length === 1 ? "" : "s"}` : "clear"}
                 </div>
                 {autonomousSnapshot?.safetyIssues.length ? (
                   <div style={{ display: "grid", gap: 4, marginTop: 6 }}>
                     {autonomousSnapshot.safetyIssues.slice(0, 4).map((issue) => (
-                      <div key={issue.code} style={{ color: issue.severity === "critical" ? "#FFB6AA" : "#FFD0A0", fontSize: 8, lineHeight: 1.4 }}>
+                      <div key={issue.code} style={{ color: issue.severity === "critical" ? "#982d21" : "#89370c", fontSize: 12, lineHeight: 1.4 }}>
                         {issue.action.replace("_", " ").toUpperCase()} · {issue.message}
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 4 }}>
+                  <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.4, marginTop: 4 }}>
                     DOMINIC continuously evaluates link freshness, battery, GNSS, optional RTK policy, aircraft failsafe state, and obstacle alerts while autonomous execution is active.
                   </div>
                 )}
               </div>
               <div style={{ border: `1px solid rgba(255,184,107,.22)`, background: "rgba(255,184,107,.04)", borderRadius: 8, padding: 8, marginBottom: 9 }}>
-                <div style={{ color: V.amber, fontSize: 8, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>
+                <div style={{ color: V.amber, fontSize: 12, fontWeight: 650, letterSpacing: ".08em", textTransform: "uppercase" }}>
                   Safety Scenario Lab
                 </div>
-                <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 4 }}>
+                <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.4, marginTop: 4 }}>
                   Inject a deterministic failure into the virtual aircraft and verify DOMINIC responds before any hardware test.
                 </div>
                 <select
                   value={safetyScenario}
                   disabled={autonomousRunning}
                   onChange={(event) => setSafetyScenario(event.target.value as SafetyScenario)}
-                  style={{ width: "100%", marginTop: 7, border: `1px solid ${V.line}`, background: "#0D1319", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 8 }}
+                  style={{ width: "100%", marginTop: 7, border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.text, borderRadius: 7, padding: "7px 8px", fontSize: 12 }}
                 >
                   {Object.entries(safetyScenarioLabels).map(([value, label]) => (
                     <option key={value} value={value}>{label}</option>
@@ -5419,12 +5541,12 @@ export default function DominicCapturePlanner({
                   type="button"
                   disabled={!preflightReady || autonomousRunning}
                   onClick={() => void runSafetyScenario()}
-                  style={{ width: "100%", marginTop: 7, border: `1px solid rgba(255,184,107,.28)`, background: "#0D1319", color: V.amber, borderRadius: 7, padding: "7px 8px", fontSize: 8, fontWeight: 900, cursor: preflightReady && !autonomousRunning ? "pointer" : "not-allowed" }}
+                  style={{ width: "100%", marginTop: 7, border: `1px solid rgba(255,184,107,.28)`, background: "#f7f8f9", color: V.amber, borderRadius: 7, padding: "7px 8px", fontSize: 12, fontWeight: 650, cursor: preflightReady && !autonomousRunning ? "pointer" : "not-allowed" }}
                 >
                   Run Safety Scenario
                 </button>
                 {safetyScenarioResult ? (
-                  <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 6 }}>
+                  <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.4, marginTop: 6 }}>
                     {safetyScenarioResult}
                   </div>
                 ) : null}
@@ -5440,14 +5562,14 @@ export default function DominicCapturePlanner({
                   borderRadius: 8,
                   padding: "9px 10px",
                   background: preflightReady && !autonomousRunning ? `linear-gradient(90deg,${V.orangeDark},${V.orange})` : "#39424B",
-                  color: preflightReady && !autonomousRunning ? "#180A02" : "#88939E",
-                  fontWeight: 900,
+                  color: preflightReady && !autonomousRunning ? "#ffffff" : "#88939E",
+                  fontWeight: 650,
                   cursor: preflightReady && !autonomousRunning ? "pointer" : "not-allowed",
                   display: "flex",
                   justifyContent: "center",
                   alignItems: "center",
                   gap: 6,
-                  fontSize: 10,
+                  fontSize: 12,
                 }}
               >
                 {autonomousRunning ? <Square size={12} /> : <Play size={12} />}
@@ -5459,8 +5581,8 @@ export default function DominicCapturePlanner({
               </button>
 
               <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 10, paddingTop: 10 }}>
-                <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>Connected aircraft execution</div>
-                <label style={{ display: "grid", gridTemplateColumns: "16px 1fr", gap: 7, alignItems: "start", color: bridgeStatus === "connected" ? "#DCE3EA" : V.muted, fontSize: 8, lineHeight: 1.45, marginTop: 7, cursor: bridgeStatus === "connected" ? "pointer" : "not-allowed" }}>
+                <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".08em", textTransform: "uppercase" }}>Connected aircraft execution</div>
+                <label style={{ display: "grid", gridTemplateColumns: "16px 1fr", gap: 7, alignItems: "start", color: bridgeStatus === "connected" ? "#25313a" : V.muted, fontSize: 12, lineHeight: 1.45, marginTop: 7, cursor: bridgeStatus === "connected" ? "pointer" : "not-allowed" }}>
                   <input
                     type="checkbox"
                     disabled={
@@ -5499,17 +5621,17 @@ export default function DominicCapturePlanner({
                     background:
                       bridgeStatus === "connected" && preflightReady && realFlightApproved && !autonomousRunning
                         ? "rgba(112,214,160,.12)"
-                        : "#1B222A",
+                        : "#e9edf0",
                     color:
                       bridgeStatus === "connected" && preflightReady && realFlightApproved && !autonomousRunning
                         ? V.green
-                        : "#6F7A84",
-                    fontWeight: 900,
+                        : "#60707b",
+                    fontWeight: 650,
                     cursor:
                       bridgeStatus === "connected" && preflightReady && realFlightApproved && !autonomousRunning
                         ? "pointer"
                         : "not-allowed",
-                    fontSize: 9,
+                    fontSize: 12,
                   }}
                 >
                   Execute Object Scan on Connected Aircraft
@@ -5517,7 +5639,7 @@ export default function DominicCapturePlanner({
               </div>
               {autonomousRunning && autonomousSnapshot ? (
                 <div style={{ borderTop: `1px solid ${V.line}`, marginTop: 10, paddingTop: 10 }}>
-                  <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>Live mission controls</div>
+                  <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".08em", textTransform: "uppercase" }}>Live mission controls</div>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 7 }}>
                     <button
                       type="button"
@@ -5526,7 +5648,7 @@ export default function DominicCapturePlanner({
                         (autonomousTarget === "connected" && !bridgeInfo?.capabilities.pauseResume)
                       }
                       onClick={() => void pauseActiveMission()}
-                      style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.amber, borderRadius: 7, padding: "7px 6px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                      style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.amber, borderRadius: 7, padding: "7px 6px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
                     >
                       Pause
                     </button>
@@ -5537,25 +5659,25 @@ export default function DominicCapturePlanner({
                         (autonomousTarget === "connected" && !bridgeInfo?.capabilities.pauseResume)
                       }
                       onClick={() => void resumeActiveMission()}
-                      style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.green, borderRadius: 7, padding: "7px 6px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                      style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.green, borderRadius: 7, padding: "7px 6px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
                     >
                       Resume
                     </button>
                     <button
                       type="button"
                       onClick={() => void abortActiveMission()}
-                      style={{ border: "1px solid rgba(255,139,122,.35)", background: "rgba(255,139,122,.08)", color: "#FFB6AA", borderRadius: 7, padding: "7px 6px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                      style={{ border: "1px solid rgba(255,139,122,.35)", background: "rgba(255,139,122,.08)", color: "#982d21", borderRadius: 7, padding: "7px 6px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
                     >
                       Abort / Recover
                     </button>
                   </div>
                   {missionControlMessage ? (
-                    <div style={{ color: autonomousSnapshot.safetyIssues.length ? V.amber : V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 6 }}>
+                    <div style={{ color: autonomousSnapshot.safetyIssues.length ? V.amber : V.muted, fontSize: 12, lineHeight: 1.4, marginTop: 6 }}>
                       {missionControlMessage}
                     </div>
                   ) : null}
                   {autonomousTarget === "connected" && !bridgeInfo?.capabilities.pauseResume ? (
-                    <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 5 }}>
+                    <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.4, marginTop: 5 }}>
                       This aircraft adapter does not expose pause/resume. Abort/recovery remains available.
                     </div>
                   ) : null}
@@ -5565,18 +5687,18 @@ export default function DominicCapturePlanner({
               {autonomousSnapshot ? (
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7, marginTop: 9 }}>
-                    <div style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#0D1319", padding: 8 }}>
-                      <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>Checkpoints</div>
-                      <div style={{ color: V.text, fontSize: 13, fontWeight: 900, marginTop: 3 }}>{autonomousSnapshot.completedCheckpointIds.length}/{autonomousSnapshot.checkpointCount}</div>
+                    <div style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#f7f8f9", padding: 8 }}>
+                      <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase" }}>Checkpoints</div>
+                      <div style={{ color: V.text, fontSize: 13, fontWeight: 650, marginTop: 3 }}>{autonomousSnapshot.completedCheckpointIds.length}/{autonomousSnapshot.checkpointCount}</div>
                     </div>
-                    <div style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#0D1319", padding: 8 }}>
-                      <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>Aircraft</div>
-                      <div style={{ color: V.text, fontSize: 11, fontWeight: 900, marginTop: 3 }}>{autonomousSnapshot.lastAircraftState?.flightMode ?? "—"}</div>
+                    <div style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#f7f8f9", padding: 8 }}>
+                      <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase" }}>Aircraft</div>
+                      <div style={{ color: V.text, fontSize: 12, fontWeight: 650, marginTop: 3 }}>{autonomousSnapshot.lastAircraftState?.flightMode ?? "—"}</div>
                     </div>
                   </div>
                   <div style={{ maxHeight: 130, overflowY: "auto", marginTop: 8, display: "grid", gap: 4 }}>
                     {autonomousSnapshot.events.slice(-10).reverse().map((event, index) => (
-                      <div key={`${event.atMs}-${event.phase}-${index}`} style={{ color: event.phase === "FAILED" ? "#FF8B7A" : V.muted, fontSize: 8, lineHeight: 1.35 }}>
+                      <div key={`${event.atMs}-${event.phase}-${index}`} style={{ color: event.phase === "FAILED" ? "#982d21" : V.muted, fontSize: 12, lineHeight: 1.35 }}>
                         <strong style={{ color: event.phase === "COMPLETE" ? V.green : V.text }}>{event.phase}</strong> · {event.message}
                       </div>
                     ))}
@@ -5588,38 +5710,38 @@ export default function DominicCapturePlanner({
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <div>
-                  <div style={{ color: V.text, fontSize: 12, fontWeight: 900 }}>Flight audit history</div>
-                  <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>Persistent pilot-owned DOMINIC execution records</div>
+                  <div style={{ color: V.text, fontSize: 12, fontWeight: 650 }}>Flight audit history</div>
+                  <div style={{ color: V.muted, fontSize: 12, marginTop: 2 }}>Persistent pilot-owned DOMINIC execution records</div>
                 </div>
                 <button
                   type="button"
                   onClick={() => void loadRecentFlightRuns()}
                   disabled={flightHistoryLoading}
-                  style={{ border: `1px solid ${V.line}`, background: "#0D1319", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 8, cursor: flightHistoryLoading ? "not-allowed" : "pointer" }}
+                  style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", color: V.muted, borderRadius: 7, padding: "5px 7px", fontSize: 12, cursor: flightHistoryLoading ? "not-allowed" : "pointer" }}
                 >
                   {flightHistoryLoading ? "Loading..." : "Refresh"}
                 </button>
               </div>
               <div style={{ display: "grid", gap: 6, marginTop: 9 }}>
                 {recentFlightRuns.length ? recentFlightRuns.map((run) => (
-                  <div key={run.id} style={{ border: `1px solid ${V.line}`, background: "#0D1319", borderRadius: 8, padding: 8 }}>
+                  <div key={run.id} style={{ border: `1px solid ${V.line}`, background: "#f7f8f9", borderRadius: 8, padding: 8 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                      <strong style={{ color: V.text, fontSize: 9 }}>
+                      <strong style={{ color: V.text, fontSize: 12 }}>
                         {run.mission_type.toUpperCase()} · {run.aircraft_model ?? run.aircraft_vendor ?? "Aircraft"}
                       </strong>
-                      <span style={{ color: run.status === "complete" ? V.green : run.status === "failed" ? "#FF8B7A" : run.status === "aborted" ? V.amber : V.muted, fontSize: 7, fontWeight: 900, textTransform: "uppercase" }}>
+                      <span style={{ color: run.status === "complete" ? V.green : run.status === "failed" ? "#982d21" : run.status === "aborted" ? V.amber : V.muted, fontSize: 12, fontWeight: 650, textTransform: "uppercase" }}>
                         {run.status}
                       </span>
                     </div>
-                    <div style={{ color: V.muted, fontSize: 8, marginTop: 4 }}>
+                    <div style={{ color: V.muted, fontSize: 12, marginTop: 4 }}>
                       {new Date(run.started_at ?? run.created_at).toLocaleString()}
                       {typeof run.coverage_summary?.coveragePct === "number" ? ` · coverage ${run.coverage_summary.coveragePct}%` : ""}
                       {run.payload_snapshot?.name ? ` · ${run.payload_snapshot.name}` : ""}
                     </div>
-                    <div style={{ color: "#66727D", fontSize: 7, marginTop: 3, fontFamily: "monospace" }}>{run.id}</div>
+                    <div style={{ color: "#66727D", fontSize: 12, marginTop: 3, fontFamily: "monospace" }}>{run.id}</div>
                   </div>
                 )) : (
-                  <div style={{ color: V.muted, fontSize: 9, lineHeight: 1.45 }}>
+                  <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.45 }}>
                     Refresh to load your recent DOMINIC flight records. New autonomous runs are saved here automatically.
                   </div>
                 )}
@@ -5629,10 +5751,10 @@ export default function DominicCapturePlanner({
             <section style={{ border: `1px solid ${adaptiveCoverage.missing ? "rgba(255,184,107,.28)" : "rgba(112,214,160,.22)"}`, borderRadius: 12, background: V.panel, padding: 13 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
                 <div>
-                  <div style={{ color: V.text, fontSize: 12, fontWeight: 900 }}>Adaptive coverage</div>
-                  <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>Captured pose + image quality vs planned views</div>
+                  <div style={{ color: V.text, fontSize: 12, fontWeight: 650 }}>Adaptive coverage</div>
+                  <div style={{ color: V.muted, fontSize: 12, marginTop: 2 }}>Captured pose + image quality vs planned views</div>
                 </div>
-                <div style={{ color: adaptiveCoverage.coveragePct >= 90 ? V.green : adaptiveCoverage.coveragePct >= 70 ? V.amber : "#FF8B7A", fontSize: 18, fontWeight: 900 }}>
+                <div style={{ color: adaptiveCoverage.coveragePct >= 90 ? V.green : adaptiveCoverage.coveragePct >= 70 ? V.amber : "#982d21", fontSize: 18, fontWeight: 650 }}>
                   {adaptiveCoverage.coveragePct}%
                 </div>
               </div>
@@ -5641,30 +5763,30 @@ export default function DominicCapturePlanner({
                 {[
                   ["Covered", adaptiveCoverage.covered, V.green],
                   ["Weak", adaptiveCoverage.weak, V.amber],
-                  ["Missing", adaptiveCoverage.missing, "#FF8B7A"],
+                  ["Missing", adaptiveCoverage.missing, "#982d21"],
                 ].map(([label, value, color]) => (
-                  <div key={String(label)} style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#0D1319", padding: 8 }}>
-                    <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>{label}</div>
-                    <div style={{ fontSize: 16, fontWeight: 900, color: String(color), marginTop: 3 }}>{value}</div>
+                  <div key={String(label)} style={{ border: `1px solid ${V.line}`, borderRadius: 8, background: "#f7f8f9", padding: 8 }}>
+                    <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase" }}>{label}</div>
+                    <div style={{ fontSize: 16, fontWeight: 650, color: String(color), marginTop: 3 }}>{value}</div>
                   </div>
                 ))}
               </div>
 
               <div style={{ marginTop: 9, display: "grid", gap: 5 }}>
                 {Object.entries(coverageByRing).map(([ring, stats]) => (
-                  <div key={ring} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, border: `1px solid ${V.line}`, borderRadius: 7, background: "#0D1319", padding: "6px 7px" }}>
-                    <span style={{ color: "#DCE3EA", fontSize: 9, textTransform: "capitalize" }}>{ring} ring</span>
-                    <span style={{ color: V.muted, fontSize: 8 }}>{stats.covered} good · {stats.weak} weak · {stats.missing} missing</span>
+                  <div key={ring} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8, border: `1px solid ${V.line}`, borderRadius: 7, background: "#f7f8f9", padding: "6px 7px" }}>
+                    <span style={{ color: "#25313a", fontSize: 12, textTransform: "capitalize" }}>{ring} ring</span>
+                    <span style={{ color: V.muted, fontSize: 12 }}>{stats.covered} good · {stats.weak} weak · {stats.missing} missing</span>
                   </div>
                 ))}
               </div>
 
-              <p style={{ color: V.muted, fontSize: 9, lineHeight: 1.5 }}>
+              <p style={{ color: V.muted, fontSize: 12, lineHeight: 1.5 }}>
                 DOMINIC now evaluates whether each planned view was actually captured from the right location, altitude and camera angle, then factors in image-quality scores. Weak or missing views become a repair pass instead of forcing a complete reflown mission.
               </p>
-              <div style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: "#0D1319", padding: 9, marginTop: 8 }}>
-                <div style={{ color: V.orange, fontSize: 8, fontWeight: 900, letterSpacing: ".08em", textTransform: "uppercase" }}>Analyze actual capture</div>
-                <div style={{ color: V.muted, fontSize: 8, lineHeight: 1.4, marginTop: 4 }}>
+              <div style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: "#f7f8f9", padding: 9, marginTop: 8 }}>
+                <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".08em", textTransform: "uppercase" }}>Analyze actual capture</div>
+                <div style={{ color: V.muted, fontSize: 12, lineHeight: 1.4, marginTop: 4 }}>
                   Select the image for the current checkpoint. DOMINIC measures sharpness, exposure, contrast and clipping locally in the browser, then feeds the scores into adaptive coverage.
                 </div>
                 <input
@@ -5676,9 +5798,9 @@ export default function DominicCapturePlanner({
                     if (file) void analyzeCapturedImage(file);
                     event.currentTarget.value = "";
                   }}
-                  style={{ width: "100%", marginTop: 7, color: V.muted, fontSize: 8 }}
+                  style={{ width: "100%", marginTop: 7, color: V.muted, fontSize: 12 }}
                 />
-                {imageAnalysisStatus === "analyzing" ? <div style={{ color: V.amber, fontSize: 8, marginTop: 6 }}>Analyzing image pixels…</div> : null}
+                {imageAnalysisStatus === "analyzing" ? <div style={{ color: V.amber, fontSize: 12, marginTop: 6 }}>Analyzing image pixels…</div> : null}
                 {lastImageQuality ? (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 5, marginTop: 7 }}>
                     {[
@@ -5687,14 +5809,14 @@ export default function DominicCapturePlanner({
                       ["Megapixels", lastImageQuality.megapixels.toFixed(1)],
                     ].map(([label, value]) => (
                       <div key={label} style={{ border: `1px solid ${V.line}`, borderRadius: 7, padding: 6, background: V.panel2 }}>
-                        <div style={{ color: V.muted, fontSize: 7, textTransform: "uppercase" }}>{label}</div>
-                        <div style={{ color: V.text, fontSize: 10, fontWeight: 900, marginTop: 2 }}>{value}</div>
+                        <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase" }}>{label}</div>
+                        <div style={{ color: V.text, fontSize: 12, fontWeight: 650, marginTop: 2 }}>{value}</div>
                       </div>
                     ))}
                   </div>
                 ) : null}
                 {imageAnalysisMessage ? (
-                  <div style={{ color: imageAnalysisStatus === "error" ? "#FF8B7A" : lastImageQuality?.usable ? V.green : V.amber, fontSize: 8, lineHeight: 1.4, marginTop: 6 }}>
+                  <div style={{ color: imageAnalysisStatus === "error" ? "#982d21" : lastImageQuality?.usable ? V.green : V.amber, fontSize: 12, lineHeight: 1.4, marginTop: 6 }}>
                     {imageAnalysisMessage}
                   </div>
                 ) : null}
@@ -5702,19 +5824,19 @@ export default function DominicCapturePlanner({
 
               {captureObservations.length ? (
                 <div style={{ borderTop: `1px solid ${V.line}`, paddingTop: 8, marginTop: 8 }}>
-                  <div style={{ color: V.muted, fontSize: 8, textTransform: "uppercase", letterSpacing: ".08em" }}>Captured image quality test</div>
+                  <div style={{ color: V.muted, fontSize: 12, textTransform: "uppercase", letterSpacing: ".08em" }}>Captured image quality test</div>
                   <div style={{ display: "grid", gap: 5, marginTop: 6, maxHeight: 110, overflowY: "auto" }}>
                     {captureObservations.slice(-8).reverse().map((observation) => {
                       const checkpoint = sequence.find((item) => item.id === observation.checkpointId);
                       const quality = Math.min(observation.sharpnessScore ?? 1, observation.exposureScore ?? 1);
                       return (
-                        <div key={observation.id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 5, alignItems: "center", color: V.muted, fontSize: 8 }}>
+                        <div key={observation.id} style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 5, alignItems: "center", color: V.muted, fontSize: 12 }}>
                           <span>{checkpoint?.ringLabel ?? observation.checkpointId} · {checkpoint ? `frame ${checkpoint.shotNumber}` : ""}</span>
-                          <span style={{ color: quality >= .72 ? V.green : quality >= .55 ? V.amber : "#FF8B7A", fontWeight: 900 }}>{Math.round(quality * 100)}%</span>
+                          <span style={{ color: quality >= .72 ? V.green : quality >= .55 ? V.amber : "#982d21", fontWeight: 650 }}>{Math.round(quality * 100)}%</span>
                           <button
                             type="button"
                             onClick={() => setObservationQuality(observation.checkpointId ?? "", quality >= .72 ? .6 : .95)}
-                            style={{ border: `1px solid ${V.line}`, background: "#151D25", color: V.text, borderRadius: 6, padding: "3px 5px", fontSize: 7, cursor: "pointer" }}
+                            style={{ border: `1px solid ${V.line}`, background: "#f0f3f5", color: V.text, borderRadius: 6, padding: "3px 5px", fontSize: 12, cursor: "pointer" }}
                           >
                             {quality >= .72 ? "Sim weak" : "Restore"}
                           </button>
@@ -5728,8 +5850,8 @@ export default function DominicCapturePlanner({
               <div style={{ borderTop: `1px solid ${V.line}`, paddingTop: 9, marginTop: 9 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
                   <div>
-                    <div style={{ color: V.orange, fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: ".08em" }}>Repair pass</div>
-                    <div style={{ color: V.muted, fontSize: 8, marginTop: 2 }}>{repairPlan.length} checkpoint{repairPlan.length === 1 ? "" : "s"} require recapture.</div>
+                    <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em" }}>Repair pass</div>
+                    <div style={{ color: V.muted, fontSize: 12, marginTop: 2 }}>{repairPlan.length} checkpoint{repairPlan.length === 1 ? "" : "s"} require recapture.</div>
                   </div>
                   {repairPlan.length ? (
                     <div style={{ display: "flex", gap: 5, flexWrap: "wrap", justifyContent: "flex-end" }}>
@@ -5740,7 +5862,7 @@ export default function DominicCapturePlanner({
                           const index = sequence.findIndex((item) => item.id === first.sourceCheckpointId);
                           if (index >= 0) setCurrentIndex(index);
                         }}
-                        style={{ border: `1px solid rgba(244,90,30,.3)`, background: "rgba(244,90,30,.08)", color: "#FFD3C0", borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: "pointer" }}
+                        style={{ border: `1px solid rgba(244,90,30,.3)`, background: "rgba(244,90,30,.08)", color: "#9c3713", borderRadius: 7, padding: "6px 8px", fontSize: 12, fontWeight: 650, cursor: "pointer" }}
                       >
                         Manual repair
                       </button>
@@ -5751,11 +5873,11 @@ export default function DominicCapturePlanner({
                         style={{
                           border: 0,
                           background: preflightReady && !autonomousRunning ? `linear-gradient(90deg,${V.orangeDark},${V.orange})` : "#39424B",
-                          color: preflightReady && !autonomousRunning ? "#180A02" : "#88939E",
+                          color: preflightReady && !autonomousRunning ? "#ffffff" : "#88939E",
                           borderRadius: 7,
                           padding: "6px 8px",
-                          fontSize: 8,
-                          fontWeight: 900,
+                          fontSize: 12,
+                          fontWeight: 650,
                           cursor: preflightReady && !autonomousRunning ? "pointer" : "not-allowed",
                         }}
                       >
@@ -5766,7 +5888,7 @@ export default function DominicCapturePlanner({
                           type="button"
                           disabled={!realFlightApproved || !preflightReady || autonomousRunning}
                           onClick={() => runConnectedAircraftMission("repair")}
-                          style={{ border: `1px solid rgba(112,214,160,.3)`, background: realFlightApproved ? "rgba(112,214,160,.08)" : "#1B222A", color: realFlightApproved ? V.green : "#6F7A84", borderRadius: 7, padding: "6px 8px", fontSize: 8, fontWeight: 900, cursor: realFlightApproved ? "pointer" : "not-allowed" }}
+                          style={{ border: `1px solid rgba(112,214,160,.3)`, background: realFlightApproved ? "rgba(112,214,160,.08)" : "#e9edf0", color: realFlightApproved ? V.green : "#60707b", borderRadius: 7, padding: "6px 8px", fontSize: 12, fontWeight: 650, cursor: realFlightApproved ? "pointer" : "not-allowed" }}
                         >
                           Fly repair
                         </button>
@@ -5790,12 +5912,12 @@ export default function DominicCapturePlanner({
                         style={{
                           border: `1px solid ${repair.priority === 2 ? "rgba(255,139,122,.25)" : "rgba(255,184,107,.22)"}`,
                           background: repair.priority === 2 ? "rgba(255,139,122,.05)" : "rgba(255,184,107,.05)",
-                          color: repair.priority === 2 ? "#FFB6AA" : "#FFD0A0",
+                          color: repair.priority === 2 ? "#982d21" : "#89370c",
                           borderRadius: 7,
                           padding: "6px 7px",
                           textAlign: "left",
                           cursor: "pointer",
-                          fontSize: 8,
+                          fontSize: 12,
                           lineHeight: 1.35,
                         }}
                       >
@@ -5803,7 +5925,7 @@ export default function DominicCapturePlanner({
                       </button>
                     );
                   }) : (
-                    <div style={{ color: V.green, fontSize: 9, display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ color: V.green, fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
                       <CheckCircle2 size={13} /> Planned views satisfy the current coverage policy.
                     </div>
                   )}
@@ -5812,22 +5934,22 @@ export default function DominicCapturePlanner({
             </section>
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, padding: 13 }}>
-              <div style={{ color: V.text, fontSize: 12, fontWeight: 900 }}>Plan warnings</div>
+              <div style={{ color: V.text, fontSize: 12, fontWeight: 650 }}>Plan warnings</div>
               <div style={{ display: "grid", gap: 7, marginTop: 9 }}>
                 {plan.warnings.length ? plan.warnings.map((warning) => (
-                  <div key={warning} style={{ display: "grid", gridTemplateColumns: "16px 1fr", gap: 6, color: "#FFD0A0", background: "rgba(255,184,107,.06)", border: `1px solid rgba(255,184,107,.18)`, borderRadius: 8, padding: 8, fontSize: 9, lineHeight: 1.45 }}>
+                  <div key={warning} style={{ display: "grid", gridTemplateColumns: "16px 1fr", gap: 6, color: "#89370c", background: "rgba(255,184,107,.06)", border: `1px solid rgba(255,184,107,.18)`, borderRadius: 8, padding: 8, fontSize: 12, lineHeight: 1.45 }}>
                     <AlertTriangle size={13} color={V.amber} /> <span>{warning}</span>
                   </div>
-                )) : <div style={{ color: V.green, fontSize: 10, display: "flex", gap: 6, alignItems: "center" }}><CheckCircle2 size={13} /> Geometry is within the default planning envelope.</div>}
+                )) : <div style={{ color: V.green, fontSize: 12, display: "flex", gap: 6, alignItems: "center" }}><CheckCircle2 size={13} /> Geometry is within the default planning envelope.</div>}
               </div>
             </section>
 
             <section style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: "rgba(244,90,30,.07)", padding: 13 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, color: V.orange, fontSize: 9, fontWeight: 900, letterSpacing: ".1em", textTransform: "uppercase" }}><Gauge size={12} /> Autonomy-ready structure</div>
-              <p style={{ color: "#C9D2DA", fontSize: 10, lineHeight: 1.55, marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, color: V.orange, fontSize: 12, fontWeight: 650, letterSpacing: ".1em", textTransform: "uppercase" }}><Gauge size={12} /> Autonomy-ready structure</div>
+              <p style={{ color: V.muted, fontSize: 12, lineHeight: 1.55, marginBottom: 8 }}>
                 Manual guidance and future autonomous flight now share the exact same checkpoint list. Every point contains ring, sequence, bearing, radius, geographic coordinates, relative altitude, gimbal angle and capture action.
               </p>
-              <button type="button" onClick={downloadCheckpointPayload} style={{ width: "100%", border: `1px solid rgba(244,90,30,.28)`, background: "rgba(244,90,30,.08)", color: "#FFD3C0", borderRadius: 8, padding: "8px 9px", fontSize: 9, fontWeight: 800, cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: 6 }}>
+              <button type="button" onClick={downloadCheckpointPayload} style={{ width: "100%", border: `1px solid rgba(244,90,30,.28)`, background: "rgba(244,90,30,.08)", color: "#9c3713", borderRadius: 8, padding: "8px 9px", fontSize: 12, fontWeight: 650, cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: 6 }}>
                 <Download size={12} /> Download waypoint payload
               </button>
             </section>

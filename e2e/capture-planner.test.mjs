@@ -36,7 +36,7 @@ for (const width of [1440,390,320]) test(`capture planner: location → boundary
   const email = `planner-${stamp}@e2e.dom.invalid`, password = `Planner-${stamp}!Aa1`;
   const {data:created,error:createError} = await admin.auth.admin.createUser({email,password,email_confirm:true});
   assert.ifError(createError); const user = created.user;
-  let browser,context,contractor,mission,job,project;
+  let browser,context,page,contractor,mission,job,project;
   const seed = async (table,row) => { const {data,error} = await admin.from(table).insert(row).select('*').single(); assert.ifError(error); return data; };
   const readPlan = async name => { const {data,error} = await admin.from('dominic_capture_plans').select('*').eq('user_id',user.id).eq('name',name).single(); assert.ifError(error); return data; };
   try {
@@ -50,7 +50,7 @@ for (const width of [1440,390,320]) test(`capture planner: location → boundary
     browser = await chromium.launch({headless:true});
     context = await browser.newContext({viewport:{width,height:width===1440?1080:844},isMobile:width<700,hasTouch:width<700,acceptDownloads:true});
     await context.addInitScript(({key,session}) => localStorage.setItem(key,JSON.stringify(session)),{key:`sb-${new URL(db).hostname.split('.')[0]}-auth-token`,session:login.session});
-    const page = await context.newPage(); page.setDefaultTimeout(15000);
+    page = await context.newPage(); page.setDefaultTimeout(15000);
     const errors = []; page.on('pageerror',error => errors.push(error.message));
     // Search and imagery are deterministic UI fixtures. Saves/reopens use real
     // authenticated RLS-protected records in the disposable Supabase stack.
@@ -100,7 +100,15 @@ for (const width of [1440,390,320]) test(`capture planner: location → boundary
     await tap(.65,.3); await tap(.65,.65); await tap(.2,.65);
     await workspace.getByRole('button',{name:'Finish Area (4)',exact:true}).click();
     await workspace.getByText('Draft route calculated',{exact:true}).waitFor();
+    if (width === 1440) {
+      await page.route('https://server.arcgisonline.com/**', route => route.abort('failed'), {times:1});
+    }
     await workspace.getByRole('button',{name:'Zoom in',exact:true}).click();
+    if (width === 1440) {
+      await workspace.getByRole('alert').filter({hasText:'Satellite imagery could not load'}).waitFor();
+      await workspace.getByRole('button',{name:'Retry satellite imagery',exact:true}).click();
+      await workspace.getByRole('alert').filter({hasText:'Satellite imagery could not load'}).waitFor({state:'hidden'});
+    }
     await workspace.getByRole('button',{name:'Zoom out',exact:true}).click();
     await workspace.getByRole('button',{name:'Recenter site',exact:true}).click();
     await workspace.getByLabel('Select waypoint to edit').selectOption({index:1});
@@ -179,6 +187,7 @@ for (const width of [1440,390,320]) test(`capture planner: location → boundary
     await fits(page,workspace,width,'live');
     assert.deepEqual(errors,[]);
   } finally {
+    await page?.screenshot({path:`/tmp/dom-capture-planner-final-${width}.png`,fullPage:true}).catch(() => {});
     await context?.close(); await browser?.close();
     await admin.from('dominic_capture_plans').delete().eq('user_id',user.id);
     if(project) await admin.from('mapping_projects').delete().eq('id',project.id);

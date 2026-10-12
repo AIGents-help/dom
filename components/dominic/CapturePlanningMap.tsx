@@ -405,8 +405,8 @@ export default function CapturePlanningMap({
           ["Zoom in", zoom >= MAX_ZOOM, () => setZoom((value) => Math.min(MAX_ZOOM, value + 1))],
           ["Zoom out", zoom <= MIN_ZOOM, () => setZoom((value) => Math.max(MIN_ZOOM, value - 1))],
           ["Recenter site", false, () => setViewCenter({ latitude: focusLatitude, longitude: focusLongitude })],
-        ] as const).map(([label, disabled, action]) => <button key={label} type="button" disabled={disabled} onClick={action}
-          style={{ minHeight: 44, padding: "10px 12px", border: "1px solid #cbd3d9", borderRadius: 8, background: "white", color: "#25313a", fontSize: 13 }}>{label}</button>)}
+        ] as const).map(([label, disabled, action]) => <button key={label} type="button" aria-label={label} title={label} disabled={disabled} onClick={action}
+          style={{ width: 44, height: 44, padding: 0, border: "1px solid #cbd3d9", borderRadius: 8, background: "white", color: "#25313a", fontSize: 22 }}><span aria-hidden="true">{label === "Zoom in" ? "+" : label === "Zoom out" ? "−" : "◎"}</span></button>)}
       </div>
     </div>
     </>

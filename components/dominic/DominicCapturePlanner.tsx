@@ -356,7 +356,9 @@ export default function DominicCapturePlanner({
   const areaRef = useRef<HTMLDivElement | null>(null);
   const routeRef = useRef<HTMLDivElement | null>(null);
   const saveRef = useRef<HTMLDivElement | null>(null);
+  const reviewRef = useRef<HTMLElement | null>(null);
   const [lastSavedSignature, setLastSavedSignature] = useState<string | null>(null);
+  const [savedPlansReloading, setSavedPlansReloading] = useState(false);
   const [planPersistenceError, setPlanPersistenceError] = useState(false);
   const [mapSearchError, setMapSearchError] = useState<string | null>(null);
   const [plannerView, setPlannerView] = useState<"plan" | "review">("plan");
@@ -3508,7 +3510,7 @@ export default function DominicCapturePlanner({
   const jumpTo = (step: number) => {
     if (step < 3) setPlannerView("plan");
     requestAnimationFrame(() => {
-      const target = [locationRef, areaRef, routeRef, saveRef][step].current ?? areaRef.current ?? locationRef.current;
+      const target = (step === 3 && plannerView === "review" ? reviewRef.current : [locationRef, areaRef, routeRef, saveRef][step].current) ?? areaRef.current ?? locationRef.current;
       target?.focus({ preventScroll: true });
       target?.scrollIntoView({ block: "start", behavior: "auto" });
     });
@@ -3611,20 +3613,20 @@ export default function DominicCapturePlanner({
                   const saved = savedPlans.find((item) => item.id === selectedSavedPlanId);
                   if (saved) openCapturePlan(saved);
                 }}
-                style={{ border: `1px solid ${V.line}`, background: V.panel2, color: activeSavedPlanId ? V.green : V.muted, borderRadius: 7, padding: "7px 8px", fontSize: 12, fontWeight: 650, cursor: activeSavedPlanId ? "pointer" : "not-allowed", display: "inline-flex", gap: 5, alignItems: "center" }}
+                style={{ border: `1px solid ${V.line}`, background: V.panel2, color: selectedSavedPlanId ? V.green : V.muted, borderRadius: 7, padding: "7px 8px", fontSize: 12, fontWeight: 650, cursor: selectedSavedPlanId ? "pointer" : "not-allowed", display: "inline-flex", gap: 5, alignItems: "center" }}
               >
                 <FolderOpen size={11} /> Open
               </button>
             </div>
           ) : null}
-          <p className={styles.help} role="status">{planPersistenceBusy ? "Saving your plan…" : currentPlanSaved ? "All planning changes saved" : activeSavedPlanId ? "Changes need saving" : "Unsaved draft"}</p>
+          <p className={styles.help} role="status">{savedPlansReloading ? "Loading saved plans…" : planPersistenceBusy ? "Saving your plan…" : currentPlanSaved ? "All planning changes saved" : activeSavedPlanId ? "Changes need saving" : "Unsaved draft"}</p>
           {planPersistenceStatus ? <div role={planPersistenceError ? "alert" : "status"} className={`${styles.message} ${planPersistenceError ? styles.error : ""}`}>{planPersistenceStatus}</div> : null}
-          <button type="button" className={styles.secondary} disabled={planPersistenceBusy} onClick={() => {
-            setPlanPersistenceBusy(true);
+          <button type="button" className={styles.secondary} disabled={planPersistenceBusy || savedPlansReloading} onClick={() => {
+            setSavedPlansReloading(true);
             void refreshSavedPlans().then(() => { setPlanPersistenceError(false); setPlanPersistenceStatus("Saved plans reloaded."); })
               .catch(() => { setPlanPersistenceError(true); setPlanPersistenceStatus("Saved plans could not be loaded. Check your connection and try Reload saved plans again."); })
-              .finally(() => setPlanPersistenceBusy(false));
-          }}>Reload saved plans</button>
+              .finally(() => setSavedPlansReloading(false));
+          }}>{savedPlansReloading ? "Loading saved plans…" : "Reload saved plans"}</button>
           {!providedContextForPlan && restoredInspection?.key === savedInspectionKey && restoredInspection.error ? <p role="alert" style={{ color: V.amber, fontSize: 12 }}>{restoredInspection.error}</p> : null}
         </div>
       </div>
@@ -3654,7 +3656,7 @@ export default function DominicCapturePlanner({
           <p>{plannerView === "review" ? "Export the mission or connect the aircraft and run preflight. Saving never unlocks flight controls." : mapPlan ? !mapLocationLabel ? "Search by address or place. If an aircraft is connected, you can use its position instead." : mapDrawing ? "Tap or click at least three corners, then finish the area. Pan the map by dragging. Undo removes the last corner." : !mapAreaDefined ? "Check the satellite location, choose a capture type and mark the boundary. DOMINIC will calculate the flight path." : "Select or drag a waypoint to adjust it. Check altitude, overlap and obstacles before saving. The generated route is a draft, not a flight clearance." : planningSource === "local" ? "Enter the object dimensions and stand-off. A map is not required. Review the generated rings before saving." : "Connect the controller to review its camera view. Camera capture and autonomous flight have separate readiness checks."}</p>
         </div>
         <button type="button" className={styles.secondary} aria-expanded={showAdvancedPlanner} aria-controls="capture-advanced-settings" onClick={() => setShowAdvancedPlanner((value) => !value)}>{showAdvancedPlanner ? "Hide aircraft & advanced settings" : "Aircraft & advanced settings"}</button>
-        {plannerView === "plan" && <button type="button" className={styles.primary} disabled={false} onClick={() => {
+        {plannerView === "plan" && <button type="button" className={styles.primary} onClick={() => {
           if (mapPlan && mapLocationLabel && !mapAreaDefined && !mapDrawing) jumpTo(1);
           else if (mapDrawing) jumpTo(1);
           else jumpTo(mapPlan && !mapLocationLabel ? 0 : mapPlan && mapAreaDefined ? 2 : 1);
@@ -4246,6 +4248,7 @@ export default function DominicCapturePlanner({
         ) : planningSource === "live" ? (
           <div ref={areaRef} tabIndex={-1}><DominicLiveInspectionPreview
             key={`${inspectionContext?.inspectionId ?? "unlinked"}-${bridgeStatus}`}
+            appearance="light"
             arMode={initialArMode}
             preview={cameraPreview}
             connected={bridgeStatus === "connected"}
@@ -4307,7 +4310,7 @@ export default function DominicCapturePlanner({
       </section>
 
       {plannerView === "review" ? (
-        <section style={{ margin: "14px", border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, overflow: "hidden" }}>
+        <section ref={reviewRef} tabIndex={-1} aria-label="Saved plan review" style={{ margin: "14px", border: `1px solid ${V.line}`, borderRadius: 12, background: V.panel, overflow: "hidden" }}>
           <div style={{ padding: "14px 16px", borderBottom: `1px solid ${V.line}`, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
             <div>
               <div style={{ color: V.green, fontSize: 12, fontWeight: 650 }}>4. Plan review & next steps</div>

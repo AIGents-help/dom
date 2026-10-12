@@ -16,6 +16,11 @@ async function fits(page, workspace, width, stage) {
   await page.screenshot({path:`/tmp/dom-capture-planner-${stage}-${width}.png`,fullPage:true});
   const layout = await page.evaluate(() => ({ width:innerWidth, scroll:document.documentElement.scrollWidth }));
   assert.ok(layout.scroll <= layout.width + 1, `${stage} fits ${width}px: ${JSON.stringify(layout)}`);
+  const clipped = await workspace.locator('button,input,select,h1,h2,p').evaluateAll(nodes => nodes.filter(node => {
+    const rect = node.getBoundingClientRect();
+    return rect.width && rect.height && !node.closest('[aria-label="DOMINIC satellite mission planning map"]') && (rect.right > innerWidth + 1 || rect.left < -1);
+  }).map(node => ({ tag:node.tagName,text:node.textContent.slice(0,60),right:node.getBoundingClientRect().right })));
+  assert.deepEqual(clipped, [], 'Planner controls are not clipped by the shell');
   const smallText = await workspace.locator('*').evaluateAll(nodes => nodes.filter(node => {
     const rect = node.getBoundingClientRect();
     return rect.width && rect.height && node.textContent.trim() && getComputedStyle(node).fontSize && parseFloat(getComputedStyle(node).fontSize) < 12;
@@ -56,7 +61,7 @@ for (const width of [1440,390,320]) test(`capture planner: location → boundary
     const consent = page.getByRole('region',{name:'Cookie consent',exact:true});
     await consent.getByRole('button',{name:'Essential Only',exact:true}).click();
     await consent.waitFor({state:'hidden'});
-    const nav = page.getByRole('navigation',{name:'DOMINIC navigation',exact:true});
+    const nav = page.getByRole('navigation',{name:width<700?'DOMINIC field navigation':'DOMINIC navigation',exact:true});
     await nav.getByRole('button',{name:'Capture plans',exact:true}).click();
     const workspace = page.getByRole('region',{name:'Capture planning workspace',exact:true});
     await workspace.getByRole('heading',{name:'Capture plans',exact:true}).waitFor();
@@ -102,8 +107,8 @@ for (const width of [1440,390,320]) test(`capture planner: location → boundary
     const lat = workspace.getByLabel('Waypoint latitude'), lon = workspace.getByLabel('Waypoint longitude');
     const editedLatitude = Number(await lat.inputValue()) + .00001;
     await lat.fill(editedLatitude.toFixed(6)); await lat.press('Enter');
-    await workspace.getByLabel('Flight altitude',{exact:true}).fill('65');
-    await workspace.getByLabel('Image overlap',{exact:true}).fill('80');
+    await workspace.getByRole('spinbutton',{name:/^Flight altitude/}).fill('65');
+    await workspace.getByRole('spinbutton',{name:/^Image overlap/}).fill('80');
     const name = `Capture walkthrough ${width}`;
     await workspace.getByLabel('Capture plan name').fill(name);
     await fits(page,workspace,width,'route');

@@ -44,7 +44,18 @@ export function updateBenchVerification(
   report: BenchReadinessReport,
   atMs = Date.now(),
 ): FlightValidationRecord {
-  if (!report.readyForPropOnFieldTest) return record;
+  // This is a handoff of a just-completed check, not a reusable flight certificate.
+  const reportAgeMs = atMs - report.generatedAtMs;
+  const roundTripsComplete = ["yaw_roundtrip", "gimbal_roundtrip", "media_roundtrip"]
+    .every((id) => report.checks.some((check) => check.id === id && check.status === "pass"));
+  if (
+    !report.readyForPropsOffBench || !report.readyForPropOnFieldTest ||
+    report.vendor === "simulator" ||
+    aircraftFingerprint(report) !== record.aircraftFingerprint ||
+    !Number.isFinite(atMs) || !Number.isFinite(report.generatedAtMs) ||
+    report.generatedAtMs <= 0 || reportAgeMs < 0 || reportAgeMs > 30_000 ||
+    !roundTripsComplete || report.checks.some((check) => check.status === "fail")
+  ) return record;
   return {
     ...record,
     benchVerifiedAtMs: atMs,

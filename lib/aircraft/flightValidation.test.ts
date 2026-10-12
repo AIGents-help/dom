@@ -24,7 +24,9 @@ function bench(ready = true): BenchReadinessReport {
     model: "Matrice 4E",
     readyForPropsOffBench: ready,
     readyForPropOnFieldTest: ready,
-    checks: [],
+    checks: ["yaw_roundtrip", "gimbal_roundtrip", "media_roundtrip"].map((id) => ({
+      id, label: id, status: "pass", message: "Controlled fixture evidence, not hardware validation.",
+    })),
   };
 }
 
@@ -97,5 +99,41 @@ describe("DOMINIC flight validation ladder", () => {
         notes: "Attempted controlled test.",
       }),
     ).toThrow("Simulation and Bench/HITL verification");
+  });
+
+  it.each([
+    ["different aircraft", { aircraftId: "aircraft-2" }],
+    ["different model", { model: "Matrice 4T" }],
+    ["future report", { generatedAtMs: 3000 }],
+    ["invalid report time", { generatedAtMs: NaN }],
+    ["missing report time", { generatedAtMs: 0 }],
+    ["failed props-off bench", { readyForPropsOffBench: false }],
+    ["no round-trip evidence", { checks: [] }],
+  ] as Array<[string, Partial<BenchReadinessReport>]>) ("does not transfer a %s into bench verification", (_, patch) => {
+    const current = updateBenchVerification(record(), { ...bench(), ...patch }, 2000);
+    expect(current.benchVerifiedAtMs).toBeUndefined();
+  });
+
+  it("does not promote a simulator even when its readiness booleans claim success", () => {
+    const current = { ...record(), aircraftFingerprint: "simulator|aircraft-1|Matrice 4E" };
+    const result = updateBenchVerification(current, { ...bench(), vendor: "simulator" }, 2000);
+    expect(result.benchVerifiedAtMs).toBeUndefined();
+  });
+
+  it("rejects stale handoff reports and an invalid acceptance clock", () => {
+    expect(updateBenchVerification(record(), bench(), 30_101).benchVerifiedAtMs).toBeUndefined();
+    expect(updateBenchVerification(record(), bench(), NaN).benchVerifiedAtMs).toBeUndefined();
+  });
+
+  it("rejects a failed check even when all required round-trips and flags claim success", () => {
+    const report = bench();
+    report.checks.push({ id: "final_connection", label: "Connection", status: "fail", message: "Disconnected" });
+    expect(updateBenchVerification(record(), report, 2000).benchVerifiedAtMs).toBeUndefined();
+  });
+
+  it("rejects a skipped required media round-trip", () => {
+    const report = bench();
+    report.checks[2].status = "skipped";
+    expect(updateBenchVerification(record(), report, 2000).benchVerifiedAtMs).toBeUndefined();
   });
 });

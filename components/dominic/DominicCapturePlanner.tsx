@@ -3313,6 +3313,7 @@ export default function DominicCapturePlanner({
   };
 
   const choosePlanningSource = (source: "map" | "live" | "local") => {
+    if (source === planningSource) return;
     setPlanningSource(source);
     setMapAreaPoints([]);
     setMapAreaDefined(false);
@@ -4413,13 +4414,14 @@ export default function DominicCapturePlanner({
                 <div style={{ color: V.orange, fontSize: 12, fontWeight: 650, textTransform: "uppercase", letterSpacing: ".08em" }}>Preflight</div>
                 <div style={{ display: "grid", gap: 6, marginTop: 9 }}>
                   {[
-                    ["Plan saved", Boolean(activeSavedPlanId), activeSavedPlanId ? "Saved mission record is available." : "Save the plan before flight."],
+                    ["Plan saved", currentPlanSaved, currentPlanSaved ? "Current planning changes are saved." : "Save the current changes before flight."],
                     ["Route generated", activeSimplePlan.checkpointCount > 0, `${activeSimplePlan.checkpointCount} capture points in the active route.`],
                     ["Calibration", missionType === "object" ? preflightReady : secondaryCalibrationValidation.ready, missionType === "object" ? (preflightReady ? "Object-scan calibration is clear." : "Object-scan calibration requires attention.") : (secondaryCalibrationValidation.ready ? "Pattern calibration is clear." : "Pattern calibration requires attention.")],
-                    ["Inspection equipment", inspectionEquipmentReady, inspectionEquipmentReady ? "Assigned inspection equipment satisfies the required sensor capabilities." : "The assigned aircraft/payload is missing a required inspection capability."],
+                    ["Inspection requirements", inspectionEquipmentReady, !inspectionContext ? "No inspection sensor requirements are linked to this standalone plan. Check aircraft suitability before flight." : inspectionEquipmentReady ? "Assigned inspection equipment satisfies the required sensor capabilities." : "The assigned aircraft/payload is missing a required inspection capability."],
                     ["Aircraft connected", bridgeStatus === "connected", bridgeStatus === "connected" ? "Live aircraft telemetry bridge is connected." : "Connect the aircraft before attempting flight."],
-                    ["DJI mission validation", bridgeInfo?.vendor !== "dji" ? true : djiMissionValidation.status === "valid", bridgeInfo?.vendor !== "dji"
-                      ? "DJI WPMZ validation is not required for this aircraft vendor."
+                    ["DJI mission validation", bridgeStatus === "connected" && (bridgeInfo?.vendor !== "dji" || djiMissionValidation.status === "valid"), bridgeStatus !== "connected"
+                      ? "Connect an aircraft to determine its mission validation requirements."
+                      : bridgeInfo?.vendor !== "dji" ? "DJI WPMZ validation is not required for this aircraft vendor."
                       : djiMissionValidation.status === "valid"
                         ? "DJI WPMZ static validation passed on the controller."
                         : djiMissionValidation.status === "invalid"
@@ -4431,7 +4433,7 @@ export default function DominicCapturePlanner({
                               : "Connect the DJI controller before static KMZ validation."],
                     ["Control authority", productionFlightUnlocked, productionFlightUnlocked ? "DOMINIC connected-flight validation is unlocked." : "Connected flight remains locked until bench/simulation/controlled-field validation is complete."],
                   ].map(([label, ok, detail]) => (
-                    <div key={String(label)} style={{ display: "grid", gridTemplateColumns: "18px minmax(0,1fr)", gap: 7, alignItems: "start", padding: "7px 8px", border: `1px solid ${V.line}`, borderRadius: 7, background: V.panel }}>
+                    <div key={String(label)} data-testid={`preflight-${String(label).toLowerCase().replaceAll(" ", "-")}`} style={{ display: "grid", gridTemplateColumns: "18px minmax(0,1fr)", gap: 7, alignItems: "start", padding: "7px 8px", border: `1px solid ${V.line}`, borderRadius: 7, background: V.panel }}>
                       <div style={{ color: ok ? V.green : V.amber, fontWeight: 650 }}>{ok ? "✓" : "!"}</div>
                       <div>
                         <div style={{ color: V.text, fontSize: 12, fontWeight: 650 }}>{label}</div>

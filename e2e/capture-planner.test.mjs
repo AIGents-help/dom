@@ -100,6 +100,8 @@ for (const width of [1440,390,320]) test(`capture planner: location → boundary
     await tap(.65,.3); await tap(.65,.65); await tap(.2,.65);
     await workspace.getByRole('button',{name:'Finish Area (4)',exact:true}).click();
     await workspace.getByText('Draft route calculated',{exact:true}).waitFor();
+    await workspace.getByRole('button',{name:/Map \/ Satellite/}).click();
+    await workspace.getByText('Draft route calculated',{exact:true}).waitFor();
     if (width === 1440) {
       await page.route('https://server.arcgisonline.com/**', route => route.abort('failed'), {times:1});
     }
@@ -139,6 +141,9 @@ for (const width of [1440,390,320]) test(`capture planner: location → boundary
     assert.equal(saved.plan_state.patternOverlapPct,80);
     assert.ok(Math.abs(Object.values(saved.plan_state.waypointOverrides)[0].latitude - editedLatitude)<.000002);
     assert.equal(await workspace.getByRole('button',{name:'Fly Mission',exact:true}).isEnabled(),false);
+    assert.match(await workspace.getByTestId('preflight-inspection-requirements').innerText(),/No inspection sensor requirements/);
+    const djiStatus = await workspace.getByTestId('preflight-dji-mission-validation').innerText();
+    assert.match(djiStatus,/Connect an aircraft/); assert.match(djiStatus,/!/); assert.doesNotMatch(djiStatus,/✓/);
     await fits(page,workspace,width,'saved');
     const downloadPromise = page.waitForEvent('download');
     await workspace.getByRole('button',{name:'Export Mission',exact:true}).click();
@@ -156,6 +161,7 @@ for (const width of [1440,390,320]) test(`capture planner: location → boundary
     await workspace.getByLabel('Saved capture plans').selectOption(other.id);
     await workspace.getByLabel('Capture plan name').fill(`${name} updated`);
     await workspace.getByText('Changes need saving',{exact:true}).waitFor();
+    assert.match(await workspace.getByTestId('preflight-plan-saved').innerText(),/Save the current changes/);
     await workspace.getByRole('button',{name:'Update',exact:true}).click();
     await workspace.getByText('Capture plan saved.',{exact:true}).waitFor();
     assert.equal((await readPlan('Other protected draft')).id,other.id);

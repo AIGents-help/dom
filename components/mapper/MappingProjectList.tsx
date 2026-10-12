@@ -1,117 +1,89 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { ArrowRight, Plus, ScanLine } from "lucide-react";
-import { V, panelStyle, btnPrimary, statusPillStyle } from "./theme";
-import { MAPPING_PROJECT_STATUS_OPTIONS, MAPPING_PROJECT_STATUS_LABELS, formatProgress } from "@/lib/mapperPipeline";
+import { useEffect, useState } from "react";
+import { ArrowRight, Check, ClipboardCheck, Crosshair, FileText, FolderOpen, MapPin, Plus, RefreshCw, Search } from "lucide-react";
+import { projectHomeDate, projectHomePage, projectHomeStatus, projectPhotoCount, readProjectHome } from "@/lib/dominicProjectHome.mjs";
 import type { MappingProject } from "./types";
+import styles from "./MappingProjectHome.module.css";
 
 type ProjectRow = MappingProject & { job: { id: string; title: string; location: string | null } | null };
 
-const STATUS_COLOR: Record<string, string> = Object.fromEntries(
-  MAPPING_PROJECT_STATUS_OPTIONS.map((s) => [
-    s.value,
-    s.value === "completed" ? V.telemetry : s.value === "failed" ? V.danger : s.value === "processing" || s.value === "queued" ? V.signal : V.inkFaint,
-  ])
-);
-
-export default function MappingProjectList({
-  accessToken,
-  onOpenProject,
-  onNewProject,
-}: {
-  accessToken: string;
-  onOpenProject: (id: string) => void;
-  onNewProject: () => void;
+export default function MappingProjectList({ accessToken, onOpenProject, onNewProject, workflowNavigation = false }: {
+  accessToken: string; onOpenProject: (id: string, module?: string) => void;
+  onNewProject: () => void; workflowNavigation?: boolean;
 }) {
   const [search, setSearch] = useState("");
-  const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [filter, setFilter] = useState("all");
+  const [page, setPage] = useState(0);
+  const [reload, setReload] = useState(0);
+  const [result, setResult] = useState<{ token: string; projects: ProjectRow[] } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    const res = await fetch("/api/pilot/mapping/projects", { headers: { Authorization: `Bearer ${accessToken}` } });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(body.error ?? "Could not load DOMINIC projects.");
-      setLoading(false);
-      return;
-    }
-    setProjects(body.projects ?? []);
-    setLoading(false);
-  }, [accessToken]);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    load();
-  }, [load]);
+    const controller = new AbortController();
+    let active = true;
+    const deadline = setTimeout(() => controller.abort(), 20_000);
+    (async () => {
+      setLoading(true); setError(""); setResult(null);
+      const projects = await readProjectHome(accessToken, controller.signal) as ProjectRow[];
+      if (active) setResult({ token: accessToken, projects });
+    })().catch((failure) => {
+      if (active) setError(controller.signal.aborted ? "Your projects took too long to load. Check your connection and try again."
+        : failure instanceof Error ? failure.message : "Your projects could not be loaded. Please try again.");
+    }).finally(() => { clearTimeout(deadline); if (active) setLoading(false); });
+    return () => { active = false; controller.abort(); clearTimeout(deadline); };
+  }, [accessToken, reload]);
 
-  const query = search.trim().toLowerCase();
-  const visibleProjects = projects.filter((project) => !query || [project.name, project.location_snapshot, project.job?.title].some((value) => value?.toLowerCase().includes(query)));
+  // A new account/token cannot briefly display the old account's project actions.
+  const current = result?.token === accessToken ? result : null;
+  const projects = current?.projects ?? [];
+  const waiting = loading || (!current && !error);
+  const visible = projectHomePage(projects, search, filter, page);
+  const reset = () => { setSearch(""); setFilter("all"); setPage(0); };
 
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
-        <div>
-          <h1 style={{ color: V.ink, fontWeight: 700, fontSize: 24, margin: 0 }}>Projects</h1>
-          <p style={{ color: V.inkDim, fontSize: 13, marginTop: 5 }}>Open a project to upload photos, process maps and models, or export results.</p>
-        </div>
-        <button onClick={onNewProject} style={{ ...btnPrimary, display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <Plus size={15} /> New project
-        </button>
-      </div>
-      <input aria-label="Search projects" placeholder="Search projects or locations" value={search} onChange={(event) => setSearch(event.target.value)}
-        style={{ width: "100%", boxSizing: "border-box", border: `1px solid ${V.line}`, background: V.raised, color: V.ink, borderRadius: 8, padding: "10px 12px", fontSize: 13, marginBottom: 14 }} />
-
-      {error && <p style={{ color: V.danger, fontSize: 13, marginBottom: 12 }}>{error}</p>}
-      {loading && <p style={{ color: V.inkDim }}>Loading DOMINIC projects…</p>}
-      {!loading && projects.length === 0 && (
-        <div style={{ ...panelStyle, textAlign: "center", padding: 42 }}>
-          <ScanLine size={32} color={V.signal} style={{ margin: "0 auto 12px" }} />
-          <p style={{ color: V.ink, fontWeight: 700 }}>No DOMINIC projects yet.</p>
-          <p style={{ color: V.inkFaint, fontSize: 13, marginTop: 6 }}>Create a project to upload your photos.</p>
-        </div>
-      )}
-
-      {!loading && projects.length > 0 && visibleProjects.length === 0 ? <p style={{ color: V.inkDim }}>No projects match this search.</p> : null}
-      <div style={{ display: "grid", gap: 9 }}>
-        {visibleProjects.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => onOpenProject(p.id)}
-            style={{
-              ...panelStyle,
-              textAlign: "left",
-              cursor: "pointer",
-              width: "100%",
-              padding: 14,
-              display: "grid",
-              gridTemplateColumns: "minmax(0,1fr) auto",
-              gap: 16,
-              alignItems: "center",
-            }}
-          >
-            <div style={{ minWidth: 0 }}>
-              <div className="font-saira" style={{ fontWeight: 700, fontSize: 16, color: V.ink }}>{p.name}</div>
-              <div style={{ color: V.inkDim, fontSize: 12, marginTop: 3 }}>
-                {p.job?.title ?? "Unlinked mission"} · {p.location_snapshot ?? "Location TBD"}
-              </div>
-              <div className="font-mono-ibm" style={{ display: "flex", gap: 16, marginTop: 10, fontSize: 10, color: V.inkFaint, flexWrap: "wrap" }}>
-                <span>{p.image_count} images</span>
-                <span>Created {new Date(p.created_at).toLocaleDateString()}</span>
-                {(p.status === "processing" || p.status === "queued") && <span>{formatProgress(p.processing_progress)}</span>}
-              </div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span className="font-mono-ibm" style={statusPillStyle(STATUS_COLOR[p.status] ?? V.inkFaint)}>
-                {MAPPING_PROJECT_STATUS_LABELS[p.status] ?? p.status}
-              </span>
-              <ArrowRight size={17} color={V.inkFaint} />
-            </div>
-          </button>
-        ))}
-      </div>
+  return <section className={styles.home} aria-label="Project home">
+    <div className={styles.topline}><span className={styles.eyebrow}>DOMINIC / YOUR WORK</span><button type="button" className={styles.quiet} disabled={waiting} onClick={() => setReload((n) => n + 1)}><RefreshCw size={14} /> Refresh projects</button></div>
+    <header className={styles.header}>
+      <div><h1>Your projects</h1><p>Plan the work. Review the evidence. Deliver a clear answer.</p></div>
+      <button type="button" onClick={onNewProject} className={styles.primary}><Plus size={17} /> New project</button>
+    </header>
+    <ol className={styles.path} aria-label="Inspection workflow guide">
+      <li><span>01</span><div><strong>Choose a project</strong><small>Find your site and saved work</small></div></li>
+      <li><span>02</span><div><strong>Plan & capture</strong><small>Set up the job and collect photos</small></div></li>
+      <li><span>03</span><div><strong>Review & report</strong><small>Check findings and prepare the report</small></div></li>
+    </ol>
+    <div className={styles.libraryHeader}><div><h2>Project library</h2><p>Newest projects first</p></div>
+      <label className={styles.search}><Search size={17} /><input aria-label="Search projects" placeholder="Search projects, missions or locations" value={search} maxLength={200} onChange={(event) => { setSearch(event.target.value); setPage(0); }} /></label>
     </div>
-  );
+    <div className={styles.filters} aria-label="Map processing filters">
+      {[["all", "All projects"], ["preparing", "Preparing photos"], ["processing", "Processing maps"], ["completed", "Maps processed"], ["attention", "Processing interrupted"], ["cancelled", "Cancelled processing"]].map(([value, label]) =>
+        <button key={value} type="button" aria-pressed={filter === value} onClick={() => { setFilter(value); setPage(0); }}>{label}</button>)}
+    </div>
+    {waiting ? <div className={styles.empty} role="status"><FolderOpen size={28} /><h2>Loading your projects</h2><p>Your saved work will appear here.</p></div>
+      : error ? <div className={styles.error} role="alert"><h2>We couldn&apos;t load your projects</h2><p>{error}</p><button type="button" className={styles.secondary} onClick={() => setReload((n) => n + 1)}>Try again</button></div>
+      : !projects.length ? <div className={styles.empty}><FolderOpen size={30} /><h2>Your first project starts here</h2><p>Create a project for a confirmed mission, then bring its plans, photos and inspection work together.</p><button type="button" className={styles.primary} onClick={onNewProject}><Plus size={16} /> Create your first project</button></div>
+      : !visible.rows.length ? <div className={styles.empty}><Search size={28} /><h2>No projects match</h2><p>Try another location, project name or processing filter.</p><button type="button" className={styles.secondary} onClick={reset}>Show all projects</button></div>
+      : <>
+        <div className={styles.cards}>{visible.rows.map((project) => {
+          const status = projectHomeStatus(project.status);
+          return <article key={project.id} className={styles.card} aria-label={`Project ${project.name}`} data-testid="project-home-card">
+            <button type="button" className={styles.openProject} onClick={() => onOpenProject(project.id)}>
+              <div className={styles.cardTop}><span className={styles.folder}><FolderOpen size={22} /></span><span className={styles.badge} data-tone={status.tone}>{status.label}</span></div>
+              <h3>{project.name}</h3><p className={styles.location}><MapPin size={14} /><span>{project.location_snapshot || project.job?.location || "Location not added"}</span></p>
+              <p className={styles.mission}>{project.job?.title || "No linked mission"}</p>
+              <div className={styles.metadata}><span>{projectPhotoCount(project.image_count)}</span><span>Created {projectHomeDate(project.created_at)}</span></div>
+              <span className={styles.openLabel}>Open project <ArrowRight size={16} /></span>
+            </button>
+            {workflowNavigation && <div className={styles.cardActions} aria-label={`Next steps for ${project.name}`}>
+              <button type="button" onClick={() => onOpenProject(project.id, "Project Records")}><Crosshair size={15} /> Plans</button>
+              <button type="button" className={styles.reviewAction} onClick={() => onOpenProject(project.id, "Intelligent Inspection")}><ClipboardCheck size={15} /> Inspections</button>
+              <button type="button" onClick={() => onOpenProject(project.id, "Deliverables")}><FileText size={15} /> Exports</button>
+            </div>}
+          </article>;
+        })}</div>
+        <nav className={styles.pager} aria-label="Project library pages"><p role="status">{visible.matching} matching projects / page {visible.page + 1} of {visible.pages}</p>{visible.pages > 1 && <><button type="button" className={styles.secondary} disabled={visible.page === 0} onClick={() => setPage(visible.page - 1)}>Previous projects</button><button type="button" className={styles.secondary} disabled={visible.page + 1 === visible.pages} onClick={() => setPage(visible.page + 1)}>Next projects</button></>}</nav>
+      </>}
+    <footer className={styles.note}><Check size={17} /><p><strong>One project, from capture to report.</strong> Map-processing labels are shown here. Open an inspection to see its findings and review progress.</p></footer>
+  </section>;
 }

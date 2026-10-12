@@ -68,6 +68,11 @@ jobs:
           done
           cat /tmp/dom-e2e.log
           exit 1
+      - name: Check project home and navigation
+        run: node --test e2e/project-home.test.mjs
+        env:
+          E2E_ISOLATED_SUPABASE: "true"
+          E2E_BASE_URL: http://127.0.0.1:3000
       - name: Check inspection workspace on desktop and phone
         run: node --test e2e/inspection-workspace.test.mjs
         env:
@@ -97,5 +102,6 @@ jobs:
             /tmp/dom-navigation-*.png
             /tmp/dom-inspection-workspace-*.png
             /tmp/dom-photo-review-*.png
+            /tmp/dom-project-home-*.png
           if-no-files-found: ignore
           retention-days: 7

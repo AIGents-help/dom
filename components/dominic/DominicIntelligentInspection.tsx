@@ -87,6 +87,8 @@ export default function DominicIntelligentInspection({ projectId, accessToken, i
   const activeCount = inspections.filter((row) => ["planned", "capturing", "analyzing"].includes(row.status)).length;
   const reportCount = inspections.filter((row) => row.status === "complete").length;
   const openEvidence = (id: string) => {
+    // A same-value select change must not erase the context without rerunning its effect.
+    if (id === selectedId && view === "evidence") return;
     setSelectedId(id); setContext(null); setContextError(""); setView("evidence");
     requestAnimationFrame(() => evidenceHeading.current?.focus());
   };

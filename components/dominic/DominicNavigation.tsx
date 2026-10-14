@@ -1,6 +1,7 @@
 "use client";
 
 import { Activity, Crosshair, Factory, FolderKanban, Image, Layers3, Map, Radar, ScanSearch, BrainCircuit, type LucideIcon } from "lucide-react";
+import Link from "next/link";
 import styles from "./DominicNavigation.module.css";
 
 type Item = { module: string; label: string; icon: LucideIcon; secondary?: boolean };
@@ -36,6 +37,7 @@ export default function DominicNavigation({ activeModule, hasProject, collapsed,
   return <nav aria-label="DOMINIC navigation" className={styles.navigation} data-compact={projectOnly}>
     {!projectOnly && <section aria-label="Projects library">
       {!collapsed && <p className={styles.label}>Your work</p>}{render(library)}
+      {!demoMode && <Link href="/dominic/evaluation" target="_blank" rel="noopener noreferrer" prefetch={false} aria-label="Accuracy Lab" title="Accuracy Lab" className={styles.button} data-collapsed={collapsed}><ScanSearch size={17} aria-hidden="true" />{!collapsed && <span>Accuracy Lab</span>}</Link>}
     </section>}
     {hasProject && <section aria-label="Current project" className={styles.project}>
       {!collapsed && <p className={styles.label}>{projectOnly ? "In this project" : "Selected project"}</p>}

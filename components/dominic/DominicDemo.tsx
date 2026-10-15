@@ -13,7 +13,7 @@ type Finding = { asset: string; title: string; severity: string; confidence: str
 const findings: Finding[] = [
   { asset: "Tank 17", title: "Coating wear on east rim", severity: "Medium", confidence: "87%", note: "Review close-range evidence before assigning repair." },
   { asset: "Transfer line", title: "Support bracket needs review", severity: "Medium", confidence: "82%", note: "Confirm bracket condition during the next inspection." },
-  { asset: "Building B-07", title: "North-face coverage gap", severity: "Low", confidence: "96%", note: "Add an oblique pass before closing the inspection." },
+  { asset: "Building B-07", title: "Missing north-face coverage", severity: "Low", confidence: "96%", note: "Add an oblique pass before closing the inspection." },
 ];
 const projects = [
   { id: "refinery", name: "Demo refinery inspection", location: "Marcus Hook, PA · fictional sample", status: "Needs review", tone: "orange", detail: "3 candidate findings · 1 capture gap", live: true },
@@ -54,7 +54,7 @@ export default function DominicDemo() {
         {previews.has(module) ? <div className={styles.previewWrap}><DominicPreviewEnvironment module={module as "Live Flight" | "AR View" | "AI Copilot"} onOpen={navigate} /></div>
         : module === "Projects" ? <ProjectHome onOpen={openProject} />
         : module === "Capture Planner" ? <CapturePlan onOpenProject={() => openProject("Project Records")} />
-        : module === "Project Records" ? <ProjectOverview onBack={() => navigate("Projects")} onOpen={navigate} />
+        : module === "Project Records" ? <ProjectOverview onBack={() => navigate("Projects")} onOpen={navigate} onFinding={(index) => { setFindingIndex(index); setModule("Intelligent Inspection"); }} />
         : module === "Asset Intelligence" ? <InspectionLibrary onOpen={(index) => { setFindingIndex(index); openProject("Intelligent Inspection"); }} />
         : module === "Intelligent Inspection" ? <EvidenceReview finding={finding} onSelect={setFindingIndex} />
         : module === "Data Library" ? <PhotoLibrary />
@@ -78,18 +78,18 @@ function ProjectHome({ onOpen }: { onOpen: (module?: string) => void }) {
     </ol>
     <div className={styles.libraryRow}><div><h2>Project library</h2><p>Fictional examples showing different stages</p></div><label className={styles.search}><Search size={16} /><input aria-label="Search sample projects" placeholder="Search projects or locations" disabled /></label></div>
     <div className={styles.projectCards}>{projects.map((project) => <article className={styles.projectCard} key={project.id} data-testid="demo-project-card">
-      <div className={styles.cardVisual}>{project.id === "refinery" ? <Image src="/images/dominic-demo/refinery-aerial-v1.webp" alt="" fill sizes="(max-width: 760px) 100vw, 33vw" /> : <div className={styles.placeholderVisual}><FolderOpen size={28} /></div>}</div>
+      <div className={styles.cardVisual}>{project.id === "refinery" ? <Image src="/images/dominic-demo/refinery-aerial-v1.webp" alt="Photorealistic generated sample aerial image of a refinery tank, transfer pipes and industrial building" fill sizes="(max-width: 760px) 100vw, 33vw" /> : <div className={styles.placeholderVisual}><FolderOpen size={28} /></div>}</div>
       <div className={styles.cardBody}>
         <div className={styles.cardTop}><span className={styles.projectIcon}><FolderOpen size={18} /></span><span className={styles.badge} data-tone={project.tone}>{project.status}</span></div>
         <h3>{project.name}</h3><p className={styles.location}><MapPin size={14} />{project.location}</p><p className={styles.detail}>{project.detail}</p>
-        {project.live ? <div className={styles.cardButtons}><button type="button" onClick={() => onOpen("Project Records")}>Open project <ArrowRight size={15} /></button><button type="button" onClick={() => onOpen("Intelligent Inspection")}>Inspections</button></div> : <p className={styles.sampleOnly}>Sample card · walkthrough uses the refinery project</p>}
+        {project.live ? <div className={styles.cardButtons}><button type="button" onClick={() => onOpen("Project Records")}>Open sample project <ArrowRight size={15} /></button><button type="button" onClick={() => onOpen("Intelligent Inspection")}>Inspections</button></div> : <p className={styles.sampleOnly}>Sample card · walkthrough uses the refinery project</p>}
       </div>
     </article>)}</div>
     <div className={styles.truthNote}><CheckCircle2 size={17} /><p><strong>Same workflow, sample data.</strong> This public demo follows the current DOMINIC experience instead of a separate legacy showcase.</p></div>
   </section>;
 }
 
-function ProjectOverview({ onBack, onOpen }: { onBack: () => void; onOpen: (module: string) => void }) {
+function ProjectOverview({ onBack, onOpen, onFinding }: { onBack: () => void; onOpen: (module: string) => void; onFinding: (index: number) => void }) {
   return <section className={styles.workspace} aria-label="Sample project overview">
     <button className={styles.back} onClick={onBack}><ArrowLeft size={15} /> All projects</button>
     <div className={styles.projectHero}><div><div className={styles.eyebrow}>SAMPLE PROJECT</div><h1>Demo refinery inspection</h1><p>Move from planning to evidence review without hunting through unrelated controls.</p></div><span className={styles.badge} data-tone="orange">3 findings need review</span></div>
@@ -98,7 +98,7 @@ function ProjectOverview({ onBack, onOpen }: { onBack: () => void; onOpen: (modu
       <article className={styles.overviewCard}><ClipboardCheck size={22} /><span>02</span><h2>Inspection review</h2><p>Review candidate conditions alongside the source evidence.</p><button onClick={() => onOpen("Intelligent Inspection")}>Review findings <ArrowRight size={15} /></button></article>
       <article className={styles.overviewCard}><FileText size={22} /><span>03</span><h2>Report</h2><p>Preview what the customer receives after human review.</p><button onClick={() => onOpen("Deliverables")}>Open report <ArrowRight size={15} /></button></article>
     </div>
-    <div className={styles.imageStrip}><Image src="/images/dominic-demo/refinery-aerial-v1.webp" alt="Fictional refinery project overview" fill sizes="100vw" /></div>
+    <div className={styles.findingTabs} aria-label="Quick sample findings"><button onClick={() => onFinding(0)}>Tank 17</button><button onClick={() => onFinding(1)}>Transfer line</button><button onClick={() => onFinding(2)}>B-07</button></div>\n    <div className={styles.imageStrip}><Image src="/images/dominic-demo/refinery-aerial-v1.webp" alt="Fictional refinery project overview" fill sizes="100vw" /></div>
   </section>;
 }
 

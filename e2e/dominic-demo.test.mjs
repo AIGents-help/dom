@@ -31,7 +31,7 @@ test("public DOMINIC demo mirrors the current project-to-report workflow", { ski
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
     await page.screenshot({ path: "/tmp/dom-demo-projects-desktop.png", fullPage: true });
 
-    await page.getByRole("button", { name: "Open project", exact: false }).first().click();
+    await page.getByRole("button", { name: "Open sample project", exact: true }).first().click();
     await page.getByRole("heading", { name: "Demo refinery inspection", exact: true }).waitFor();
     await page.getByRole("button", { name: "Review findings", exact: false }).click();
     await page.getByRole("heading", { name: "Tank 17", exact: true }).waitFor();

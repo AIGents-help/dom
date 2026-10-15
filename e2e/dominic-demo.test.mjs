@@ -20,7 +20,8 @@ test("public DOMINIC demo mirrors the current project-to-report workflow", { ski
   try {
     await page.goto(base + "/dominic/demo", { waitUntil: "domcontentloaded" });
     const consent = page.getByRole("region", { name: "Cookie consent", exact: true });
-    if (await consent.count()) {
+    await consent.waitFor({ state: "visible", timeout: 5000 }).catch(() => {});
+    if (await consent.isVisible().catch(() => false)) {
       await consent.getByRole("button", { name: "Essential Only", exact: true }).click();
       await consent.waitFor({ state: "hidden" });
     }

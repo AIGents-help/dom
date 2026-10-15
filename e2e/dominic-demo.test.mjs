@@ -6,7 +6,7 @@ const enabled = process.env.E2E_ISOLATED_SUPABASE === "true";
 const base = process.env.E2E_BASE_URL || "http://127.0.0.1:3000";
 
 test("public DOMINIC demo mirrors the current project-to-report workflow", { skip: !enabled, timeout: 120000 }, async () => {
-  assert.match(base, /^https?:\\/\\/(127\\.0\\.0\\.1|localhost)(:|\\/)/);
+  assert.match(base, new RegExp("^https?://(127\\.0\\.0\\.1|localhost)(:|/)"));
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const page = await context.newPage();

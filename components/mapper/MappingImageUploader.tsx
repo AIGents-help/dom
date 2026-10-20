@@ -382,6 +382,14 @@ export default function MappingImageUploader({
                 {f.status === "error" && (
                   <button onClick={() => retry(f.clientId)} style={{ ...btnGhost, padding: "3px 9px", fontSize: 11 }}>Retry</button>
                 )}
+                <div role="progressbar" aria-label={`${f.file.name} upload progress`}
+                  aria-valuenow={f.status === "done" ? 100 : f.progress} aria-valuemin={0} aria-valuemax={100}
+                  style={{ width: 110, height: 6, borderRadius: 5, background: V.line, overflow: "hidden" }}>
+                  <div style={{ height: "100%", width: `${f.status === "done" ? 100 : f.progress}%`, background: f.status === "error" ? V.danger : f.status === "done" ? V.telemetry : V.signal, transition: "width .2s" }} />
+                </div>
+                {f.status === "uploading" && now - f.lastActivityAt > 60000 && (
+                  <span style={{ color: V.warn, fontSize: 11 }}>Stalled — no progress for 60 seconds</span>
+                )}
               </div>
             ))}
           </div>

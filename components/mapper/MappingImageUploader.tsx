@@ -36,6 +36,7 @@ interface TrackedFile {
   path: string | null;
   token: string | null;
   error: string | null;
+  lastActivityAt: number;
 }
 
 function projectRefFromSupabaseUrl(): string | null {
@@ -76,6 +77,7 @@ export default function MappingImageUploader({
 }) {
   const [files, setFiles] = useState<TrackedFile[]>([]);
   const [dragActive, setDragActive] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadsInFlight = useRef(0);
   // One shared FIFO: separate 100-file authorization batches must not strand
@@ -86,9 +88,13 @@ export default function MappingImageUploader({
 
   useEffect(() => { filesRef.current = files; }, [files]);
   useEffect(() => { onlineRef.current = online; }, [online]);
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 5000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const updateFile = useCallback((clientId: string, patch: Partial<TrackedFile>) => {
-    setFiles((prev) => prev.map((f) => (f.clientId === clientId ? { ...f, ...patch } : f)));
+    setFiles((prev) => prev.map((f) => (f.clientId === clientId ? { ...f, ...patch, lastActivityAt: Date.now() } : f)));
   }, []);
 
   const runUpload = useCallback(
@@ -211,6 +217,7 @@ export default function MappingImageUploader({
         path: null,
         token: null,
         error: null,
+        lastActivityAt: Date.now(),
       }));
       setFiles((prev) => [...prev, ...tracked]);
 
@@ -282,6 +289,20 @@ export default function MappingImageUploader({
   const errorCount = files.filter((f) => f.status === "error").length;
   const duplicateCount = files.filter((f) => f.status === "duplicate").length;
   const inProgressCount = files.length - doneCount - errorCount - duplicateCount;
+  const activeCount = files.filter((f) => f.status === "uploading" || f.status === "confirming").length;
+  const waitingCount = files.filter((f) => ["pending", "checksumming", "queued"].includes(f.status)).length;
+  const stalled = files.some((f) => f.status === "uploading" && now - f.lastActivityAt > 60000) ||
+    (waitingCount > 0 && activeCount === 0 && files.some((f) => f.status === "queued" && now - f.lastActivityAt > 60000));
+  const totalBytes = files.reduce((sum, f) => sum + f.file.size, 0);
+  const transferredBytes = files.reduce((sum, f) => sum + f.file.size *
+    (f.status === "done" || f.status === "duplicate" ? 1 : f.status === "uploading" || f.status === "confirming" ? f.progress / 100 : 0), 0);
+  const overallProgress = totalBytes ? Math.round(transferredBytes / totalBytes * 100) : 0;
+  const activity = !online ? "Offline — waiting for internet connection"
+    : stalled ? "No progress for over 60 seconds — upload may be stuck"
+    : activeCount ? `Uploading ${activeCount} file(s), ${waitingCount} waiting`
+    : waitingCount ? `Preparing ${waitingCount} file(s)…`
+    : errorCount ? "Some uploads failed — use Retry" : "Selected files complete.";
+
 
   return (
     <div>
@@ -327,6 +348,17 @@ export default function MappingImageUploader({
             {errorCount > 0 && <span style={{ color: V.danger }}>{errorCount} failed</span>}
           </div>
 
+          <div role="status" aria-live="polite" style={{ padding: 12, marginBottom: 12, border: `1px solid ${stalled ? V.warn : V.line}`, borderRadius: 8 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, gap: 8, marginBottom: 7 }}>
+              <strong style={{ color: stalled ? V.warn : V.ink }}>{activity}</strong>
+              <span style={{ color: V.inkDim }}>{overallProgress}%</span>
+            </div>
+            <div role="progressbar" aria-label="Total image upload progress" aria-valuenow={overallProgress} aria-valuemin={0} aria-valuemax={100} style={{ height: 9, borderRadius: 6, background: V.line, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${overallProgress}%`, background: V.telemetry, transition: "width .2s" }} />
+            </div>
+            <p style={{ marginTop: 7, fontSize: 11, color: V.inkDim }}>{formatBytes(Math.round(transferredBytes))} / {formatBytes(totalBytes)} • {doneCount} stored • {waitingCount} waiting • {errorCount} failed</p>
+            <p style={{ marginTop: 4, fontSize: 11, color: V.inkFaint }}>Status refreshes every 5 seconds. Queued files are waiting, not transferring.</p>
+          </div>
           <div style={{ maxHeight: 260, overflowY: "auto", display: "grid", gap: 6 }}>
             {files.map((f) => (
               <div key={f.clientId} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, padding: "6px 0", borderBottom: `1px solid ${V.lineSoft}` }}>

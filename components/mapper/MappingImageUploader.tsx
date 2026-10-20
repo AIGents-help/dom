@@ -78,6 +78,9 @@ export default function MappingImageUploader({
   const [dragActive, setDragActive] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const uploadsInFlight = useRef(0);
+  // One shared FIFO: separate 100-file authorization batches must not strand
+  // later uploads when all concurrency slots are occupied by earlier batches.
+  const pendingUploads = useRef<TrackedFile[]>([]);
   const filesRef = useRef<TrackedFile[]>([]);
   const onlineRef = useRef(online);
 
@@ -170,21 +173,28 @@ export default function MappingImageUploader({
   );
 
   const drainQueue = useCallback(
-    (queue: TrackedFile[]) => {
+    (filesToQueue: TrackedFile[]) => {
+      pendingUploads.current.push(...filesToQueue);
       const pump = () => {
-        while (uploadsInFlight.current < MAX_CONCURRENT_UPLOADS && queue.length > 0) {
-          const next = queue.shift();
+        while (uploadsInFlight.current < MAX_CONCURRENT_UPLOADS && pendingUploads.current.length > 0) {
+          const next = pendingUploads.current.shift();
           if (!next) break;
           uploadsInFlight.current += 1;
-          runUpload(next).finally(() => {
+          runUpload(next).catch((error) => {
+            updateFile(next.clientId, {
+              status: "error",
+              error: error instanceof Error ? error.message : "Upload failed. Retry this file.",
+            });
+          }).finally(() => {
             uploadsInFlight.current -= 1;
+            // The same shared queue includes ALL authorization batches.
             pump();
           });
         }
       };
       pump();
     },
-    [runUpload]
+    [runUpload, updateFile]
   );
 
   const addFiles = useCallback(

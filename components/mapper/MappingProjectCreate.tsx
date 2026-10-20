@@ -49,15 +49,18 @@ export default function MappingProjectCreate({
   }
 
   async function create() {
-    if (!jobId) { setError("Select a mission first."); return; }
     if (!name.trim()) { setError("Project name is required."); return; }
+    if ((latitude && !longitude) || (!latitude && longitude)) { setError("Enter both coordinates or leave both blank."); return; }
+    if (latitude && (!Number.isFinite(Number(latitude)) || Math.abs(Number(latitude)) > 90)) { setError("Latitude must be between -90 and 90."); return; }
+    if (longitude && (!Number.isFinite(Number(longitude)) || Math.abs(Number(longitude)) > 180)) { setError("Longitude must be between -180 and 180."); return; }
+    if (!jobId && !locationSnapshot.trim() && !latitude) { setError("Enter a location or coordinates for an imported flight."); return; }
     setSaving(true);
     setError(null);
     const res = await fetch("/api/pilot/mapping/projects", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({
-        job_id: jobId,
+        job_id: jobId || null,
         name: name.trim(),
         location_snapshot: locationSnapshot.trim() || undefined,
         latitude: latitude ? parseFloat(latitude) : undefined,
@@ -81,20 +84,20 @@ export default function MappingProjectCreate({
           <WandSparkles size={18} />
           <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase" }}>New DOMINIC Project</span>
         </div>
-        <div className="font-saira" style={{ fontWeight: 800, fontSize: 24, color: V.ink, marginBottom: 4 }}>Start with the mission.</div>
+        <div className="font-saira" style={{ fontWeight: 800, fontSize: 24, color: V.ink, marginBottom: 4 }}>Start with your project.</div>
         <p style={{ color: V.inkDim, fontSize: 13, marginBottom: 20, lineHeight: 1.55 }}>
-          DOM already knows the client and mission. Select it here and DOMINIC carries that context into processing, measurements, analysis, and delivery.
+          Link an existing DOM mission, or create a project for photographs from a completed flight. You can add the location manually without address lookup.
         </p>
 
         {error && <p style={{ color: V.danger, fontSize: 13, marginBottom: 12 }}>{error}</p>}
 
         <div style={{ display: "grid", gap: 15 }}>
           <div>
-            <label style={labelStyle}>DOM Mission *</label>
+            <label style={labelStyle}>DOM Mission (optional)</label>
             {loadingJobs ? (
               <p style={{ color: V.inkFaint, fontSize: 13 }}>Loading eligible missions…</p>
             ) : jobs.length === 0 ? (
-              <p style={{ color: V.inkFaint, fontSize: 13 }}>No eligible missions are available yet.</p>
+              <p style={{ color: V.inkFaint, fontSize: 13 }}>No eligible missions found. You can still create a project for a completed flight.</p>
             ) : (
               <select style={inputStyle} value={jobId} onChange={(e) => selectJob(e.target.value)}>
                 <option value="">Select a mission…</option>
@@ -112,7 +115,7 @@ export default function MappingProjectCreate({
 
           <div>
             <label style={labelStyle}>Location</label>
-            <input style={inputStyle} value={locationSnapshot} onChange={(e) => setLocationSnapshot(e.target.value)} placeholder="Pulled from the mission when available" />
+            <input style={inputStyle} value={locationSnapshot} onChange={(e) => setLocationSnapshot(e.target.value)} placeholder="e.g. 192 Bayview Road, Newport, NJ 08345" />
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>

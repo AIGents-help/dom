@@ -7,7 +7,7 @@
 
 export interface MappingProject {
   id: string;
-  job_id: string;
+  job_id: string | null;
   contractor_id: string;
   name: string;
   location_snapshot: string | null;

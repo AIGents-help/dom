@@ -42,14 +42,15 @@ export interface PotreeLocation {
 }
 
 export async function registerDeliverable(
-  jobId: string,
+  jobId: string | null,
   projectName: string,
   output: ExtractedOutput,
   location: DeliverableLocation,
   processingJobId: string,
   potree?: PotreeLocation
 ): Promise<void> {
-  const { data: previousRevision } = await supabaseAdmin
+  // Imported-flight projects have no DOM mission and cannot have mission-scoped client revisions.
+  const { data: previousRevision } = jobId ? await supabaseAdmin
     .from("deliverables")
     .select("id, revision_number, client_status")
     .eq("job_id", jobId)
@@ -57,7 +58,7 @@ export async function registerDeliverable(
     .eq("client_status", "revision_requested")
     .order("created_at", { ascending: false })
     .limit(1)
-    .maybeSingle();
+    .maybeSingle() : { data: null };
 
   const revisionNumber = previousRevision ? Math.max(2, Number(previousRevision.revision_number ?? 1) + 1) : 1;
 

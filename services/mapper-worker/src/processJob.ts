@@ -40,7 +40,7 @@ const DRIVE_OUTPUT_FOLDER: Record<ExtractedOutput["type"], keyof DriveFolderTree
 
 interface MappingProjectRow {
   id: string;
-  job_id: string;
+  job_id: string | null;
   name: string;
 }
 
@@ -116,7 +116,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
       );
     });
 
-    if (driveEnabled) {
+    if (driveEnabled && project.job_id) {
       try {
         const driveContext = await getProjectDriveContext(project.job_id);
         driveFolders = await resolveProjectFolders(project.id, driveContext.customerName, driveContext.jobLabel);
@@ -365,7 +365,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
           const externalFileId = await uploadFile(brandedOutput.localPath, brandedOutput.filename, folderId);
           location = { provider: "google_drive", externalFileId };
         } else {
-          const storagePath = await uploadOutput(project.job_id, brandedOutput);
+          const storagePath = await uploadOutput(project.job_id ?? project.id, brandedOutput);
           location = { provider: "supabase", storagePath };
         }
 
@@ -374,7 +374,7 @@ export async function processJob(job: ProcessingJob): Promise<void> {
           const converted = await convertPointCloud(output.localPath, workspace.potreeDir);
           if (converted) {
             try {
-              potree = await uploadPotreeOctree(project.job_id, job.id, converted);
+              potree = await uploadPotreeOctree(project.job_id ?? project.id, job.id, converted);
             } catch (potreeUploadErr) {
               console.error(`[processJob] Job ${job.id}: Potree octree upload failed:`, potreeUploadErr instanceof Error ? potreeUploadErr.message : potreeUploadErr);
             }

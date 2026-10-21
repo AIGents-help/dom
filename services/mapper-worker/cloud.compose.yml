@@ -1,0 +1,34 @@
+# Launch on a dedicated private high-memory cloud VM, NOT Vercel.
+# Docker Compose env_file stays on the VM; never commit real credentials.
+# No public NodeODM port; only the worker can reach its internal API.
+services:
+  nodeodm:
+    image: opendronemap/nodeodm:latest
+    restart: unless-stopped
+    volumes:
+      - nodeodm-data:/var/www/data
+    shm_size: "4gb"
+    environment:
+      NODE_ENV: production
+    networks: [mapper-private]
+  worker:
+    build:
+      context: ../..
+      dockerfile: services/mapper-worker/Dockerfile
+    restart: unless-stopped
+    env_file: .env.cloud
+    environment:
+      NODEODM_URL: http://nodeodm
+      NODEODM_PORT: "3000"
+      MAPPER_WORK_DIR: /work
+      MAPPER_POLL_INTERVAL_MS: "10000"
+    volumes:
+      - worker-scratch:/work
+    depends_on: [nodeodm]
+    networks: [mapper-private]
+networks:
+  mapper-private:
+    internal: false
+volumes:
+  nodeodm-data:
+  worker-scratch:

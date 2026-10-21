@@ -200,6 +200,9 @@ export default function MappingProjectWorkspace({
   const processingVisible = showAll || focusModule === "Processing";
   const outputsVisible = showAll || focusModule === "Deliverables";
   const viewerVisible = showAll || !["Data Library", "Processing", "Deliverables", "Project Records"].includes(focusModule ?? "");
+  const mapRequested = ["Map Viewer", "3D & Point Cloud", "Measure & Markup", "Analysis"].includes(focusModule ?? "");
+  const processingActive = ["queued", "processing"].includes(project.status);
+  const goToProcessing = () => onNavigate?.("Processing");
 
   return (
     <div>
@@ -294,6 +297,9 @@ export default function MappingProjectWorkspace({
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10, color: V.inkFaint, fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase" }}>
             <UploadCloud size={14} color={V.signal} /> Source Imagery
           </div>
+          <p style={{ color: V.inkDim, fontSize: 12, marginBottom: 12 }}>
+            Upload original photographs once. Every image stored here is available automatically for Processing, Map & 3D, and inspections in this project.
+          </p>
           <MappingImageUploader
             accessToken={accessToken}
             projectId={project.id}
@@ -301,6 +307,19 @@ export default function MappingProjectWorkspace({
             online={online}
             onUploaded={load}
           />
+          {onNavigate && images.length > 0 && (
+            <div style={{ marginTop: 12, padding: 13, border: `1px solid ${V.line}`, borderRadius: 9, background: V.raised }}>
+              <p style={{ color: V.ink, fontSize: 13, fontWeight: 750 }}>
+                {images.length} photos stored — ready to use without uploading again.
+              </p>
+              <p style={{ color: V.inkDim, fontSize: 12, margin: "6px 0 10px" }}>
+                Next: open Processing to create an orthomosaic from these files. Map & 3D displays the finished output.
+              </p>
+              <button type="button" onClick={goToProcessing} style={{ ...btnGhost, color: V.signal, fontSize: 12 }}>
+                {processingActive ? "View processing status →" : "Create map from uploaded photos →"}
+              </button>
+            </div>
+          )}
           {!online ? (
             <p style={{ color: V.warn, fontSize: 11, marginTop: 8 }}>Offline — imagery upload will be available when connectivity returns.</p>
           ) : !canUploadImages(project) && (
@@ -354,7 +373,23 @@ export default function MappingProjectWorkspace({
           <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 8, color: V.inkFaint, fontSize: 10, letterSpacing: ".1em", textTransform: "uppercase" }}>
             <Layers3 size={14} color={V.signal} /> Results
           </div>
-          <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={project.id} showDeliverables={showAll} />
+          {mapRequested && onNavigate ? (
+            <div style={{ border: `1px solid ${V.line}`, borderRadius: 12, background: V.surface, padding: 24 }}>
+              <h2 style={{ color: V.ink, fontSize: 20, fontWeight: 800, margin: 0 }}>
+                {processingActive ? "Your map is being prepared" : "No map generated yet"}
+              </h2>
+              <p style={{ color: V.inkDim, fontSize: 13, lineHeight: 1.6, margin: "10px 0 16px" }}>
+                {images.length > 0
+                  ? `${images.length} photographs are already saved in Photos. You do not need to upload them again. ${processingActive ? "Open Processing to see the current queue or reconstruction status." : "Open Processing, select Orthomosaic, and start a job using those same photographs."}`
+                  : "No photographs are saved yet. Upload source images once in Photos, then create a map from Processing."}
+              </p>
+              <button type="button" onClick={() => onNavigate(images.length === 0 ? "Data Library" : "Processing")} style={{ ...btnGhost, color: V.signal, fontSize: 13 }}>
+                {images.length === 0 ? "Go to Photos →" : processingActive ? "View processing status →" : "Create orthomosaic from existing photos →"}
+              </button>
+            </div>
+          ) : (
+            <MappingResults deliverables={deliverables} accessToken={accessToken} projectId={project.id} showDeliverables={showAll} />
+          )}
           {onNavigate ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button type="button" onClick={() => onNavigate("Data Library")} style={btnGhost}>Upload photos</button>
             <button type="button" onClick={() => onNavigate("Processing")} style={btnGhost}>Open processing</button>

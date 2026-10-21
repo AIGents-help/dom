@@ -1,169 +1,140 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, Crosshair, FileText, FolderOpen, Image as ImageIcon, MapPin, Play, Search, ShieldCheck } from "lucide-react";
 import DominicBrandLockup from "./DominicBrandLockup";
 import DominicNavigation from "./DominicNavigation";
 import DominicPreviewEnvironment from "./DominicPreviewEnvironment";
-import DominicSampleScene from "./DominicSampleScene";
-import { V, btnGhost } from "@/components/mapper/theme";
+import styles from "./DominicDemo.module.css";
 
-const sampleFindings = [
-  {
-    asset: "Tank 17",
-    title: "Coating wear on east rim",
-    severity: "Medium",
-    condition: "WATCH",
-    confidence: "87%",
-    history: "Observed on 2 consecutive inspections",
-    action: "Review close-range evidence before confirming repair.",
-    verification: "Repeat capture prescribed from the same east-rim viewpoint after maintenance.",
-  },
-  {
-    asset: "Transfer line",
-    title: "Support bracket needs review",
-    severity: "Medium",
-    condition: "ELEVATED",
-    confidence: "82%",
-    history: "New candidate condition",
-    action: "Confirm bracket condition during the next inspection.",
-    verification: "Reinspect bracket using the saved baseline viewpoint and camera settings.",
-  },
-  {
-    asset: "B-07",
-    title: "Missing north-face coverage",
-    severity: "Low",
-    condition: "CAPTURE GAP",
-    confidence: "96%",
-    history: "Coverage quality issue, not a confirmed defect",
-    action: "Add an oblique pass to complete visual coverage.",
-    verification: "Close only after the missing surface is captured and reviewed.",
-  },
+type Finding = { asset: string; title: string; severity: string; confidence: string; note: string };
+const findings: Finding[] = [
+  { asset: "Tank 17", title: "Coating wear on east rim", severity: "Medium", confidence: "87%", note: "Review close-range evidence before assigning repair." },
+  { asset: "Transfer line", title: "Support bracket needs review", severity: "Medium", confidence: "82%", note: "Confirm bracket condition during the next inspection." },
+  { asset: "Building B-07", title: "Missing north-face coverage", severity: "Low", confidence: "96%", note: "Add an oblique pass before closing the inspection." },
+];
+const projects = [
+  { id: "refinery", name: "Demo refinery inspection", location: "Marcus Hook, PA · fictional sample", status: "Needs review", tone: "orange", detail: "3 candidate findings · 1 capture gap", live: true },
+  { id: "roof", name: "Warehouse roof survey", location: "Philadelphia, PA · fictional sample", status: "Report available", tone: "green", detail: "42 source photos · review complete", live: false },
+  { id: "site", name: "Construction progress", location: "Wilmington, DE · fictional sample", status: "Photos uploaded", tone: "blue", detail: "68 source photos · map not processed", live: false },
 ];
 const previews = new Set(["Live Flight", "AR View", "AI Copilot"]);
+const projectModules = new Set(["Project Records", "Intelligent Inspection", "Data Library", "Deliverables", "Map Viewer", "Processing"]);
 
 export default function DominicDemo() {
   const [module, setModule] = useState("Projects");
-  const [selectedFinding, setSelectedFinding] = useState(0);
-  const finding = sampleFindings[selectedFinding];
-  return <div style={{ background: "#0B1117", minHeight: "100vh", color: V.ink }}>
-    <header style={{ padding: "16px 20px", borderBottom: `1px solid ${V.line}`, background: V.surface, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-      <Link href="/" aria-label="DOM homepage"><DominicBrandLockup /></Link>
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 12, color: V.signal }}>VIEW-ONLY SAMPLE</span>
-        <Link href="/dominic" style={btnGhost}>Open my workspace</Link>
-        <Link href="/dominic/licensing" style={btnGhost}>Free & Premium access</Link>
+  const [projectOpen, setProjectOpen] = useState(false);
+  const [findingIndex, setFindingIndex] = useState(0);
+  const finding = findings[findingIndex];
+  const openProject = (next = "Project Records") => { setProjectOpen(true); setModule(next); };
+  const navigate = (next: string) => {
+    if (next === "Projects") { setProjectOpen(false); setModule("Projects"); return; }
+    if (projectModules.has(next) && !projectOpen) { openProject(next); return; }
+    setModule(next);
+  };
+
+  return <div className={styles.shell}>
+    <header className={styles.header}>
+      <Link href="/" aria-label="DOM homepage" className={styles.brand}><DominicBrandLockup /></Link>
+      <div className={styles.headerActions}>
+        <span className={styles.sampleFlag}>VIEW-ONLY SAMPLE</span>
+        <Link href="/dominic" className={styles.headerButton}>Open my workspace</Link>
+        <Link href="/dominic/licensing" className={styles.headerButton}>Free & Premium access</Link>
       </div>
     </header>
-    <div className="grid lg:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="border-b p-4 lg:border-b-0 lg:border-r" style={{ background: V.surface, borderColor: V.line }}>
-        <div className="hidden lg:block"><DominicNavigation demoMode activeModule={module} hasProject collapsed={false} onOpen={setModule} /></div>
-        <details className="lg:hidden"><summary style={{ cursor: "pointer", color: V.signal, fontSize: 13 }}>Browse sample tools</summary>
-          <div style={{ paddingTop: 14 }}><DominicNavigation demoMode activeModule={module} hasProject collapsed={false} onOpen={(next) => { setModule(next); }} /></div>
-        </details>
+    <div className={styles.layout}>
+      <aside className={styles.sidebar}>
+        <div className={styles.desktopNav}><DominicNavigation demoMode activeModule={module} hasProject={projectOpen} collapsed={false} onOpen={navigate} /></div>
+        <details className={styles.mobileNav}><summary>Browse sample tools</summary><div className={styles.mobileNavBody}><DominicNavigation demoMode activeModule={module} hasProject={projectOpen} collapsed={false} onOpen={navigate} /></div></details>
       </aside>
-      <main style={{ padding: "20px clamp(14px,3vw,36px)", minWidth: 0, maxWidth: 1400 }}>
-        <p style={{ color: V.inkDim, fontSize: 12, lineHeight: 1.6, marginTop: 0 }}>No account required. Browse fictional project data; this sample cannot upload, save, process imagery, control aircraft or purchase a subscription. Future-tool simulations use local sample interactions.</p>
-        {previews.has(module) ? <DominicPreviewEnvironment module={module as "Live Flight" | "AR View" | "AI Copilot"} onOpen={setModule} /> : <>
-          <div style={{ color: V.signal, fontSize: 11 }}>SAMPLE PROJECT</div>
-          <h1 style={{ fontSize: 27, margin: "7px 0 18px" }}>Demo refinery inspection</h1>
-          {module === "Projects" ? <>
-            <DominicSampleScene />
-            <div className="grid gap-3 md:grid-cols-4" style={{ marginTop: 16 }}>
-              {[
-                ["Industrial assets", "3"],
-                ["Candidate findings", "3"],
-                ["Repeat condition", "1"],
-                ["Capture gap", "1"],
-              ].map(([label, value]) => <div key={label} style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: V.surface, padding: 12 }}>
-                <div style={{ color: V.inkFaint, fontSize: 9, letterSpacing: ".08em", textTransform: "uppercase" }}>{label}</div>
-                <div style={{ color: V.ink, fontSize: 21, fontWeight: 900, marginTop: 5 }}>{value}</div>
-              </div>)}
-            </div>
-            <p style={{ color: V.inkDim, lineHeight: 1.6 }}>This sample follows an industrial inspection from captured evidence to candidate finding, maintenance priority and post-repair verification.</p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 9 }}>
-              <button type="button" style={btnGhost} onClick={() => setModule("Intelligent Inspection")}>Start industrial walkthrough</button>
-              <button type="button" style={btnGhost} onClick={() => setModule("Map Viewer")}>Open sample project</button>
-            </div>
-          </> : module === "Capture Planner" || module === "Project Records" ? <>
-            <h2 style={{ fontSize: 19 }}>Sample capture plan</h2>
-            <DominicSampleScene position={{ x: 280, y: 110 }} />
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-2 py-4 text-sm">
-              <dt>Capture type</dt><dd>Building and tank inspection</dd><dt>Planned altitude</dt><dd>120 ft (sample)</dd><dt>Overlap</dt><dd>75%</dd><dt>Inspection targets</dt><dd>Tank 17, transfer line, B-07</dd>
-            </dl>
-            <p style={{ color: V.inkDim, fontSize: 13 }}>Free accounts can create and save real capture plans. This sample plan is view-only.</p>
-            <button type="button" style={btnGhost} onClick={() => setModule("Asset Intelligence")}>Review sample inspections</button>
-          </> : module === "Intelligent Inspection" || module === "Asset Intelligence" || module === "Map Viewer" ? <>
-            <h2 style={{ fontSize: 19 }}>{module === "Map Viewer" ? "Sample image & inspection overlays" : module === "Intelligent Inspection" ? "Intelligent Inspection sample" : "Assets & inspections"}</h2>
-            <DominicSampleScene showFindings selectedAsset={selectedFinding} />
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, margin: "16px 0" }}>{sampleFindings.map((item, index) => <button key={item.asset} type="button" style={btnGhost} aria-pressed={selectedFinding === index} onClick={() => setSelectedFinding(index)}>{item.asset}</button>)}</div>
-            <div className="grid gap-3 md:grid-cols-4" style={{ margin: "4px 0 16px" }}>
-              {[
-                ["Asset condition", finding.condition],
-                ["AI candidate confidence", finding.confidence],
-                ["Issue history", finding.history],
-                ["Review state", "Inspector review required"],
-              ].map(([label, value]) => <div key={label} style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: V.surface, padding: 12 }}>
-                <div style={{ color: V.inkFaint, fontSize: 9, letterSpacing: ".08em", textTransform: "uppercase" }}>{label}</div>
-                <div style={{ color: label === "Asset condition" ? V.signal : V.ink, fontSize: 13, fontWeight: 800, marginTop: 6 }}>{value}</div>
-              </div>)}
-            </div>
-            <div aria-live="polite" style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: V.surface, padding: 15 }}>
-              <div style={{ color: V.signal, fontSize: 10, fontWeight: 900, letterSpacing: ".08em" }}>CANDIDATE FINDING</div>
-              <h3 style={{ fontSize: 18, margin: "7px 0" }}>{finding.title}</h3>
-              <p style={{ color: V.inkDim, fontSize: 13 }}>{finding.severity} priority · Fictional example requiring inspector review</p>
-              <div className="grid gap-3 md:grid-cols-2" style={{ marginTop: 12 }}>
-                <div style={{ borderLeft: `3px solid ${V.signal}`, paddingLeft: 10 }}>
-                  <div style={{ color: V.inkFaint, fontSize: 10 }}>RECOMMENDED ACTION</div>
-                  <p style={{ fontSize: 13, marginBottom: 0 }}>{finding.action}</p>
-                </div>
-                <div style={{ borderLeft: "3px solid #70D6A0", paddingLeft: 10 }}>
-                  <div style={{ color: V.inkFaint, fontSize: 10 }}>VERIFICATION PLAN</div>
-                  <p style={{ fontSize: 13, marginBottom: 0 }}>{finding.verification}</p>
-                </div>
-              </div>
-            </div>
-            <div className="grid gap-2 md:grid-cols-5" style={{ margin: "16px 0" }}>
-              {["Detect", "Document", "Prioritize", "Repair", "Verify"].map((step, index) => <div key={step} style={{ border: `1px solid ${index < 3 ? V.signal : V.line}`, borderRadius: 8, padding: "10px 12px", background: V.surface }}>
-                <div style={{ color: index < 3 ? V.signal : V.inkFaint, fontSize: 9 }}>0{index + 1}</div>
-                <div style={{ fontSize: 12, fontWeight: 900, marginTop: 3 }}>{step}</div>
-              </div>)}
-            </div>
-            {module === "Intelligent Inspection" ? <p style={{ color: V.inkDim, fontSize: 13 }}>Vision: incoming inspection imagery can be screened into candidate anomaly callouts, previous-image comparisons and illustrated reports. These findings are scripted sample data. In the account workspace, supported live camera preview can save inspection frames into evidence and queue AI screening; candidates remain subject to human review.</p> : null}
-            <p style={{ color: V.inkFaint, fontSize: 12 }}>This sample viewer uses an aerial image. Real maps and 3D models come from processed project imagery in the licensed workspace.</p>
-          </> : module === "Data Library" ? <>
-            <h2 style={{ fontSize: 19 }}>Sample source imagery</h2>
-            <DominicSampleScene />
-            <p style={{ fontSize: 13, color: V.inkDim }}>refinery-aerial-v1.webp · 1536 × 1024 · AI-generated sample</p>
-            <p style={{ fontSize: 13 }}>Real project uploads retain source files and image metadata. Uploads are disabled in this public sample.</p>
-          </> : module === "Processing" ? <>
-            <h2 style={{ fontSize: 19 }}>Processing example</h2>
-            <DominicSampleScene />
-            <ol style={{ color: V.inkDim, lineHeight: 2, fontSize: 13 }}><li>Upload and check source imagery.</li><li>Choose a reconstruction profile.</li><li>Queue processing and follow progress.</li><li>Review available map, model and export outputs.</li></ol>
-            <p style={{ fontSize: 13 }}>This is a walkthrough. No processing job runs in the public sample.</p>
-          </> : module === "Deliverables" ? <>
-            <h2 style={{ fontSize: 19 }}>Sample inspection report</h2>
-            <DominicSampleScene showFindings selectedAsset={selectedFinding} />
-            <div className="grid gap-3 md:grid-cols-3" style={{ marginTop: 16 }}>
-              {sampleFindings.map((item) => <div key={item.asset} style={{ border: `1px solid ${V.line}`, borderRadius: 9, background: V.surface, padding: 13 }}>
-                <div style={{ color: V.signal, fontSize: 10, fontWeight: 900 }}>{item.asset}</div>
-                <div style={{ fontSize: 14, fontWeight: 800, marginTop: 5 }}>{item.title}</div>
-                <div style={{ color: V.inkDim, fontSize: 12, marginTop: 7 }}>{item.severity} · {item.condition}</div>
-              </div>)}
-            </div>
-            <div style={{ border: `1px solid ${V.line}`, borderRadius: 10, background: V.surface, padding: 15, marginTop: 14 }}>
-              <div style={{ color: V.signal, fontSize: 10, fontWeight: 900, letterSpacing: ".08em" }}>MAINTENANCE HANDOFF</div>
-              <p style={{ fontSize: 13, lineHeight: 1.7, marginBottom: 0 }}>A production report can preserve the source image, reviewed finding, asset identity, issue history, recommended action and post-repair verification evidence as one traceable package.</p>
-            </div>
-            <p style={{ fontSize: 13 }}>A real report includes source-linked inspection evidence, inspector review, issue history and available export files. The fictional findings here are view-only.</p><p style={{ color: V.signal, fontSize: 12, fontWeight: 800 }}>Industrial workflow: Detect → Document → Prioritize → Repair → Verify</p>
-          </> : <>
-            <h2 style={{ fontSize: 19 }}>Refinery operations sample</h2>
-            <DominicSampleScene position={{ x: 150, y: 140 }} />
-            <p style={{ color: V.inkDim, lineHeight: 1.7, fontSize: 13 }}>A sample dock schedules a tank inspection and tracks a simulated route. DOMINIC HUB in the account workspace provides the operational simulator. Aircraft and sensor integrations remain separate future capabilities.</p>
-            <button type="button" style={btnGhost} onClick={() => setModule("Live Flight")}>Explore flight simulation</button>
-          </>}
-        </>}
+      <main className={styles.main}>
+        <div className={styles.demoNotice}><ShieldCheck size={17} /><div><strong>Explore DOMINIC without an account.</strong><span> Fictional data only. Uploads, saving, aircraft control and purchases are disabled.</span></div></div>
+        {previews.has(module) ? <div className={styles.previewWrap}><DominicPreviewEnvironment module={module as "Live Flight" | "AR View" | "AI Copilot"} onOpen={navigate} /></div>
+        : module === "Projects" ? <ProjectHome onOpen={openProject} />
+        : module === "Capture Planner" ? <CapturePlan onOpenProject={() => openProject("Project Records")} />
+        : module === "Project Records" ? <ProjectOverview onBack={() => navigate("Projects")} onOpen={navigate} onFinding={(index) => { setFindingIndex(index); setModule("Intelligent Inspection"); }} />
+        : module === "Asset Intelligence" ? <InspectionLibrary onOpen={(index) => { setFindingIndex(index); openProject("Intelligent Inspection"); }} />
+        : module === "Intelligent Inspection" ? <EvidenceReview finding={finding} onSelect={setFindingIndex} />
+        : module === "Data Library" ? <PhotoLibrary />
+        : module === "Deliverables" ? <ReportPreview />
+        : module === "Map Viewer" ? <MapWorkspace />
+        : module === "Processing" ? <Processing />
+        : <OperationsSample onFlight={() => setModule("Live Flight")} />}
       </main>
     </div>
   </div>;
 }
+
+function ProjectHome({ onOpen }: { onOpen: (module?: string) => void }) {
+  return <section className={styles.workspace} aria-label="Sample project home">
+    <div className={styles.eyebrow}>DOMINIC / YOUR WORK</div>
+    <div className={styles.titleRow}><div><h1>Your projects</h1><p>Plan the work. Review the evidence. Deliver a clear answer.</p></div><button type="button" className={styles.primary} onClick={() => onOpen("Project Records")}>Explore sample project <ArrowRight size={16} /></button></div>
+    <ol className={styles.path}>
+      <li><b>01</b><div><strong>Choose a project</strong><span>Find the site and saved work</span></div></li>
+      <li><b>02</b><div><strong>Plan & capture</strong><span>Set up the job and collect photos</span></div></li>
+      <li><b>03</b><div><strong>Review & report</strong><span>Check findings and prepare the report</span></div></li>
+    </ol>
+    <div className={styles.libraryRow}><div><h2>Project library</h2><p>Fictional examples showing different stages</p></div><label className={styles.search}><Search size={16} /><input aria-label="Search sample projects" placeholder="Search projects or locations" disabled /></label></div>
+    <div className={styles.projectCards}>{projects.map((project) => <article className={styles.projectCard} key={project.id} data-testid="demo-project-card">
+      <div className={styles.cardVisual}>{project.id === "refinery" ? <Image src="/images/dominic-demo/refinery-aerial-v1.webp" alt="Photorealistic generated sample aerial image of a refinery tank, transfer pipes and industrial building" fill sizes="(max-width: 760px) 100vw, 33vw" /> : <div className={styles.placeholderVisual}><FolderOpen size={28} /></div>}</div>
+      <div className={styles.cardBody}>
+        <div className={styles.cardTop}><span className={styles.projectIcon}><FolderOpen size={18} /></span><span className={styles.badge} data-tone={project.tone}>{project.status}</span></div>
+        <h3>{project.name}</h3><p className={styles.location}><MapPin size={14} />{project.location}</p><p className={styles.detail}>{project.detail}</p>
+        {project.live ? <div className={styles.cardButtons}><button type="button" onClick={() => onOpen("Project Records")}>Open sample project <ArrowRight size={15} /></button><button type="button" onClick={() => onOpen("Intelligent Inspection")}>Inspections</button></div> : <p className={styles.sampleOnly}>Sample card · walkthrough uses the refinery project</p>}
+      </div>
+    </article>)}</div>
+    <div className={styles.truthNote}><CheckCircle2 size={17} /><p><strong>Same workflow, sample data.</strong> This public demo follows the current DOMINIC experience instead of a separate legacy showcase.</p></div>
+  </section>;
+}
+
+function ProjectOverview({ onBack, onOpen, onFinding }: { onBack: () => void; onOpen: (module: string) => void; onFinding: (index: number) => void }) {
+  return <section className={styles.workspace} aria-label="Sample project overview">
+    <button className={styles.back} onClick={onBack}><ArrowLeft size={15} /> All projects</button>
+    <div className={styles.projectHero}><div><div className={styles.eyebrow}>SAMPLE PROJECT</div><h1>Demo refinery inspection</h1><p>Move from planning to evidence review without hunting through unrelated controls.</p></div><span className={styles.badge} data-tone="orange">3 findings need review</span></div>
+    <div className={styles.projectOverviewGrid}>
+      <article className={styles.overviewCard}><Crosshair size={22} /><span>01</span><h2>Capture plan</h2><p>Review the planned area, altitude, overlap and route.</p><button onClick={() => onOpen("Capture Planner")}>Open capture plan <ArrowRight size={15} /></button></article>
+      <article className={styles.overviewCard}><ClipboardCheck size={22} /><span>02</span><h2>Inspection review</h2><p>Review candidate conditions alongside the source evidence.</p><button onClick={() => onOpen("Intelligent Inspection")}>Review findings <ArrowRight size={15} /></button></article>
+      <article className={styles.overviewCard}><FileText size={22} /><span>03</span><h2>Report</h2><p>Preview what the customer receives after human review.</p><button onClick={() => onOpen("Deliverables")}>Open report <ArrowRight size={15} /></button></article>
+    </div>
+    <div className={styles.findingTabs} aria-label="Quick sample findings"><button onClick={() => onFinding(0)}>Tank 17</button><button onClick={() => onFinding(1)}>Transfer line</button><button onClick={() => onFinding(2)}>B-07</button></div>\n    <div className={styles.imageStrip}><Image src="/images/dominic-demo/refinery-aerial-v1.webp" alt="Fictional refinery project overview" fill sizes="100vw" /></div>
+  </section>;
+}
+
+function CapturePlan({ onOpenProject }: { onOpenProject: () => void }) {
+  return <section className={styles.workspace} aria-label="Sample capture planner">
+    <div className={styles.eyebrow}>CAPTURE PLANNER / VIEW-ONLY SAMPLE</div>
+    <div className={styles.titleRow}><div><h1>Guided capture plan</h1><p>Location → inspection area → route → saved review.</p></div><button className={styles.secondary} onClick={onOpenProject}>Open sample project</button></div>
+    <ol className={styles.planSteps}>{["Location","Inspection area","Route","Review"].map((label,index)=><li key={label} data-active={index===2}><b>0{index+1}</b><div><strong>{label}</strong><span>{index===2 ? "Adjust waypoints and capture settings" : index<2 ? "Complete" : "Next step"}</span></div></li>)}</ol>
+    <div className={styles.planGrid}>
+      <div className={styles.planMap}><Image src="/images/dominic-demo/refinery-aerial-v1.webp" alt="Sample capture area over refinery" fill sizes="(max-width: 900px) 100vw, 65vw" />{[["1","18%","66%"],["2","34%","48%"],["3","52%","35%"],["4","70%","42%"],["5","80%","61%"]].map(([label,left,top])=><span key={label} className={styles.waypoint} style={{left,top}}>{label}</span>)}<span className={styles.routeLabel}>5-waypoint sample route</span></div>
+      <aside className={styles.settings}><h2>Capture settings</h2><label>Planned altitude<input value="120 ft" readOnly /></label><label>Front overlap<input value="75%" readOnly /></label><label>Side overlap<input value="70%" readOnly /></label><label>Camera angle<input value="-35°" readOnly /></label><div className={styles.readyBox}><CheckCircle2 size={18} /><div><strong>Plan ready for pilot review</strong><p>Sample only. No aircraft is connected and no flight is authorized.</p></div></div></aside>
+    </div>
+  </section>;
+}
+
+function InspectionLibrary({ onOpen }: { onOpen: (index: number) => void }) {
+  return <section className={styles.workspace} aria-label="Sample inspection library">
+    <div className={styles.eyebrow}>SAMPLE PROJECT / INSPECTIONS</div><div className={styles.titleRow}><div><h1>Your inspections</h1><p>Know what needs attention and continue the review.</p></div></div>
+    <div className={styles.summaryCards}><article><ClipboardCheck size={19}/><strong>3</strong><span>Need your review</span></article><article><ImageIcon size={19}/><strong>12</strong><span>Evidence photos</span></article><article><FileText size={19}/><strong>0</strong><span>Final reports</span></article></div>
+    <div className={styles.inspectionCards}>{findings.map((item,index)=><article key={item.asset} className={styles.inspectionCard}><div className={styles.cardTop}><span className={styles.projectIcon}><ClipboardCheck size={18}/></span><span className={styles.badge} data-tone="orange">Needs your review</span></div><p className={styles.kicker}>Visual inspection</p><h3>{item.asset}</h3><p>{item.title}</p><button onClick={()=>onOpen(index)}>Review findings <ArrowRight size={15}/></button></article>)}</div>
+  </section>;
+}
+
+function EvidenceReview({ finding, onSelect }: { finding: Finding; onSelect: (index:number)=>void }) {
+  return <section className={styles.workspace} aria-label="Sample evidence review">
+    <div className={styles.eyebrow}>INTELLIGENT INSPECTION / SAMPLE EVIDENCE</div><div className={styles.titleRow}><div><h1>{finding.asset}</h1><p>Review the photograph before deciding whether the candidate belongs in the report.</p></div><span className={styles.badge} data-tone="orange">Inspector review required</span></div>
+    <div className={styles.findingTabs}>{findings.map((item,index)=><button key={item.asset} aria-pressed={item===finding} onClick={()=>onSelect(index)}>{item.asset}</button>)}</div>
+    <div className={styles.reviewGrid}>
+      <div className={styles.evidencePhoto}><Image src="/images/dominic-demo/refinery-aerial-v1.webp" alt="Sample inspection evidence" fill sizes="(max-width: 900px) 100vw, 66vw" /><span className={styles.findingBox} aria-hidden="true" /><span className={styles.photoTag}>FICTIONAL SOURCE EVIDENCE</span></div>
+      <aside className={styles.reviewPanel}><div className={styles.kicker}>CANDIDATE FINDING</div><h2>{finding.title}</h2><dl><div><dt>Priority</dt><dd>{finding.severity}</dd></div><div><dt>Candidate confidence</dt><dd>{finding.confidence}</dd></div><div><dt>Review state</dt><dd>Human decision required</dd></div></dl><label>Note for report<textarea value={finding.note} readOnly /></label><div className={styles.demoDecision}><button disabled>Confirm issue</button><button disabled>Dismiss</button></div><p className={styles.lockedNote}>Decision buttons are disabled in the public sample. Signed-in users can save review decisions.</p></aside>
+    </div>
+  </section>;
+}
+
+function PhotoLibrary() { return <section className={styles.workspace} aria-label="Sample photo library"><div className={styles.eyebrow}>SAMPLE PROJECT / PHOTOS</div><h1>Source evidence</h1><p className={styles.lead}>Keep source photographs tied to the project and inspection instead of treating them as a disconnected gallery.</p><div className={styles.photoGrid}>{[1,2,3,4,5,6].map((n)=><article key={n}><div className={styles.photoThumb}><Image src="/images/dominic-demo/refinery-aerial-v1.webp" alt="" fill sizes="33vw" /></div><strong>Refinery evidence {String(n).padStart(2,"0")}</strong><span>RGB · fictional sample</span></article>)}</div></section>; }
+function ReportPreview() { return <section className={styles.workspace} aria-label="Sample report"><div className={styles.eyebrow}>REPORT PREVIEW / SAMPLE</div><div className={styles.titleRow}><div><h1>Demo refinery inspection</h1><p>Only human-reviewed findings should move into the client report.</p></div><button className={styles.secondary} disabled>Export disabled in sample</button></div><div className={styles.reportGrid}>{findings.map((item)=><article key={item.asset}><span>{item.asset}</span><h2>{item.title}</h2><p>{item.severity} priority · Inspector review required</p><div>{item.note}</div></article>)}</div><div className={styles.truthNote}><ShieldCheck size={17}/><p>This fictional report demonstrates structure only. It is not an inspection result or safety determination.</p></div></section>; }
+function MapWorkspace() { return <section className={styles.workspace} aria-label="Sample map workspace"><div className={styles.eyebrow}>MAP & 3D / SAMPLE</div><h1>Project spatial view</h1><p className={styles.lead}>Processed projects can bring maps, models and findings into one project workspace.</p><div className={styles.mapPreview}><Image src="/images/dominic-demo/refinery-aerial-v1.webp" alt="Sample refinery mapping view" fill sizes="100vw"/><span className={styles.mapPin}>Tank 17 · review</span></div></section>; }
+function Processing() { return <section className={styles.workspace} aria-label="Sample processing status"><div className={styles.eyebrow}>PROCESSING / SAMPLE</div><h1>Mapping outputs</h1><p className={styles.lead}>Map processing is separate from inspection review. Completing one does not certify the other.</p><div className={styles.processRows}>{[["Source photos","84","complete"],["Reconstruction","Complete","complete"],["Inspection review","3 findings","attention"],["Client report","Waiting for review","neutral"]].map(([label,value,tone])=><div key={label}><span>{label}</span><strong>{value}</strong><i data-tone={tone}/></div>)}</div></section>; }
+function OperationsSample({ onFlight }: { onFlight:()=>void }) { return <section className={styles.workspace} aria-label="Sample operations"><div className={styles.eyebrow}>OPERATIONS / SIMULATION</div><h1>DOMINIC HUB</h1><p className={styles.lead}>Explore how future dock, route and fleet operations can be organized. This sample does not command aircraft.</p><div className={styles.operationsGrid}><article><Play size={22}/><h2>Simulated route</h2><p>Tank perimeter surveillance · 18 min</p><button onClick={onFlight}>Open flight simulation</button></article><article><ShieldCheck size={22}/><h2>Human control remains explicit</h2><p>Operational autonomy still requires validated hardware, fail-safes and field acceptance.</p></article></div></section>; }

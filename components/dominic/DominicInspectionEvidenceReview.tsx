@@ -674,7 +674,7 @@ export default function DominicInspectionEvidenceReview({
         <button type="button" onClick={() => void screenNextBatch()} disabled={!evidenceLoaded || evidenceLoading || !aiReadiness.configured || Boolean(analysisBusyId) || Boolean(batchProgress) || !media.some((item) => item.media_type === "image" && Boolean(item.storage_path) && !screeningRecoveryState(screeningJobs[item.id], screeningClock).active && !screeningRecoveryState(screeningJobs[item.id], screeningClock).completed)} style={{ ...PAGE_BUTTON, opacity: !aiReadiness.configured ? .55 : 1 }}>
           {batchProgress ? `Screening image ${Math.min(batchProgress.current + 1, batchProgress.total)} of ${batchProgress.total}…` : "AI screen next 3 images"}
         </button>
-        {batchProgress ? <span role="status" aria-live="polite" style={{ color: AMBER, fontSize: 12 }}>Keep this page open. ${batchProgress.current} / ${batchProgress.total} completed.</span> : null}
+        {batchProgress ? <span role="status" aria-live="polite" style={{ color: AMBER, fontSize: 12 }}>Keep this page open. {batchProgress.current} / {batchProgress.total} completed.</span> : null}
         {watchIncoming ? <span role="status" style={{ color: watchError ? AMBER : GREEN, fontSize: 12 }}>{watchError || "Watching incoming evidence · refresh every 3 seconds"}</span> : null}
       </div>
       {watchIncoming ? <p style={{ padding: "0 12px", color: MUTED, fontSize: 12 }}>This view follows saved capture frames and findings. Aircraft connection and automatic screening run in Capture Planner; continuous live video is not connected here yet.</p> : null}

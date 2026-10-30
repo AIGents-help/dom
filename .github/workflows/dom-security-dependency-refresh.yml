@@ -1,0 +1,31 @@
+name: Refresh DOM security dependencies
+on:
+  push:
+    branches: [security/refresh-dom-deps-20261030]
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Upgrade security-patched framework dependencies and regenerate lockfile
+        run: |
+          npm install --package-lock-only --save-exact next@16.4.3 eslint-config-next@16.4.3
+          npm pkg set overrides.qs=6.16.1
+          npm install --package-lock-only
+          npm audit --omit=dev || true
+      - name: Push dependency lockfile update to dedicated branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json package-lock.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update Next.js and qs to patched versions'
+            git push
+          fi

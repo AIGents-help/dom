@@ -79,3 +79,22 @@ test("glob-related advisories never allow production paths or unlisted advisorie
   const lockfile = { packages: { "node_modules/minimatch": { dev: false, version: "10.0.0" } } };
   assert.deepEqual(assessDevelopmentAudit(report, lockfile).failures, ["minimatch"]);
 });
+
+test("accepts an all-dev dependency cycle only when it reaches a documented advisory", () => {
+  const report = { metadata: { vulnerabilities: { total: 3 } }, vulnerabilities: {
+    minimatch: { nodes: ["node_modules/minimatch"], via: [{ name: "minimatch", url: "https://github.com/advisories/GHSA-g3hv-75wg-m249" }] },
+    eslint: { nodes: ["node_modules/eslint"], via: ["eslint-utils", "minimatch"] },
+    "eslint-utils": { nodes: ["node_modules/eslint-utils"], via: ["eslint"] },
+  } };
+  const lockfile = { packages: {
+    "node_modules/minimatch": { dev: true },
+    "node_modules/eslint": { dev: true },
+    "node_modules/eslint-utils": { dev: true },
+  } };
+  assert.deepEqual(assessDevelopmentAudit(report, lockfile).failures, []);
+  lockfile.packages["node_modules/eslint-utils"].dev = false;
+  assert.deepEqual(assessDevelopmentAudit(report, lockfile).failures, ["eslint", "eslint-utils"]);
+  lockfile.packages["node_modules/eslint-utils"].dev = true;
+  report.vulnerabilities.eslint.via = ["eslint-utils"];
+  assert.deepEqual(assessDevelopmentAudit(report, lockfile).failures, ["eslint", "eslint-utils"]);
+});

@@ -14,17 +14,29 @@ export function assessDevelopmentAudit(report, lockfile) {
     throw new Error("npm audit did not return a valid vulnerability report");
   }
   const vulnerabilities = report.vulnerabilities;
-  function accepted(name, seen = new Set()) {
-    const entry = vulnerabilities[name];
-    if (!entry || seen.has(name) || !entry.nodes?.length || !entry.via?.length) return false;
-    if (!entry.nodes.every((path) => lockfile.packages?.[path]?.dev === true)) return false;
-    const nextSeen = new Set([...seen, name]);
-    return entry.via.every((source) => {
-      if (typeof source === "string") return accepted(source, nextSeen);
-      return Object.hasOwn(KNOWN_ADVISORIES, name) && source.name === name &&
-        source.url === KNOWN_ADVISORIES[name] &&
-        (name !== "braces" || entry.nodes.every((path) => lockfile.packages[path].version === "3.0.3"));
-    });
+  function accepted(name) {
+    const seen = new Set();
+    let matchedDocumentedAdvisory = false;
+    // Audit reports contain dependency cycles (ESLint -> eslint-utils -> ESLint).
+    // Validate every reachable node rather than treating any cycle as a blocker
+    // or, worse, accepting cycles that lack a documented direct advisory.
+    function visit(currentName) {
+      const entry = vulnerabilities[currentName];
+      if (!entry || !entry.nodes?.length || !entry.via?.length) return false;
+      if (!entry.nodes.every((path) => lockfile.packages?.[path]?.dev === true)) return false;
+      if (seen.has(currentName)) return true;
+      seen.add(currentName);
+      return entry.via.every((source) => {
+        if (typeof source === "string") return visit(source);
+        const approved = Object.hasOwn(KNOWN_ADVISORIES, currentName) &&
+          source.name === currentName &&
+          source.url === KNOWN_ADVISORIES[currentName] &&
+          (currentName !== "braces" || entry.nodes.every((path) => lockfile.packages[path].version === "3.0.3"));
+        if (approved) matchedDocumentedAdvisory = true;
+        return approved;
+      });
+    }
+    return visit(name) && matchedDocumentedAdvisory;
   }
   const exceptions = [];
   const failures = [];

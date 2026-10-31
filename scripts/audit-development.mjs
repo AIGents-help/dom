@@ -43,7 +43,14 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (assessment.exceptions.length) {
       console.warn(`Documented development-only advisories: ${assessment.exceptions.join(", ")}. See docs/security-audit-exceptions.md. Production vulnerabilities, unknown paths and other advisories remain blocking.`);
     }
-    if (assessment.failures.length) throw new Error(`Blocking dependency advisories: ${assessment.failures.join(", ")}`);
+    if (assessment.failures.length) {
+      const audit = JSON.parse(result.stdout);
+      for (const name of assessment.failures) {
+        const item = audit.vulnerabilities[name];
+        console.error(`Audit detail ${name}: ${JSON.stringify(item?.via?.map((v) => typeof v === "string" ? v : { name: v.name, url: v.url, range: v.range }))}`);
+      }
+      throw new Error(`Blocking dependency advisories: ${assessment.failures.join(", ")}`);
+    }
     console.log("Dependency audit gate passed.");
   } catch (error) {
     console.error(error.message);

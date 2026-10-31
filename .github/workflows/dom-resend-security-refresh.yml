@@ -16,8 +16,8 @@ jobs:
           node-version: '22'
       - name: Upgrade Resend and regenerate lockfile
         run: |
-          npm install --package-lock-only --save resend@6.36.0
-          npm audit fix --package-lock-only
+          npm install --save resend@6.36.0
+          npm audit fix
           npm audit --omit=dev
       - name: Commit refreshed dependency lockfile
         run: |

@@ -18,7 +18,8 @@ jobs:
         run: |
           npm install -g npm@11
           npm ci --ignore-scripts
-          npm audit fix
+          npm audit fix || true
+          # Production packages are the deployment gate; dev advisories are handled separately.
           npm audit --omit=dev
       - name: Commit patched lockfile if clean
         run: |

@@ -2,7 +2,11 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-const KNOWN_ADVISORY = "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm";
+const KNOWN_ADVISORIES = {
+  braces: "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+  glob: "https://github.com/advisories/GHSA-3g3m-2fjr-6pw4",
+  minimatch: "https://github.com/advisories/GHSA-g3hv-75wg-m249",
+};
 
 export function assessDevelopmentAudit(report, lockfile) {
   if (report?.error || !report?.vulnerabilities || !Number.isInteger(report?.metadata?.vulnerabilities?.total) ||
@@ -17,8 +21,9 @@ export function assessDevelopmentAudit(report, lockfile) {
     const nextSeen = new Set([...seen, name]);
     return entry.via.every((source) => {
       if (typeof source === "string") return accepted(source, nextSeen);
-      return name === "braces" && source.name === "braces" && source.url === KNOWN_ADVISORY &&
-        entry.nodes.every((path) => lockfile.packages[path].version === "3.0.3");
+      return Object.hasOwn(KNOWN_ADVISORIES, name) && source.name === name &&
+        source.url === KNOWN_ADVISORIES[name] &&
+        (name !== "braces" || entry.nodes.every((path) => lockfile.packages[path].version === "3.0.3"));
     });
   }
   const exceptions = [];
@@ -36,7 +41,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (result.signal || ![0, 1].includes(result.status)) throw new Error("npm audit failed to complete");
     const assessment = assessDevelopmentAudit(JSON.parse(result.stdout), JSON.parse(readFileSync("package-lock.json", "utf8")));
     if (assessment.exceptions.length) {
-      console.warn(`Known unpatched development-only advisory ${KNOWN_ADVISORY}: ${assessment.exceptions.join(", ")}. See docs/security-audit-exceptions.md. Production vulnerabilities and other advisories remain blocking.`);
+      console.warn(`Documented development-only advisories: ${assessment.exceptions.join(", ")}. See docs/security-audit-exceptions.md. Production vulnerabilities, unknown paths and other advisories remain blocking.`);
     }
     if (assessment.failures.length) throw new Error(`Blocking dependency advisories: ${assessment.failures.join(", ")}`);
     console.log("Dependency audit gate passed.");

@@ -248,6 +248,7 @@ export default function DominicInspectionEvidenceReview({
   const [sensorMode, setSensorMode] = useState("rgb");
   const [uploadBusy, setUploadBusy] = useState(false);
   const [analysisBusyId, setAnalysisBusyId] = useState<string | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
   const [reviewBusyId, setReviewBusyId] = useState<string | null>(null);
   const [manualBusy, setManualBusy] = useState(false);
   const [manual, setManual] = useState<ManualFindingForm>(EMPTY_MANUAL);
@@ -424,6 +425,55 @@ export default function DominicInspectionEvidenceReview({
     } finally {
       screeningRequest.current = false;
       setAnalysisBusyId(null);
+    }
+  };
+
+  // Small, deliberate batches keep long image-model calls bounded and avoid
+  // expensive accidental inspection-wide screening. The visible page contains
+  // at most 12 images; completed or actively screened images are never retried.
+  const screenNextBatch = async () => {
+    if (screeningRequest.current || !evidenceLoaded || !aiReadiness.configured) return;
+    const eligible = media.filter((item) =>
+      item.media_type === "image" && Boolean(item.storage_path) &&
+      !screeningRecoveryState(screeningJobs[item.id], Date.now()).active &&
+      !screeningRecoveryState(screeningJobs[item.id], Date.now()).completed
+    ).slice(0, 3);
+    if (!eligible.length) {
+      setMessage("No unscreened images are available on this evidence page.");
+      return;
+    }
+    screeningRequest.current = true;
+    setBatchProgress({ current: 0, total: eligible.length });
+    setMessage(null);
+    let screened = 0;
+    let flagged = 0;
+    try {
+      const sb = getSupabaseBrowser();
+      const { data: sessionData } = await sb.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Your DOMINIC session expired.");
+      for (const item of eligible) {
+        setAnalysisBusyId(item.id);
+        const response = await fetch(`/api/dominic/inspections/${inspection.id}/analyze-media`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ mediaId: item.id }),
+        });
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body?.error ?? "AI screening failed.");
+        screened++;
+        flagged += Number(body?.candidateCount ?? 0);
+        setBatchProgress({ current: screened, total: eligible.length });
+        await load();
+      }
+      await onChanged?.();
+      setMessage(`Screened ${screened} image${screened === 1 ? "" : "s"}; ${flagged} possible finding${flagged === 1 ? "" : "s"} flagged. Review and confirm any findings before using them in a report.`);
+    } catch (error) {
+      setMessage(`Screened ${screened} of ${eligible.length} images. ${error instanceof Error ? error.message : "AI screening stopped."} Completed images were saved; retry remaining images after checking the error.`);
+    } finally {
+      screeningRequest.current = false;
+      setAnalysisBusyId(null);
+      setBatchProgress(null);
     }
   };
 
@@ -621,6 +671,10 @@ export default function DominicInspectionEvidenceReview({
       <div style={{ padding: "12px", borderBottom: `1px solid ${LINE}`, display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12 }}>
         <a href={`/dominic/inspections/${inspection.id}/report`} target="_blank" rel="noopener noreferrer" style={{ color: ORANGE, fontSize: 13 }}>Generate illustrated report</a>
         <button type="button" disabled={evidenceLoading || Boolean(reviewBusyId)} onClick={() => void load().catch(() => {})} style={{ color: TEXT, background: PANEL_2, border: `1px solid ${LINE}`, borderRadius: 8, padding: 8 }}>{evidenceLoading ? "Refreshing evidence…" : "Refresh inspection evidence"}</button>
+        <button type="button" onClick={() => void screenNextBatch()} disabled={!evidenceLoaded || evidenceLoading || !aiReadiness.configured || Boolean(analysisBusyId) || Boolean(batchProgress) || !media.some((item) => item.media_type === "image" && Boolean(item.storage_path) && !screeningRecoveryState(screeningJobs[item.id], screeningClock).active && !screeningRecoveryState(screeningJobs[item.id], screeningClock).completed)} style={{ ...PAGE_BUTTON, opacity: !aiReadiness.configured ? .55 : 1 }}>
+          {batchProgress ? `Screening image ${Math.min(batchProgress.current + 1, batchProgress.total)} of ${batchProgress.total}…` : "AI screen next 3 images"}
+        </button>
+        {batchProgress ? <span role="status" aria-live="polite" style={{ color: AMBER, fontSize: 12 }}>Keep this page open. {batchProgress.current} / {batchProgress.total} completed.</span> : null}
         {watchIncoming ? <span role="status" style={{ color: watchError ? AMBER : GREEN, fontSize: 12 }}>{watchError || "Watching incoming evidence · refresh every 3 seconds"}</span> : null}
       </div>
       {watchIncoming ? <p style={{ padding: "0 12px", color: MUTED, fontSize: 12 }}>This view follows saved capture frames and findings. Aircraft connection and automatic screening run in Capture Planner; continuous live video is not connected here yet.</p> : null}

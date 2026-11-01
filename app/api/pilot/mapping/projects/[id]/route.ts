@@ -25,16 +25,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   if (!project) return NextResponse.json({ error: "Project not found." }, { status: 404 });
 
-  const [{ data: images }, { data: processingJobs }, { data: events }, { data: deliverables }] = await Promise.all([
+  const [{ data: images }, { data: processingJobs }, { data: events }] = await Promise.all([
     admin.from("mapping_images").select("*").eq("mapping_project_id", id).order("created_at"),
     admin.from("mapping_processing_jobs").select("*").eq("mapping_project_id", id).order("created_at", { ascending: false }),
     admin.from("mapping_events").select("*").eq("mapping_project_id", id).order("created_at", { ascending: false }).limit(50),
-    admin
-      .from("deliverables")
-      .select("id, name, type, storage_url, storage_provider, external_file_id, potree, qc_passed, client_status, client_feedback, client_reviewed_at, supersedes_deliverable_id, revision_number, delivered_at, created_at")
-      .eq("job_id", project.job_id)
-      .order("created_at", { ascending: false }),
   ]);
+
+  // Mission-linked projects retain their original deliverable query. Imported flights
+  // use only their OWN processing job ids; a null job_id must never match other pilots'
+  // unrelated unlinked deliverables.
+  const processingJobIds = (processingJobs ?? []).map((job) => job.id);
+  const deliverablesQuery = admin.from("deliverables")
+    .select("id, name, type, storage_url, storage_provider, external_file_id, potree, qc_passed, client_status, client_feedback, client_reviewed_at, supersedes_deliverable_id, revision_number, delivered_at, created_at");
+  const { data: deliverables } = project.job_id
+    ? await deliverablesQuery.eq("job_id", project.job_id).order("created_at", { ascending: false })
+    : processingJobIds.length
+      ? await deliverablesQuery.in("mapping_processing_job_id", processingJobIds).order("created_at", { ascending: false })
+      : { data: [] };
 
   const records: ProjectRecords = { capturePlans: [], inspections: [], findings: [], recordsError: null };
   // Plan metadata supplies the relationship, never permission. Scope each
